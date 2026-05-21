@@ -1,0 +1,41 @@
+# ArgoCD — single-replica homelab install
+global:
+  domain: argocd.lan.e-dani.com
+
+dex:
+  enabled: false   # SSO via Authelia ForwardAuth
+
+configs:
+  params:
+    server.insecure: "true"   # TLS termination at Traefik
+  cm:
+    application.instanceLabelKey: argocd.argoproj.io/instance
+    timeout.reconciliation: 60s
+    statusbadge.enabled: "true"
+
+server:
+  replicas: 1
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: false   # we use Traefik IngressRoute below
+
+repoServer:
+  replicas: 1
+
+applicationSet:
+  replicas: 1
+
+redis:
+  enabled: true
+
+controller:
+  replicas: 1
+  metrics:
+    enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
