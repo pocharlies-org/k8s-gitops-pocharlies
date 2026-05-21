@@ -1,5 +1,5 @@
-# Transitional legacy source. This keeps the live databases/postgres-shared
-# Application owned by the new root while its manifests move out of dgx-infra.
+# Shared PostgreSQL source. This Application keeps the live
+# databases/postgres-shared cluster owned by the split GitOps repos.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -10,9 +10,9 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: git@github.com:pocharlies/dgx-infra.git
-    targetRevision: master
-    path: k8s/infrastructure/postgres
+    repoURL: https://github.com/pocharlies/k8s-infra-pocharlies
+    targetRevision: main
+    path: databases/postgres-shared
   destination:
     server: https://kubernetes.default.svc
     namespace: databases
