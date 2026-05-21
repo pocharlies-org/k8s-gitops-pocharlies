@@ -37,3 +37,7 @@ patches:
               - .spec.dataFrom[]?.extract.decodingStrategy
               - .spec.dataFrom[]?.extract.metadataPolicy
               - .spec.dataFrom[]?.extract.nullBytePolicy
+          - group: postgresql.cnpg.io
+            kind: Cluster
+            managedFieldsManagers:
+              - manager
