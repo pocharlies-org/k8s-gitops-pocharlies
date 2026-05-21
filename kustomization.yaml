@@ -10,6 +10,7 @@ resources:
   - apps/libreplay.yaml
   - apps/litellm.yaml
   - apps/n8n.yaml
+  - apps/n8n-stg.yaml
   - apps/shopify-bundles.yaml
   - apps/shopify-label.yaml
   - apps/shopify-picker.yaml
