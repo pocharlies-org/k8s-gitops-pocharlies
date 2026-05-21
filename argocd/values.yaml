@@ -1,6 +1,8 @@
 # ArgoCD — single-replica homelab install
 global:
   domain: argocd.lan.e-dani.com
+  nodeSelector:
+    kubernetes.io/hostname: ubuntu
 
 dex:
   enabled: false   # SSO via Authelia ForwardAuth
