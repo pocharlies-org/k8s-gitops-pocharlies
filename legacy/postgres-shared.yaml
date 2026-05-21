@@ -1,0 +1,31 @@
+# Transitional legacy source. This keeps the live databases/postgres-shared
+# Application owned by the new root while its manifests move out of dgx-infra.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgres-shared
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:pocharlies/dgx-infra.git
+    targetRevision: master
+    path: k8s/infrastructure/postgres
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: databases
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
