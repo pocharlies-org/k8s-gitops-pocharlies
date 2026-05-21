@@ -1,0 +1,55 @@
+name: CI
+
+# Validates all YAML files on every PR and push to feature branches.
+# - yamllint: syntax check every .yaml file
+# - kubeconform: schema-validate k8s manifests (files with apiVersion:)
+#
+# No secrets required. Runs on GitHub-hosted runners (ubuntu-latest).
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: ['feature/**', 'fix/**', 'claude/**']
+
+jobs:
+  validate:
+    name: Validate YAML & k8s manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          # yamllint
+          pip install --quiet yamllint
+
+          # kubeconform (schema-aware k8s manifest validator)
+          KCONF_VERSION=v0.6.7
+          curl -sL "https://github.com/yannh/kubeconform/releases/download/${KCONF_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar xz -C /usr/local/bin kubeconform
+
+      - name: YAML lint
+        run: |
+          yamllint -d '{extends: relaxed, rules: {line-length: {max: 200}}}' \
+            $(find . -name '*.yaml' -not -path './.git/*') \
+            && echo "yamllint OK"
+
+      - name: kubeconform — k8s manifests
+        run: |
+          # Only validate files that are k8s manifests (have apiVersion:)
+          MANIFESTS=$(grep -rl "^apiVersion:" --include="*.yaml" . \
+            | grep -v ".git/" | sort)
+
+          if [ -z "$MANIFESTS" ]; then
+            echo "No k8s manifests found"
+            exit 0
+          fi
+
+          echo "$MANIFESTS" | xargs kubeconform \
+            -kubernetes-version 1.32.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            -ignore-missing-schemas \
+            -summary \
+            -output pretty
