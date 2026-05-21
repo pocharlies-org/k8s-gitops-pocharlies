@@ -17,3 +17,23 @@ resources:
   - apps/socialmedia.yaml
   - apps/teslamate.yaml
   - argocd/ingressroute.yaml
+patches:
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+    patch: |-
+      - op: add
+        path: /spec/ignoreDifferences
+        value:
+          - group: external-secrets.io
+            kind: ExternalSecret
+            jqPathExpressions:
+              - .spec.data[]?.remoteRef.conversionStrategy
+              - .spec.data[]?.remoteRef.decodingStrategy
+              - .spec.data[]?.remoteRef.metadataPolicy
+              - .spec.data[]?.remoteRef.nullBytePolicy
+              - .spec.dataFrom[]?.extract.conversionStrategy
+              - .spec.dataFrom[]?.extract.decodingStrategy
+              - .spec.dataFrom[]?.extract.metadataPolicy
+              - .spec.dataFrom[]?.extract.nullBytePolicy
