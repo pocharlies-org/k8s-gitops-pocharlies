@@ -12,7 +12,6 @@ spec:
     path: .
   destination:
     server: https://kubernetes.default.svc
-    namespace: kube-system
   syncPolicy:
     automated:
       selfHeal: true
