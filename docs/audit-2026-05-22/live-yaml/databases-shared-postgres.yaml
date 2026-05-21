@@ -1,0 +1,325 @@
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      cnpg.io/operatorVersion: 1.25.1
+    creationTimestamp: "2026-05-19T23:41:10Z"
+    labels:
+      cnpg.io/cluster: postgres-shared
+    name: postgres-shared-r
+    namespace: databases
+    ownerReferences:
+    - apiVersion: postgresql.cnpg.io/v1
+      controller: true
+      kind: Cluster
+      name: postgres-shared
+      uid: 3c148f78-f8b5-4c6b-b23d-25aa0d7382cb
+    resourceVersion: "312079"
+    uid: 238a44dc-1a80-46a0-b910-b7f58f578db1
+  spec:
+    clusterIP: 10.43.131.27
+    clusterIPs:
+    - 10.43.131.27
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: postgres
+      port: 5432
+      protocol: TCP
+      targetPort: 5432
+    selector:
+      cnpg.io/cluster: postgres-shared
+      cnpg.io/podRole: instance
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      cnpg.io/operatorVersion: 1.25.1
+    creationTimestamp: "2026-05-19T23:41:10Z"
+    labels:
+      cnpg.io/cluster: postgres-shared
+    name: postgres-shared-ro
+    namespace: databases
+    ownerReferences:
+    - apiVersion: postgresql.cnpg.io/v1
+      controller: true
+      kind: Cluster
+      name: postgres-shared
+      uid: 3c148f78-f8b5-4c6b-b23d-25aa0d7382cb
+    resourceVersion: "312085"
+    uid: 5003f9e4-4e70-426f-b6cb-316a27710125
+  spec:
+    clusterIP: 10.43.231.113
+    clusterIPs:
+    - 10.43.231.113
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: postgres
+      port: 5432
+      protocol: TCP
+      targetPort: 5432
+    selector:
+      cnpg.io/cluster: postgres-shared
+      cnpg.io/instanceRole: replica
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      cnpg.io/operatorVersion: 1.25.1
+    creationTimestamp: "2026-05-19T23:41:10Z"
+    labels:
+      cnpg.io/cluster: postgres-shared
+    name: postgres-shared-rw
+    namespace: databases
+    ownerReferences:
+    - apiVersion: postgresql.cnpg.io/v1
+      controller: true
+      kind: Cluster
+      name: postgres-shared
+      uid: 3c148f78-f8b5-4c6b-b23d-25aa0d7382cb
+    resourceVersion: "312095"
+    uid: 6bb7deda-5eb7-4e90-b287-4e18d08e1e01
+  spec:
+    clusterIP: 10.43.21.183
+    clusterIPs:
+    - 10.43.21.183
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: postgres
+      port: 5432
+      protocol: TCP
+      targetPort: 5432
+    selector:
+      cnpg.io/cluster: postgres-shared
+      cnpg.io/instanceRole: primary
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    annotations:
+      cnpg.io/nodeSerial: "1"
+      cnpg.io/operatorVersion: 1.25.1
+      cnpg.io/pvcStatus: ready
+      pv.kubernetes.io/bind-completed: "yes"
+      pv.kubernetes.io/bound-by-controller: "yes"
+      volume.beta.kubernetes.io/storage-provisioner: driver.longhorn.io
+      volume.kubernetes.io/storage-provisioner: driver.longhorn.io
+    creationTimestamp: "2026-05-19T23:41:10Z"
+    finalizers:
+    - kubernetes.io/pvc-protection
+    labels:
+      cnpg.io/cluster: postgres-shared
+      cnpg.io/instanceName: postgres-shared-1
+      cnpg.io/instanceRole: primary
+      cnpg.io/pvcRole: PG_DATA
+      role: primary
+    name: postgres-shared-1
+    namespace: databases
+    ownerReferences:
+    - apiVersion: postgresql.cnpg.io/v1
+      controller: true
+      kind: Cluster
+      name: postgres-shared
+      uid: 3c148f78-f8b5-4c6b-b23d-25aa0d7382cb
+    resourceVersion: "313018"
+    uid: 944d04a2-69dd-4585-93d5-50db4e5427db
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 20Gi
+    storageClassName: longhorn
+    volumeMode: Filesystem
+    volumeName: pvc-944d04a2-69dd-4585-93d5-50db4e5427db
+  status:
+    accessModes:
+    - ReadWriteOnce
+    capacity:
+      storage: 20Gi
+    phase: Bound
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    annotations:
+      cnpg.io/nodeSerial: "1"
+      cnpg.io/operatorVersion: 1.25.1
+      cnpg.io/pvcStatus: ready
+      pv.kubernetes.io/bind-completed: "yes"
+      pv.kubernetes.io/bound-by-controller: "yes"
+      volume.beta.kubernetes.io/storage-provisioner: driver.longhorn.io
+      volume.kubernetes.io/storage-provisioner: driver.longhorn.io
+    creationTimestamp: "2026-05-19T23:41:10Z"
+    finalizers:
+    - kubernetes.io/pvc-protection
+    labels:
+      cnpg.io/cluster: postgres-shared
+      cnpg.io/instanceName: postgres-shared-1
+      cnpg.io/instanceRole: primary
+      cnpg.io/pvcRole: PG_WAL
+      role: primary
+    name: postgres-shared-1-wal
+    namespace: databases
+    ownerReferences:
+    - apiVersion: postgresql.cnpg.io/v1
+      controller: true
+      kind: Cluster
+      name: postgres-shared
+      uid: 3c148f78-f8b5-4c6b-b23d-25aa0d7382cb
+    resourceVersion: "313019"
+    uid: 73aa66b9-6ad5-47b4-8896-5759f57067b2
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 5Gi
+    storageClassName: longhorn
+    volumeMode: Filesystem
+    volumeName: pvc-73aa66b9-6ad5-47b4-8896-5759f57067b2
+  status:
+    accessModes:
+    - ReadWriteOnce
+    capacity:
+      storage: 5Gi
+    phase: Bound
+- apiVersion: external-secrets.io/v1
+  kind: ExternalSecret
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: n8n:external-secrets.io/ExternalSecret:databases/n8n-db-credentials
+    creationTimestamp: "2026-05-19T23:43:26Z"
+    finalizers:
+    - externalsecrets.external-secrets.io/externalsecret-cleanup
+    generation: 1
+    labels:
+      app.kubernetes.io/component: database-credentials
+      app.kubernetes.io/managed-by: argocd
+      app.kubernetes.io/name: n8n
+      app.kubernetes.io/part-of: workflow-automation
+    name: n8n-db-credentials
+    namespace: databases
+    resourceVersion: "1881428"
+    uid: 656975ff-47b1-4a24-92b2-702a1b7c6ad8
+  spec:
+    data:
+    - remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: postgres-shared/users/n8n
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+        property: username
+      secretKey: username
+    - remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: postgres-shared/users/n8n
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+        property: password
+      secretKey: password
+    refreshInterval: 1h
+    secretStoreRef:
+      kind: ClusterSecretStore
+      name: vault-backend
+    target:
+      creationPolicy: Owner
+      deletionPolicy: Retain
+      name: n8n-db-credentials
+      template:
+        data:
+          password: '{{ .password }}'
+          username: '{{ .username }}'
+        engineVersion: v2
+        mergePolicy: Replace
+        type: kubernetes.io/basic-auth
+  status:
+    binding:
+      name: n8n-db-credentials
+    conditions:
+    - lastTransitionTime: "2026-05-21T20:36:03Z"
+      message: secret synced
+      reason: SecretSynced
+      status: "True"
+      type: Ready
+    refreshTime: "2026-05-21T21:15:08Z"
+    syncedResourceVersion: 1-b5fc0c292a7ef724caf458a02c6b2520d8d03480da66ffe13c413a77
+- apiVersion: external-secrets.io/v1
+  kind: ExternalSecret
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: postgres-shared:external-secrets.io/ExternalSecret:databases/postgres-shared-minio
+    creationTimestamp: "2026-05-19T23:41:10Z"
+    finalizers:
+    - externalsecrets.external-secrets.io/externalsecret-cleanup
+    generation: 1
+    labels:
+      app.kubernetes.io/component: backup-credentials
+      app.kubernetes.io/managed-by: argocd
+      app.kubernetes.io/part-of: shared-infrastructure
+    name: postgres-shared-minio
+    namespace: databases
+    resourceVersion: "1881432"
+    uid: 4c98b3cf-8f92-4599-9029-2a1f41b228a0
+  spec:
+    data:
+    - remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: postgres-shared/minio
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+        property: access_key_id
+      secretKey: ACCESS_KEY_ID
+    - remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: postgres-shared/minio
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+        property: secret_access_key
+      secretKey: ACCESS_SECRET_KEY
+    refreshInterval: 1h
+    secretStoreRef:
+      kind: ClusterSecretStore
+      name: vault-backend
+    target:
+      creationPolicy: Owner
+      deletionPolicy: Retain
+      name: postgres-shared-minio
+  status:
+    binding:
+      name: postgres-shared-minio
+    conditions:
+    - lastTransitionTime: "2026-05-21T20:36:03Z"
+      message: secret synced
+      reason: SecretSynced
+      status: "True"
+      type: Ready
+    refreshTime: "2026-05-21T21:15:08Z"
+    syncedResourceVersion: 1-090defb7025551b2d0a5063e8953f6f5511eb32ff376bd22acc47653
+kind: List
+metadata:
+  resourceVersion: ""

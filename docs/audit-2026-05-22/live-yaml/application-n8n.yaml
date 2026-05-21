@@ -1,0 +1,258 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+    argocd.argoproj.io/tracking-id: root:argoproj.io/Application:argocd/n8n
+  creationTimestamp: "2026-05-19T23:23:45Z"
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+  generation: 3299
+  name: n8n
+  namespace: argocd
+  resourceVersion: "1914436"
+  uid: 7027a6ac-bf18-4d5b-abe4-53cddcfacb0e
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+  ignoreDifferences:
+  - group: cert-manager.io
+    jsonPointers:
+    - /spec/duration
+    - /spec/renewBefore
+    kind: Certificate
+  - group: external-secrets.io
+    jqPathExpressions:
+    - .spec.target.deletionPolicy
+    - .spec.target.template.engineVersion
+    - .spec.target.template.mergePolicy
+    - .spec.data[].remoteRef.conversionStrategy
+    - .spec.data[].remoteRef.decodingStrategy
+    - .spec.data[].remoteRef.metadataPolicy
+    - .spec.data[].remoteRef.nullBytePolicy
+    kind: ExternalSecret
+  project: default
+  revisionHistoryLimit: 5
+  source:
+    path: apps/n8n
+    repoURL: git@github.com:pocharlies/n8n-k8s.git
+    targetRevision: main
+  syncPolicy:
+    automated:
+      allowEmpty: false
+      prune: true
+      selfHeal: true
+    retry:
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+      limit: 5
+    syncOptions:
+    - CreateNamespace=true
+    - PrunePropagationPolicy=foreground
+    - PruneLast=true
+    - ServerSideApply=true
+status:
+  controllerNamespace: argocd
+  health:
+    lastTransitionTime: "2026-05-21T20:36:05Z"
+    status: Healthy
+  history:
+  - deployStartedAt: "2026-05-19T23:56:00Z"
+    deployedAt: "2026-05-19T23:56:01Z"
+    id: 0
+    initiatedBy:
+      automated: true
+    revision: 0d4ab9b5982ca1226030797553741fc5c130243d
+    source:
+      path: apps/n8n
+      repoURL: git@github.com:pocharlies/n8n-k8s.git
+      targetRevision: main
+  - deployStartedAt: "2026-05-20T06:45:40Z"
+    deployedAt: "2026-05-20T06:45:41Z"
+    id: 1
+    initiatedBy:
+      automated: true
+    revision: 4ddad0d4d05b352f473d315b61c31bf2b2476d5e
+    source:
+      path: apps/n8n
+      repoURL: git@github.com:pocharlies/n8n-k8s.git
+      targetRevision: main
+  - deployStartedAt: "2026-05-20T10:33:22Z"
+    deployedAt: "2026-05-20T10:33:22Z"
+    id: 2
+    initiatedBy:
+      automated: true
+    revision: 3a7731634de1d1a2e71d5df01a61497ef14e0095
+    source:
+      path: apps/n8n
+      repoURL: git@github.com:pocharlies/n8n-k8s.git
+      targetRevision: main
+  - deployStartedAt: "2026-05-20T16:46:01Z"
+    deployedAt: "2026-05-20T16:46:01Z"
+    id: 3
+    initiatedBy:
+      automated: true
+    revision: 034c1f091ee3d1a28af3a3d75a70f479e616e15c
+    source:
+      path: apps/n8n
+      repoURL: git@github.com:pocharlies/n8n-k8s.git
+      targetRevision: main
+  operationState:
+    finishedAt: "2026-05-21T21:28:42Z"
+    message: successfully synced (all tasks run)
+    operation:
+      initiatedBy:
+        automated: true
+      retry:
+        backoff:
+          duration: 10s
+          factor: 2
+          maxDuration: 5m
+        limit: 5
+      sync:
+        autoHealAttemptsCount: 252
+        prune: true
+        resources:
+        - group: external-secrets.io
+          kind: ExternalSecret
+          name: n8n-app
+        - group: external-secrets.io
+          kind: ExternalSecret
+          name: n8n-db-credentials
+        - group: external-secrets.io
+          kind: ExternalSecret
+          name: n8n-postgres
+        revision: 034c1f091ee3d1a28af3a3d75a70f479e616e15c
+        source:
+          path: apps/n8n
+          repoURL: git@github.com:pocharlies/n8n-k8s.git
+          targetRevision: main
+        syncOptions:
+        - CreateNamespace=true
+        - PrunePropagationPolicy=foreground
+        - PruneLast=true
+        - ServerSideApply=true
+    phase: Succeeded
+    startedAt: "2026-05-21T21:28:42Z"
+    syncResult:
+      resources:
+      - group: external-secrets.io
+        hookPhase: Running
+        kind: ExternalSecret
+        message: externalsecret.external-secrets.io/n8n-db-credentials serverside-applied
+        name: n8n-db-credentials
+        namespace: databases
+        status: Synced
+        syncPhase: Sync
+        version: v1
+      - group: external-secrets.io
+        hookPhase: Running
+        kind: ExternalSecret
+        message: externalsecret.external-secrets.io/n8n-postgres serverside-applied
+        name: n8n-postgres
+        namespace: n8n
+        status: Synced
+        syncPhase: Sync
+        version: v1
+      - group: external-secrets.io
+        hookPhase: Running
+        kind: ExternalSecret
+        message: externalsecret.external-secrets.io/n8n-app serverside-applied
+        name: n8n-app
+        namespace: n8n
+        status: Synced
+        syncPhase: Sync
+        version: v1
+      revision: 034c1f091ee3d1a28af3a3d75a70f479e616e15c
+      source:
+        path: apps/n8n
+        repoURL: git@github.com:pocharlies/n8n-k8s.git
+        targetRevision: main
+  reconciledAt: "2026-05-21T22:09:59Z"
+  resourceHealthSource: appTree
+  resources:
+  - kind: Namespace
+    name: n8n
+    status: Synced
+    version: v1
+  - kind: PersistentVolumeClaim
+    name: n8n-data
+    namespace: n8n
+    status: Synced
+    version: v1
+  - kind: Service
+    name: n8n
+    namespace: n8n
+    status: Synced
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: n8n
+    namespace: n8n
+    status: Synced
+    version: v1
+  - group: external-secrets.io
+    kind: ExternalSecret
+    name: n8n-db-credentials
+    namespace: databases
+    status: Synced
+    version: v1
+  - group: external-secrets.io
+    kind: ExternalSecret
+    name: n8n-app
+    namespace: n8n
+    status: Synced
+    version: v1
+  - group: external-secrets.io
+    kind: ExternalSecret
+    name: n8n-postgres
+    namespace: n8n
+    status: Synced
+    version: v1
+  - group: networking.k8s.io
+    kind: Ingress
+    name: n8n
+    namespace: n8n
+    status: Synced
+    version: v1
+  - group: postgresql.cnpg.io
+    kind: Database
+    name: n8n
+    namespace: databases
+    status: Synced
+    version: v1
+  sourceHydrator: {}
+  sourceType: Kustomize
+  summary:
+    externalURLs:
+    - https://n8n.e-dani.com/
+    images:
+    - docker.n8n.io/n8nio/n8n:2.21.5
+  sync:
+    comparedTo:
+      destination:
+        server: https://kubernetes.default.svc
+      ignoreDifferences:
+      - group: cert-manager.io
+        jsonPointers:
+        - /spec/duration
+        - /spec/renewBefore
+        kind: Certificate
+      - group: external-secrets.io
+        jqPathExpressions:
+        - .spec.target.deletionPolicy
+        - .spec.target.template.engineVersion
+        - .spec.target.template.mergePolicy
+        - .spec.data[].remoteRef.conversionStrategy
+        - .spec.data[].remoteRef.decodingStrategy
+        - .spec.data[].remoteRef.metadataPolicy
+        - .spec.data[].remoteRef.nullBytePolicy
+        kind: ExternalSecret
+      source:
+        path: apps/n8n
+        repoURL: git@github.com:pocharlies/n8n-k8s.git
+        targetRevision: main
+    revision: 034c1f091ee3d1a28af3a3d75a70f479e616e15c
+    status: Synced

@@ -1,0 +1,585 @@
+apiVersion: v1
+items:
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"adguard-setup","namespace":"adguard"},"spec":{"entryPoints":["websecure"],"routes":[{"kind":"Rule","match":"Host(`adguard-setup.lan.e-dani.com`)","services":[{"name":"adguard-web","port":3000}]}],"tls":{"secretName":"wildcard-lan-tls"}}}
+    creationTimestamp: "2026-05-19T21:07:26Z"
+    generation: 3
+    name: adguard-setup
+    namespace: adguard
+    resourceVersion: "1552391"
+    uid: 8f8a7032-1bc3-423f-b7e4-1e43248c3281
+  spec:
+    entryPoints:
+    - websecure
+    routes:
+    - kind: Rule
+      match: Host(`adguard-setup.lan.e-dani.com`)
+      services:
+      - name: adguard-web
+        port: 3000
+    tls:
+      secretName: wildcard-lan-tls
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"adguard-web","namespace":"adguard"},"spec":{"entryPoints":["websecure"],"routes":[{"kind":"Rule","match":"Host(`adguard.lan.e-dani.com`)","services":[{"name":"adguard-web","port":80}]}],"tls":{"secretName":"wildcard-lan-tls"}}}
+    creationTimestamp: "2026-05-19T21:07:26Z"
+    generation: 1
+    name: adguard-web
+    namespace: adguard
+    resourceVersion: "216681"
+    uid: 1c6f414a-3cd8-4098-99da-bf3724aa7c04
+  spec:
+    entryPoints:
+    - websecure
+    routes:
+    - kind: Rule
+      match: Host(`adguard.lan.e-dani.com`)
+      services:
+      - name: adguard-web
+        port: 80
+    tls:
+      secretName: wildcard-lan-tls
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"argocd","namespace":"argocd"},"spec":{"entryPoints":["websecure"],"routes":[{"kind":"Rule","match":"Host(`argocd.lan.e-dani.com`)","services":[{"name":"argocd-server","port":80}]}],"tls":{"secretName":"wildcard-lan-tls"}}}
+    creationTimestamp: "2026-05-19T14:32:54Z"
+    generation: 1
+    name: argocd
+    namespace: argocd
+    resourceVersion: "68002"
+    uid: 0caf5a2f-6bf9-4cea-98a6-219dc1bc8a65
+  spec:
+    entryPoints:
+    - websecure
+    routes:
+    - kind: Rule
+      match: Host(`argocd.lan.e-dani.com`)
+      services:
+      - name: argocd-server
+        port: 80
+    tls:
+      secretName: wildcard-lan-tls
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"authelia","namespace":"authelia"},"spec":{"entryPoints":["websecure"],"routes":[{"kind":"Rule","match":"Host(`auth.lan.e-dani.com`)","services":[{"name":"authelia","port":80}]}],"tls":{"secretName":"wildcard-lan-tls"}}}
+    creationTimestamp: "2026-05-19T23:17:50Z"
+    generation: 1
+    name: authelia
+    namespace: authelia
+    resourceVersion: "295896"
+    uid: 49a169b3-2f4f-4193-bcfe-919fa775a6f6
+  spec:
+    entryPoints:
+    - websecure
+    routes:
+    - kind: Rule
+      match: Host(`auth.lan.e-dani.com`)
+      services:
+      - name: authelia
+        port: 80
+    tls:
+      secretName: wildcard-lan-tls
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"code-server","namespace":"dev-dibanez"},"spec":{"entryPoints":["websecure"],"routes":[{"kind":"Rule","match":"Host(`code.lan.e-dani.com`)","middlewares":[{"name":"authelia","namespace":"authelia"}],"services":[{"name":"code-server","port":80}]}],"tls":{"secretName":"wildcard-lan-tls"}}}
+    creationTimestamp: "2026-05-19T23:22:32Z"
+    generation: 1
+    name: code-server
+    namespace: dev-dibanez
+    resourceVersion: "298775"
+    uid: d1febe17-71e1-4f05-b56c-593482f65062
+  spec:
+    entryPoints:
+    - websecure
+    routes:
+    - kind: Rule
+      match: Host(`code.lan.e-dani.com`)
+      middlewares:
+      - name: authelia
+        namespace: authelia
+      services:
+      - name: code-server
+        port: 80
+    tls:
+      secretName: wildcard-lan-tls
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"harbor","namespace":"harbor"},"spec":{"entryPoints":["websecure"],"routes":[{"kind":"Rule","match":"Host(`harbor.lan.e-dani.com`)","services":[{"name":"harbor","port":80}]}],"tls":{"secretName":"wildcard-lan-tls"}}}
+    creationTimestamp: "2026-05-19T19:00:39Z"
+    generation: 1
+    name: harbor
+    namespace: harbor
+    resourceVersion: "167146"
+    uid: 66530320-5499-465c-ac03-2a3eab1131a5
+  spec:
+    entryPoints:
+    - websecure
+    routes:
+    - kind: Rule
+      match: Host(`harbor.lan.e-dani.com`)
+      services:
+      - name: harbor
+        port: 80
+    tls:
+      secretName: wildcard-lan-tls
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"libreplay-lan","namespace":"libreplay"},"spec":{"entryPoints":["websecure"],"routes":[{"kind":"Rule","match":"Host(`libreplay.lan.e-dani.com`)","middlewares":[{"name":"authelia","namespace":"authelia"}],"services":[{"name":"libreplay-web","port":80}]}],"tls":{"secretName":"wildcard-lan-tls"}}}
+    creationTimestamp: "2026-05-21T08:11:23Z"
+    generation: 1
+    name: libreplay-lan
+    namespace: libreplay
+    resourceVersion: "1430003"
+    uid: 4bd58402-6c2a-4c51-ab9c-ba899c597f7e
+  spec:
+    entryPoints:
+    - websecure
+    routes:
+    - kind: Rule
+      match: Host(`libreplay.lan.e-dani.com`)
+      middlewares:
+      - name: authelia
+        namespace: authelia
+      services:
+      - name: libreplay-web
+        port: 80
+    tls:
+      secretName: wildcard-lan-tls
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"litellm-lan","namespace":"litellm"},"spec":{"entryPoints":["websecure"],"routes":[{"kind":"Rule","match":"Host(`litellm.lan.e-dani.com`)","services":[{"name":"litellm","port":4000}]}],"tls":{"secretName":"wildcard-lan-tls"}}}
+    creationTimestamp: "2026-05-21T07:18:11Z"
+    generation: 1
+    name: litellm-lan
+    namespace: litellm
+    resourceVersion: "1397888"
+    uid: e2b7fdc5-3d70-47a1-86bf-4dcf3641a7a2
+  spec:
+    entryPoints:
+    - websecure
+    routes:
+    - kind: Rule
+      match: Host(`litellm.lan.e-dani.com`)
+      services:
+      - name: litellm
+        port: 4000
+    tls:
+      secretName: wildcard-lan-tls
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"longhorn-ui","namespace":"longhorn-system"},"spec":{"entryPoints":["websecure"],"routes":[{"kind":"Rule","match":"Host(`longhorn.lan.e-dani.com`)","services":[{"name":"longhorn-frontend","port":80}]}],"tls":{"secretName":"wildcard-lan-tls"}}}
+    creationTimestamp: "2026-05-19T14:31:12Z"
+    generation: 2
+    name: longhorn-ui
+    namespace: longhorn-system
+    resourceVersion: "298310"
+    uid: 57bcac3f-8e0c-4747-a934-0b7d710dedb9
+  spec:
+    entryPoints:
+    - websecure
+    routes:
+    - kind: Rule
+      match: Host(`longhorn.lan.e-dani.com`)
+      middlewares:
+      - name: authelia
+        namespace: authelia
+      services:
+      - name: longhorn-frontend
+        port: 80
+    tls:
+      secretName: wildcard-lan-tls
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"minio-console","namespace":"minio"},"spec":{"entryPoints":["websecure"],"routes":[{"kind":"Rule","match":"Host(`minio.lan.e-dani.com`)","services":[{"name":"minio-console","port":9001}]}],"tls":{"secretName":"wildcard-lan-tls"}}}
+    creationTimestamp: "2026-05-19T14:28:26Z"
+    generation: 1
+    name: minio-console
+    namespace: minio
+    resourceVersion: "66023"
+    uid: 4c949cfb-43ba-4d60-b8fb-77793775548f
+  spec:
+    entryPoints:
+    - websecure
+    routes:
+    - kind: Rule
+      match: Host(`minio.lan.e-dani.com`)
+      services:
+      - name: minio-console
+        port: 9001
+    tls:
+      secretName: wildcard-lan-tls
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"minio-s3","namespace":"minio"},"spec":{"entryPoints":["websecure"],"routes":[{"kind":"Rule","match":"Host(`s3.lan.e-dani.com`)","services":[{"name":"minio-s3","port":9000}]}],"tls":{"secretName":"wildcard-lan-tls"}}}
+    creationTimestamp: "2026-05-19T14:28:27Z"
+    generation: 1
+    name: minio-s3
+    namespace: minio
+    resourceVersion: "66024"
+    uid: 8a6f57a2-864a-4a43-8a61-131294d22d36
+  spec:
+    entryPoints:
+    - websecure
+    routes:
+    - kind: Rule
+      match: Host(`s3.lan.e-dani.com`)
+      services:
+      - name: minio-s3
+        port: 9000
+    tls:
+      secretName: wildcard-lan-tls
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"alertmanager","namespace":"monitoring"},"spec":{"entryPoints":["websecure"],"routes":[{"kind":"Rule","match":"Host(`alertmanager.lan.e-dani.com`)","services":[{"name":"vmalertmanager-vm-victoria-metrics-k8s-stack","port":9093}]}],"tls":{"secretName":"wildcard-lan-tls"}}}
+    creationTimestamp: "2026-05-19T21:14:20Z"
+    generation: 2
+    name: alertmanager
+    namespace: monitoring
+    resourceVersion: "298312"
+    uid: feea2e89-ab19-42ff-94fd-6d3f2dfd369f
+  spec:
+    entryPoints:
+    - websecure
+    routes:
+    - kind: Rule
+      match: Host(`alertmanager.lan.e-dani.com`)
+      middlewares:
+      - name: authelia
+        namespace: authelia
+      services:
+      - name: vmalertmanager-vm-victoria-metrics-k8s-stack
+        port: 9093
+    tls:
+      secretName: wildcard-lan-tls
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"grafana","namespace":"monitoring"},"spec":{"entryPoints":["websecure"],"routes":[{"kind":"Rule","match":"Host(`grafana.lan.e-dani.com`)","services":[{"name":"vm-grafana","port":80}]}],"tls":{"secretName":"wildcard-lan-tls"}}}
+    creationTimestamp: "2026-05-19T21:14:20Z"
+    generation: 2
+    name: grafana
+    namespace: monitoring
+    resourceVersion: "298040"
+    uid: c89ba788-038e-4516-825e-760648b7c600
+  spec:
+    entryPoints:
+    - websecure
+    routes:
+    - kind: Rule
+      match: Host(`grafana.lan.e-dani.com`)
+      middlewares:
+      - name: authelia
+        namespace: authelia
+      services:
+      - name: vm-grafana
+        port: 80
+    tls:
+      secretName: wildcard-lan-tls
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"vmsingle","namespace":"monitoring"},"spec":{"entryPoints":["websecure"],"routes":[{"kind":"Rule","match":"Host(`vm.lan.e-dani.com`)","services":[{"name":"vmsingle-vm-victoria-metrics-k8s-stack","port":8429}]}],"tls":{"secretName":"wildcard-lan-tls"}}}
+    creationTimestamp: "2026-05-19T21:14:20Z"
+    generation: 3
+    name: vmsingle
+    namespace: monitoring
+    resourceVersion: "298311"
+    uid: f0ea0494-a977-47b5-b857-0b26f1ae1f72
+  spec:
+    entryPoints:
+    - websecure
+    routes:
+    - kind: Rule
+      match: Host(`vm.lan.e-dani.com`)
+      middlewares:
+      - name: authelia
+        namespace: authelia
+      services:
+      - name: vmsingle-vm-victoria-metrics-k8s-stack
+        port: 8428
+    tls:
+      secretName: wildcard-lan-tls
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"bundles-app-public","namespace":"skirmshop"},"spec":{"entryPoints":["websecure"],"ingressClassName":"traefik-edge","routes":[{"kind":"Rule","match":"Host(`bundles.e-dani.com`) \u0026\u0026 PathPrefix(`/bundles`)","services":[{"name":"bundles-app","port":80}]}],"tls":{}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 3
+    name: bundles-app-public
+    namespace: skirmshop
+    resourceVersion: "1865522"
+    uid: 28e8f302-c494-4992-b0c2-d96862f7e2cd
+  spec:
+    entryPoints:
+    - websecure
+    ingressClassName: traefik-edge
+    routes:
+    - kind: Rule
+      match: Host(`bundles.e-dani.com`) && PathPrefix(`/bundles`)
+      services:
+      - name: bundles-app
+        port: 80
+    tls: {}
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"firecrawl-public","namespace":"skirmshop"},"spec":{"entryPoints":["websecure"],"ingressClassName":"traefik-edge","routes":[{"kind":"Rule","match":"Host(`firecrawl.e-dani.com`)","services":[{"name":"firecrawl-api","port":3002}]}],"tls":{}}}
+    creationTimestamp: "2026-05-21T18:04:39Z"
+    generation: 1
+    name: firecrawl-public
+    namespace: skirmshop
+    resourceVersion: "1772346"
+    uid: 3b664a06-03c0-48e8-89d0-d1c294a7f275
+  spec:
+    entryPoints:
+    - websecure
+    ingressClassName: traefik-edge
+    routes:
+    - kind: Rule
+      match: Host(`firecrawl.e-dani.com`)
+      services:
+      - name: firecrawl-api
+        port: 3002
+    tls: {}
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"rabbitmq-mgmt","namespace":"skirmshop"},"spec":{"entryPoints":["websecure"],"routes":[{"kind":"Rule","match":"Host(`rabbitmq.lan.e-dani.com`)","middlewares":[{"name":"authelia","namespace":"authelia"}],"services":[{"name":"shared-rabbitmq","port":15672}]}],"tls":{"secretName":"wildcard-lan-tls"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 1
+    name: rabbitmq-mgmt
+    namespace: skirmshop
+    resourceVersion: "1421743"
+    uid: bce7789b-9f22-48df-ac42-e1062d822578
+  spec:
+    entryPoints:
+    - websecure
+    routes:
+    - kind: Rule
+      match: Host(`rabbitmq.lan.e-dani.com`)
+      middlewares:
+      - name: authelia
+        namespace: authelia
+      services:
+      - name: shared-rabbitmq
+        port: 15672
+    tls:
+      secretName: wildcard-lan-tls
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"sii-app-public","namespace":"skirmshop"},"spec":{"entryPoints":["websecure"],"ingressClassName":"traefik-edge","routes":[{"kind":"Rule","match":"Host(`sii.e-dani.com`) \u0026\u0026 PathPrefix(`/sii`)","services":[{"name":"sii-app","port":80}]}],"tls":{}}}
+    creationTimestamp: "2026-05-21T08:01:06Z"
+    generation: 3
+    name: sii-app-public
+    namespace: skirmshop
+    resourceVersion: "1865523"
+    uid: 8212fd28-8205-487d-b97f-ee7b106ab38c
+  spec:
+    entryPoints:
+    - websecure
+    ingressClassName: traefik-edge
+    routes:
+    - kind: Rule
+      match: Host(`sii.e-dani.com`) && PathPrefix(`/sii`)
+      services:
+      - name: sii-app
+        port: 80
+    tls: {}
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"skirmshop-public","namespace":"skirmshop"},"spec":{"entryPoints":["websecure"],"ingressClassName":"traefik-edge","routes":[{"kind":"Rule","match":"Host(`skirmshop.e-dani.com`) \u0026\u0026 PathPrefix(`/sii`)","services":[{"name":"sii-app","port":80}]},{"kind":"Rule","match":"Host(`skirmshop.e-dani.com`) \u0026\u0026 PathPrefix(`/bundles`)","services":[{"name":"bundles-app","port":80}]},{"kind":"Rule","match":"Host(`skirmshop.e-dani.com`) \u0026\u0026 PathPrefix(`/picker`)","middlewares":[{"name":"strip-picker"}],"services":[{"name":"skirmshop-picker","port":80}]},{"kind":"Rule","match":"Host(`skirmshop.e-dani.com`) \u0026\u0026 PathPrefix(`/labels-ups`)","middlewares":[{"name":"strip-labels-ups"}],"services":[{"name":"labels-ups-adapter","port":3002}]},{"kind":"Rule","match":"Host(`skirmshop.e-dani.com`) \u0026\u0026 PathPrefix(`/labels`)","middlewares":[{"name":"strip-labels"}],"services":[{"name":"labels-shopify-app","port":3004}]}],"tls":{}}}
+    creationTimestamp: "2026-05-21T18:04:39Z"
+    generation: 1
+    name: skirmshop-public
+    namespace: skirmshop
+    resourceVersion: "1772345"
+    uid: a908335c-37b4-41aa-be5b-418f650ae6dd
+  spec:
+    entryPoints:
+    - websecure
+    ingressClassName: traefik-edge
+    routes:
+    - kind: Rule
+      match: Host(`skirmshop.e-dani.com`) && PathPrefix(`/sii`)
+      services:
+      - name: sii-app
+        port: 80
+    - kind: Rule
+      match: Host(`skirmshop.e-dani.com`) && PathPrefix(`/bundles`)
+      services:
+      - name: bundles-app
+        port: 80
+    - kind: Rule
+      match: Host(`skirmshop.e-dani.com`) && PathPrefix(`/picker`)
+      middlewares:
+      - name: strip-picker
+      services:
+      - name: skirmshop-picker
+        port: 80
+    - kind: Rule
+      match: Host(`skirmshop.e-dani.com`) && PathPrefix(`/labels-ups`)
+      middlewares:
+      - name: strip-labels-ups
+      services:
+      - name: labels-ups-adapter
+        port: 3002
+    - kind: Rule
+      match: Host(`skirmshop.e-dani.com`) && PathPrefix(`/labels`)
+      middlewares:
+      - name: strip-labels
+      services:
+      - name: labels-shopify-app
+        port: 3004
+    tls: {}
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"teslamate-lan","namespace":"teslamate"},"spec":{"entryPoints":["websecure"],"routes":[{"kind":"Rule","match":"Host(`teslamate.lan.e-dani.com`)","middlewares":[{"name":"authelia","namespace":"authelia"}],"services":[{"name":"teslamate","port":80}]}],"tls":{"secretName":"wildcard-lan-tls"}}}
+    creationTimestamp: "2026-05-21T00:31:16Z"
+    generation: 1
+    name: teslamate-lan
+    namespace: teslamate
+    resourceVersion: "1161278"
+    uid: 7c0fb7d6-fa4d-46a4-be3d-c57d9f28d180
+  spec:
+    entryPoints:
+    - websecure
+    routes:
+    - kind: Rule
+      match: Host(`teslamate.lan.e-dani.com`)
+      middlewares:
+      - name: authelia
+        namespace: authelia
+      services:
+      - name: teslamate
+        port: 80
+    tls:
+      secretName: wildcard-lan-tls
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"harbor-public","namespace":"traefik-edge"},"spec":{"entryPoints":["websecure"],"routes":[{"kind":"Rule","match":"Host(`harbor.e-dani.com`)","services":[{"name":"harbor","namespace":"harbor","port":80}]}],"tls":{"secretName":"wildcard-public-tls"}}}
+    creationTimestamp: "2026-05-21T19:46:36Z"
+    generation: 1
+    name: harbor-public
+    namespace: traefik-edge
+    resourceVersion: "1822808"
+    uid: eec8fd81-6b02-44d6-b1ae-2b30a35311f4
+  spec:
+    entryPoints:
+    - websecure
+    routes:
+    - kind: Rule
+      match: Host(`harbor.e-dani.com`)
+      services:
+      - name: harbor
+        namespace: harbor
+        port: 80
+    tls:
+      secretName: wildcard-public-tls
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"vault-ui","namespace":"vault"},"spec":{"entryPoints":["websecure"],"routes":[{"kind":"Rule","match":"Host(`vault.lan.e-dani.com`)","services":[{"name":"vault-active","port":8200}]}],"tls":{"secretName":"wildcard-lan-tls"}}}
+    creationTimestamp: "2026-05-19T18:59:38Z"
+    generation: 1
+    name: vault-ui
+    namespace: vault
+    resourceVersion: "166288"
+    uid: 884d5d99-5219-4250-b5e4-80c8f5d236c3
+  spec:
+    entryPoints:
+    - websecure
+    routes:
+    - kind: Rule
+      match: Host(`vault.lan.e-dani.com`)
+      services:
+      - name: vault-active
+        port: 8200
+    tls:
+      secretName: wildcard-lan-tls
+- apiVersion: traefik.io/v1alpha1
+  kind: IngressRoute
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"traefik.io/v1alpha1","kind":"IngressRoute","metadata":{"annotations":{},"name":"whatsapp-public","namespace":"whatsapp-mcp"},"spec":{"entryPoints":["websecure"],"ingressClassName":"traefik-edge","routes":[{"kind":"Rule","match":"Host(`whatsapp.e-dani.com`)","services":[{"name":"whatsapp-connector","port":3001}]}],"tls":{}}}
+    creationTimestamp: "2026-05-21T18:39:16Z"
+    generation: 1
+    name: whatsapp-public
+    namespace: whatsapp-mcp
+    resourceVersion: "1793365"
+    uid: c6c7c3c1-43ff-4aeb-8cde-c6197a13f5a7
+  spec:
+    entryPoints:
+    - websecure
+    ingressClassName: traefik-edge
+    routes:
+    - kind: Rule
+      match: Host(`whatsapp.e-dani.com`)
+      services:
+      - name: whatsapp-connector
+        port: 3001
+    tls: {}
+kind: List
+metadata:
+  resourceVersion: ""

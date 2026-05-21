@@ -1,11 +1,12 @@
-# Apply this ONCE manually: kubectl apply -f bootstrap/app-of-apps.yaml -n argocd
-# After this ArgoCD self-manages via this repo.
+# Apply this manually to cut over the existing root Application:
+# kubectl apply -f bootstrap/app-of-apps.yaml -n argocd
+# The name intentionally remains "root" to avoid two root apps competing
+# over the same child Application resources during migration.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: app-of-apps
+  name: root
   namespace: argocd
-  finalizers: [resources-finalizer.argocd.argoproj.io]
 spec:
   project: default
   source:

@@ -1,0 +1,426 @@
+apiVersion: v1
+items:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: n8n:apps/Deployment:n8n/n8n
+      deployment.kubernetes.io/revision: "3"
+    creationTimestamp: "2026-05-19T23:23:54Z"
+    generation: 3
+    labels:
+      app.kubernetes.io/component: app
+      app.kubernetes.io/managed-by: argocd
+      app.kubernetes.io/name: n8n
+      app.kubernetes.io/part-of: workflow-automation
+    name: n8n
+    namespace: n8n
+    resourceVersion: "1824993"
+    uid: d1c1faaf-1be2-4c71-b3fe-bc1880aa0370
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app.kubernetes.io/component: app
+        app.kubernetes.io/name: n8n
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app.kubernetes.io/component: app
+          app.kubernetes.io/name: n8n
+      spec:
+        containers:
+        - env:
+          - name: N8N_HOST
+            value: n8n.e-dani.com
+          - name: N8N_PORT
+            value: "5678"
+          - name: N8N_PROTOCOL
+            value: https
+          - name: N8N_EDITOR_BASE_URL
+            value: https://n8n.e-dani.com/
+          - name: WEBHOOK_URL
+            value: https://n8n.e-dani.com/
+          - name: N8N_PROXY_HOPS
+            value: "1"
+          - name: N8N_RUNNERS_ENABLED
+            value: "true"
+          - name: N8N_BLOCK_ENV_ACCESS_IN_NODE
+            value: "false"
+          - name: N8N_LOG_LEVEL
+            value: info
+          - name: N8N_DIAGNOSTICS_ENABLED
+            value: "false"
+          - name: N8N_VERSION_NOTIFICATIONS_ENABLED
+            value: "true"
+          - name: GENERIC_TIMEZONE
+            value: Europe/Madrid
+          - name: TZ
+            value: Europe/Madrid
+          - name: DB_TYPE
+            value: postgresdb
+          - name: DB_POSTGRESDB_HOST
+            value: postgres-shared-rw.databases.svc.cluster.local
+          - name: DB_POSTGRESDB_PORT
+            value: "5432"
+          - name: DB_POSTGRESDB_DATABASE
+            value: n8n
+          - name: DB_POSTGRESDB_SCHEMA
+            value: public
+          - name: DB_POSTGRESDB_USER
+            valueFrom:
+              secretKeyRef:
+                key: DB_POSTGRESDB_USER
+                name: n8n-postgres
+          - name: DB_POSTGRESDB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: DB_POSTGRESDB_PASSWORD
+                name: n8n-postgres
+          - name: N8N_BASIC_AUTH_ACTIVE
+            value: "true"
+          - name: N8N_BASIC_AUTH_USER
+            valueFrom:
+              secretKeyRef:
+                key: N8N_BASIC_AUTH_USER
+                name: n8n-app
+          - name: N8N_BASIC_AUTH_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: N8N_BASIC_AUTH_PASSWORD
+                name: n8n-app
+          - name: N8N_ENCRYPTION_KEY
+            valueFrom:
+              secretKeyRef:
+                key: N8N_ENCRYPTION_KEY
+                name: n8n-app
+          - name: N8N_LICENSE_ACTIVATION_KEY
+            valueFrom:
+              secretKeyRef:
+                key: N8N_LICENSE_ACTIVATION_KEY
+                name: n8n-app
+                optional: true
+          image: docker.n8n.io/n8nio/n8n:2.21.5
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /healthz
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 10
+          name: n8n
+          ports:
+          - containerPort: 5678
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          resources:
+            limits:
+              cpu: "2"
+              memory: 2Gi
+            requests:
+              cpu: 200m
+              memory: 512Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /home/node/.n8n
+            name: data
+        dnsPolicy: ClusterFirst
+        nodeSelector:
+          kubernetes.io/hostname: ubuntu
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext:
+          fsGroup: 1000
+          runAsGroup: 1000
+          runAsUser: 1000
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: n8n-data
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-19T23:56:50Z"
+      lastUpdateTime: "2026-05-20T16:46:57Z"
+      message: ReplicaSet "n8n-5dc4c744cb" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-05-21T19:51:59Z"
+      lastUpdateTime: "2026-05-21T19:51:59Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 3
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: n8n:/Service:n8n/n8n
+    creationTimestamp: "2026-05-19T23:23:54Z"
+    labels:
+      app.kubernetes.io/component: app
+      app.kubernetes.io/managed-by: argocd
+      app.kubernetes.io/name: n8n
+      app.kubernetes.io/part-of: workflow-automation
+    name: n8n
+    namespace: n8n
+    resourceVersion: "299820"
+    uid: 752ab094-fb79-48f6-bcbb-2b975a5daca1
+  spec:
+    clusterIP: 10.43.180.237
+    clusterIPs:
+    - 10.43.180.237
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 5678
+    selector:
+      app.kubernetes.io/component: app
+      app.kubernetes.io/name: n8n
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: n8n:/PersistentVolumeClaim:n8n/n8n-data
+      pv.kubernetes.io/bind-completed: "yes"
+      pv.kubernetes.io/bound-by-controller: "yes"
+      volume.beta.kubernetes.io/storage-provisioner: driver.longhorn.io
+      volume.kubernetes.io/storage-provisioner: driver.longhorn.io
+    creationTimestamp: "2026-05-19T23:23:54Z"
+    finalizers:
+    - kubernetes.io/pvc-protection
+    labels:
+      app.kubernetes.io/component: storage
+      app.kubernetes.io/managed-by: argocd
+      app.kubernetes.io/name: n8n
+      app.kubernetes.io/part-of: workflow-automation
+    name: n8n-data
+    namespace: n8n
+    resourceVersion: "300101"
+    uid: 6b0c6ace-5ef0-403e-9f83-c3439a779e58
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 5Gi
+    storageClassName: longhorn
+    volumeMode: Filesystem
+    volumeName: pvc-6b0c6ace-5ef0-403e-9f83-c3439a779e58
+  status:
+    accessModes:
+    - ReadWriteOnce
+    capacity:
+      storage: 5Gi
+    phase: Bound
+- apiVersion: networking.k8s.io/v1
+  kind: Ingress
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: n8n:networking.k8s.io/Ingress:n8n/n8n
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      external-dns.alpha.kubernetes.io/hostname: n8n.e-dani.com
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      traefik.ingress.kubernetes.io/router.tls: "true"
+    creationTimestamp: "2026-05-19T23:23:54Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/managed-by: argocd
+      app.kubernetes.io/name: n8n
+      app.kubernetes.io/part-of: workflow-automation
+    name: n8n
+    namespace: n8n
+    resourceVersion: "299830"
+    uid: cc36d3e0-48cf-4390-8442-9377e0cd4fb1
+  spec:
+    ingressClassName: traefik-lan
+    rules:
+    - host: n8n.e-dani.com
+      http:
+        paths:
+        - backend:
+            service:
+              name: n8n
+              port:
+                number: 80
+          path: /
+          pathType: Prefix
+    tls:
+    - hosts:
+      - n8n.e-dani.com
+      secretName: n8n-tls
+  status:
+    loadBalancer:
+      ingress:
+      - ip: 192.168.50.240
+- apiVersion: external-secrets.io/v1
+  kind: ExternalSecret
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: n8n:external-secrets.io/ExternalSecret:n8n/n8n-app
+    creationTimestamp: "2026-05-19T23:23:54Z"
+    finalizers:
+    - externalsecrets.external-secrets.io/externalsecret-cleanup
+    generation: 1
+    labels:
+      app.kubernetes.io/component: app-secrets
+      app.kubernetes.io/managed-by: argocd
+      app.kubernetes.io/name: n8n
+      app.kubernetes.io/part-of: workflow-automation
+    name: n8n-app
+    namespace: n8n
+    resourceVersion: "1881447"
+    uid: 7c147d6e-41e6-49d9-871c-ec21cb055142
+  spec:
+    data:
+    - remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: n8n/app
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+        property: encryption_key
+      secretKey: encryption_key
+    - remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: n8n/app
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+        property: basic_auth_user
+      secretKey: basic_auth_user
+    - remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: n8n/app
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+        property: basic_auth_password
+      secretKey: basic_auth_password
+    refreshInterval: 1h
+    secretStoreRef:
+      kind: ClusterSecretStore
+      name: vault-backend
+    target:
+      creationPolicy: Owner
+      deletionPolicy: Retain
+      name: n8n-app
+      template:
+        data:
+          N8N_BASIC_AUTH_PASSWORD: '{{ .basic_auth_password }}'
+          N8N_BASIC_AUTH_USER: '{{ .basic_auth_user }}'
+          N8N_ENCRYPTION_KEY: '{{ .encryption_key }}'
+        engineVersion: v2
+        mergePolicy: Replace
+        type: Opaque
+  status:
+    binding:
+      name: n8n-app
+    conditions:
+    - lastTransitionTime: "2026-05-21T20:36:04Z"
+      message: secret synced
+      reason: SecretSynced
+      status: "True"
+      type: Ready
+    refreshTime: "2026-05-21T21:15:09Z"
+    syncedResourceVersion: 1-e1814853ce63cc464ba1ead5430944f37252b7213ea45bfdfee2540e
+- apiVersion: external-secrets.io/v1
+  kind: ExternalSecret
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: n8n:external-secrets.io/ExternalSecret:n8n/n8n-postgres
+    creationTimestamp: "2026-05-19T23:23:54Z"
+    finalizers:
+    - externalsecrets.external-secrets.io/externalsecret-cleanup
+    generation: 1
+    labels:
+      app.kubernetes.io/component: db-client
+      app.kubernetes.io/managed-by: argocd
+      app.kubernetes.io/name: n8n
+      app.kubernetes.io/part-of: workflow-automation
+    name: n8n-postgres
+    namespace: n8n
+    resourceVersion: "1881464"
+    uid: bc8448f8-e4de-4690-886c-c2e47d56a9fd
+  spec:
+    data:
+    - remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: postgres-shared/users/n8n
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+        property: username
+      secretKey: username
+    - remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: postgres-shared/users/n8n
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+        property: password
+      secretKey: password
+    refreshInterval: 1h
+    secretStoreRef:
+      kind: ClusterSecretStore
+      name: vault-backend
+    target:
+      creationPolicy: Owner
+      deletionPolicy: Retain
+      name: n8n-postgres
+      template:
+        data:
+          DB_POSTGRESDB_PASSWORD: '{{ .password }}'
+          DB_POSTGRESDB_USER: '{{ .username }}'
+        engineVersion: v2
+        mergePolicy: Replace
+        type: Opaque
+  status:
+    binding:
+      name: n8n-postgres
+    conditions:
+    - lastTransitionTime: "2026-05-21T20:36:05Z"
+      message: secret synced
+      reason: SecretSynced
+      status: "True"
+      type: Ready
+    refreshTime: "2026-05-21T21:15:09Z"
+    syncedResourceVersion: 1-ee7228f4c02dfa176d32b4101bf56fff24866bf771c443cb193bd79d
+kind: List
+metadata:
+  resourceVersion: ""

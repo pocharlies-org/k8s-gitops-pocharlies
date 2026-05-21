@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - infra/infra.yaml
+  - infra/observability.yaml
+  - apps/adguard.yaml
+  - apps/firecrawl.yaml
+  - apps/libreplay.yaml
+  - apps/litellm.yaml
+  - apps/n8n.yaml
+  - apps/shopify-bundles.yaml
+  - apps/shopify-label.yaml
+  - apps/shopify-picker.yaml
+  - apps/shopify-sii.yaml
+  - apps/socialmedia.yaml
+  - apps/teslamate.yaml
+  - argocd/ingressroute.yaml

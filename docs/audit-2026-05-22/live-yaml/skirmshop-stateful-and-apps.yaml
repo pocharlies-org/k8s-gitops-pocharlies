@@ -1,0 +1,2804 @@
+apiVersion: v1
+items:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "4"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"bundles-app","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"bundles-app"}},"template":{"metadata":{"labels":{"app":"bundles-app"}},"spec":{"containers":[{"env":[{"name":"DATABASE_URL","value":"postgresql://$(DB_USER):$(DB_PASSWORD)@shared-postgres-rw.skirmshop.svc.cluster.local:5432/skirmshop"}],"envFrom":[{"secretRef":{"name":"labels-secrets"}}],"image":"harbor.e-dani.com/homelab/shopify-bundle-app:latest","name":"bundles-app","ports":[{"containerPort":3460,"name":"http"}],"readinessProbe":{"httpGet":{"path":"/health","port":3460},"initialDelaySeconds":20},"resources":{"limits":{"memory":"512Mi"},"requests":{"cpu":"50m","memory":"128Mi"}}}],"enableServiceLinks":false,"nodeSelector":{"kubernetes.io/arch":"amd64","topology":"lan"}}}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 6
+    name: bundles-app
+    namespace: skirmshop
+    resourceVersion: "1813815"
+    uid: 8dc8be69-93c0-44cb-9cd0-299b057fcf84
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: bundles-app
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T17:12:46+02:00"
+        creationTimestamp: null
+        labels:
+          app: bundles-app
+      spec:
+        containers:
+        - env:
+          - name: DATABASE_URL
+            value: postgresql://$(DB_USER):$(DB_PASSWORD)@shared-postgres-rw.skirmshop.svc.cluster.local:5432/skirmshop
+          - name: PORT
+            value: "3460"
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: harbor.e-dani.com/homelab/shopify-bundle-app:latest
+          imagePullPolicy: Always
+          name: bundles-app
+          ports:
+          - containerPort: 3460
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 3460
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T16:42:42Z"
+      lastUpdateTime: "2026-05-21T16:45:11Z"
+      message: ReplicaSet "bundles-app-c46574dc7" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-05-21T19:36:00Z"
+      lastUpdateTime: "2026-05-21T19:36:00Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 6
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "12"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"firecrawl-api","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"firecrawl-api"}},"template":{"metadata":{"labels":{"app":"firecrawl-api"}},"spec":{"containers":[{"env":[{"name":"REDIS_URL","value":"redis://labels-redis.skirmshop.svc.cluster.local:6379"},{"name":"REDIS_RATE_LIMIT_URL","value":"redis://labels-redis.skirmshop.svc.cluster.local:6379"},{"name":"ENV","value":"local"},{"name":"HOST","value":"0.0.0.0"},{"name":"PORT","value":"3002"},{"name":"PLAYWRIGHT_MICROSERVICE_URL","value":"http://firecrawl-playwright.skirmshop.svc.cluster.local:3000/scrape"},{"name":"USE_DB_AUTHENTICATION","value":"false"},{"name":"_RMQUSER","valueFrom":{"secretKeyRef":{"key":"RABBITMQ_DEFAULT_USER","name":"rabbitmq-secrets"}}},{"name":"_RMQPASS","valueFrom":{"secretKeyRef":{"key":"RABBITMQ_DEFAULT_PASS","name":"rabbitmq-secrets"}}},{"name":"RABBITMQ_URL","value":"amqp://$(_RMQUSER):$(_RMQPASS)@shared-rabbitmq.skirmshop.svc.cluster.local:5672"},{"name":"NUQ_RABBITMQ_URL","value":"amqp://$(_RMQUSER):$(_RMQPASS)@shared-rabbitmq.skirmshop.svc.cluster.local:5672"},{"name":"POSTGRES_HOST","value":"shared-postgres-rw.skirmshop.svc.cluster.local"},{"name":"POSTGRES_PORT","value":"5432"},{"name":"POSTGRES_DB","value":"firecrawl"},{"name":"POSTGRES_USER","valueFrom":{"secretKeyRef":{"key":"username","name":"shared-postgres-app"}}},{"name":"POSTGRES_PASSWORD","valueFrom":{"secretKeyRef":{"key":"password","name":"shared-postgres-app"}}},{"name":"NUQ_DATABASE_URL","value":"postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)"}],"envFrom":[{"secretRef":{"name":"labels-secrets"}}],"image":"ghcr.io/firecrawl/firecrawl:latest","name":"firecrawl-api","ports":[{"containerPort":3002,"name":"http"}],"readinessProbe":{"httpGet":{"path":"/","port":3002},"initialDelaySeconds":30},"resources":{"limits":{"memory":"3Gi"},"requests":{"cpu":"200m","memory":"512Mi"}}}],"enableServiceLinks":false,"nodeSelector":{"kubernetes.io/arch":"arm64","topology":"lan"}}}}}
+    creationTimestamp: "2026-05-21T08:01:06Z"
+    generation: 12
+    name: firecrawl-api
+    namespace: skirmshop
+    resourceVersion: "1830248"
+    uid: 1384bec7-4b16-4700-b673-8ae957b78896
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: firecrawl-api
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T10:37:06+02:00"
+        creationTimestamp: null
+        labels:
+          app: firecrawl-api
+      spec:
+        containers:
+        - env:
+          - name: REDIS_URL
+            value: redis://labels-redis.skirmshop.svc.cluster.local:6379
+          - name: REDIS_RATE_LIMIT_URL
+            value: redis://labels-redis.skirmshop.svc.cluster.local:6379
+          - name: REDIS_RATE_LIMIT_URL
+            value: redis://labels-redis.skirmshop.svc.cluster.local:6379
+          - name: ENV
+            value: local
+          - name: HOST
+            value: 0.0.0.0
+          - name: PORT
+            value: "3002"
+          - name: PLAYWRIGHT_MICROSERVICE_URL
+            value: http://firecrawl-playwright.skirmshop.svc.cluster.local:3000/scrape
+          - name: USE_DB_AUTHENTICATION
+            value: "false"
+          - name: _RMQUSER
+            valueFrom:
+              secretKeyRef:
+                key: RABBITMQ_DEFAULT_USER
+                name: rabbitmq-secrets
+          - name: _RMQPASS
+            valueFrom:
+              secretKeyRef:
+                key: RABBITMQ_DEFAULT_PASS
+                name: rabbitmq-secrets
+          - name: RABBITMQ_URL
+            value: amqp://$(_RMQUSER):$(_RMQPASS)@shared-rabbitmq.skirmshop.svc.cluster.local:5672
+          - name: NUQ_RABBITMQ_URL
+            value: amqp://$(_RMQUSER):$(_RMQPASS)@shared-rabbitmq.skirmshop.svc.cluster.local:5672
+          - name: POSTGRES_HOST
+            value: shared-postgres-rw.skirmshop.svc.cluster.local
+          - name: POSTGRES_PORT
+            value: "5432"
+          - name: POSTGRES_DB
+            value: firecrawl
+          - name: POSTGRES_USER
+            valueFrom:
+              secretKeyRef:
+                key: username
+                name: shared-postgres-app
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: password
+                name: shared-postgres-app
+          - name: NUQ_DATABASE_URL
+            value: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: ghcr.io/firecrawl/firecrawl:latest
+          imagePullPolicy: Always
+          name: firecrawl-api
+          ports:
+          - containerPort: 3002
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: 3002
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 3Gi
+            requests:
+              cpu: 200m
+              memory: 512Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: arm64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T09:01:03Z"
+      lastUpdateTime: "2026-05-21T09:17:19Z"
+      message: ReplicaSet "firecrawl-api-576f9679df" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-05-21T19:55:43Z"
+      lastUpdateTime: "2026-05-21T19:55:43Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 12
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"firecrawl-playwright","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"firecrawl-playwright"}},"template":{"metadata":{"labels":{"app":"firecrawl-playwright"}},"spec":{"containers":[{"image":"ghcr.io/firecrawl/playwright-service:latest","name":"playwright","ports":[{"containerPort":3000,"name":"http"}],"resources":{"limits":{"memory":"2Gi"},"requests":{"cpu":"100m","memory":"512Mi"}}}],"enableServiceLinks":false,"nodeSelector":{"kubernetes.io/arch":"amd64","topology":"lan"}}}}}
+    creationTimestamp: "2026-05-21T08:01:06Z"
+    generation: 1
+    name: firecrawl-playwright
+    namespace: skirmshop
+    resourceVersion: "1422974"
+    uid: 6d702016-99bc-434b-b647-f813052a1f84
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: firecrawl-playwright
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: firecrawl-playwright
+      spec:
+        containers:
+        - image: ghcr.io/firecrawl/playwright-service:latest
+          imagePullPolicy: Always
+          name: playwright
+          ports:
+          - containerPort: 3000
+            name: http
+            protocol: TCP
+          resources:
+            limits:
+              memory: 2Gi
+            requests:
+              cpu: 100m
+              memory: 512Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T08:01:38Z"
+      lastUpdateTime: "2026-05-21T08:01:38Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-21T08:01:07Z"
+      lastUpdateTime: "2026-05-21T08:01:38Z"
+      message: ReplicaSet "firecrawl-playwright-55c55977d4" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "4"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"labels-event-gateway","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"labels-event-gateway"}},"template":{"metadata":{"labels":{"app":"labels-event-gateway"}},"spec":{"containers":[{"env":[{"name":"PORT","value":"3000"},{"name":"RABBITMQ_URL","value":"amqp://$(RABBITMQ_USER):$(RABBITMQ_PASS)@shared-rabbitmq.skirmshop.svc.cluster.local:5672"},{"name":"NATS_URL","value":"nats://labels-nats.skirmshop.svc.cluster.local:4222"}],"envFrom":[{"secretRef":{"name":"labels-secrets"}}],"image":"harbor.e-dani.com/homelab/skirmshop-labels-event-gateway:latest","name":"event-gateway","ports":[{"containerPort":3000,"name":"http"}],"readinessProbe":{"httpGet":{"path":"/health","port":3000},"initialDelaySeconds":10},"resources":{"limits":{"memory":"256Mi"},"requests":{"cpu":"30m","memory":"64Mi"}}}],"enableServiceLinks":false,"nodeSelector":{"kubernetes.io/arch":"amd64","topology":"lan"}}}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 6
+    name: labels-event-gateway
+    namespace: skirmshop
+    resourceVersion: "1879963"
+    uid: 1ad8bf65-82f4-4191-ac0e-4350421d1f34
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: labels-event-gateway
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T16:59:13+02:00"
+        creationTimestamp: null
+        labels:
+          app: labels-event-gateway
+      spec:
+        containers:
+        - env:
+          - name: PORT
+            value: "3000"
+          - name: RABBITMQ_URL
+            value: amqp://$(RABBITMQ_USER):$(RABBITMQ_PASS)@shared-rabbitmq.skirmshop.svc.cluster.local:5672
+          - name: NATS_URL
+            value: nats://labels-nats.skirmshop.svc.cluster.local:4222
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: harbor.e-dani.com/homelab/skirmshop-labels-event-gateway:latest
+          imagePullPolicy: Always
+          name: event-gateway
+          ports:
+          - containerPort: 3000
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 30m
+              memory: 64Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T19:35:40Z"
+      lastUpdateTime: "2026-05-21T19:35:40Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-21T16:36:49Z"
+      lastUpdateTime: "2026-05-21T21:12:46Z"
+      message: ReplicaSet "labels-event-gateway-7559b6ffc4" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 6
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "4"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"labels-label-storage","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"labels-label-storage"}},"template":{"metadata":{"labels":{"app":"labels-label-storage"}},"spec":{"containers":[{"env":[{"name":"PORT","value":"3000"},{"name":"DATABASE_URL","value":"postgresql://$(LABELS_DB_USER):$(LABELS_DB_PASSWORD)@labels-postgres.skirmshop.svc.cluster.local:5432/labels"}],"envFrom":[{"secretRef":{"name":"labels-secrets"}}],"image":"harbor.e-dani.com/homelab/skirmshop-labels-label-storage:latest","name":"label-storage","ports":[{"containerPort":3000,"name":"http"}],"readinessProbe":{"httpGet":{"path":"/health","port":3000},"initialDelaySeconds":10},"resources":{"limits":{"memory":"256Mi"},"requests":{"cpu":"30m","memory":"64Mi"}}}],"enableServiceLinks":false,"nodeSelector":{"kubernetes.io/arch":"amd64","topology":"lan"}}}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 6
+    name: labels-label-storage
+    namespace: skirmshop
+    resourceVersion: "1879965"
+    uid: f0b98146-c886-4daa-85b6-2e2a991b76d0
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: labels-label-storage
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T16:59:13+02:00"
+        creationTimestamp: null
+        labels:
+          app: labels-label-storage
+      spec:
+        containers:
+        - env:
+          - name: PORT
+            value: "3000"
+          - name: DATABASE_URL
+            value: postgresql://$(LABELS_DB_USER):$(LABELS_DB_PASSWORD)@labels-postgres.skirmshop.svc.cluster.local:5432/labels
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: harbor.e-dani.com/homelab/skirmshop-labels-label-storage:latest
+          imagePullPolicy: Always
+          name: label-storage
+          ports:
+          - containerPort: 3000
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 30m
+              memory: 64Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T19:35:50Z"
+      lastUpdateTime: "2026-05-21T19:35:50Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-21T16:36:50Z"
+      lastUpdateTime: "2026-05-21T21:12:46Z"
+      message: ReplicaSet "labels-label-storage-6857bcf4fd" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 6
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "2"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"labels-nats","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"labels-nats"}},"template":{"metadata":{"labels":{"app":"labels-nats"}},"spec":{"containers":[{"args":["-js","-sd","/data","-m","8222"],"image":"nats:2.10-alpine","name":"nats","ports":[{"containerPort":4222,"name":"client"},{"containerPort":8222,"name":"monitor"},{"containerPort":6222,"name":"cluster"}],"readinessProbe":{"httpGet":{"path":"/healthz","port":8222},"initialDelaySeconds":3},"resources":{"limits":{"memory":"256Mi"},"requests":{"cpu":"20m","memory":"32Mi"}},"volumeMounts":[{"mountPath":"/data","name":"data"}]}],"enableServiceLinks":false,"nodeSelector":{"kubernetes.io/arch":"amd64","topology":"lan"},"volumes":[{"emptyDir":{},"name":"data"}]}}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 2
+    name: labels-nats
+    namespace: skirmshop
+    resourceVersion: "1441941"
+    uid: 6b7d5bb7-2e10-4071-977d-f2361f85538d
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: labels-nats
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: labels-nats
+      spec:
+        containers:
+        - args:
+          - -js
+          - -sd
+          - /data
+          - -m
+          - "8222"
+          image: nats:2.10-alpine
+          imagePullPolicy: IfNotPresent
+          name: nats
+          ports:
+          - containerPort: 4222
+            name: client
+            protocol: TCP
+          - containerPort: 8222
+            name: monitor
+            protocol: TCP
+          - containerPort: 6222
+            name: cluster
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 8222
+              scheme: HTTP
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 20m
+              memory: 32Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /data
+            name: data
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - emptyDir: {}
+          name: data
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T08:29:40Z"
+      lastUpdateTime: "2026-05-21T08:29:40Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-21T08:29:28Z"
+      lastUpdateTime: "2026-05-21T08:29:40Z"
+      message: ReplicaSet "labels-nats-8889b849d" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 2
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "1"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"labels-redis","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"labels-redis"}},"strategy":{"type":"Recreate"},"template":{"metadata":{"labels":{"app":"labels-redis"}},"spec":{"containers":[{"command":["redis-server","--appendonly","yes"],"image":"redis:8.0.0","name":"redis","ports":[{"containerPort":6379,"name":"redis"}],"readinessProbe":{"exec":{"command":["redis-cli","ping"]}},"resources":{"limits":{"memory":"256Mi"},"requests":{"cpu":"20m","memory":"32Mi"}}}],"enableServiceLinks":false,"nodeSelector":{"kubernetes.io/arch":"amd64","topology":"lan"}}}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 1
+    name: labels-redis
+    namespace: skirmshop
+    resourceVersion: "1422574"
+    uid: b459eb31-3804-4976-9f70-2074a7df955a
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: labels-redis
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: labels-redis
+      spec:
+        containers:
+        - command:
+          - redis-server
+          - --appendonly
+          - "yes"
+          image: redis:8.0.0
+          imagePullPolicy: IfNotPresent
+          name: redis
+          ports:
+          - containerPort: 6379
+            name: redis
+            protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+              - redis-cli
+              - ping
+            failureThreshold: 3
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 20m
+              memory: 32Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T08:01:20Z"
+      lastUpdateTime: "2026-05-21T08:01:20Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-21T08:01:05Z"
+      lastUpdateTime: "2026-05-21T08:01:20Z"
+      message: ReplicaSet "labels-redis-846c94bff4" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "3"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"labels-routing-service","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"labels-routing-service"}},"template":{"metadata":{"labels":{"app":"labels-routing-service"}},"spec":{"containers":[{"env":[{"name":"PORT","value":"3000"}],"envFrom":[{"secretRef":{"name":"labels-secrets"}}],"image":"harbor.e-dani.com/homelab/skirmshop-labels-routing-service:latest","name":"routing-service","ports":[{"containerPort":3000,"name":"http"}],"readinessProbe":{"httpGet":{"path":"/health","port":3000},"initialDelaySeconds":10},"resources":{"limits":{"memory":"256Mi"},"requests":{"cpu":"30m","memory":"64Mi"}}}],"enableServiceLinks":false,"nodeSelector":{"kubernetes.io/arch":"amd64","topology":"lan"}}}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 6
+    name: labels-routing-service
+    namespace: skirmshop
+    resourceVersion: "1879678"
+    uid: a33ba548-0a38-4ba6-8986-e49859855660
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: labels-routing-service
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T16:59:13+02:00"
+        creationTimestamp: null
+        labels:
+          app: labels-routing-service
+      spec:
+        containers:
+        - env:
+          - name: PORT
+            value: "3000"
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: harbor.e-dani.com/homelab/skirmshop-labels-routing-service:latest
+          imagePullPolicy: Always
+          name: routing-service
+          ports:
+          - containerPort: 3000
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 30m
+              memory: 64Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T16:36:26Z"
+      lastUpdateTime: "2026-05-21T16:36:39Z"
+      message: ReplicaSet "labels-routing-service-5f7c46dd54" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-05-21T19:35:50Z"
+      lastUpdateTime: "2026-05-21T19:35:50Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 6
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "8"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"labels-saga-launcher","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"labels-saga-launcher"}},"template":{"metadata":{"labels":{"app":"labels-saga-launcher"}},"spec":{"containers":[{"env":[{"name":"PORT","value":"3000"},{"name":"NATS_URL","value":"nats://labels-nats.skirmshop.svc.cluster.local:4222"},{"name":"SYNAPSE_API_URL","value":"http://labels-synapse-api.skirmshop.svc.cluster.local:8080"}],"envFrom":[{"secretRef":{"name":"labels-secrets"}}],"image":"harbor.e-dani.com/homelab/skirmshop-labels-saga-launcher:latest","name":"saga-launcher","ports":[{"containerPort":3000,"name":"http"}],"readinessProbe":{"httpGet":{"path":"/health","port":3000},"initialDelaySeconds":10},"resources":{"limits":{"memory":"256Mi"},"requests":{"cpu":"30m","memory":"64Mi"}}}],"enableServiceLinks":false,"nodeSelector":{"kubernetes.io/arch":"amd64","topology":"lan"}}}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 10
+    name: labels-saga-launcher
+    namespace: skirmshop
+    resourceVersion: "1879930"
+    uid: 530a9f3f-f581-4fe0-9227-bc9a3ca4eaf6
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: labels-saga-launcher
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T18:30:06+02:00"
+        creationTimestamp: null
+        labels:
+          app: labels-saga-launcher
+      spec:
+        containers:
+        - env:
+          - name: PORT
+            value: "3000"
+          - name: NATS_URL
+            value: nats://labels-nats.skirmshop.svc.cluster.local:4222
+          - name: SYNAPSE_API_URL
+            value: http://labels-synapse-api.skirmshop.svc.cluster.local:8080
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: harbor.e-dani.com/homelab/skirmshop-labels-saga-launcher:latest
+          imagePullPolicy: Always
+          name: saga-launcher
+          ports:
+          - containerPort: 3000
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 30m
+              memory: 64Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T19:35:49Z"
+      lastUpdateTime: "2026-05-21T19:35:49Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-21T16:16:54Z"
+      lastUpdateTime: "2026-05-21T21:12:45Z"
+      message: ReplicaSet "labels-saga-launcher-57899f8b9d" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 10
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "8"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"labels-shopify-app","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"labels-shopify-app"}},"template":{"metadata":{"labels":{"app":"labels-shopify-app"}},"spec":{"containers":[{"env":[{"name":"PORT","value":"3000"},{"name":"DATABASE_URL","value":"postgresql://$(LABELS_DB_USER):$(LABELS_DB_PASSWORD)@labels-postgres.skirmshop.svc.cluster.local:5432/labels"},{"name":"REDIS_URL","value":"redis://labels-redis.skirmshop.svc.cluster.local:6379"},{"name":"RABBITMQ_URL","value":"amqp://$(RABBITMQ_USER):$(RABBITMQ_PASS)@shared-rabbitmq.skirmshop.svc.cluster.local:5672"}],"envFrom":[{"secretRef":{"name":"labels-secrets"}}],"image":"harbor.e-dani.com/homelab/skirmshop-labels-shopify-app:latest","name":"shopify-app","ports":[{"containerPort":3000,"name":"http"}],"readinessProbe":{"httpGet":{"path":"/health","port":3000},"initialDelaySeconds":15},"resources":{"limits":{"memory":"512Mi"},"requests":{"cpu":"50m","memory":"64Mi"}}}],"enableServiceLinks":false,"nodeSelector":{"kubernetes.io/arch":"amd64","topology":"lan"}}}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 10
+    name: labels-shopify-app
+    namespace: skirmshop
+    resourceVersion: "1880066"
+    uid: 35473fc7-61c5-4e36-b787-9cf3076dfcb6
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: labels-shopify-app
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T18:30:06+02:00"
+        creationTimestamp: null
+        labels:
+          app: labels-shopify-app
+      spec:
+        containers:
+        - env:
+          - name: PORT
+            value: "3000"
+          - name: DATABASE_URL
+            value: postgresql://$(LABELS_DB_USER):$(LABELS_DB_PASSWORD)@labels-postgres.skirmshop.svc.cluster.local:5432/labels
+          - name: REDIS_URL
+            value: redis://labels-redis.skirmshop.svc.cluster.local:6379
+          - name: RABBITMQ_URL
+            value: amqp://$(RABBITMQ_USER):$(RABBITMQ_PASS)@shared-rabbitmq.skirmshop.svc.cluster.local:5672
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: harbor.e-dani.com/homelab/skirmshop-labels-shopify-app:latest
+          imagePullPolicy: Always
+          name: shopify-app
+          ports:
+          - containerPort: 3000
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T19:41:01Z"
+      lastUpdateTime: "2026-05-21T19:41:01Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-21T16:16:54Z"
+      lastUpdateTime: "2026-05-21T21:12:54Z"
+      message: ReplicaSet "labels-shopify-app-5d7bb78dcf" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 10
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "2"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"labels-synapse-api","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"labels-synapse-api"}},"template":{"metadata":{"labels":{"app":"labels-synapse-api"}},"spec":{"containers":[{"env":[{"name":"SYNAPSE_API_AUTH_TOKEN_FILE","value":"/app/tokens.yaml"},{"name":"SYNAPSE_API_JWT_AUTHORITY","value":"http://labels-synapse-api.skirmshop.svc.cluster.local:8080"},{"name":"CONNECTIONSTRINGS__REDIS","value":"labels-redis.skirmshop.svc.cluster.local:6379"},{"name":"SYNAPSE_DASHBOARD_SERVE","value":"true"}],"envFrom":[{"secretRef":{"name":"labels-secrets"}}],"image":"ghcr.io/serverlessworkflow/synapse/api:1.0.0-alpha1","name":"synapse-api","ports":[{"containerPort":8080,"name":"http"}],"readinessProbe":{"httpGet":{"path":"/healthz","port":8080},"initialDelaySeconds":15},"resources":{"limits":{"memory":"512Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"volumeMounts":[{"mountPath":"/app/tokens.yaml","name":"tokens","subPath":"tokens.yaml"}]}],"enableServiceLinks":false,"nodeSelector":{"kubernetes.io/arch":"amd64","topology":"lan"},"volumes":[{"configMap":{"name":"synapse-tokens"},"name":"tokens"}]}}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 2
+    name: labels-synapse-api
+    namespace: skirmshop
+    resourceVersion: "1808935"
+    uid: c116d50d-a34c-4d0c-b475-57a395634fa8
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: labels-synapse-api
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: labels-synapse-api
+      spec:
+        containers:
+        - env:
+          - name: SYNAPSE_API_AUTH_TOKEN_FILE
+            value: /app/tokens.yaml
+          - name: SYNAPSE_API_JWT_AUTHORITY
+            value: http://labels-synapse-api.skirmshop.svc.cluster.local:8080
+          - name: CONNECTIONSTRINGS__REDIS
+            value: labels-redis.skirmshop.svc.cluster.local:6379
+          - name: SYNAPSE_DASHBOARD_SERVE
+            value: "true"
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: ghcr.io/serverlessworkflow/synapse/api:1.0.0-alpha1
+          imagePullPolicy: IfNotPresent
+          name: synapse-api
+          ports:
+          - containerPort: 8080
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /app/tokens.yaml
+            name: tokens
+            subPath: tokens.yaml
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - configMap:
+            defaultMode: 420
+            name: synapse-tokens
+          name: tokens
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T08:29:29Z"
+      lastUpdateTime: "2026-05-21T08:29:51Z"
+      message: ReplicaSet "labels-synapse-api-66c4479fd5" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-05-21T19:33:57Z"
+      lastUpdateTime: "2026-05-21T19:33:57Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 2
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "5"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"labels-synapse-correlator","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"labels-synapse-correlator"}},"template":{"metadata":{"labels":{"app":"labels-synapse-correlator"}},"spec":{"containers":[{"env":[{"name":"SYNAPSE_CORRELATOR_NAMESPACE","value":"skirmshop"},{"name":"SYNAPSE_CORRELATOR_NAME","value":"skirmshop-correlator"},{"name":"CONNECTIONSTRINGS__REDIS","value":"labels-redis.skirmshop.svc.cluster.local:6379"}],"envFrom":[{"secretRef":{"name":"labels-secrets"}}],"image":"ghcr.io/serverlessworkflow/synapse/correlator:1.0.0-alpha1","name":"synapse-correlator","ports":[{"containerPort":8080,"name":"http"}],"resources":{"limits":{"memory":"256Mi"},"requests":{"cpu":"30m","memory":"64Mi"}}}],"enableServiceLinks":false,"initContainers":[{"command":["sh","-c","API=http://labels-synapse-api.skirmshop.svc.cluster.local:8080\nTOKEN=$(awk 'NR==1{gsub(/:/,\"\"); print}' /tokens/tokens.yaml)\nNS=skirmshop\nuntil curl -sf \"$API/healthz\" \u003e /dev/null 2\u003e\u00261; do\n  echo \"Waiting for Synapse API...\"; sleep 3\ndone\nCODE=$(curl -sf -o /dev/null -w \"%{http_code}\" \\\n  -H \"Authorization: Bearer $TOKEN\" \"$API/api/v1/namespaces/$NS\")\nif [ \"$CODE\" = \"200\" ]; then\n  echo \"Synapse namespace $NS already exists\"\nelse\n  curl -sf -X POST -H \"Authorization: Bearer $TOKEN\" \\\n    -H \"Content-Type: application/json\" \\\n    -d \"{\\\"apiVersion\\\":\\\"neuroglia.io/v1\\\",\\\"kind\\\":\\\"Namespace\\\",\\\"metadata\\\":{\\\"name\\\":\\\"$NS\\\"}}\" \\\n    \"$API/api/v1/namespaces\" \u0026\u0026 echo \"Synapse namespace $NS created\"\nfi\n"],"image":"alpine/curl:latest","name":"synapse-namespace-init","volumeMounts":[{"mountPath":"/tokens","name":"tokens"}]}],"nodeSelector":{"kubernetes.io/arch":"amd64","topology":"lan"},"volumes":[{"configMap":{"name":"synapse-tokens"},"name":"tokens"}]}}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 5
+    name: labels-synapse-correlator
+    namespace: skirmshop
+    resourceVersion: "1879808"
+    uid: 9d368d33-1896-4fc5-a4fb-03835e0d0a0c
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: labels-synapse-correlator
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T22:18:34+02:00"
+        creationTimestamp: null
+        labels:
+          app: labels-synapse-correlator
+      spec:
+        containers:
+        - env:
+          - name: SYNAPSE_CORRELATOR_NAMESPACE
+            value: skirmshop
+          - name: SYNAPSE_CORRELATOR_NAME
+            value: skirmshop-correlator
+          - name: CONNECTIONSTRINGS__REDIS
+            value: labels-redis.skirmshop.svc.cluster.local:6379
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: ghcr.io/serverlessworkflow/synapse/correlator:1.0.0-alpha1
+          imagePullPolicy: IfNotPresent
+          name: synapse-correlator
+          ports:
+          - containerPort: 8080
+            name: http
+            protocol: TCP
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 30m
+              memory: 64Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        initContainers:
+        - command:
+          - sh
+          - -c
+          - |
+            API=http://labels-synapse-api.skirmshop.svc.cluster.local:8080
+            TOKEN=$(awk 'NR==1{gsub(/:/,""); print}' /tokens/tokens.yaml)
+            NS=skirmshop
+            until curl -sf "$API/healthz" > /dev/null 2>&1; do
+              echo "Waiting for Synapse API..."; sleep 3
+            done
+            CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
+              -H "Authorization: Bearer $TOKEN" "$API/api/v1/namespaces/$NS")
+            if [ "$CODE" = "200" ]; then
+              echo "Synapse namespace $NS already exists"
+            else
+              curl -sf -X POST -H "Authorization: Bearer $TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "{\"apiVersion\":\"neuroglia.io/v1\",\"kind\":\"Namespace\",\"metadata\":{\"name\":\"$NS\"}}" \
+                "$API/api/v1/namespaces" && echo "Synapse namespace $NS created"
+            fi
+          image: alpine/curl:latest
+          imagePullPolicy: Always
+          name: synapse-namespace-init
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tokens
+            name: tokens
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - configMap:
+            defaultMode: 420
+            name: synapse-tokens
+          name: tokens
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T20:18:34Z"
+      lastUpdateTime: "2026-05-21T20:18:34Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-21T08:01:06Z"
+      lastUpdateTime: "2026-05-21T21:12:36Z"
+      message: ReplicaSet "labels-synapse-correlator-d895f7bf6" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 5
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "5"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"labels-synapse-operator","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"labels-synapse-operator"}},"template":{"metadata":{"labels":{"app":"labels-synapse-operator"}},"spec":{"containers":[{"env":[{"name":"CONNECTIONSTRINGS__REDIS","value":"labels-redis.skirmshop.svc.cluster.local:6379"},{"name":"SYNAPSE_OPERATOR_NAME","value":"skirmshop-operator"},{"name":"SYNAPSE_OPERATOR_NAMESPACE","value":"skirmshop"},{"name":"SYNAPSE_RUNNER_API","value":"http://labels-synapse-api.skirmshop.svc.cluster.local:8080"},{"name":"SYNAPSE_RUNNER_CONTAINER_PLATFORM","value":"kubernetes"},{"name":"SYNAPSE_RUNNER_LIFECYCLE_EVENTS","value":"true"}],"envFrom":[{"secretRef":{"name":"labels-secrets"}}],"image":"ghcr.io/serverlessworkflow/synapse/operator:1.0.0-alpha1","name":"synapse-operator","resources":{"limits":{"memory":"256Mi"},"requests":{"cpu":"30m","memory":"64Mi"}}}],"enableServiceLinks":false,"initContainers":[{"command":["sh","-c","API=http://labels-synapse-api.skirmshop.svc.cluster.local:8080\nTOKEN=$(awk 'NR==1{gsub(/:/,\"\"); print}' /tokens/tokens.yaml)\nNS=skirmshop\nuntil curl -sf \"$API/healthz\" \u003e /dev/null 2\u003e\u00261; do\n  echo \"Waiting for Synapse API...\"; sleep 3\ndone\nCODE=$(curl -sf -o /dev/null -w \"%{http_code}\" \\\n  -H \"Authorization: Bearer $TOKEN\" \"$API/api/v1/namespaces/$NS\")\nif [ \"$CODE\" = \"200\" ]; then\n  echo \"Synapse namespace $NS already exists\"\nelse\n  curl -sf -X POST -H \"Authorization: Bearer $TOKEN\" \\\n    -H \"Content-Type: application/json\" \\\n    -d \"{\\\"apiVersion\\\":\\\"neuroglia.io/v1\\\",\\\"kind\\\":\\\"Namespace\\\",\\\"metadata\\\":{\\\"name\\\":\\\"$NS\\\"}}\" \\\n    \"$API/api/v1/namespaces\" \u0026\u0026 echo \"Synapse namespace $NS created\"\nfi\n"],"image":"alpine/curl:latest","name":"synapse-namespace-init","volumeMounts":[{"mountPath":"/tokens","name":"tokens"}]}],"nodeSelector":{"kubernetes.io/arch":"amd64","topology":"lan"},"volumes":[{"configMap":{"name":"synapse-tokens"},"name":"tokens"}]}}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 5
+    name: labels-synapse-operator
+    namespace: skirmshop
+    resourceVersion: "1879813"
+    uid: 12a8d376-8b2f-4d67-9234-e7dcc96b7db6
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: labels-synapse-operator
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T22:18:34+02:00"
+        creationTimestamp: null
+        labels:
+          app: labels-synapse-operator
+      spec:
+        containers:
+        - env:
+          - name: CONNECTIONSTRINGS__REDIS
+            value: labels-redis.skirmshop.svc.cluster.local:6379
+          - name: SYNAPSE_OPERATOR_NAME
+            value: skirmshop-operator
+          - name: SYNAPSE_OPERATOR_NAMESPACE
+            value: skirmshop
+          - name: SYNAPSE_RUNNER_API
+            value: http://labels-synapse-api.skirmshop.svc.cluster.local:8080
+          - name: SYNAPSE_RUNNER_CONTAINER_PLATFORM
+            value: kubernetes
+          - name: SYNAPSE_RUNNER_LIFECYCLE_EVENTS
+            value: "true"
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: ghcr.io/serverlessworkflow/synapse/operator:1.0.0-alpha1
+          imagePullPolicy: IfNotPresent
+          name: synapse-operator
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 30m
+              memory: 64Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        initContainers:
+        - command:
+          - sh
+          - -c
+          - |
+            API=http://labels-synapse-api.skirmshop.svc.cluster.local:8080
+            TOKEN=$(awk 'NR==1{gsub(/:/,""); print}' /tokens/tokens.yaml)
+            NS=skirmshop
+            until curl -sf "$API/healthz" > /dev/null 2>&1; do
+              echo "Waiting for Synapse API..."; sleep 3
+            done
+            CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
+              -H "Authorization: Bearer $TOKEN" "$API/api/v1/namespaces/$NS")
+            if [ "$CODE" = "200" ]; then
+              echo "Synapse namespace $NS already exists"
+            else
+              curl -sf -X POST -H "Authorization: Bearer $TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "{\"apiVersion\":\"neuroglia.io/v1\",\"kind\":\"Namespace\",\"metadata\":{\"name\":\"$NS\"}}" \
+                "$API/api/v1/namespaces" && echo "Synapse namespace $NS created"
+            fi
+          image: alpine/curl:latest
+          imagePullPolicy: Always
+          name: synapse-namespace-init
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /tokens
+            name: tokens
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - configMap:
+            defaultMode: 420
+            name: synapse-tokens
+          name: tokens
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T20:18:34Z"
+      lastUpdateTime: "2026-05-21T20:18:34Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-21T08:01:06Z"
+      lastUpdateTime: "2026-05-21T21:12:36Z"
+      message: ReplicaSet "labels-synapse-operator-7d78b4ff4c" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 5
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "8"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"labels-ups-adapter","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"labels-ups-adapter"}},"template":{"metadata":{"labels":{"app":"labels-ups-adapter"}},"spec":{"containers":[{"env":[{"name":"PORT","value":"3000"}],"envFrom":[{"secretRef":{"name":"labels-secrets"}}],"image":"harbor.e-dani.com/homelab/skirmshop-labels-ups-adapter:latest","name":"ups-adapter","ports":[{"containerPort":3000,"name":"http"}],"readinessProbe":{"httpGet":{"path":"/health","port":3000},"initialDelaySeconds":10},"resources":{"limits":{"memory":"256Mi"},"requests":{"cpu":"20m","memory":"64Mi"}}}],"enableServiceLinks":false,"nodeSelector":{"kubernetes.io/arch":"amd64","topology":"lan"}}}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 11
+    name: labels-ups-adapter
+    namespace: skirmshop
+    resourceVersion: "1879693"
+    uid: 9b307bd4-8b80-4a6a-8cca-e23ef0d7763a
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: labels-ups-adapter
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T18:31:25+02:00"
+        creationTimestamp: null
+        labels:
+          app: labels-ups-adapter
+      spec:
+        containers:
+        - env:
+          - name: PORT
+            value: "3000"
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: harbor.e-dani.com/homelab/skirmshop-labels-ups-adapter:latest
+          imagePullPolicy: Always
+          name: ups-adapter
+          ports:
+          - containerPort: 3000
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 20m
+              memory: 64Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T16:16:55Z"
+      lastUpdateTime: "2026-05-21T16:37:03Z"
+      message: ReplicaSet "labels-ups-adapter-76dbd99f97" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-05-21T19:40:45Z"
+      lastUpdateTime: "2026-05-21T19:40:45Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 11
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "4"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"sii-app","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"sii-app"}},"template":{"metadata":{"labels":{"app":"sii-app"}},"spec":{"containers":[{"env":[{"name":"DATABASE_URL","value":"postgresql://$(DB_USER):$(DB_PASSWORD)@shared-postgres-rw.skirmshop.svc.cluster.local:5432/skirmshop"}],"envFrom":[{"secretRef":{"name":"labels-secrets"}}],"image":"harbor.e-dani.com/homelab/shopify-sii-app:latest","name":"sii-app","ports":[{"containerPort":3000,"name":"http"}],"readinessProbe":{"httpGet":{"path":"/health","port":3000},"initialDelaySeconds":20},"resources":{"limits":{"memory":"512Mi"},"requests":{"cpu":"50m","memory":"128Mi"}}}],"enableServiceLinks":false,"nodeSelector":{"kubernetes.io/arch":"amd64","topology":"lan"}}}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 6
+    name: sii-app
+    namespace: skirmshop
+    resourceVersion: "1813929"
+    uid: c90ec776-55f4-4cba-9a88-0e8a3626805b
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: sii-app
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T17:12:46+02:00"
+        creationTimestamp: null
+        labels:
+          app: sii-app
+      spec:
+        containers:
+        - env:
+          - name: DATABASE_URL
+            value: postgresql://$(DB_USER):$(DB_PASSWORD)@shared-postgres-rw.skirmshop.svc.cluster.local:5432/skirmshop
+          - name: PORT
+            value: "3000"
+          - name: SHOPIFY_APP_URL
+            value: https://skirmshop.e-dani.com/sii
+          - name: NODE_ENV
+            value: production
+          - name: SHOPIFY_API_KEY
+            value: 7106f435e9fac723d3a4c10a01a0fc44
+          - name: SHOPIFY_API_SECRET
+            value: <REDACTED_SHOPIFY_API_SECRET>
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: harbor.e-dani.com/homelab/shopify-sii-app:latest
+          imagePullPolicy: Always
+          name: sii-app
+          ports:
+          - containerPort: 3000
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 3000
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T16:52:22Z"
+      lastUpdateTime: "2026-05-21T16:54:25Z"
+      message: ReplicaSet "sii-app-68b49f95fc" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-05-21T19:36:02Z"
+      lastUpdateTime: "2026-05-21T19:36:02Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 6
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "2"
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"name":"skirmshop-picker","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"skirmshop-picker"}},"template":{"metadata":{"labels":{"app":"skirmshop-picker"}},"spec":{"containers":[{"env":[{"name":"DATABASE_URL","value":"postgresql://$(DB_USER):$(DB_PASSWORD)@shared-postgres-rw.skirmshop.svc.cluster.local:5432/skirmshop"}],"envFrom":[{"secretRef":{"name":"labels-secrets"}}],"image":"harbor.e-dani.com/homelab/skirmshop-picker:latest","name":"picker","ports":[{"containerPort":3480,"name":"http"}],"readinessProbe":{"httpGet":{"path":"/health","port":3480},"initialDelaySeconds":15},"resources":{"limits":{"memory":"512Mi"},"requests":{"cpu":"50m","memory":"128Mi"}}}],"enableServiceLinks":false,"nodeSelector":{"kubernetes.io/arch":"amd64","topology":"lan"}}}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 4
+    name: skirmshop-picker
+    namespace: skirmshop
+    resourceVersion: "1813600"
+    uid: eb498b65-7660-4476-939b-e08b599a8a17
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: skirmshop-picker
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T16:59:13+02:00"
+        creationTimestamp: null
+        labels:
+          app: skirmshop-picker
+      spec:
+        containers:
+        - env:
+          - name: DATABASE_URL
+            value: postgresql://$(DB_USER):$(DB_PASSWORD)@shared-postgres-rw.skirmshop.svc.cluster.local:5432/skirmshop
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: harbor.e-dani.com/homelab/skirmshop-picker:latest
+          imagePullPolicy: Always
+          name: picker
+          ports:
+          - containerPort: 3480
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 3480
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T08:01:06Z"
+      lastUpdateTime: "2026-05-21T14:59:36Z"
+      message: ReplicaSet "skirmshop-picker-5c694bf58f" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-05-21T19:35:53Z"
+      lastUpdateTime: "2026-05-21T19:35:53Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 4
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"StatefulSet","metadata":{"annotations":{},"name":"labels-postgres","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"labels-postgres"}},"serviceName":"labels-postgres","template":{"metadata":{"labels":{"app":"labels-postgres"}},"spec":{"containers":[{"env":[{"name":"POSTGRES_DB","value":"labels"},{"name":"PGDATA","value":"/var/lib/postgresql/data/pgdata"},{"name":"POSTGRES_USER","valueFrom":{"secretKeyRef":{"key":"LABELS_DB_USER","name":"labels-secrets"}}},{"name":"POSTGRES_PASSWORD","valueFrom":{"secretKeyRef":{"key":"LABELS_DB_PASSWORD","name":"labels-secrets"}}}],"image":"postgres:16-alpine","name":"postgres","ports":[{"containerPort":5432,"name":"postgres"}],"readinessProbe":{"exec":{"command":["pg_isready","-U","skirmshop","-d","labels"]},"initialDelaySeconds":5,"periodSeconds":10},"resources":{"limits":{"memory":"512Mi"},"requests":{"cpu":"100m","memory":"128Mi"}},"volumeMounts":[{"mountPath":"/var/lib/postgresql/data","name":"data"}]}],"enableServiceLinks":false,"nodeSelector":{"kubernetes.io/arch":"amd64","topology":"lan"},"volumes":[{"name":"data","persistentVolumeClaim":{"claimName":"labels-postgres-data"}}]}}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 3
+    name: labels-postgres
+    namespace: skirmshop
+    resourceVersion: "1813313"
+    uid: ff6d1bbd-d9cd-4ff8-a37b-52e285505609
+  spec:
+    persistentVolumeClaimRetentionPolicy:
+      whenDeleted: Retain
+      whenScaled: Retain
+    podManagementPolicy: OrderedReady
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: labels-postgres
+    serviceName: labels-postgres
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: labels-postgres
+      spec:
+        containers:
+        - env:
+          - name: POSTGRES_DB
+            value: labels
+          - name: PGDATA
+            value: /var/lib/postgresql/data/pgdata
+          - name: POSTGRES_USER
+            valueFrom:
+              secretKeyRef:
+                key: LABELS_DB_USER
+                name: labels-secrets
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: LABELS_DB_PASSWORD
+                name: labels-secrets
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          name: postgres
+          ports:
+          - containerPort: 5432
+            name: postgres
+            protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+              - pg_isready
+              - -U
+              - skirmshop
+              - -d
+              - labels
+            failureThreshold: 3
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /var/lib/postgresql/data
+            name: data
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: labels-postgres-data
+    updateStrategy:
+      rollingUpdate:
+        partition: 0
+      type: RollingUpdate
+  status:
+    availableReplicas: 1
+    collisionCount: 0
+    currentReplicas: 1
+    currentRevision: labels-postgres-5798d5ff7d
+    observedGeneration: 3
+    readyReplicas: 1
+    replicas: 1
+    updateRevision: labels-postgres-5798d5ff7d
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"StatefulSet","metadata":{"annotations":{},"name":"shared-rabbitmq","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"shared-rabbitmq"}},"serviceName":"shared-rabbitmq","template":{"metadata":{"labels":{"app":"shared-rabbitmq"}},"spec":{"containers":[{"envFrom":[{"secretRef":{"name":"rabbitmq-secrets"}}],"image":"rabbitmq:3-management","name":"rabbitmq","ports":[{"containerPort":5672,"name":"amqp"},{"containerPort":15672,"name":"mgmt"}],"readinessProbe":{"exec":{"command":["rabbitmq-diagnostics","check_port_connectivity"]},"initialDelaySeconds":20,"periodSeconds":15},"resources":{"limits":{"memory":"1Gi"},"requests":{"cpu":"100m","memory":"256Mi"}},"volumeMounts":[{"mountPath":"/var/lib/rabbitmq","name":"data"}]}],"enableServiceLinks":false,"nodeSelector":{"kubernetes.io/arch":"amd64","topology":"lan"},"volumes":[{"name":"data","persistentVolumeClaim":{"claimName":"shared-rabbitmq-data"}}]}}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 1
+    name: shared-rabbitmq
+    namespace: skirmshop
+    resourceVersion: "1811973"
+    uid: bc830207-c30a-415c-9fa2-d6ca8fdfaf4c
+  spec:
+    persistentVolumeClaimRetentionPolicy:
+      whenDeleted: Retain
+      whenScaled: Retain
+    podManagementPolicy: OrderedReady
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: shared-rabbitmq
+    serviceName: shared-rabbitmq
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: shared-rabbitmq
+      spec:
+        containers:
+        - envFrom:
+          - secretRef:
+              name: rabbitmq-secrets
+          image: rabbitmq:3-management
+          imagePullPolicy: IfNotPresent
+          name: rabbitmq
+          ports:
+          - containerPort: 5672
+            name: amqp
+            protocol: TCP
+          - containerPort: 15672
+            name: mgmt
+            protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+              - rabbitmq-diagnostics
+              - check_port_connectivity
+            failureThreshold: 3
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 1Gi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /var/lib/rabbitmq
+            name: data
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: shared-rabbitmq-data
+    updateStrategy:
+      rollingUpdate:
+        partition: 0
+      type: RollingUpdate
+  status:
+    availableReplicas: 1
+    collisionCount: 0
+    currentReplicas: 1
+    currentRevision: shared-rabbitmq-fbdf5fbdb
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updateRevision: shared-rabbitmq-fbdf5fbdb
+    updatedReplicas: 1
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"bundles-app","namespace":"skirmshop"},"spec":{"ports":[{"name":"http","port":80,"targetPort":3460}],"selector":{"app":"bundles-app"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    name: bundles-app
+    namespace: skirmshop
+    resourceVersion: "1421969"
+    uid: f6acef29-21c5-40fc-ac4b-c428e859d355
+  spec:
+    clusterIP: 10.43.22.126
+    clusterIPs:
+    - 10.43.22.126
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 3460
+    selector:
+      app: bundles-app
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"firecrawl-api","namespace":"skirmshop"},"spec":{"ports":[{"name":"http","port":3002,"targetPort":3002}],"selector":{"app":"firecrawl-api"}}}
+    creationTimestamp: "2026-05-21T08:01:06Z"
+    name: firecrawl-api
+    namespace: skirmshop
+    resourceVersion: "1421993"
+    uid: ff170777-f199-4aee-9f26-5d0cab18e006
+  spec:
+    clusterIP: 10.43.184.180
+    clusterIPs:
+    - 10.43.184.180
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 3002
+      protocol: TCP
+      targetPort: 3002
+    selector:
+      app: firecrawl-api
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"firecrawl-playwright","namespace":"skirmshop"},"spec":{"ports":[{"name":"http","port":3000,"targetPort":3000}],"selector":{"app":"firecrawl-playwright"}}}
+    creationTimestamp: "2026-05-21T08:01:06Z"
+    name: firecrawl-playwright
+    namespace: skirmshop
+    resourceVersion: "1422015"
+    uid: e5994aca-ba5a-4a66-b2d8-e5e54a0dcbc9
+  spec:
+    clusterIP: 10.43.13.117
+    clusterIPs:
+    - 10.43.13.117
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 3000
+      protocol: TCP
+      targetPort: 3000
+    selector:
+      app: firecrawl-playwright
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"labels-event-gateway","namespace":"skirmshop"},"spec":{"ports":[{"name":"http","port":3006,"targetPort":3000}],"selector":{"app":"labels-event-gateway"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    name: labels-event-gateway
+    namespace: skirmshop
+    resourceVersion: "1421856"
+    uid: 631e4029-6070-4333-941e-ea787c1b132e
+  spec:
+    clusterIP: 10.43.133.128
+    clusterIPs:
+    - 10.43.133.128
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 3006
+      protocol: TCP
+      targetPort: 3000
+    selector:
+      app: labels-event-gateway
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"labels-label-storage","namespace":"skirmshop"},"spec":{"ports":[{"name":"http","port":3007,"targetPort":3000}],"selector":{"app":"labels-label-storage"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    name: labels-label-storage
+    namespace: skirmshop
+    resourceVersion: "1421880"
+    uid: b26acba1-acc9-4af9-9425-979c2bcfa7bd
+  spec:
+    clusterIP: 10.43.210.77
+    clusterIPs:
+    - 10.43.210.77
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 3007
+      protocol: TCP
+      targetPort: 3000
+    selector:
+      app: labels-label-storage
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"labels-nats","namespace":"skirmshop"},"spec":{"ports":[{"name":"client","port":4222,"targetPort":4222},{"name":"monitor","port":8222,"targetPort":8222}],"selector":{"app":"labels-nats"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    name: labels-nats
+    namespace: skirmshop
+    resourceVersion: "1421796"
+    uid: 6430c272-7e37-46a1-9a18-c3d23259dffa
+  spec:
+    clusterIP: 10.43.226.13
+    clusterIPs:
+    - 10.43.226.13
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: client
+      port: 4222
+      protocol: TCP
+      targetPort: 4222
+    - name: monitor
+      port: 8222
+      protocol: TCP
+      targetPort: 8222
+    selector:
+      app: labels-nats
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"labels-postgres","namespace":"skirmshop"},"spec":{"ports":[{"name":"postgres","port":5432,"targetPort":5432}],"selector":{"app":"labels-postgres"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    name: labels-postgres
+    namespace: skirmshop
+    resourceVersion: "1421763"
+    uid: 5a333af7-0eab-4cd3-989f-85a10e6d06c4
+  spec:
+    clusterIP: 10.43.114.68
+    clusterIPs:
+    - 10.43.114.68
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: postgres
+      port: 5432
+      protocol: TCP
+      targetPort: 5432
+    selector:
+      app: labels-postgres
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"labels-redis","namespace":"skirmshop"},"spec":{"ports":[{"name":"redis","port":6379,"targetPort":6379}],"selector":{"app":"labels-redis"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    name: labels-redis
+    namespace: skirmshop
+    resourceVersion: "1421773"
+    uid: dd14e550-7ae5-4f12-9862-6c8271b0e14c
+  spec:
+    clusterIP: 10.43.197.227
+    clusterIPs:
+    - 10.43.197.227
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: redis
+      port: 6379
+      protocol: TCP
+      targetPort: 6379
+    selector:
+      app: labels-redis
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"labels-routing-service","namespace":"skirmshop"},"spec":{"ports":[{"name":"http","port":3001,"targetPort":3000}],"selector":{"app":"labels-routing-service"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    name: labels-routing-service
+    namespace: skirmshop
+    resourceVersion: "1421900"
+    uid: 5cc00406-4b14-4d60-9adf-807d4dbf0e6a
+  spec:
+    clusterIP: 10.43.123.117
+    clusterIPs:
+    - 10.43.123.117
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 3001
+      protocol: TCP
+      targetPort: 3000
+    selector:
+      app: labels-routing-service
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"labels-saga-launcher","namespace":"skirmshop"},"spec":{"ports":[{"name":"http","port":3012,"targetPort":3000}],"selector":{"app":"labels-saga-launcher"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    name: labels-saga-launcher
+    namespace: skirmshop
+    resourceVersion: "1421916"
+    uid: 60ccc834-8e52-438e-b89a-5015fd49a59c
+  spec:
+    clusterIP: 10.43.202.143
+    clusterIPs:
+    - 10.43.202.143
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 3012
+      protocol: TCP
+      targetPort: 3000
+    selector:
+      app: labels-saga-launcher
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"labels-shopify-app","namespace":"skirmshop"},"spec":{"ports":[{"name":"http","port":3004,"targetPort":3000}],"selector":{"app":"labels-shopify-app"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    name: labels-shopify-app
+    namespace: skirmshop
+    resourceVersion: "1421822"
+    uid: a0f16c30-a84e-49ac-9c10-498ee855aa0e
+  spec:
+    clusterIP: 10.43.16.105
+    clusterIPs:
+    - 10.43.16.105
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 3004
+      protocol: TCP
+      targetPort: 3000
+    selector:
+      app: labels-shopify-app
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"labels-synapse-api","namespace":"skirmshop"},"spec":{"ports":[{"name":"http","port":8080,"targetPort":8080}],"selector":{"app":"labels-synapse-api"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    name: labels-synapse-api
+    namespace: skirmshop
+    resourceVersion: "1421932"
+    uid: 19d9f5d7-b949-40a1-a741-0881c5d925d2
+  spec:
+    clusterIP: 10.43.54.110
+    clusterIPs:
+    - 10.43.54.110
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      app: labels-synapse-api
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"labels-synapse-correlator","namespace":"skirmshop"},"spec":{"ports":[{"name":"http","port":8080,"targetPort":8080}],"selector":{"app":"labels-synapse-correlator"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    name: labels-synapse-correlator
+    namespace: skirmshop
+    resourceVersion: "1421944"
+    uid: 6571e318-14fb-44ee-b3a6-bb289c82e73c
+  spec:
+    clusterIP: 10.43.21.131
+    clusterIPs:
+    - 10.43.21.131
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      app: labels-synapse-correlator
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"labels-ups-adapter","namespace":"skirmshop"},"spec":{"ports":[{"name":"http","port":3002,"targetPort":3000}],"selector":{"app":"labels-ups-adapter"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    name: labels-ups-adapter
+    namespace: skirmshop
+    resourceVersion: "1421922"
+    uid: 65e82ecd-c86a-458d-a3a8-2314007183aa
+  spec:
+    clusterIP: 10.43.252.192
+    clusterIPs:
+    - 10.43.252.192
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 3002
+      protocol: TCP
+      targetPort: 3000
+    selector:
+      app: labels-ups-adapter
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      cnpg.io/operatorVersion: 1.25.1
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    labels:
+      cnpg.io/cluster: shared-postgres
+    name: shared-postgres-r
+    namespace: skirmshop
+    ownerReferences:
+    - apiVersion: postgresql.cnpg.io/v1
+      controller: true
+      kind: Cluster
+      name: shared-postgres
+      uid: 16b3226a-8da2-4926-9711-c5908dc5358f
+    resourceVersion: "1421703"
+    uid: 34ab386d-7962-46b0-a66e-f14459677a80
+  spec:
+    clusterIP: 10.43.51.126
+    clusterIPs:
+    - 10.43.51.126
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: postgres
+      port: 5432
+      protocol: TCP
+      targetPort: 5432
+    selector:
+      cnpg.io/cluster: shared-postgres
+      cnpg.io/podRole: instance
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      cnpg.io/operatorVersion: 1.25.1
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    labels:
+      cnpg.io/cluster: shared-postgres
+    name: shared-postgres-ro
+    namespace: skirmshop
+    ownerReferences:
+    - apiVersion: postgresql.cnpg.io/v1
+      controller: true
+      kind: Cluster
+      name: shared-postgres
+      uid: 16b3226a-8da2-4926-9711-c5908dc5358f
+    resourceVersion: "1421712"
+    uid: c41aaa00-86a1-4616-bb9e-c34fe4dfd596
+  spec:
+    clusterIP: 10.43.77.187
+    clusterIPs:
+    - 10.43.77.187
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: postgres
+      port: 5432
+      protocol: TCP
+      targetPort: 5432
+    selector:
+      cnpg.io/cluster: shared-postgres
+      cnpg.io/instanceRole: replica
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      cnpg.io/operatorVersion: 1.25.1
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    labels:
+      cnpg.io/cluster: shared-postgres
+    name: shared-postgres-rw
+    namespace: skirmshop
+    ownerReferences:
+    - apiVersion: postgresql.cnpg.io/v1
+      controller: true
+      kind: Cluster
+      name: shared-postgres
+      uid: 16b3226a-8da2-4926-9711-c5908dc5358f
+    resourceVersion: "1421719"
+    uid: e14c135d-6fac-469f-9df5-e4fffff72c99
+  spec:
+    clusterIP: 10.43.101.181
+    clusterIPs:
+    - 10.43.101.181
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: postgres
+      port: 5432
+      protocol: TCP
+      targetPort: 5432
+    selector:
+      cnpg.io/cluster: shared-postgres
+      cnpg.io/instanceRole: primary
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"shared-rabbitmq","namespace":"skirmshop"},"spec":{"ports":[{"name":"amqp","port":5672,"targetPort":5672},{"name":"mgmt","port":15672,"targetPort":15672}],"selector":{"app":"shared-rabbitmq"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    name: shared-rabbitmq
+    namespace: skirmshop
+    resourceVersion: "1421729"
+    uid: fbd49350-5660-41c9-b505-8a21ac787485
+  spec:
+    clusterIP: 10.43.75.193
+    clusterIPs:
+    - 10.43.75.193
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: amqp
+      port: 5672
+      protocol: TCP
+      targetPort: 5672
+    - name: mgmt
+      port: 15672
+      protocol: TCP
+      targetPort: 15672
+    selector:
+      app: shared-rabbitmq
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"sii-app","namespace":"skirmshop"},"spec":{"ports":[{"name":"http","port":80,"targetPort":3000}],"selector":{"app":"sii-app"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    name: sii-app
+    namespace: skirmshop
+    resourceVersion: "1421977"
+    uid: 10521bea-4708-49fc-ae60-7d55a457d4ce
+  spec:
+    clusterIP: 10.43.53.127
+    clusterIPs:
+    - 10.43.53.127
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 3000
+    selector:
+      app: sii-app
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"skirmshop-picker","namespace":"skirmshop"},"spec":{"ports":[{"name":"http","port":80,"targetPort":3480}],"selector":{"app":"skirmshop-picker"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    name: skirmshop-picker
+    namespace: skirmshop
+    resourceVersion: "1421953"
+    uid: e6cb96f2-43fc-4a25-a61b-aff17c44ccb2
+  spec:
+    clusterIP: 10.43.18.144
+    clusterIPs:
+    - 10.43.18.144
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 3480
+    selector:
+      app: skirmshop-picker
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"PersistentVolumeClaim","metadata":{"annotations":{},"name":"labels-postgres-data","namespace":"skirmshop"},"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"10Gi"}},"storageClassName":"longhorn"}}
+      pv.kubernetes.io/bind-completed: "yes"
+      pv.kubernetes.io/bound-by-controller: "yes"
+      volume.beta.kubernetes.io/storage-provisioner: driver.longhorn.io
+      volume.kubernetes.io/storage-provisioner: driver.longhorn.io
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    finalizers:
+    - kubernetes.io/pvc-protection
+    name: labels-postgres-data
+    namespace: skirmshop
+    resourceVersion: "1422221"
+    uid: 2897bcf2-61f5-4e02-9354-82abdae27b83
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 10Gi
+    storageClassName: longhorn
+    volumeMode: Filesystem
+    volumeName: pvc-2897bcf2-61f5-4e02-9354-82abdae27b83
+  status:
+    accessModes:
+    - ReadWriteOnce
+    capacity:
+      storage: 10Gi
+    phase: Bound
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    annotations:
+      cnpg.io/nodeSerial: "1"
+      cnpg.io/operatorVersion: 1.25.1
+      cnpg.io/pvcStatus: ready
+      pv.kubernetes.io/bind-completed: "yes"
+      pv.kubernetes.io/bound-by-controller: "yes"
+      volume.beta.kubernetes.io/storage-provisioner: driver.longhorn.io
+      volume.kubernetes.io/storage-provisioner: driver.longhorn.io
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    finalizers:
+    - kubernetes.io/pvc-protection
+    labels:
+      cnpg.io/cluster: shared-postgres
+      cnpg.io/instanceName: shared-postgres-1
+      cnpg.io/instanceRole: primary
+      cnpg.io/pvcRole: PG_DATA
+      role: primary
+    name: shared-postgres-1
+    namespace: skirmshop
+    ownerReferences:
+    - apiVersion: postgresql.cnpg.io/v1
+      controller: true
+      kind: Cluster
+      name: shared-postgres
+      uid: 16b3226a-8da2-4926-9711-c5908dc5358f
+    resourceVersion: "1423118"
+    uid: ac014a73-a265-4643-905b-60f96a66560e
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 50Gi
+    storageClassName: longhorn
+    volumeMode: Filesystem
+    volumeName: pvc-ac014a73-a265-4643-905b-60f96a66560e
+  status:
+    accessModes:
+    - ReadWriteOnce
+    capacity:
+      storage: 50Gi
+    phase: Bound
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"v1","kind":"PersistentVolumeClaim","metadata":{"annotations":{},"name":"shared-rabbitmq-data","namespace":"skirmshop"},"spec":{"accessModes":["ReadWriteOnce"],"resources":{"requests":{"storage":"5Gi"}},"storageClassName":"longhorn"}}
+      pv.kubernetes.io/bind-completed: "yes"
+      pv.kubernetes.io/bound-by-controller: "yes"
+      volume.beta.kubernetes.io/storage-provisioner: driver.longhorn.io
+      volume.kubernetes.io/storage-provisioner: driver.longhorn.io
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    finalizers:
+    - kubernetes.io/pvc-protection
+    name: shared-rabbitmq-data
+    namespace: skirmshop
+    resourceVersion: "1422230"
+    uid: f11b8ce7-c4c6-43d9-ada3-6e4dd92a931f
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 5Gi
+    storageClassName: longhorn
+    volumeMode: Filesystem
+    volumeName: pvc-f11b8ce7-c4c6-43d9-ada3-6e4dd92a931f
+  status:
+    accessModes:
+    - ReadWriteOnce
+    capacity:
+      storage: 5Gi
+    phase: Bound
+- apiVersion: external-secrets.io/v1
+  kind: ExternalSecret
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"external-secrets.io/v1","kind":"ExternalSecret","metadata":{"annotations":{},"name":"labels-secrets","namespace":"skirmshop"},"spec":{"dataFrom":[{"extract":{"key":"secret/skirmshop/labels"}}],"refreshInterval":"1h","secretStoreRef":{"kind":"ClusterSecretStore","name":"vault-backend"},"target":{"creationPolicy":"Owner","name":"labels-secrets"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    finalizers:
+    - externalsecrets.external-secrets.io/externalsecret-cleanup
+    generation: 1
+    name: labels-secrets
+    namespace: skirmshop
+    resourceVersion: "1881468"
+    uid: f0c89bb5-274a-4c8f-b185-fad4385b81c5
+  spec:
+    dataFrom:
+    - extract:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: secret/skirmshop/labels
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+    refreshInterval: 1h
+    secretStoreRef:
+      kind: ClusterSecretStore
+      name: vault-backend
+    target:
+      creationPolicy: Owner
+      deletionPolicy: Retain
+      name: labels-secrets
+  status:
+    binding:
+      name: labels-secrets
+    conditions:
+    - lastTransitionTime: "2026-05-21T20:36:04Z"
+      message: secret synced
+      reason: SecretSynced
+      status: "True"
+      type: Ready
+    refreshTime: "2026-05-21T21:15:09Z"
+    syncedResourceVersion: 1-d35872510a99833e6d743a2fa249c6d89832de02fd422f8a0253ef94
+- apiVersion: external-secrets.io/v1
+  kind: ExternalSecret
+  metadata:
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    finalizers:
+    - externalsecrets.external-secrets.io/externalsecret-cleanup
+    generation: 1
+    name: minio-backup-creds
+    namespace: skirmshop
+    ownerReferences:
+    - apiVersion: external-secrets.io/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: ClusterExternalSecret
+      name: minio-backup-creds
+      uid: 7633bce6-11f6-4f25-97c0-f154c239a475
+    resourceVersion: "1894195"
+    uid: ebcf123b-5ae2-4f32-aeb3-bbbae16a324f
+  spec:
+    data:
+    - remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: secret/minio/backup-user
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+        property: ACCESS_KEY_ID
+      secretKey: ACCESS_KEY_ID
+    - remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: secret/minio/backup-user
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+        property: SECRET_ACCESS_KEY
+      secretKey: SECRET_ACCESS_KEY
+    refreshInterval: 1h0m0s
+    secretStoreRef:
+      kind: ClusterSecretStore
+      name: vault-backend
+    target:
+      creationPolicy: Owner
+      deletionPolicy: Retain
+      name: minio-backup-creds
+  status:
+    binding:
+      name: minio-backup-creds
+    conditions:
+    - lastTransitionTime: "2026-05-21T20:36:03Z"
+      message: secret synced
+      reason: SecretSynced
+      status: "True"
+      type: Ready
+    refreshTime: "2026-05-21T21:36:03Z"
+    syncedResourceVersion: 1-f47fe3c0b255b6dd8047cdffa772587bb829efe7a1cb70febeda2eb2
+- apiVersion: external-secrets.io/v1
+  kind: ExternalSecret
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"external-secrets.io/v1","kind":"ExternalSecret","metadata":{"annotations":{},"name":"rabbitmq-secrets","namespace":"skirmshop"},"spec":{"data":[{"remoteRef":{"key":"secret/skirmshop/rabbitmq","property":"user"},"secretKey":"RABBITMQ_DEFAULT_USER"},{"remoteRef":{"key":"secret/skirmshop/rabbitmq","property":"password"},"secretKey":"RABBITMQ_DEFAULT_PASS"}],"refreshInterval":"1h","secretStoreRef":{"kind":"ClusterSecretStore","name":"vault-backend"},"target":{"creationPolicy":"Owner","name":"rabbitmq-secrets"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    finalizers:
+    - externalsecrets.external-secrets.io/externalsecret-cleanup
+    generation: 1
+    name: rabbitmq-secrets
+    namespace: skirmshop
+    resourceVersion: "1881473"
+    uid: b1c45ee1-feea-4d75-b144-bf7e6421d4b2
+  spec:
+    data:
+    - remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: secret/skirmshop/rabbitmq
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+        property: user
+      secretKey: RABBITMQ_DEFAULT_USER
+    - remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: secret/skirmshop/rabbitmq
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+        property: password
+      secretKey: RABBITMQ_DEFAULT_PASS
+    refreshInterval: 1h
+    secretStoreRef:
+      kind: ClusterSecretStore
+      name: vault-backend
+    target:
+      creationPolicy: Owner
+      deletionPolicy: Retain
+      name: rabbitmq-secrets
+  status:
+    binding:
+      name: rabbitmq-secrets
+    conditions:
+    - lastTransitionTime: "2026-05-21T20:36:04Z"
+      message: secret synced
+      reason: SecretSynced
+      status: "True"
+      type: Ready
+    refreshTime: "2026-05-21T21:15:09Z"
+    syncedResourceVersion: 1-cb76e5316f37410a51df283eaf953703d68cd50cf37c7bdad3531f5e
+- apiVersion: external-secrets.io/v1
+  kind: ExternalSecret
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"external-secrets.io/v1","kind":"ExternalSecret","metadata":{"annotations":{},"name":"shared-postgres-app","namespace":"skirmshop"},"spec":{"data":[{"remoteRef":{"key":"secret/skirmshop/postgres","property":"app-username"},"secretKey":"username"},{"remoteRef":{"key":"secret/skirmshop/postgres","property":"app-password"},"secretKey":"password"}],"refreshInterval":"1h","secretStoreRef":{"kind":"ClusterSecretStore","name":"vault-backend"},"target":{"creationPolicy":"Owner","name":"shared-postgres-app"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    finalizers:
+    - externalsecrets.external-secrets.io/externalsecret-cleanup
+    generation: 1
+    name: shared-postgres-app
+    namespace: skirmshop
+    resourceVersion: "1881478"
+    uid: ea6970b5-192d-4a6e-949b-72afd6a8bb81
+  spec:
+    data:
+    - remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: secret/skirmshop/postgres
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+        property: app-username
+      secretKey: username
+    - remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: secret/skirmshop/postgres
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+        property: app-password
+      secretKey: password
+    refreshInterval: 1h
+    secretStoreRef:
+      kind: ClusterSecretStore
+      name: vault-backend
+    target:
+      creationPolicy: Owner
+      deletionPolicy: Retain
+      name: shared-postgres-app
+  status:
+    binding:
+      name: shared-postgres-app
+    conditions:
+    - lastTransitionTime: "2026-05-21T20:36:04Z"
+      message: secret synced
+      reason: SecretSynced
+      status: "True"
+      type: Ready
+    refreshTime: "2026-05-21T21:15:09Z"
+    syncedResourceVersion: 1-010b978b2c73797e390f8ba308938491bf0012463ac9cb4657fc01e3
+- apiVersion: external-secrets.io/v1
+  kind: ExternalSecret
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"external-secrets.io/v1","kind":"ExternalSecret","metadata":{"annotations":{},"name":"shared-postgres-superuser","namespace":"skirmshop"},"spec":{"data":[{"remoteRef":{"key":"secret/skirmshop/postgres","property":"superuser-username"},"secretKey":"username"},{"remoteRef":{"key":"secret/skirmshop/postgres","property":"superuser-password"},"secretKey":"password"}],"refreshInterval":"1h","secretStoreRef":{"kind":"ClusterSecretStore","name":"vault-backend"},"target":{"creationPolicy":"Owner","name":"shared-postgres-superuser"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    finalizers:
+    - externalsecrets.external-secrets.io/externalsecret-cleanup
+    generation: 1
+    name: shared-postgres-superuser
+    namespace: skirmshop
+    resourceVersion: "1881491"
+    uid: aa07b639-965a-4e8b-ae7c-9202b7daf64c
+  spec:
+    data:
+    - remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: secret/skirmshop/postgres
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+        property: superuser-username
+      secretKey: username
+    - remoteRef:
+        conversionStrategy: Default
+        decodingStrategy: None
+        key: secret/skirmshop/postgres
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+        property: superuser-password
+      secretKey: password
+    refreshInterval: 1h
+    secretStoreRef:
+      kind: ClusterSecretStore
+      name: vault-backend
+    target:
+      creationPolicy: Owner
+      deletionPolicy: Retain
+      name: shared-postgres-superuser
+  status:
+    binding:
+      name: shared-postgres-superuser
+    conditions:
+    - lastTransitionTime: "2026-05-21T20:36:04Z"
+      message: secret synced
+      reason: SecretSynced
+      status: "True"
+      type: Ready
+    refreshTime: "2026-05-21T21:15:10Z"
+    syncedResourceVersion: 1-89a103ae096f9440c1956b0d73b0976f46c93af3a3d05b712039b314
+kind: List
+metadata:
+  resourceVersion: ""

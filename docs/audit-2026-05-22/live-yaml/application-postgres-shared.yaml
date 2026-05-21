@@ -1,0 +1,240 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/tracking-id: root:argoproj.io/Application:argocd/postgres-shared
+  creationTimestamp: "2026-05-19T23:23:45Z"
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+  generation: 3345
+  name: postgres-shared
+  namespace: argocd
+  resourceVersion: "1914084"
+  uid: f8656e42-fba8-4844-9853-214bf2782015
+spec:
+  destination:
+    namespace: databases
+    server: https://kubernetes.default.svc
+  ignoreDifferences:
+  - group: postgresql.cnpg.io
+    jqPathExpressions:
+    - .spec.backup.target
+    - .spec.managed.roles[].connectionLimit
+    - .spec.managed.roles[].inherit
+    - .spec.monitoring.customQueriesConfigMap
+    - .spec.monitoring.disableDefaultQueries
+    - .spec.storage.resizeInUseVolumes
+    - .spec.walStorage.resizeInUseVolumes
+    jsonPointers:
+    - /status
+    - /spec/bootstrap
+    - /spec/imageName
+    - /spec/postgresql/parameters
+    kind: Cluster
+  - group: external-secrets.io
+    jqPathExpressions:
+    - .spec.target.deletionPolicy
+    - .spec.target.template.engineVersion
+    - .spec.target.template.mergePolicy
+    - .spec.data[].remoteRef.conversionStrategy
+    - .spec.data[].remoteRef.decodingStrategy
+    - .spec.data[].remoteRef.metadataPolicy
+    - .spec.data[].remoteRef.nullBytePolicy
+    kind: ExternalSecret
+  project: default
+  revisionHistoryLimit: 10
+  source:
+    path: k8s/infrastructure/postgres
+    repoURL: git@github.com:pocharlies/dgx-infra.git
+    targetRevision: master
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    retry:
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+      limit: 5
+    syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+status:
+  controllerNamespace: argocd
+  health:
+    lastTransitionTime: "2026-05-21T20:36:04Z"
+    status: Healthy
+  history:
+  - deployStartedAt: "2026-05-19T23:41:10Z"
+    deployedAt: "2026-05-19T23:41:10Z"
+    id: 0
+    initiatedBy:
+      automated: true
+    revision: af850c08449e9541b353697616b7abc416631001
+    source:
+      path: k8s/infrastructure/postgres
+      repoURL: git@github.com:pocharlies/dgx-infra.git
+      targetRevision: master
+  - deployStartedAt: "2026-05-19T23:41:15Z"
+    deployedAt: "2026-05-19T23:41:17Z"
+    id: 1
+    initiatedBy: {}
+    revision: af850c08449e9541b353697616b7abc416631001
+    source:
+      path: k8s/infrastructure/postgres
+      repoURL: git@github.com:pocharlies/dgx-infra.git
+      targetRevision: master
+  - deployStartedAt: "2026-05-19T23:47:21Z"
+    deployedAt: "2026-05-19T23:47:21Z"
+    id: 2
+    initiatedBy:
+      automated: true
+    revision: 1d6d8bc33763c1aacead9a94271eb1c962863836
+    source:
+      path: k8s/infrastructure/postgres
+      repoURL: git@github.com:pocharlies/dgx-infra.git
+      targetRevision: master
+  - deployStartedAt: "2026-05-19T23:52:03Z"
+    deployedAt: "2026-05-19T23:52:03Z"
+    id: 3
+    initiatedBy:
+      automated: true
+    revision: 864fcef80fdbe0c97b09dc628b9bdaae223c4502
+    source:
+      path: k8s/infrastructure/postgres
+      repoURL: git@github.com:pocharlies/dgx-infra.git
+      targetRevision: master
+  - deployStartedAt: "2026-05-20T10:39:15Z"
+    deployedAt: "2026-05-20T10:39:15Z"
+    id: 4
+    initiatedBy:
+      automated: true
+    revision: 49aab565270d1acdb4975a79e7643525097161dd
+    source:
+      path: k8s/infrastructure/postgres
+      repoURL: git@github.com:pocharlies/dgx-infra.git
+      targetRevision: master
+  - deployStartedAt: "2026-05-21T21:36:18Z"
+    deployedAt: "2026-05-21T21:36:19Z"
+    id: 5
+    initiatedBy:
+      automated: true
+    revision: 69e9a308ba34d8dfaf4122b8cc694145d2ac60da
+    source:
+      path: k8s/infrastructure/postgres
+      repoURL: git@github.com:pocharlies/dgx-infra.git
+      targetRevision: master
+  operationState:
+    finishedAt: "2026-05-21T21:36:21Z"
+    message: successfully synced (all tasks run)
+    operation:
+      initiatedBy:
+        automated: true
+      retry:
+        backoff:
+          duration: 10s
+          factor: 2
+          maxDuration: 5m
+        limit: 5
+      sync:
+        autoHealAttemptsCount: 2
+        resources:
+        - group: postgresql.cnpg.io
+          kind: Cluster
+          name: postgres-shared
+        revision: 69e9a308ba34d8dfaf4122b8cc694145d2ac60da
+        source:
+          path: k8s/infrastructure/postgres
+          repoURL: git@github.com:pocharlies/dgx-infra.git
+          targetRevision: master
+        syncOptions:
+        - CreateNamespace=true
+        - ServerSideApply=true
+    phase: Succeeded
+    startedAt: "2026-05-21T21:36:21Z"
+    syncResult:
+      resources:
+      - group: postgresql.cnpg.io
+        hookPhase: Running
+        kind: Cluster
+        message: cluster.postgresql.cnpg.io/postgres-shared serverside-applied
+        name: postgres-shared
+        namespace: databases
+        status: Synced
+        syncPhase: Sync
+        version: v1
+      revision: 69e9a308ba34d8dfaf4122b8cc694145d2ac60da
+      source:
+        path: k8s/infrastructure/postgres
+        repoURL: git@github.com:pocharlies/dgx-infra.git
+        targetRevision: master
+  reconciledAt: "2026-05-21T22:09:24Z"
+  resourceHealthSource: appTree
+  resources:
+  - kind: Namespace
+    name: databases
+    status: Synced
+    version: v1
+  - group: external-secrets.io
+    kind: ExternalSecret
+    name: postgres-shared-minio
+    namespace: databases
+    status: Synced
+    version: v1
+  - group: postgresql.cnpg.io
+    kind: Cluster
+    name: postgres-shared
+    namespace: databases
+    status: Synced
+    version: v1
+  - group: postgresql.cnpg.io
+    kind: ScheduledBackup
+    name: postgres-shared-daily
+    namespace: databases
+    status: Synced
+    version: v1
+  sourceHydrator: {}
+  sourceType: Kustomize
+  summary:
+    images:
+    - ghcr.io/cloudnative-pg/cloudnative-pg:1.25.1
+    - ghcr.io/cloudnative-pg/postgresql:17.2
+  sync:
+    comparedTo:
+      destination:
+        namespace: databases
+        server: https://kubernetes.default.svc
+      ignoreDifferences:
+      - group: postgresql.cnpg.io
+        jqPathExpressions:
+        - .spec.backup.target
+        - .spec.managed.roles[].connectionLimit
+        - .spec.managed.roles[].inherit
+        - .spec.monitoring.customQueriesConfigMap
+        - .spec.monitoring.disableDefaultQueries
+        - .spec.storage.resizeInUseVolumes
+        - .spec.walStorage.resizeInUseVolumes
+        jsonPointers:
+        - /status
+        - /spec/bootstrap
+        - /spec/imageName
+        - /spec/postgresql/parameters
+        kind: Cluster
+      - group: external-secrets.io
+        jqPathExpressions:
+        - .spec.target.deletionPolicy
+        - .spec.target.template.engineVersion
+        - .spec.target.template.mergePolicy
+        - .spec.data[].remoteRef.conversionStrategy
+        - .spec.data[].remoteRef.decodingStrategy
+        - .spec.data[].remoteRef.metadataPolicy
+        - .spec.data[].remoteRef.nullBytePolicy
+        kind: ExternalSecret
+      source:
+        path: k8s/infrastructure/postgres
+        repoURL: git@github.com:pocharlies/dgx-infra.git
+        targetRevision: master
+    revision: 69e9a308ba34d8dfaf4122b8cc694145d2ac60da
+    status: Synced

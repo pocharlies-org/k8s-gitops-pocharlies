@@ -1,0 +1,163 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"argoproj.io/v1alpha1","kind":"Application","metadata":{"annotations":{"argocd.argoproj.io/sync-wave":"-20"},"finalizers":["resources-finalizer.argocd.argoproj.io"],"name":"root","namespace":"argocd"},"spec":{"destination":{"namespace":"argocd","server":"https://kubernetes.default.svc"},"project":"default","source":{"directory":{"recurse":false},"path":"apps","repoURL":"git@github.com:pocharlies/k3s-gitops.git","targetRevision":"main"},"syncPolicy":{"automated":{"prune":false,"selfHeal":true},"syncOptions":["ServerSideApply=true"]}}}
+  creationTimestamp: "2026-05-20T17:20:43Z"
+  generation: 788
+  name: root
+  namespace: argocd
+  resourceVersion: "1914164"
+  uid: 186f1440-b8ce-42cd-ab0a-74ebeb2c5f93
+spec:
+  destination:
+    namespace: argocd
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    path: apps
+    repoURL: git@github.com:pocharlies/k3s-gitops.git
+    targetRevision: main
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+    - ServerSideApply=true
+status:
+  controllerNamespace: argocd
+  health:
+    lastTransitionTime: "2026-05-20T17:20:43Z"
+    status: Healthy
+  history:
+  - deployStartedAt: "2026-05-20T17:21:50Z"
+    deployedAt: "2026-05-20T17:21:54Z"
+    id: 0
+    initiatedBy:
+      automated: true
+    revision: fcc24d7e458ab5afb248ea997283e1e75d55014e
+    source:
+      path: apps
+      repoURL: git@github.com:pocharlies/k3s-gitops.git
+      targetRevision: main
+  - deployStartedAt: "2026-05-21T21:29:32Z"
+    deployedAt: "2026-05-21T21:29:36Z"
+    id: 1
+    initiatedBy:
+      automated: true
+    revision: cbb5292e4200551aa57e0d33d4f902eb2c63ebf5
+    source:
+      path: apps
+      repoURL: git@github.com:pocharlies/k3s-gitops.git
+      targetRevision: main
+  - deployStartedAt: "2026-05-21T21:33:05Z"
+    deployedAt: "2026-05-21T21:33:10Z"
+    id: 2
+    initiatedBy:
+      automated: true
+    revision: c006e93696df1f14dc150f43943b6ec5c8d82df6
+    source:
+      path: apps
+      repoURL: git@github.com:pocharlies/k3s-gitops.git
+      targetRevision: main
+  - deployStartedAt: "2026-05-21T21:36:18Z"
+    deployedAt: "2026-05-21T21:36:23Z"
+    id: 3
+    initiatedBy:
+      automated: true
+    revision: f611932102ce0ef84e11dd1128a529d8e13de5be
+    source:
+      path: apps
+      repoURL: git@github.com:pocharlies/k3s-gitops.git
+      targetRevision: main
+  operationState:
+    finishedAt: "2026-05-21T21:36:23Z"
+    message: successfully synced (all tasks run)
+    operation:
+      initiatedBy:
+        automated: true
+      retry:
+        limit: 5
+      sync:
+        revision: f611932102ce0ef84e11dd1128a529d8e13de5be
+        source:
+          path: apps
+          repoURL: git@github.com:pocharlies/k3s-gitops.git
+          targetRevision: main
+        syncOptions:
+        - ServerSideApply=true
+    phase: Succeeded
+    startedAt: "2026-05-21T21:36:18Z"
+    syncResult:
+      resources:
+      - group: argoproj.io
+        hookPhase: Succeeded
+        kind: Application
+        message: application.argoproj.io/cnpg-operator serverside-applied
+        name: cnpg-operator
+        namespace: argocd
+        status: Synced
+        syncPhase: Sync
+        version: v1alpha1
+      - group: argoproj.io
+        hookPhase: Succeeded
+        kind: Application
+        message: application.argoproj.io/postgres-shared serverside-applied
+        name: postgres-shared
+        namespace: argocd
+        status: Synced
+        syncPhase: Sync
+        version: v1alpha1
+      - group: argoproj.io
+        hookPhase: Running
+        kind: Application
+        message: application.argoproj.io/n8n serverside-applied
+        name: n8n
+        namespace: argocd
+        status: Synced
+        syncPhase: Sync
+        version: v1alpha1
+      revision: f611932102ce0ef84e11dd1128a529d8e13de5be
+      source:
+        path: apps
+        repoURL: git@github.com:pocharlies/k3s-gitops.git
+        targetRevision: main
+  reconciledAt: "2026-05-21T22:09:32Z"
+  resourceHealthSource: appTree
+  resources:
+  - group: argoproj.io
+    kind: Application
+    name: cnpg-operator
+    namespace: argocd
+    status: Synced
+    syncWave: -10
+    version: v1alpha1
+  - group: argoproj.io
+    kind: Application
+    name: n8n
+    namespace: argocd
+    status: Synced
+    syncWave: 10
+    version: v1alpha1
+  - group: argoproj.io
+    kind: Application
+    name: postgres-shared
+    namespace: argocd
+    status: Synced
+    version: v1alpha1
+  sourceHydrator: {}
+  sourceType: Directory
+  summary: {}
+  sync:
+    comparedTo:
+      destination:
+        namespace: argocd
+        server: https://kubernetes.default.svc
+      source:
+        path: apps
+        repoURL: git@github.com:pocharlies/k3s-gitops.git
+        targetRevision: main
+    revision: f611932102ce0ef84e11dd1128a529d8e13de5be
+    status: Synced

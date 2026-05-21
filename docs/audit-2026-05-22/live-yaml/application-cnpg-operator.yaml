@@ -1,0 +1,369 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+    argocd.argoproj.io/tracking-id: root:argoproj.io/Application:argocd/cnpg-operator
+  creationTimestamp: "2026-05-19T23:23:45Z"
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+  generation: 1390
+  name: cnpg-operator
+  namespace: argocd
+  resourceVersion: "1914140"
+  uid: b12898f1-44ef-43ba-81b1-7128ad0eba83
+spec:
+  destination:
+    namespace: cnpg-system
+    server: https://kubernetes.default.svc
+  project: default
+  revisionHistoryLimit: 5
+  source:
+    chart: cloudnative-pg
+    helm:
+      releaseName: cnpg
+      values: |
+        config:
+          # observabilidad y defaults sensatos
+          create: true
+        monitoring:
+          podMonitorEnabled: false  # activar cuando esté Prometheus operator
+          grafanaDashboard:
+            create: false
+        resources:
+          requests:
+            cpu: 100m
+            memory: 200Mi
+          limits:
+            cpu: 1
+            memory: 1Gi
+    repoURL: https://cloudnative-pg.github.io/charts
+    targetRevision: 0.23.x
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+      limit: 5
+    syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+status:
+  controllerNamespace: argocd
+  health:
+    lastTransitionTime: "2026-05-21T19:53:34Z"
+    status: Healthy
+  history:
+  - deployStartedAt: "2026-05-19T23:23:50Z"
+    deployedAt: "2026-05-19T23:23:51Z"
+    id: 0
+    initiatedBy:
+      automated: true
+    revision: 0.23.2
+    source:
+      chart: cloudnative-pg
+      helm:
+        releaseName: cnpg
+        values: |
+          config:
+            # observabilidad y defaults sensatos
+            create: true
+          monitoring:
+            podMonitorEnabled: false  # activar cuando esté Prometheus operator
+            grafanaDashboard:
+              create: false
+          resources:
+            requests:
+              cpu: 100m
+              memory: 200Mi
+            limits:
+              cpu: 1
+              memory: 1Gi
+      repoURL: https://cloudnative-pg.github.io/charts
+      targetRevision: 0.23.x
+  operationState:
+    finishedAt: "2026-05-19T23:38:22Z"
+    message: successfully synced (all tasks run)
+    operation:
+      initiatedBy:
+        automated: true
+      retry:
+        backoff:
+          duration: 10s
+          factor: 2
+          maxDuration: 5m
+        limit: 5
+      sync:
+        autoHealAttemptsCount: 1
+        prune: true
+        resources:
+        - group: apiextensions.k8s.io
+          kind: CustomResourceDefinition
+          name: databases.postgresql.cnpg.io
+        - group: apiextensions.k8s.io
+          kind: CustomResourceDefinition
+          name: publications.postgresql.cnpg.io
+        - group: apiextensions.k8s.io
+          kind: CustomResourceDefinition
+          name: poolers.postgresql.cnpg.io
+        - group: apiextensions.k8s.io
+          kind: CustomResourceDefinition
+          name: subscriptions.postgresql.cnpg.io
+        - group: apiextensions.k8s.io
+          kind: CustomResourceDefinition
+          name: backups.postgresql.cnpg.io
+        - group: apiextensions.k8s.io
+          kind: CustomResourceDefinition
+          name: clusters.postgresql.cnpg.io
+        revision: 0.23.2
+        source:
+          chart: cloudnative-pg
+          helm:
+            releaseName: cnpg
+            values: |
+              config:
+                # observabilidad y defaults sensatos
+                create: true
+              monitoring:
+                podMonitorEnabled: false  # activar cuando esté Prometheus operator
+                grafanaDashboard:
+                  create: false
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 200Mi
+                limits:
+                  cpu: 1
+                  memory: 1Gi
+          repoURL: https://cloudnative-pg.github.io/charts
+          targetRevision: 0.23.x
+        syncOptions:
+        - CreateNamespace=true
+        - ServerSideApply=true
+    phase: Succeeded
+    startedAt: "2026-05-19T23:23:54Z"
+    syncResult:
+      resources:
+      - group: apiextensions.k8s.io
+        hookPhase: Running
+        kind: CustomResourceDefinition
+        message: customresourcedefinition.apiextensions.k8s.io/subscriptions.postgresql.cnpg.io
+          serverside-applied
+        name: subscriptions.postgresql.cnpg.io
+        namespace: cnpg-system
+        status: Synced
+        syncPhase: Sync
+        version: v1
+      - group: apiextensions.k8s.io
+        hookPhase: Running
+        kind: CustomResourceDefinition
+        message: customresourcedefinition.apiextensions.k8s.io/publications.postgresql.cnpg.io
+          serverside-applied
+        name: publications.postgresql.cnpg.io
+        namespace: cnpg-system
+        status: Synced
+        syncPhase: Sync
+        version: v1
+      - group: apiextensions.k8s.io
+        hookPhase: Running
+        kind: CustomResourceDefinition
+        message: customresourcedefinition.apiextensions.k8s.io/backups.postgresql.cnpg.io
+          serverside-applied
+        name: backups.postgresql.cnpg.io
+        namespace: cnpg-system
+        status: Synced
+        syncPhase: Sync
+        version: v1
+      - group: apiextensions.k8s.io
+        hookPhase: Running
+        kind: CustomResourceDefinition
+        message: customresourcedefinition.apiextensions.k8s.io/databases.postgresql.cnpg.io
+          serverside-applied
+        name: databases.postgresql.cnpg.io
+        namespace: cnpg-system
+        status: Synced
+        syncPhase: Sync
+        version: v1
+      - group: apiextensions.k8s.io
+        hookPhase: Running
+        kind: CustomResourceDefinition
+        message: customresourcedefinition.apiextensions.k8s.io/clusters.postgresql.cnpg.io
+          serverside-applied
+        name: clusters.postgresql.cnpg.io
+        namespace: cnpg-system
+        status: Synced
+        syncPhase: Sync
+        version: v1
+      - group: apiextensions.k8s.io
+        hookPhase: Running
+        kind: CustomResourceDefinition
+        message: customresourcedefinition.apiextensions.k8s.io/poolers.postgresql.cnpg.io
+          serverside-applied
+        name: poolers.postgresql.cnpg.io
+        namespace: cnpg-system
+        status: Synced
+        syncPhase: Sync
+        version: v1
+      revision: 0.23.2
+      source:
+        chart: cloudnative-pg
+        helm:
+          releaseName: cnpg
+          values: |
+            config:
+              # observabilidad y defaults sensatos
+              create: true
+            monitoring:
+              podMonitorEnabled: false  # activar cuando esté Prometheus operator
+              grafanaDashboard:
+                create: false
+            resources:
+              requests:
+                cpu: 100m
+                memory: 200Mi
+              limits:
+                cpu: 1
+                memory: 1Gi
+        repoURL: https://cloudnative-pg.github.io/charts
+        targetRevision: 0.23.x
+  reconciledAt: "2026-05-21T22:09:30Z"
+  resourceHealthSource: appTree
+  resources:
+  - kind: ConfigMap
+    name: cnpg-controller-manager-config
+    namespace: cnpg-system
+    status: Synced
+    version: v1
+  - kind: ConfigMap
+    name: cnpg-default-monitoring
+    namespace: cnpg-system
+    status: Synced
+    version: v1
+  - kind: Service
+    name: cnpg-webhook-service
+    namespace: cnpg-system
+    status: Synced
+    version: v1
+  - kind: ServiceAccount
+    name: cnpg-cloudnative-pg
+    namespace: cnpg-system
+    status: Synced
+    version: v1
+  - group: admissionregistration.k8s.io
+    kind: MutatingWebhookConfiguration
+    name: cnpg-mutating-webhook-configuration
+    status: Synced
+    version: v1
+  - group: admissionregistration.k8s.io
+    kind: ValidatingWebhookConfiguration
+    name: cnpg-validating-webhook-configuration
+    status: Synced
+    version: v1
+  - group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+    name: backups.postgresql.cnpg.io
+    status: Synced
+    version: v1
+  - group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+    name: clusterimagecatalogs.postgresql.cnpg.io
+    status: Synced
+    version: v1
+  - group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+    name: clusters.postgresql.cnpg.io
+    status: Synced
+    version: v1
+  - group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+    name: databases.postgresql.cnpg.io
+    status: Synced
+    version: v1
+  - group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+    name: imagecatalogs.postgresql.cnpg.io
+    status: Synced
+    version: v1
+  - group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+    name: poolers.postgresql.cnpg.io
+    status: Synced
+    version: v1
+  - group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+    name: publications.postgresql.cnpg.io
+    status: Synced
+    version: v1
+  - group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+    name: scheduledbackups.postgresql.cnpg.io
+    status: Synced
+    version: v1
+  - group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+    name: subscriptions.postgresql.cnpg.io
+    status: Synced
+    version: v1
+  - group: apps
+    kind: Deployment
+    name: cnpg-cloudnative-pg
+    namespace: cnpg-system
+    status: Synced
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cnpg-cloudnative-pg
+    status: Synced
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cnpg-cloudnative-pg-edit
+    status: Synced
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: cnpg-cloudnative-pg-view
+    status: Synced
+    version: v1
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+    name: cnpg-cloudnative-pg
+    status: Synced
+    version: v1
+  sourceHydrator: {}
+  sourceType: Helm
+  summary:
+    images:
+    - ghcr.io/cloudnative-pg/cloudnative-pg:1.25.1
+  sync:
+    comparedTo:
+      destination:
+        namespace: cnpg-system
+        server: https://kubernetes.default.svc
+      source:
+        chart: cloudnative-pg
+        helm:
+          releaseName: cnpg
+          values: |
+            config:
+              # observabilidad y defaults sensatos
+              create: true
+            monitoring:
+              podMonitorEnabled: false  # activar cuando esté Prometheus operator
+              grafanaDashboard:
+                create: false
+            resources:
+              requests:
+                cpu: 100m
+                memory: 200Mi
+              limits:
+                cpu: 1
+                memory: 1Gi
+        repoURL: https://cloudnative-pg.github.io/charts
+        targetRevision: 0.23.x
+    revision: 0.23.2
+    status: Synced

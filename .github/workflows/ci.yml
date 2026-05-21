@@ -32,14 +32,14 @@ jobs:
       - name: YAML lint
         run: |
           yamllint -d '{extends: relaxed, rules: {line-length: {max: 200}}}' \
-            $(find . -name '*.yaml' -not -path './.git/*') \
+            $(find . -name '*.yaml' -not -path './.git/*' -not -path './docs/audit-*/*') \
             && echo "yamllint OK"
 
       - name: kubeconform — k8s manifests
         run: |
           # Only validate files that are k8s manifests (have apiVersion:)
           MANIFESTS=$(grep -rl "^apiVersion:" --include="*.yaml" . \
-            | grep -v ".git/" | sort)
+            | grep -v ".git/" | grep -v "./docs/audit-" | sort)
 
           if [ -z "$MANIFESTS" ]; then
             echo "No k8s manifests found"
