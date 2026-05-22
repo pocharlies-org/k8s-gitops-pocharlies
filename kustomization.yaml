@@ -22,6 +22,7 @@ resources:
   - apps/shopify-sii.yaml
   - apps/shopify-translations.yaml
   - apps/shopify-affiliate.yaml
+  - apps/skirmbooks.yaml
   - apps/socialmedia.yaml
   - apps/teslamate.yaml
   - argocd/ingressroute.yaml
