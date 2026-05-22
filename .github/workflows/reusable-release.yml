@@ -108,6 +108,18 @@ jobs:
           }
           NODE
 
+          push_image() {
+            ref="$1"
+            for attempt in 1 2 3 4 5; do
+              if docker push "$ref"; then
+                return 0
+              fi
+              sleep "$((attempt * 5))"
+            done
+            echo "Failed to push $ref"
+            return 1
+          }
+
           while IFS=$'\t' read -r name context dockerfile; do
             [ -n "$name" ] || continue
             base="${REGISTRY}/${REGISTRY_PROJECT}/${name}"
@@ -120,8 +132,8 @@ jobs:
               --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
               --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
               "$context"
-            docker push "${base}:${VERSION}"
-            docker push "${base}:${SHA_TAG}"
+            push_image "${base}:${VERSION}"
+            push_image "${base}:${SHA_TAG}"
           done < "$RUNNER_TEMP/images.tsv"
 
   notify:
