@@ -3,6 +3,10 @@ kind: Application
 metadata:
   name: jarvis
   namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-jarvis-pocharlies
+  labels:
+    e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
 spec:
   project: default

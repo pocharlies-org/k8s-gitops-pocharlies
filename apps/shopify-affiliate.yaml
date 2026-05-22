@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: shopify-affiliate
   namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-shopify-affiliate-pocharlies
   labels:
     e-dani.com/portfolio: skirmshop
     e-dani.com/tier: app

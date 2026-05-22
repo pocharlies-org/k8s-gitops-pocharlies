@@ -26,6 +26,7 @@ resources:
   - apps/socialmedia.yaml
   - apps/teslamate.yaml
   - argocd/ingressroute.yaml
+  - argocd/repositories.yaml
 patches:
   - target:
       group: argoproj.io

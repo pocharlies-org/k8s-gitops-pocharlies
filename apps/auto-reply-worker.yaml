@@ -3,6 +3,8 @@ kind: Application
 metadata:
   name: auto-reply-worker
   namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-auto-reply-worker-pocharlies
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]

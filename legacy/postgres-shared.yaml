@@ -9,6 +9,7 @@ metadata:
     e-dani.com/tier: infra
   annotations:
     argocd.argoproj.io/sync-wave: "-5"
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-infra-pocharlies
 spec:
   project: default
   source:
