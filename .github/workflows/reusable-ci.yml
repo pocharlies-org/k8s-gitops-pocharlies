@@ -271,8 +271,6 @@ jobs:
         with:
           node-version: ${{ inputs.node_version }}
 
-      - uses: docker/setup-buildx-action@v3
-
       - name: Build images without pushing
         env:
           IMAGES: ${{ inputs.images }}
@@ -292,8 +290,7 @@ jobs:
 
           while IFS=$'\t' read -r name context dockerfile; do
             [ -n "$name" ] || continue
-            timeout "$DOCKER_BUILD_TIMEOUT" docker buildx build \
-              --platform linux/amd64 \
+            timeout "$DOCKER_BUILD_TIMEOUT" docker build \
               --progress=plain \
               --network=host \
               --file "$dockerfile" \
