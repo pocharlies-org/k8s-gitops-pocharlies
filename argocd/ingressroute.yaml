@@ -25,7 +25,6 @@ metadata:
   name: argocd-lan
   namespace: traefik-lan
 spec:
-  ingressClassName: traefik-lan
   entryPoints: [websecure]
   routes:
     - match: Host(`argocd-lan.e-dani.com`)
