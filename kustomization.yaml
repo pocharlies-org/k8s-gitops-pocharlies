@@ -13,6 +13,7 @@ resources:
   - apps/n8n.yaml
   - apps/n8n-stg.yaml
   - apps/shopify-bundles.yaml
+  - apps/shopify-collections-tree.yaml
   - apps/shopify-label.yaml
   - apps/shopify-picker.yaml
   - apps/shopify-sii.yaml
