@@ -176,7 +176,7 @@ jobs:
     name: Notify OpenClaw on staging failure
     runs-on: ${{ inputs.runner }}
     needs: [deploy]
-    if: ${{ always() && needs.deploy.result == 'failure' }}
+    if: ${{ always() && (needs.deploy.result == 'failure' || needs.deploy.result == 'cancelled') }}
     timeout-minutes: 10
     steps:
       - name: Send failure report

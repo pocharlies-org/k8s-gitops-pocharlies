@@ -287,7 +287,7 @@ jobs:
     name: Notify OpenClaw on failure
     runs-on: ${{ inputs.runner }}
     needs: [app, manifests, docker]
-    if: ${{ always() && (needs.app.result == 'failure' || needs.manifests.result == 'failure' || needs.docker.result == 'failure') }}
+    if: ${{ always() && (needs.app.result == 'failure' || needs.app.result == 'cancelled' || needs.manifests.result == 'failure' || needs.manifests.result == 'cancelled' || needs.docker.result == 'failure' || needs.docker.result == 'cancelled') }}
     timeout-minutes: 10
     steps:
       - name: Send failure report
@@ -316,8 +316,8 @@ jobs:
               docker: '${{ needs.docker.result }}',
             };
             const failed = Object.entries(failedJobs)
-              .filter(([, result]) => result === 'failure')
-              .map(([name]) => name);
+              .filter(([, result]) => ['failure', 'cancelled'].includes(result))
+              .map(([name, result]) => `${name}:${result}`);
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const text = [
               `GitHub Actions CI failed`,

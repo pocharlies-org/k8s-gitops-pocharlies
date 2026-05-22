@@ -130,7 +130,7 @@ jobs:
     name: Notify OpenClaw on release failure
     runs-on: ${{ inputs.runner }}
     needs: [release]
-    if: ${{ always() && needs.release.result == 'failure' }}
+    if: ${{ always() && (needs.release.result == 'failure' || needs.release.result == 'cancelled') }}
     timeout-minutes: 10
     steps:
       - name: Send failure report
