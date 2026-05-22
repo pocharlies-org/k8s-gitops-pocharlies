@@ -17,3 +17,22 @@ spec:
           port: 80
   tls:
     secretName: wildcard-lan-tls
+---
+# ArgoCD LAN alias on *.e-dani.com, served by internal Traefik.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: argocd-lan
+  namespace: traefik-lan
+spec:
+  ingressClassName: traefik-lan
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`argocd-lan.e-dani.com`)
+      kind: Rule
+      services:
+        - name: argocd-server
+          namespace: argocd
+          port: 80
+  tls:
+    secretName: wildcard-edani-tls
