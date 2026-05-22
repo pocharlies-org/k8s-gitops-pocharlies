@@ -135,6 +135,7 @@ jobs:
             -C "$SOURCE_PATH" .
 
           oras push \
+            --disable-path-validation \
             --annotation "org.opencontainers.image.title=${ARTIFACT_NAME}" \
             --annotation "org.opencontainers.image.version=${VERSION}" \
             --annotation "org.opencontainers.image.revision=${GITHUB_SHA}" \
