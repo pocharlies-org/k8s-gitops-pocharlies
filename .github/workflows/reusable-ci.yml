@@ -162,7 +162,7 @@ jobs:
       - name: Install YAML and Kubernetes tools
         run: |
           set -euo pipefail
-          python -m pip install --quiet yamllint
+          python3 -m pip install --quiet yamllint
 
           mkdir -p "$RUNNER_TEMP/bin"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
