@@ -18,6 +18,7 @@ resources:
   - apps/shopify-picker.yaml
   - apps/shopify-sii.yaml
   - apps/shopify-translations.yaml
+  - apps/shopify-affiliate.yaml
   - apps/socialmedia.yaml
   - apps/teslamate.yaml
   - argocd/ingressroute.yaml
