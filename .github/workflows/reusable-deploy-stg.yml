@@ -54,6 +54,7 @@ jobs:
   deploy:
     name: Build, push, stamp staging
     runs-on: ${{ inputs.runner }}
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -99,6 +100,7 @@ jobs:
             image="${REGISTRY}/${REGISTRY_PROJECT}/${name}:${TAG}"
             docker buildx build \
               --platform linux/amd64 \
+              --progress=plain \
               --file "$dockerfile" \
               --tag "$image" \
               --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
@@ -169,6 +171,7 @@ jobs:
     runs-on: ${{ inputs.runner }}
     needs: [deploy]
     if: ${{ always() && needs.deploy.result == 'failure' }}
+    timeout-minutes: 10
     steps:
       - name: Send failure report
         uses: actions/github-script@v7

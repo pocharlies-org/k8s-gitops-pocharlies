@@ -46,6 +46,7 @@ jobs:
   release:
     name: Build and publish tagged images
     runs-on: ${{ inputs.runner }}
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -109,6 +110,7 @@ jobs:
             base="${REGISTRY}/${REGISTRY_PROJECT}/${name}"
             docker buildx build \
               --platform linux/amd64 \
+              --progress=plain \
               --file "$dockerfile" \
               --tag "${base}:${VERSION}" \
               --tag "${base}:${SHA_TAG}" \
@@ -123,6 +125,7 @@ jobs:
     runs-on: ${{ inputs.runner }}
     needs: [release]
     if: ${{ always() && needs.release.result == 'failure' }}
+    timeout-minutes: 10
     steps:
       - name: Send failure report
         uses: actions/github-script@v7
