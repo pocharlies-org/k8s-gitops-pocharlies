@@ -78,7 +78,7 @@ Do not hide migrations inside application startup unless the runbook says why.
 Each project gets two Applications:
 
 - `<project>-stg`: `targetRevision: stg`, `path: k8s/overlays/stg`
-- `<project>`: `targetRevision: main`, `path: k8s/overlays/prod`
+- `<project>`: `targetRevision: deploy/prod`, `path: k8s/overlays/prod`
 
 Use:
 
