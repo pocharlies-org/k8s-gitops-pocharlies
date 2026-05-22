@@ -6,6 +6,7 @@ resources:
   - infra/infra.yaml
   - infra/observability.yaml
   - apps/adguard.yaml
+  - apps/ai.yaml
   - apps/firecrawl.yaml
   - apps/libreplay.yaml
   - apps/litellm.yaml
