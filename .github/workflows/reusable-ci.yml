@@ -94,6 +94,22 @@ jobs:
           cache: pnpm
           cache-dependency-path: ${{ inputs.app_path }}/pnpm-lock.yaml
 
+      - name: Install native Node build tools
+        if: ${{ steps.package.outputs.present == 'true' }}
+        run: |
+          set -euo pipefail
+          if command -v apt-get >/dev/null 2>&1; then
+            if command -v sudo >/dev/null 2>&1; then
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends python3 make g++
+            else
+              apt-get update
+              apt-get install -y --no-install-recommends python3 make g++
+            fi
+          else
+            echo "apt-get not available; assuming native build tools are already present"
+          fi
+
       - name: Install dependencies
         if: ${{ steps.package.outputs.present == 'true' }}
         working-directory: ${{ inputs.app_path }}
