@@ -155,41 +155,73 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ inputs.python_version }}
-
       - name: Install YAML and Kubernetes tools
         run: |
           set -euo pipefail
-          PYTHON_BIN=python
-          if ! "$PYTHON_BIN" -m pip --version >/dev/null 2>&1; then
-            "$PYTHON_BIN" -m ensurepip --upgrade >/dev/null 2>&1 || true
-          fi
-          if ! "$PYTHON_BIN" -m pip --version >/dev/null 2>&1; then
-            if command -v apt-get >/dev/null 2>&1; then
-              if command -v sudo >/dev/null 2>&1; then
-                sudo apt-get update
-                sudo apt-get install -y --no-install-recommends python3-pip
-              else
-                apt-get update
-                apt-get install -y --no-install-recommends python3-pip
-              fi
-              PYTHON_BIN=python3
+
+          apt_install() {
+            if ! command -v apt-get >/dev/null 2>&1; then
+              echo "apt-get not available and required tooling is missing"
+              return 1
             fi
+            if command -v sudo >/dev/null 2>&1; then
+              sudo apt-get update
+              sudo apt-get install -y --no-install-recommends "$@"
+            else
+              apt-get update
+              apt-get install -y --no-install-recommends "$@"
+            fi
+          }
+
+          if ! command -v python3 >/dev/null 2>&1; then
+            apt_install python3 python3-venv python3-pip
           fi
-          "$PYTHON_BIN" -m pip install --quiet yamllint
+
+          YAMLLINT_VENV="$RUNNER_TEMP/yamllint-venv"
+          if ! python3 -m venv "$YAMLLINT_VENV" >/dev/null 2>&1; then
+            apt_install python3-venv python3-pip
+            python3 -m venv "$YAMLLINT_VENV"
+          fi
+          "$YAMLLINT_VENV/bin/python" -m pip install --quiet --upgrade pip
+          "$YAMLLINT_VENV/bin/python" -m pip install --quiet yamllint
 
           mkdir -p "$RUNNER_TEMP/bin"
+          echo "$YAMLLINT_VENV/bin" >> "$GITHUB_PATH"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
+          download_file() {
+            url="$1"
+            output="$2"
+            for attempt in 1 2 3 4 5; do
+              if curl -fsSL \
+                --connect-timeout 20 \
+                --max-time 180 \
+                --retry 3 \
+                --retry-all-errors \
+                --retry-delay 2 \
+                -o "$output" \
+                "$url"; then
+                return 0
+              fi
+              sleep "$((attempt * 2))"
+            done
+            echo "Failed to download $url"
+            return 1
+          }
+
           KUSTOMIZE_VERSION=v5.5.0
-          curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" \
-            | tar xz -C "$RUNNER_TEMP/bin" kustomize
+          KUSTOMIZE_TGZ="$RUNNER_TEMP/kustomize.tar.gz"
+          download_file \
+            "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" \
+            "$KUSTOMIZE_TGZ"
+          tar xzf "$KUSTOMIZE_TGZ" -C "$RUNNER_TEMP/bin" kustomize
 
           KUBECONFORM_VERSION=v0.6.7
-          curl -sSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
-            | tar xz -C "$RUNNER_TEMP/bin" kubeconform
+          KUBECONFORM_TGZ="$RUNNER_TEMP/kubeconform.tar.gz"
+          download_file \
+            "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            "$KUBECONFORM_TGZ"
+          tar xzf "$KUBECONFORM_TGZ" -C "$RUNNER_TEMP/bin" kubeconform
 
       - name: YAML lint
         run: |
