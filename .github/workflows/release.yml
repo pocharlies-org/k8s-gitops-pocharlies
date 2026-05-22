@@ -21,7 +21,7 @@ jobs:
   ci:
     uses: ./.github/workflows/reusable-ci.yml
     with:
-      runner: arc-gitops
+      runner: arc-k8s
       run_node: false
       run_docker_build: false
       kustomize_paths: "."
@@ -31,7 +31,7 @@ jobs:
     needs: [ci]
     uses: ./.github/workflows/reusable-manifest-release.yml
     with:
-      runner: arc-gitops
+      runner: arc-k8s
       source_path: "."
       artifact_name: k8s-gitops-pocharlies
       version: ${{ github.event.inputs.image_tag || github.ref_name }}

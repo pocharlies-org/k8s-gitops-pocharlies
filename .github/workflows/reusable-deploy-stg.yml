@@ -5,7 +5,7 @@ on:
     inputs:
       runner:
         type: string
-        default: arc-amd64
+        default: arc-k8s
       node_version:
         type: string
         default: "20"

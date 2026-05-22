@@ -5,7 +5,7 @@ on:
     inputs:
       runner:
         type: string
-        default: arc-amd64
+        default: arc-k8s
       source_path:
         description: Directory to publish as an Argo CD-compatible OCI artifact.
         type: string
