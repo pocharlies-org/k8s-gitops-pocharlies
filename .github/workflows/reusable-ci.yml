@@ -35,6 +35,10 @@ on:
       run_kustomize:
         type: boolean
         default: true
+      docker_build_timeout:
+        description: Per-image docker build timeout, passed to GNU timeout.
+        type: string
+        default: 15m
     secrets:
       OPENCLAW_GITHUB_NOTIFY_URL:
         required: false
@@ -238,6 +242,7 @@ jobs:
       - name: Build images without pushing
         env:
           IMAGES: ${{ inputs.images }}
+          DOCKER_BUILD_TIMEOUT: ${{ inputs.docker_build_timeout }}
         run: |
           set -euo pipefail
           node <<'NODE' > "$RUNNER_TEMP/images.tsv"
@@ -253,7 +258,7 @@ jobs:
 
           while IFS=$'\t' read -r name context dockerfile; do
             [ -n "$name" ] || continue
-            docker buildx build \
+            timeout "$DOCKER_BUILD_TIMEOUT" docker buildx build \
               --platform linux/amd64 \
               --progress=plain \
               --network=host \

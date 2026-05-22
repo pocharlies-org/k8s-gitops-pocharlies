@@ -31,6 +31,10 @@ on:
       smoke_path:
         type: string
         default: /health
+      docker_build_timeout:
+        description: Per-image docker build timeout, passed to GNU timeout.
+        type: string
+        default: 30m
     secrets:
       HARBOR_USER:
         required: true
@@ -78,6 +82,7 @@ jobs:
           REGISTRY: ${{ inputs.registry }}
           REGISTRY_PROJECT: ${{ inputs.registry_project }}
           TAG_PREFIX: ${{ inputs.tag_prefix }}
+          DOCKER_BUILD_TIMEOUT: ${{ inputs.docker_build_timeout }}
         run: |
           set -euo pipefail
           SHORT_SHA="${GITHUB_SHA::12}"
@@ -98,7 +103,7 @@ jobs:
           while IFS=$'\t' read -r name context dockerfile; do
             [ -n "$name" ] || continue
             image="${REGISTRY}/${REGISTRY_PROJECT}/${name}:${TAG}"
-            docker buildx build \
+            timeout "$DOCKER_BUILD_TIMEOUT" docker buildx build \
               --platform linux/amd64 \
               --progress=plain \
               --network=host \
