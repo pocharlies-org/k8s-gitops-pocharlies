@@ -11,7 +11,7 @@ on:
         default: "20"
       registry:
         type: string
-        default: harbor.e-dani.com
+        default: harbor.lan.e-dani.com
       registry_project:
         type: string
         default: homelab

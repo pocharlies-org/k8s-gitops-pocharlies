@@ -124,7 +124,7 @@ Each repository using the reusable workflows needs GitHub Actions secrets:
 - `HARBOR_PASSWORD`
 - `OPENCLAW_GITHUB_NOTIFY_URL` or `OPENCLAW_IDENTITY_B64`
 
-The default registry is `harbor.e-dani.com/homelab`.
+The default registry for CI/CD pushes is `harbor.lan.e-dani.com/homelab`.
 
 Failure notifications are sent to OpenClaw for the Telegram destination
 `synaspte` / `github`. The preferred path is an OpenClaw webhook URL that
