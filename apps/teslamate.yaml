@@ -9,7 +9,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/pocharlies/k8s-teslamate-pocharlies
+    repoURL: https://github.com/pocharlies-org/k8s-teslamate-pocharlies
     targetRevision: deploy/prod
     path: k8s
   destination:

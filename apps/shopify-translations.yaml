@@ -9,7 +9,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/pocharlies/k8s-shopify-translations-pocharlies
+    repoURL: https://github.com/pocharlies-org/k8s-shopify-translations-pocharlies
     targetRevision: deploy/prod
     path: k8s
   destination:

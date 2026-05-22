@@ -9,7 +9,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/pocharlies/k8s-n8n-pocharlies
+    repoURL: https://github.com/pocharlies-org/k8s-n8n-pocharlies
     targetRevision: stg
     path: k8s/overlays/stg
   destination:

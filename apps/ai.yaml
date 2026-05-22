@@ -8,7 +8,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/pocharlies/k8s-ai-pocharlies
+    repoURL: https://github.com/pocharlies-org/k8s-ai-pocharlies
     targetRevision: deploy/prod
     path: k8s
   destination:

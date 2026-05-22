@@ -10,7 +10,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/pocharlies/k8s-infra-pocharlies
+    repoURL: https://github.com/pocharlies-org/k8s-infra-pocharlies
     targetRevision: deploy/prod
     path: databases/postgres-shared
   destination:

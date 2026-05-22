@@ -10,7 +10,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/pocharlies/k8s-gitops-pocharlies
+    repoURL: https://github.com/pocharlies-org/k8s-gitops-pocharlies
     targetRevision: deploy/prod
     path: .
   destination:

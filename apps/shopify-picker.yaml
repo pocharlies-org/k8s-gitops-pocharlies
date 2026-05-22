@@ -9,7 +9,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/pocharlies/k8s-shopify-picker-pocharlies
+    repoURL: https://github.com/pocharlies-org/k8s-shopify-picker-pocharlies
     targetRevision: deploy/prod
     path: k8s
   destination:
