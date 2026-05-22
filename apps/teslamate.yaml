@@ -5,6 +5,7 @@ metadata:
   namespace: argocd
   labels:
     e-dani.com/portfolio: personal
+    e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
 spec:
   project: default
