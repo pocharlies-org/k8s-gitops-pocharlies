@@ -76,9 +76,15 @@ After cutover:
 
 ## Docker State Note
 
-`docker stop affiliate-api` and `docker kill affiliate-api` timed out after the route was moved. The legacy port is closed, `ss` shows no listener on `:3462`, and `ctr -n moby tasks ls` shows no task for the Docker container ID. However, `docker ps` still reports `affiliate-api Up`.
+`docker stop affiliate-api` and `docker kill affiliate-api` initially timed out after the route was moved. The legacy port closed immediately, `ss` showed no listener on `:3462`, and `ctr -n moby tasks ls` showed no task for the Docker container ID. Docker metadata caught up a few minutes later.
 
-Docker live-restore is disabled on Sauvage, so Docker daemon restart was intentionally deferred because it could disrupt remaining legacy stateful containers (`libreplay-*`, `shared-postgres`, `shared-rabbitmq`, `skirmbooks-ui`). Treat `affiliate-api` as decommissioned from traffic, with Docker metadata cleanup deferred until the remaining Docker stateful workloads are migrated or a maintenance window is available.
+Final Docker state:
+
+```text
+affiliate-api Exited (137)
+```
+
+Docker live-restore is disabled on Sauvage, so Docker daemon restart was intentionally avoided because it could disrupt remaining legacy stateful containers (`libreplay-*`, `shared-postgres`, `shared-rabbitmq`, `skirmbooks-ui`).
 
 ## Rollback
 
