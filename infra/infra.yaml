@@ -8,7 +8,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies/k8s-infra-pocharlies
-    targetRevision: main
+    targetRevision: deploy/prod
     path: .
   destination:
     server: https://kubernetes.default.svc

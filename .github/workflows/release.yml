@@ -1,0 +1,38 @@
+name: Release Production
+
+on:
+  push:
+    tags: ["*"]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Optional explicit image tag, for example v1.2.3
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-prod-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/reusable-ci.yml
+    with:
+      runner: arc-gitops
+      run_node: false
+      run_docker_build: false
+      kustomize_paths: "."
+    secrets: inherit
+
+  release:
+    needs: [ci]
+    uses: ./.github/workflows/reusable-manifest-release.yml
+    with:
+      runner: arc-gitops
+      source_path: "."
+      artifact_name: k8s-gitops-pocharlies
+      version: ${{ github.event.inputs.image_tag || github.ref_name }}
+    secrets: inherit

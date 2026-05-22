@@ -11,7 +11,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies/k8s-infra-pocharlies
-    targetRevision: main
+    targetRevision: deploy/prod
     path: databases/postgres-shared
   destination:
     server: https://kubernetes.default.svc

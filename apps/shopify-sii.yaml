@@ -10,7 +10,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies/k8s-shopify-sii-pocharlies
-    targetRevision: main
+    targetRevision: deploy/prod
     path: k8s
   destination:
     server: https://kubernetes.default.svc

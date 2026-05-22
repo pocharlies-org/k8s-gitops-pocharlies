@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies/k8s-ai-pocharlies
-    targetRevision: main
+    targetRevision: deploy/prod
     path: k8s
   destination:
     server: https://kubernetes.default.svc
@@ -21,4 +21,3 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
-
