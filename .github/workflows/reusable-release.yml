@@ -111,6 +111,7 @@ jobs:
             docker buildx build \
               --platform linux/amd64 \
               --progress=plain \
+              --network=host \
               --file "$dockerfile" \
               --tag "${base}:${VERSION}" \
               --tag "${base}:${SHA_TAG}" \

@@ -256,6 +256,7 @@ jobs:
             docker buildx build \
               --platform linux/amd64 \
               --progress=plain \
+              --network=host \
               --file "$dockerfile" \
               --tag "ci-local/${name}:${GITHUB_SHA}" \
               "$context"
