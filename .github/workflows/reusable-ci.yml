@@ -162,7 +162,23 @@ jobs:
       - name: Install YAML and Kubernetes tools
         run: |
           set -euo pipefail
-          python3 -m pip install --quiet yamllint
+          PYTHON_BIN=python
+          if ! "$PYTHON_BIN" -m pip --version >/dev/null 2>&1; then
+            "$PYTHON_BIN" -m ensurepip --upgrade >/dev/null 2>&1 || true
+          fi
+          if ! "$PYTHON_BIN" -m pip --version >/dev/null 2>&1; then
+            if command -v apt-get >/dev/null 2>&1; then
+              if command -v sudo >/dev/null 2>&1; then
+                sudo apt-get update
+                sudo apt-get install -y --no-install-recommends python3-pip
+              else
+                apt-get update
+                apt-get install -y --no-install-recommends python3-pip
+              fi
+              PYTHON_BIN=python3
+            fi
+          fi
+          "$PYTHON_BIN" -m pip install --quiet yamllint
 
           mkdir -p "$RUNNER_TEMP/bin"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
