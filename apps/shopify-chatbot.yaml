@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: shopify-chatbot
+  namespace: argocd
+  labels:
+    e-dani.com/portfolio: skirmshop
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-shopify-chatbot-pocharlies
+    targetRevision: deploy/prod
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: skirmshop
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
