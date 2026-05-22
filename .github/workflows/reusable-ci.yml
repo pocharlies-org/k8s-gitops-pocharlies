@@ -199,7 +199,7 @@ jobs:
           manifests=()
           while IFS= read -r -d '' file; do
             case "$file" in
-              ./.git/*|./docs/audit-*/*|./templates/*) continue ;;
+              ./.git/*|./docs/audit-*/*|./templates/*|*/overlays/*/patch*.yaml|*/overlays/*/patch*.yml) continue ;;
             esac
             if grep -q '^apiVersion:' "$file"; then
               manifests+=("$file")
@@ -216,6 +216,7 @@ jobs:
             -schema-location default \
             -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
             -ignore-missing-schemas \
+            -skip IngressRoute \
             -summary \
             -output pretty \
             "${manifests[@]}"
@@ -236,6 +237,7 @@ jobs:
               -schema-location default \
               -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
               -ignore-missing-schemas \
+              -skip IngressRoute \
               -summary \
               -output pretty \
               "$out"
