@@ -1,0 +1,3313 @@
+apiVersion: v1
+items:
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"argoproj.io/v1alpha1","kind":"Application","metadata":{"annotations":{},"name":"root","namespace":"argocd"},"spec":{"destination":{"namespace":"argocd","server":"https://kubernetes.default.svc"},"project":"default","source":{"path":".","repoURL":"https://github.com/pocharlies/k8s-gitops-pocharlies","targetRevision":"main"},"syncPolicy":{"automated":{"prune":false,"selfHeal":true},"syncOptions":["CreateNamespace=false"]}}}
+    creationTimestamp: "2026-05-20T17:20:43Z"
+    generation: 1014
+    name: root
+    namespace: argocd
+    resourceVersion: "2057887"
+    uid: 186f1440-b8ce-42cd-ab0a-74ebeb2c5f93
+  spec:
+    destination:
+      namespace: argocd
+      server: https://kubernetes.default.svc
+    project: default
+    source:
+      path: .
+      repoURL: https://github.com/pocharlies/k8s-gitops-pocharlies
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: false
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=false
+  status:
+    controllerNamespace: argocd
+    health:
+      lastTransitionTime: "2026-05-20T17:20:43Z"
+      status: Healthy
+    history:
+    - deployStartedAt: "2026-05-21T22:27:23Z"
+      deployedAt: "2026-05-21T22:27:31Z"
+      id: 7
+      initiatedBy:
+        automated: true
+      revision: c702bbff7ebbb8117dfe5b028a1499a1b2ae0506
+      source:
+        path: .
+        repoURL: https://github.com/pocharlies/k8s-gitops-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T22:30:46Z"
+      deployedAt: "2026-05-21T22:30:53Z"
+      id: 8
+      initiatedBy:
+        automated: true
+      revision: 9998a05d3ace53a34c77230f4effdb246f797667
+      source:
+        path: .
+        repoURL: https://github.com/pocharlies/k8s-gitops-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T22:33:09Z"
+      deployedAt: "2026-05-21T22:33:16Z"
+      id: 9
+      initiatedBy:
+        automated: true
+      revision: c6e5742671ec5dd88f8270535820f6945bc9c409
+      source:
+        path: .
+        repoURL: https://github.com/pocharlies/k8s-gitops-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T23:20:56Z"
+      deployedAt: "2026-05-21T23:21:02Z"
+      id: 10
+      initiatedBy:
+        automated: true
+      revision: 6127dc989031f91416c49fd37ecb6fcee019fcd3
+      source:
+        path: .
+        repoURL: https://github.com/pocharlies/k8s-gitops-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T23:24:23Z"
+      deployedAt: "2026-05-21T23:24:30Z"
+      id: 11
+      initiatedBy:
+        automated: true
+      revision: 8adee81b434dc061c5661ba3e0c4d0f4d496635f
+      source:
+        path: .
+        repoURL: https://github.com/pocharlies/k8s-gitops-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T23:28:01Z"
+      deployedAt: "2026-05-21T23:28:09Z"
+      id: 12
+      initiatedBy:
+        automated: true
+      revision: dbd0ad943c5066c4357b6d335d01ce761e11b887
+      source:
+        path: .
+        repoURL: https://github.com/pocharlies/k8s-gitops-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-22T00:27:09Z"
+      deployedAt: "2026-05-22T00:27:18Z"
+      id: 13
+      initiatedBy:
+        automated: true
+      revision: 6685353f47bb54f00224b24cd70a12d854c847b3
+      source:
+        path: .
+        repoURL: https://github.com/pocharlies/k8s-gitops-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-22T00:28:37Z"
+      deployedAt: "2026-05-22T00:28:46Z"
+      id: 14
+      initiatedBy:
+        automated: true
+      revision: 73bed10114e1cbf448a5d1cb6f49e7dca7332175
+      source:
+        path: .
+        repoURL: https://github.com/pocharlies/k8s-gitops-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-22T00:29:46Z"
+      deployedAt: "2026-05-22T00:29:55Z"
+      id: 15
+      initiatedBy:
+        automated: true
+      revision: d4c845b3a15b24f14397e4c939e8d62fa6aa66e5
+      source:
+        path: .
+        repoURL: https://github.com/pocharlies/k8s-gitops-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-22T00:40:54Z"
+      deployedAt: "2026-05-22T00:41:02Z"
+      id: 16
+      initiatedBy:
+        automated: true
+      revision: 204695028d5929ddefdfc61ba3d074f402cc11e2
+      source:
+        path: .
+        repoURL: https://github.com/pocharlies/k8s-gitops-pocharlies
+        targetRevision: main
+    operationState:
+      finishedAt: "2026-05-22T00:41:02Z"
+      message: successfully synced (all tasks run)
+      operation:
+        initiatedBy:
+          automated: true
+        retry:
+          limit: 5
+        sync:
+          revision: 204695028d5929ddefdfc61ba3d074f402cc11e2
+          source:
+            path: .
+            repoURL: https://github.com/pocharlies/k8s-gitops-pocharlies
+            targetRevision: main
+          syncOptions:
+          - CreateNamespace=false
+      phase: Succeeded
+      startedAt: "2026-05-22T00:40:54Z"
+      syncResult:
+        resources:
+        - group: argoproj.io
+          hookPhase: Succeeded
+          kind: Application
+          message: application.argoproj.io/cnpg-operator unchanged
+          name: cnpg-operator
+          namespace: argocd
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: argoproj.io
+          hookPhase: Succeeded
+          kind: Application
+          message: application.argoproj.io/postgres-shared unchanged
+          name: postgres-shared
+          namespace: argocd
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: argoproj.io
+          hookPhase: Succeeded
+          kind: Application
+          message: application.argoproj.io/adguard unchanged
+          name: adguard
+          namespace: argocd
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: traefik.io
+          hookPhase: Succeeded
+          kind: IngressRoute
+          message: ingressroute.traefik.io/argocd unchanged
+          name: argocd
+          namespace: argocd
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: traefik.io
+          hookPhase: Succeeded
+          kind: IngressRoute
+          message: ingressroute.traefik.io/argocd-lan unchanged
+          name: argocd-lan
+          namespace: traefik-lan
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: argoproj.io
+          hookPhase: Succeeded
+          kind: Application
+          message: application.argoproj.io/k8s-infra unchanged
+          name: k8s-infra
+          namespace: argocd
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: argoproj.io
+          hookPhase: Succeeded
+          kind: Application
+          message: application.argoproj.io/shopify-picker configured
+          name: shopify-picker
+          namespace: argocd
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: argoproj.io
+          hookPhase: Succeeded
+          kind: Application
+          message: application.argoproj.io/shopify-bundles configured
+          name: shopify-bundles
+          namespace: argocd
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: argoproj.io
+          hookPhase: Succeeded
+          kind: Application
+          message: application.argoproj.io/n8n unchanged
+          name: n8n
+          namespace: argocd
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: argoproj.io
+          hookPhase: Succeeded
+          kind: Application
+          message: application.argoproj.io/firecrawl unchanged
+          name: firecrawl
+          namespace: argocd
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: argoproj.io
+          hookPhase: Succeeded
+          kind: Application
+          message: application.argoproj.io/litellm unchanged
+          name: litellm
+          namespace: argocd
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: argoproj.io
+          hookPhase: Succeeded
+          kind: Application
+          message: application.argoproj.io/socialmedia unchanged
+          name: socialmedia
+          namespace: argocd
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: argoproj.io
+          hookPhase: Succeeded
+          kind: Application
+          message: application.argoproj.io/libreplay unchanged
+          name: libreplay
+          namespace: argocd
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: argoproj.io
+          hookPhase: Succeeded
+          kind: Application
+          message: application.argoproj.io/k8s-observability unchanged
+          name: k8s-observability
+          namespace: argocd
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: argoproj.io
+          hookPhase: Succeeded
+          kind: Application
+          message: application.argoproj.io/shopify-label configured
+          name: shopify-label
+          namespace: argocd
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: argoproj.io
+          hookPhase: Succeeded
+          kind: Application
+          message: application.argoproj.io/shopify-sii configured
+          name: shopify-sii
+          namespace: argocd
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: argoproj.io
+          hookPhase: Succeeded
+          kind: Application
+          message: application.argoproj.io/teslamate configured
+          name: teslamate
+          namespace: argocd
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: argoproj.io
+          hookPhase: Running
+          kind: Application
+          message: application.argoproj.io/n8n-stg unchanged
+          name: n8n-stg
+          namespace: argocd
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        revision: 204695028d5929ddefdfc61ba3d074f402cc11e2
+        source:
+          path: .
+          repoURL: https://github.com/pocharlies/k8s-gitops-pocharlies
+          targetRevision: main
+    reconciledAt: "2026-05-22T00:43:19Z"
+    resourceHealthSource: appTree
+    resources:
+    - group: argoproj.io
+      kind: Application
+      name: adguard
+      namespace: argocd
+      status: Synced
+      version: v1alpha1
+    - group: argoproj.io
+      kind: Application
+      name: cnpg-operator
+      namespace: argocd
+      status: Synced
+      syncWave: -10
+      version: v1alpha1
+    - group: argoproj.io
+      kind: Application
+      name: firecrawl
+      namespace: argocd
+      status: Synced
+      version: v1alpha1
+    - group: argoproj.io
+      kind: Application
+      name: k8s-infra
+      namespace: argocd
+      status: Synced
+      version: v1alpha1
+    - group: argoproj.io
+      kind: Application
+      name: k8s-observability
+      namespace: argocd
+      status: Synced
+      version: v1alpha1
+    - group: argoproj.io
+      kind: Application
+      name: libreplay
+      namespace: argocd
+      status: Synced
+      version: v1alpha1
+    - group: argoproj.io
+      kind: Application
+      name: litellm
+      namespace: argocd
+      status: Synced
+      version: v1alpha1
+    - group: argoproj.io
+      kind: Application
+      name: n8n
+      namespace: argocd
+      status: Synced
+      version: v1alpha1
+    - group: argoproj.io
+      kind: Application
+      name: n8n-stg
+      namespace: argocd
+      status: Synced
+      syncWave: 10
+      version: v1alpha1
+    - group: argoproj.io
+      kind: Application
+      name: postgres-shared
+      namespace: argocd
+      status: Synced
+      syncWave: -5
+      version: v1alpha1
+    - group: argoproj.io
+      kind: Application
+      name: shopify-bundles
+      namespace: argocd
+      status: Synced
+      version: v1alpha1
+    - group: argoproj.io
+      kind: Application
+      name: shopify-label
+      namespace: argocd
+      status: Synced
+      version: v1alpha1
+    - group: argoproj.io
+      kind: Application
+      name: shopify-picker
+      namespace: argocd
+      status: Synced
+      version: v1alpha1
+    - group: argoproj.io
+      kind: Application
+      name: shopify-sii
+      namespace: argocd
+      status: Synced
+      version: v1alpha1
+    - group: argoproj.io
+      kind: Application
+      name: socialmedia
+      namespace: argocd
+      status: Synced
+      version: v1alpha1
+    - group: argoproj.io
+      kind: Application
+      name: teslamate
+      namespace: argocd
+      status: Synced
+      version: v1alpha1
+    - group: traefik.io
+      kind: IngressRoute
+      name: argocd
+      namespace: argocd
+      status: Synced
+      version: v1alpha1
+    - group: traefik.io
+      kind: IngressRoute
+      name: argocd-lan
+      namespace: traefik-lan
+      status: Synced
+      version: v1alpha1
+    sourceHydrator: {}
+    sourceType: Kustomize
+    summary: {}
+    sync:
+      comparedTo:
+        destination:
+          namespace: argocd
+          server: https://kubernetes.default.svc
+        source:
+          path: .
+          repoURL: https://github.com/pocharlies/k8s-gitops-pocharlies
+          targetRevision: main
+      revision: 204695028d5929ddefdfc61ba3d074f402cc11e2
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      argocd.argoproj.io/compare-options: ServerSideDiff=false
+      argocd.argoproj.io/sync-wave: "-5"
+      argocd.argoproj.io/tracking-id: root:argoproj.io/Application:argocd/postgres-shared
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"argoproj.io/v1alpha1","kind":"Application","metadata":{"annotations":{"argocd.argoproj.io/sync-wave":"-5","argocd.argoproj.io/tracking-id":"root:argoproj.io/Application:argocd/postgres-shared"},"name":"postgres-shared","namespace":"argocd"},"spec":{"destination":{"namespace":"databases","server":"https://kubernetes.default.svc"},"ignoreDifferences":[{"group":"external-secrets.io","jqPathExpressions":[".spec.data[]?.remoteRef.conversionStrategy",".spec.data[]?.remoteRef.decodingStrategy",".spec.data[]?.remoteRef.metadataPolicy",".spec.data[]?.remoteRef.nullBytePolicy",".spec.dataFrom[]?.extract.conversionStrategy",".spec.dataFrom[]?.extract.decodingStrategy",".spec.dataFrom[]?.extract.metadataPolicy",".spec.dataFrom[]?.extract.nullBytePolicy"],"kind":"ExternalSecret"},{"group":"postgresql.cnpg.io","kind":"Cluster","managedFieldsManagers":["manager"]},{"group":"postgresql.cnpg.io","jsonPointers":["/spec"],"kind":"Cluster","name":"postgres-shared","namespace":"databases"}],"project":"default","source":{"path":"databases/postgres-shared","repoURL":"https://github.com/pocharlies/k8s-infra-pocharlies","targetRevision":"main"},"syncPolicy":{"automated":{"prune":false,"selfHeal":true},"retry":{"backoff":{"duration":"10s","factor":2,"maxDuration":"5m"},"limit":5},"syncOptions":["CreateNamespace=true","ServerSideApply=true"]}}}
+    creationTimestamp: "2026-05-19T23:23:45Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 3494
+    name: postgres-shared
+    namespace: argocd
+    resourceVersion: "2058231"
+    uid: f8656e42-fba8-4844-9853-214bf2782015
+  spec:
+    destination:
+      namespace: databases
+      server: https://kubernetes.default.svc
+    ignoreDifferences:
+    - group: external-secrets.io
+      jqPathExpressions:
+      - .spec.data[]?.remoteRef.conversionStrategy
+      - .spec.data[]?.remoteRef.decodingStrategy
+      - .spec.data[]?.remoteRef.metadataPolicy
+      - .spec.data[]?.remoteRef.nullBytePolicy
+      - .spec.dataFrom[]?.extract.conversionStrategy
+      - .spec.dataFrom[]?.extract.decodingStrategy
+      - .spec.dataFrom[]?.extract.metadataPolicy
+      - .spec.dataFrom[]?.extract.nullBytePolicy
+      kind: ExternalSecret
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      managedFieldsManagers:
+      - manager
+    - group: postgresql.cnpg.io
+      jsonPointers:
+      - /spec
+      kind: Cluster
+      name: postgres-shared
+      namespace: databases
+    project: default
+    revisionHistoryLimit: 10
+    source:
+      path: databases/postgres-shared
+      repoURL: https://github.com/pocharlies/k8s-infra-pocharlies
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: false
+        selfHeal: true
+      retry:
+        backoff:
+          duration: 10s
+          factor: 2
+          maxDuration: 5m
+        limit: 5
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  status:
+    controllerNamespace: argocd
+    health:
+      lastTransitionTime: "2026-05-21T23:40:57Z"
+      status: Healthy
+    history:
+    - deployStartedAt: "2026-05-19T23:41:10Z"
+      deployedAt: "2026-05-19T23:41:10Z"
+      id: 0
+      initiatedBy:
+        automated: true
+      revision: af850c08449e9541b353697616b7abc416631001
+      source:
+        path: k8s/infrastructure/postgres
+        repoURL: git@github.com:pocharlies/dgx-infra.git
+        targetRevision: master
+    - deployStartedAt: "2026-05-19T23:41:15Z"
+      deployedAt: "2026-05-19T23:41:17Z"
+      id: 1
+      initiatedBy: {}
+      revision: af850c08449e9541b353697616b7abc416631001
+      source:
+        path: k8s/infrastructure/postgres
+        repoURL: git@github.com:pocharlies/dgx-infra.git
+        targetRevision: master
+    - deployStartedAt: "2026-05-19T23:47:21Z"
+      deployedAt: "2026-05-19T23:47:21Z"
+      id: 2
+      initiatedBy:
+        automated: true
+      revision: 1d6d8bc33763c1aacead9a94271eb1c962863836
+      source:
+        path: k8s/infrastructure/postgres
+        repoURL: git@github.com:pocharlies/dgx-infra.git
+        targetRevision: master
+    - deployStartedAt: "2026-05-19T23:52:03Z"
+      deployedAt: "2026-05-19T23:52:03Z"
+      id: 3
+      initiatedBy:
+        automated: true
+      revision: 864fcef80fdbe0c97b09dc628b9bdaae223c4502
+      source:
+        path: k8s/infrastructure/postgres
+        repoURL: git@github.com:pocharlies/dgx-infra.git
+        targetRevision: master
+    - deployStartedAt: "2026-05-20T10:39:15Z"
+      deployedAt: "2026-05-20T10:39:15Z"
+      id: 4
+      initiatedBy:
+        automated: true
+      revision: 49aab565270d1acdb4975a79e7643525097161dd
+      source:
+        path: k8s/infrastructure/postgres
+        repoURL: git@github.com:pocharlies/dgx-infra.git
+        targetRevision: master
+    - deployStartedAt: "2026-05-21T21:36:18Z"
+      deployedAt: "2026-05-21T21:36:19Z"
+      id: 5
+      initiatedBy:
+        automated: true
+      revision: 69e9a308ba34d8dfaf4122b8cc694145d2ac60da
+      source:
+        path: k8s/infrastructure/postgres
+        repoURL: git@github.com:pocharlies/dgx-infra.git
+        targetRevision: master
+    - deployStartedAt: "2026-05-21T23:34:13Z"
+      deployedAt: "2026-05-21T23:34:13Z"
+      id: 6
+      initiatedBy:
+        automated: true
+      revision: 2670cc1c806ed36d2027d637c00083c5d3f321aa
+      source:
+        path: databases/postgres-shared
+        repoURL: https://github.com/pocharlies/k8s-infra-pocharlies
+        targetRevision: main
+    operationState:
+      finishedAt: "2026-05-21T23:34:14Z"
+      message: successfully synced (all tasks run)
+      operation:
+        initiatedBy:
+          automated: true
+        retry:
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 5m
+          limit: 5
+        sync:
+          revision: 2670cc1c806ed36d2027d637c00083c5d3f321aa
+          source:
+            path: databases/postgres-shared
+            repoURL: https://github.com/pocharlies/k8s-infra-pocharlies
+            targetRevision: main
+          syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+      phase: Succeeded
+      startedAt: "2026-05-21T23:34:13Z"
+      syncResult:
+        resources:
+        - group: ""
+          hookPhase: Running
+          kind: Namespace
+          message: namespace/databases serverside-applied
+          name: databases
+          namespace: databases
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: postgresql.cnpg.io
+          hookPhase: Running
+          kind: Database
+          message: database.postgresql.cnpg.io/litellm serverside-applied
+          name: litellm
+          namespace: databases
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: external-secrets.io
+          hookPhase: Running
+          kind: ExternalSecret
+          message: externalsecret.external-secrets.io/litellm-db-credentials serverside-applied
+          name: litellm-db-credentials
+          namespace: databases
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: postgresql.cnpg.io
+          hookPhase: Running
+          kind: Cluster
+          message: cluster.postgresql.cnpg.io/postgres-shared serverside-applied
+          name: postgres-shared
+          namespace: databases
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: postgresql.cnpg.io
+          hookPhase: Running
+          kind: ScheduledBackup
+          message: scheduledbackup.postgresql.cnpg.io/postgres-shared-daily serverside-applied
+          name: postgres-shared-daily
+          namespace: databases
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: external-secrets.io
+          hookPhase: Running
+          kind: ExternalSecret
+          message: externalsecret.external-secrets.io/postgres-shared-minio serverside-applied
+          name: postgres-shared-minio
+          namespace: databases
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: postgresql.cnpg.io
+          hookPhase: Running
+          kind: Database
+          message: database.postgresql.cnpg.io/teslamate serverside-applied
+          name: teslamate
+          namespace: databases
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: external-secrets.io
+          hookPhase: Running
+          kind: ExternalSecret
+          message: externalsecret.external-secrets.io/teslamate-db-credentials serverside-applied
+          name: teslamate-db-credentials
+          namespace: databases
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        revision: 2670cc1c806ed36d2027d637c00083c5d3f321aa
+        source:
+          path: databases/postgres-shared
+          repoURL: https://github.com/pocharlies/k8s-infra-pocharlies
+          targetRevision: main
+    reconciledAt: "2026-05-22T00:43:52Z"
+    resourceHealthSource: appTree
+    resources:
+    - kind: Namespace
+      name: databases
+      status: Synced
+      version: v1
+    - group: external-secrets.io
+      kind: ExternalSecret
+      name: litellm-db-credentials
+      namespace: databases
+      status: Synced
+      version: v1
+    - group: external-secrets.io
+      kind: ExternalSecret
+      name: postgres-shared-minio
+      namespace: databases
+      status: Synced
+      version: v1
+    - group: external-secrets.io
+      kind: ExternalSecret
+      name: teslamate-db-credentials
+      namespace: databases
+      status: Synced
+      version: v1
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      name: postgres-shared
+      namespace: databases
+      status: Synced
+      version: v1
+    - group: postgresql.cnpg.io
+      kind: Database
+      name: litellm
+      namespace: databases
+      status: Synced
+      version: v1
+    - group: postgresql.cnpg.io
+      kind: Database
+      name: teslamate
+      namespace: databases
+      status: Synced
+      version: v1
+    - group: postgresql.cnpg.io
+      kind: ScheduledBackup
+      name: postgres-shared-daily
+      namespace: databases
+      status: Synced
+      version: v1
+    sourceHydrator: {}
+    sourceType: Kustomize
+    summary:
+      images:
+      - ghcr.io/cloudnative-pg/cloudnative-pg:1.25.1
+      - ghcr.io/cloudnative-pg/postgresql:17.2
+    sync:
+      comparedTo:
+        destination:
+          namespace: databases
+          server: https://kubernetes.default.svc
+        ignoreDifferences:
+        - group: external-secrets.io
+          jqPathExpressions:
+          - .spec.data[]?.remoteRef.conversionStrategy
+          - .spec.data[]?.remoteRef.decodingStrategy
+          - .spec.data[]?.remoteRef.metadataPolicy
+          - .spec.data[]?.remoteRef.nullBytePolicy
+          - .spec.dataFrom[]?.extract.conversionStrategy
+          - .spec.dataFrom[]?.extract.decodingStrategy
+          - .spec.dataFrom[]?.extract.metadataPolicy
+          - .spec.dataFrom[]?.extract.nullBytePolicy
+          kind: ExternalSecret
+        - group: postgresql.cnpg.io
+          kind: Cluster
+          managedFieldsManagers:
+          - manager
+        - group: postgresql.cnpg.io
+          jsonPointers:
+          - /spec
+          kind: Cluster
+          name: postgres-shared
+          namespace: databases
+        source:
+          path: databases/postgres-shared
+          repoURL: https://github.com/pocharlies/k8s-infra-pocharlies
+          targetRevision: main
+      revision: 2475dfe9b8e2bf1da0f310199d63f17a01a44f92
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: root:argoproj.io/Application:argocd/litellm
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"argoproj.io/v1alpha1","kind":"Application","metadata":{"annotations":{"argocd.argoproj.io/tracking-id":"root:argoproj.io/Application:argocd/litellm"},"finalizers":["resources-finalizer.argocd.argoproj.io"],"name":"litellm","namespace":"argocd"},"spec":{"destination":{"namespace":"litellm","server":"https://kubernetes.default.svc"},"ignoreDifferences":[{"group":"external-secrets.io","jqPathExpressions":[".spec.data[]?.remoteRef.conversionStrategy",".spec.data[]?.remoteRef.decodingStrategy",".spec.data[]?.remoteRef.metadataPolicy",".spec.data[]?.remoteRef.nullBytePolicy",".spec.dataFrom[]?.extract.conversionStrategy",".spec.dataFrom[]?.extract.decodingStrategy",".spec.dataFrom[]?.extract.metadataPolicy",".spec.dataFrom[]?.extract.nullBytePolicy"],"kind":"ExternalSecret"},{"group":"postgresql.cnpg.io","kind":"Cluster","managedFieldsManagers":["manager"]}],"project":"default","source":{"path":"k8s","repoURL":"https://github.com/pocharlies/k8s-litellm-pocharlies","targetRevision":"main"},"syncPolicy":{"automated":{"prune":false,"selfHeal":true},"syncOptions":["CreateNamespace=true","ServerSideApply=true"]}}}
+    creationTimestamp: "2026-05-21T22:15:37Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 162
+    name: litellm
+    namespace: argocd
+    resourceVersion: "2058322"
+    uid: a3cfa013-1757-49a8-ba96-73c421881ca5
+  spec:
+    destination:
+      namespace: litellm
+      server: https://kubernetes.default.svc
+    ignoreDifferences:
+    - group: external-secrets.io
+      jqPathExpressions:
+      - .spec.data[]?.remoteRef.conversionStrategy
+      - .spec.data[]?.remoteRef.decodingStrategy
+      - .spec.data[]?.remoteRef.metadataPolicy
+      - .spec.data[]?.remoteRef.nullBytePolicy
+      - .spec.dataFrom[]?.extract.conversionStrategy
+      - .spec.dataFrom[]?.extract.decodingStrategy
+      - .spec.dataFrom[]?.extract.metadataPolicy
+      - .spec.dataFrom[]?.extract.nullBytePolicy
+      kind: ExternalSecret
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      managedFieldsManagers:
+      - manager
+    project: default
+    source:
+      path: k8s
+      repoURL: https://github.com/pocharlies/k8s-litellm-pocharlies
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: false
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  status:
+    controllerNamespace: argocd
+    health:
+      lastTransitionTime: "2026-05-21T22:15:38Z"
+      status: Healthy
+    history:
+    - deployStartedAt: "2026-05-21T22:15:38Z"
+      deployedAt: "2026-05-21T22:15:40Z"
+      id: 0
+      initiatedBy:
+        automated: true
+      revision: ac57c2e3f7cba937d998e11870a9a05f848c6ee1
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-litellm-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T22:21:57Z"
+      deployedAt: "2026-05-21T22:22:00Z"
+      id: 1
+      initiatedBy:
+        automated: true
+      revision: 03cdcde5c4d6339883504ffa337a36790a567b47
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-litellm-pocharlies
+        targetRevision: main
+    operationState:
+      finishedAt: "2026-05-21T22:23:30Z"
+      message: successfully synced (all tasks run)
+      operation:
+        initiatedBy:
+          automated: true
+        retry:
+          limit: 5
+        sync:
+          autoHealAttemptsCount: 5
+          resources:
+          - group: external-secrets.io
+            kind: ExternalSecret
+            name: litellm-secrets
+          - group: external-secrets.io
+            kind: ExternalSecret
+            name: litellm-postgres-creds
+          revision: 03cdcde5c4d6339883504ffa337a36790a567b47
+          source:
+            path: k8s
+            repoURL: https://github.com/pocharlies/k8s-litellm-pocharlies
+            targetRevision: main
+          syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+      phase: Succeeded
+      startedAt: "2026-05-21T22:23:29Z"
+      syncResult:
+        resources:
+        - group: external-secrets.io
+          hookPhase: Running
+          kind: ExternalSecret
+          message: externalsecret.external-secrets.io/litellm-secrets serverside-applied
+          name: litellm-secrets
+          namespace: litellm
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: external-secrets.io
+          hookPhase: Running
+          kind: ExternalSecret
+          message: externalsecret.external-secrets.io/litellm-postgres-creds serverside-applied
+          name: litellm-postgres-creds
+          namespace: litellm
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        revision: 03cdcde5c4d6339883504ffa337a36790a567b47
+        source:
+          path: k8s
+          repoURL: https://github.com/pocharlies/k8s-litellm-pocharlies
+          targetRevision: main
+    reconciledAt: "2026-05-22T00:44:00Z"
+    resourceHealthSource: appTree
+    resources:
+    - kind: ConfigMap
+      name: litellm-config
+      namespace: litellm
+      status: Synced
+      version: v1
+    - kind: Namespace
+      name: litellm
+      status: Synced
+      version: v1
+    - kind: Service
+      name: litellm
+      namespace: litellm
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: litellm
+      namespace: litellm
+      status: Synced
+      version: v1
+    - group: external-secrets.io
+      kind: ExternalSecret
+      name: litellm-postgres-creds
+      namespace: litellm
+      status: Synced
+      version: v1
+    - group: external-secrets.io
+      kind: ExternalSecret
+      name: litellm-secrets
+      namespace: litellm
+      status: Synced
+      version: v1
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      name: litellm-postgres
+      namespace: litellm
+      status: Synced
+      version: v1
+    - group: traefik.io
+      kind: IngressRoute
+      name: litellm-lan
+      namespace: litellm
+      status: Synced
+      version: v1alpha1
+    sourceHydrator: {}
+    sourceType: Directory
+    summary:
+      images:
+      - ghcr.io/berriai/litellm:main-stable
+      - ghcr.io/cloudnative-pg/cloudnative-pg:1.25.1
+      - ghcr.io/cloudnative-pg/postgresql:16
+    sync:
+      comparedTo:
+        destination:
+          namespace: litellm
+          server: https://kubernetes.default.svc
+        ignoreDifferences:
+        - group: external-secrets.io
+          jqPathExpressions:
+          - .spec.data[]?.remoteRef.conversionStrategy
+          - .spec.data[]?.remoteRef.decodingStrategy
+          - .spec.data[]?.remoteRef.metadataPolicy
+          - .spec.data[]?.remoteRef.nullBytePolicy
+          - .spec.dataFrom[]?.extract.conversionStrategy
+          - .spec.dataFrom[]?.extract.decodingStrategy
+          - .spec.dataFrom[]?.extract.metadataPolicy
+          - .spec.dataFrom[]?.extract.nullBytePolicy
+          kind: ExternalSecret
+        - group: postgresql.cnpg.io
+          kind: Cluster
+          managedFieldsManagers:
+          - manager
+        source:
+          path: k8s
+          repoURL: https://github.com/pocharlies/k8s-litellm-pocharlies
+          targetRevision: main
+      revision: 709b31faaf2625d6f4f7363381a5fef9f03bfa4e
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: root:argoproj.io/Application:argocd/teslamate
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"argoproj.io/v1alpha1","kind":"Application","metadata":{"annotations":{"argocd.argoproj.io/tracking-id":"root:argoproj.io/Application:argocd/teslamate"},"finalizers":["resources-finalizer.argocd.argoproj.io"],"labels":{"e-dani.com/portfolio":"personal"},"name":"teslamate","namespace":"argocd"},"spec":{"destination":{"namespace":"teslamate","server":"https://kubernetes.default.svc"},"ignoreDifferences":[{"group":"external-secrets.io","jqPathExpressions":[".spec.data[]?.remoteRef.conversionStrategy",".spec.data[]?.remoteRef.decodingStrategy",".spec.data[]?.remoteRef.metadataPolicy",".spec.data[]?.remoteRef.nullBytePolicy",".spec.dataFrom[]?.extract.conversionStrategy",".spec.dataFrom[]?.extract.decodingStrategy",".spec.dataFrom[]?.extract.metadataPolicy",".spec.dataFrom[]?.extract.nullBytePolicy"],"kind":"ExternalSecret"},{"group":"postgresql.cnpg.io","kind":"Cluster","managedFieldsManagers":["manager"]}],"project":"default","source":{"path":"k8s","repoURL":"https://github.com/pocharlies/k8s-teslamate-pocharlies","targetRevision":"main"},"syncPolicy":{"automated":{"prune":false,"selfHeal":true},"syncOptions":["CreateNamespace=true","ServerSideApply=true"]}}}
+    creationTimestamp: "2026-05-21T22:15:37Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 160
+    labels:
+      e-dani.com/portfolio: personal
+    name: teslamate
+    namespace: argocd
+    resourceVersion: "2058228"
+    uid: a066d5ad-18f3-4524-b6a0-143577f13d0c
+  spec:
+    destination:
+      namespace: teslamate
+      server: https://kubernetes.default.svc
+    ignoreDifferences:
+    - group: external-secrets.io
+      jqPathExpressions:
+      - .spec.data[]?.remoteRef.conversionStrategy
+      - .spec.data[]?.remoteRef.decodingStrategy
+      - .spec.data[]?.remoteRef.metadataPolicy
+      - .spec.data[]?.remoteRef.nullBytePolicy
+      - .spec.dataFrom[]?.extract.conversionStrategy
+      - .spec.dataFrom[]?.extract.decodingStrategy
+      - .spec.dataFrom[]?.extract.metadataPolicy
+      - .spec.dataFrom[]?.extract.nullBytePolicy
+      kind: ExternalSecret
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      managedFieldsManagers:
+      - manager
+    project: default
+    source:
+      path: k8s
+      repoURL: https://github.com/pocharlies/k8s-teslamate-pocharlies
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: false
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  status:
+    controllerNamespace: argocd
+    health:
+      lastTransitionTime: "2026-05-21T22:15:43Z"
+      status: Healthy
+    history:
+    - deployStartedAt: "2026-05-21T22:15:38Z"
+      deployedAt: "2026-05-21T22:15:41Z"
+      id: 0
+      initiatedBy:
+        automated: true
+      revision: e47be1f75123335d9765ba25ca9a205df55bdd8c
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-teslamate-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T22:21:40Z"
+      deployedAt: "2026-05-21T22:21:43Z"
+      id: 1
+      initiatedBy:
+        automated: true
+      revision: 87e5df3d4ed06c6fa0807ef6927744e15d7a8b0d
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-teslamate-pocharlies
+        targetRevision: main
+    operationState:
+      finishedAt: "2026-05-21T22:23:13Z"
+      message: successfully synced (all tasks run)
+      operation:
+        initiatedBy:
+          automated: true
+        retry:
+          limit: 5
+        sync:
+          autoHealAttemptsCount: 5
+          resources:
+          - group: external-secrets.io
+            kind: ExternalSecret
+            name: teslamate-postgres-creds
+          - group: external-secrets.io
+            kind: ExternalSecret
+            name: teslamate-secrets
+          revision: 87e5df3d4ed06c6fa0807ef6927744e15d7a8b0d
+          source:
+            path: k8s
+            repoURL: https://github.com/pocharlies/k8s-teslamate-pocharlies
+            targetRevision: main
+          syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+      phase: Succeeded
+      startedAt: "2026-05-21T22:23:11Z"
+      syncResult:
+        resources:
+        - group: external-secrets.io
+          hookPhase: Running
+          kind: ExternalSecret
+          message: externalsecret.external-secrets.io/teslamate-secrets serverside-applied
+          name: teslamate-secrets
+          namespace: teslamate
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: external-secrets.io
+          hookPhase: Running
+          kind: ExternalSecret
+          message: externalsecret.external-secrets.io/teslamate-postgres-creds serverside-applied
+          name: teslamate-postgres-creds
+          namespace: teslamate
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        revision: 87e5df3d4ed06c6fa0807ef6927744e15d7a8b0d
+        source:
+          path: k8s
+          repoURL: https://github.com/pocharlies/k8s-teslamate-pocharlies
+          targetRevision: main
+    reconciledAt: "2026-05-22T00:43:51Z"
+    resourceHealthSource: appTree
+    resources:
+    - kind: ConfigMap
+      name: mosquitto-config
+      namespace: teslamate
+      status: Synced
+      version: v1
+    - kind: Namespace
+      name: teslamate
+      status: Synced
+      version: v1
+    - kind: PersistentVolumeClaim
+      name: mosquitto-data
+      namespace: teslamate
+      status: Synced
+      version: v1
+    - kind: Service
+      name: teslamate
+      namespace: teslamate
+      status: Synced
+      version: v1
+    - kind: Service
+      name: teslamate-mosquitto
+      namespace: teslamate
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: teslamate
+      namespace: teslamate
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: teslamate-mosquitto
+      namespace: teslamate
+      status: Synced
+      version: v1
+    - group: external-secrets.io
+      kind: ExternalSecret
+      name: teslamate-postgres-creds
+      namespace: teslamate
+      status: Synced
+      version: v1
+    - group: external-secrets.io
+      kind: ExternalSecret
+      name: teslamate-secrets
+      namespace: teslamate
+      status: Synced
+      version: v1
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      name: teslamate-postgres
+      namespace: teslamate
+      status: Synced
+      version: v1
+    - group: traefik.io
+      kind: IngressRoute
+      name: teslamate-lan
+      namespace: teslamate
+      status: Synced
+      version: v1alpha1
+    sourceHydrator: {}
+    sourceType: Directory
+    summary:
+      images:
+      - eclipse-mosquitto:2
+      - ghcr.io/cloudnative-pg/cloudnative-pg:1.25.1
+      - ghcr.io/cloudnative-pg/postgresql:16
+      - postgres:16-alpine
+      - teslamate/teslamate:latest
+    sync:
+      comparedTo:
+        destination:
+          namespace: teslamate
+          server: https://kubernetes.default.svc
+        ignoreDifferences:
+        - group: external-secrets.io
+          jqPathExpressions:
+          - .spec.data[]?.remoteRef.conversionStrategy
+          - .spec.data[]?.remoteRef.decodingStrategy
+          - .spec.data[]?.remoteRef.metadataPolicy
+          - .spec.data[]?.remoteRef.nullBytePolicy
+          - .spec.dataFrom[]?.extract.conversionStrategy
+          - .spec.dataFrom[]?.extract.decodingStrategy
+          - .spec.dataFrom[]?.extract.metadataPolicy
+          - .spec.dataFrom[]?.extract.nullBytePolicy
+          kind: ExternalSecret
+        - group: postgresql.cnpg.io
+          kind: Cluster
+          managedFieldsManagers:
+          - manager
+        source:
+          path: k8s
+          repoURL: https://github.com/pocharlies/k8s-teslamate-pocharlies
+          targetRevision: main
+      revision: 68cade2cc5abc29629580d2742b56aa190de0434
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: root:argoproj.io/Application:argocd/socialmedia
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"argoproj.io/v1alpha1","kind":"Application","metadata":{"annotations":{"argocd.argoproj.io/tracking-id":"root:argoproj.io/Application:argocd/socialmedia"},"finalizers":["resources-finalizer.argocd.argoproj.io"],"name":"socialmedia","namespace":"argocd"},"spec":{"destination":{"namespace":"whatsapp-mcp","server":"https://kubernetes.default.svc"},"ignoreDifferences":[{"group":"external-secrets.io","jqPathExpressions":[".spec.data[]?.remoteRef.conversionStrategy",".spec.data[]?.remoteRef.decodingStrategy",".spec.data[]?.remoteRef.metadataPolicy",".spec.data[]?.remoteRef.nullBytePolicy",".spec.dataFrom[]?.extract.conversionStrategy",".spec.dataFrom[]?.extract.decodingStrategy",".spec.dataFrom[]?.extract.metadataPolicy",".spec.dataFrom[]?.extract.nullBytePolicy"],"kind":"ExternalSecret"},{"group":"postgresql.cnpg.io","kind":"Cluster","managedFieldsManagers":["manager"]}],"project":"default","source":{"path":"k8s","repoURL":"https://github.com/pocharlies/k8s-socialmedia-pocharlies","targetRevision":"main"},"syncPolicy":{"automated":{"prune":false,"selfHeal":true},"syncOptions":["CreateNamespace=true","ServerSideApply=true"]}}}
+    creationTimestamp: "2026-05-21T22:15:37Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 164
+    name: socialmedia
+    namespace: argocd
+    resourceVersion: "2057527"
+    uid: d69bcc4f-6c38-45df-a6e5-9ac05aa38fa4
+  spec:
+    destination:
+      namespace: whatsapp-mcp
+      server: https://kubernetes.default.svc
+    ignoreDifferences:
+    - group: external-secrets.io
+      jqPathExpressions:
+      - .spec.data[]?.remoteRef.conversionStrategy
+      - .spec.data[]?.remoteRef.decodingStrategy
+      - .spec.data[]?.remoteRef.metadataPolicy
+      - .spec.data[]?.remoteRef.nullBytePolicy
+      - .spec.dataFrom[]?.extract.conversionStrategy
+      - .spec.dataFrom[]?.extract.decodingStrategy
+      - .spec.dataFrom[]?.extract.metadataPolicy
+      - .spec.dataFrom[]?.extract.nullBytePolicy
+      kind: ExternalSecret
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      managedFieldsManagers:
+      - manager
+    project: default
+    source:
+      path: k8s
+      repoURL: https://github.com/pocharlies/k8s-socialmedia-pocharlies
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: false
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  status:
+    controllerNamespace: argocd
+    health:
+      lastTransitionTime: "2026-05-21T22:15:44Z"
+      status: Healthy
+    history:
+    - deployStartedAt: "2026-05-21T22:15:39Z"
+      deployedAt: "2026-05-21T22:15:41Z"
+      id: 0
+      initiatedBy:
+        automated: true
+      revision: d52d4074b9c324a9dccca3ae77be30c4da30309f
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-socialmedia-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T22:22:00Z"
+      deployedAt: "2026-05-21T22:22:04Z"
+      id: 1
+      initiatedBy:
+        automated: true
+      revision: 18e6beb5b0138e5b59a2a6899682c60b3cd06e40
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-socialmedia-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T23:06:06Z"
+      deployedAt: "2026-05-21T23:06:08Z"
+      id: 2
+      initiatedBy:
+        automated: true
+      revision: 55aac1cb0bb3caf51cd2162f2226db00cedbe96a
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-socialmedia-pocharlies
+        targetRevision: main
+    operationState:
+      finishedAt: "2026-05-21T23:06:08Z"
+      message: successfully synced (all tasks run)
+      operation:
+        initiatedBy:
+          automated: true
+        retry:
+          limit: 5
+        sync:
+          revision: 55aac1cb0bb3caf51cd2162f2226db00cedbe96a
+          source:
+            path: k8s
+            repoURL: https://github.com/pocharlies/k8s-socialmedia-pocharlies
+            targetRevision: main
+          syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+      phase: Succeeded
+      startedAt: "2026-05-21T23:06:06Z"
+      syncResult:
+        resources:
+        - group: ""
+          hookPhase: Running
+          kind: Namespace
+          message: namespace/whatsapp-mcp serverside-applied
+          name: whatsapp-mcp
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: ConfigMap
+          message: configmap/auto-reply-config serverside-applied
+          name: auto-reply-config
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: PersistentVolumeClaim
+          message: persistentvolumeclaim/whatsapp-mcp-minio-data serverside-applied
+          name: whatsapp-mcp-minio-data
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: PersistentVolumeClaim
+          message: persistentvolumeclaim/whatsapp-mcp-postgres-data serverside-applied
+          name: whatsapp-mcp-postgres-data
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: PersistentVolumeClaim
+          message: persistentvolumeclaim/whatsapp-mcp-nats-data serverside-applied
+          name: whatsapp-mcp-nats-data
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/whatsapp-mcp-postgres serverside-applied
+          name: whatsapp-mcp-postgres
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/whatsapp-mcp-minio serverside-applied
+          name: whatsapp-mcp-minio
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/telegram-connector serverside-applied
+          name: telegram-connector
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/whatsapp-mcp-redis serverside-applied
+          name: whatsapp-mcp-redis
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/whatsapp-cloud-connector serverside-applied
+          name: whatsapp-cloud-connector
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/whatsapp-connector serverside-applied
+          name: whatsapp-connector
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/auto-reply-worker serverside-applied
+          name: auto-reply-worker
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/whatsapp-mcp-nats serverside-applied
+          name: whatsapp-mcp-nats
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/telegram-sync serverside-applied
+          name: telegram-sync
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/instagram-connector serverside-applied
+          name: instagram-connector
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/mcp-server serverside-applied
+          name: mcp-server
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - harbor.e-dani.com/homelab/whatsappmcp-whatsapp-cloud-connector:latest
+          kind: Deployment
+          message: deployment.apps/whatsapp-cloud-connector serverside-applied
+          name: whatsapp-cloud-connector
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - minio/minio:latest
+          kind: Deployment
+          message: deployment.apps/whatsapp-mcp-minio serverside-applied
+          name: whatsapp-mcp-minio
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - harbor.e-dani.com/homelab/whatsappmcp-mcp-server:latest
+          kind: Deployment
+          message: deployment.apps/mcp-server serverside-applied
+          name: mcp-server
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - harbor.e-dani.com/homelab/whatsappmcp-auto-reply-worker:latest
+          kind: Deployment
+          message: deployment.apps/auto-reply-worker serverside-applied
+          name: auto-reply-worker
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - nats:2.10-alpine
+          kind: Deployment
+          message: deployment.apps/whatsapp-mcp-nats serverside-applied
+          name: whatsapp-mcp-nats
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - harbor.e-dani.com/homelab/whatsappmcp-telegram-sync:latest
+          kind: Deployment
+          message: deployment.apps/telegram-sync serverside-applied
+          name: telegram-sync
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - harbor.e-dani.com/homelab/whatsappmcp-instagram-connector:latest
+          kind: Deployment
+          message: deployment.apps/instagram-connector serverside-applied
+          name: instagram-connector
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - harbor.e-dani.com/homelab/whatsappmcp-whatsapp-connector:latest
+          kind: Deployment
+          message: deployment.apps/whatsapp-connector serverside-applied
+          name: whatsapp-connector
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - harbor.e-dani.com/homelab/whatsappmcp-telegram-connector:latest
+          kind: Deployment
+          message: deployment.apps/telegram-connector serverside-applied
+          name: telegram-connector
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - redis:7-alpine
+          kind: Deployment
+          message: deployment.apps/whatsapp-mcp-redis serverside-applied
+          name: whatsapp-mcp-redis
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - pgvector/pgvector:pg16
+          kind: StatefulSet
+          message: statefulset.apps/whatsapp-mcp-postgres serverside-applied
+          name: whatsapp-mcp-postgres
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: external-secrets.io
+          hookPhase: Running
+          kind: ExternalSecret
+          message: externalsecret.external-secrets.io/whatsapp-mcp-secrets serverside-applied
+          name: whatsapp-mcp-secrets
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: traefik.io
+          hookPhase: Running
+          kind: IngressRoute
+          message: ingressroute.traefik.io/whatsapp-public serverside-applied
+          name: whatsapp-public
+          namespace: whatsapp-mcp
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        revision: 55aac1cb0bb3caf51cd2162f2226db00cedbe96a
+        source:
+          path: k8s
+          repoURL: https://github.com/pocharlies/k8s-socialmedia-pocharlies
+          targetRevision: main
+    reconciledAt: "2026-05-22T00:42:47Z"
+    resourceHealthSource: appTree
+    resources:
+    - kind: ConfigMap
+      name: auto-reply-config
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - kind: Namespace
+      name: whatsapp-mcp
+      status: Synced
+      version: v1
+    - kind: PersistentVolumeClaim
+      name: whatsapp-mcp-minio-data
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - kind: PersistentVolumeClaim
+      name: whatsapp-mcp-nats-data
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - kind: PersistentVolumeClaim
+      name: whatsapp-mcp-postgres-data
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - kind: Service
+      name: auto-reply-worker
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - kind: Service
+      name: instagram-connector
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - kind: Service
+      name: mcp-server
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - kind: Service
+      name: telegram-connector
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - kind: Service
+      name: telegram-sync
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - kind: Service
+      name: whatsapp-cloud-connector
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - kind: Service
+      name: whatsapp-connector
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - kind: Service
+      name: whatsapp-mcp-minio
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - kind: Service
+      name: whatsapp-mcp-nats
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - kind: Service
+      name: whatsapp-mcp-postgres
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - kind: Service
+      name: whatsapp-mcp-redis
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: auto-reply-worker
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: instagram-connector
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: mcp-server
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: telegram-connector
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: telegram-sync
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: whatsapp-cloud-connector
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: whatsapp-connector
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: whatsapp-mcp-minio
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: whatsapp-mcp-nats
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: whatsapp-mcp-redis
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - group: apps
+      kind: StatefulSet
+      name: whatsapp-mcp-postgres
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - group: external-secrets.io
+      kind: ExternalSecret
+      name: whatsapp-mcp-secrets
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1
+    - group: traefik.io
+      kind: IngressRoute
+      name: whatsapp-public
+      namespace: whatsapp-mcp
+      status: Synced
+      version: v1alpha1
+    sourceHydrator: {}
+    sourceType: Directory
+    summary:
+      images:
+      - harbor.e-dani.com/homelab/whatsappmcp-auto-reply-worker:latest
+      - harbor.e-dani.com/homelab/whatsappmcp-instagram-connector:latest
+      - harbor.e-dani.com/homelab/whatsappmcp-mcp-server:latest
+      - harbor.e-dani.com/homelab/whatsappmcp-telegram-connector:latest
+      - harbor.e-dani.com/homelab/whatsappmcp-telegram-sync:latest
+      - harbor.e-dani.com/homelab/whatsappmcp-whatsapp-cloud-connector:latest
+      - harbor.e-dani.com/homelab/whatsappmcp-whatsapp-connector:latest
+      - minio/minio:latest
+      - nats:2.10-alpine
+      - pgvector/pgvector:pg16
+      - redis:7-alpine
+    sync:
+      comparedTo:
+        destination:
+          namespace: whatsapp-mcp
+          server: https://kubernetes.default.svc
+        ignoreDifferences:
+        - group: external-secrets.io
+          jqPathExpressions:
+          - .spec.data[]?.remoteRef.conversionStrategy
+          - .spec.data[]?.remoteRef.decodingStrategy
+          - .spec.data[]?.remoteRef.metadataPolicy
+          - .spec.data[]?.remoteRef.nullBytePolicy
+          - .spec.dataFrom[]?.extract.conversionStrategy
+          - .spec.dataFrom[]?.extract.decodingStrategy
+          - .spec.dataFrom[]?.extract.metadataPolicy
+          - .spec.dataFrom[]?.extract.nullBytePolicy
+          kind: ExternalSecret
+        - group: postgresql.cnpg.io
+          kind: Cluster
+          managedFieldsManagers:
+          - manager
+        source:
+          path: k8s
+          repoURL: https://github.com/pocharlies/k8s-socialmedia-pocharlies
+          targetRevision: main
+      revision: cd2034f85efa389a41ee84731e7180862c1a3706
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: root:argoproj.io/Application:argocd/shopify-label
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"argoproj.io/v1alpha1","kind":"Application","metadata":{"annotations":{"argocd.argoproj.io/tracking-id":"root:argoproj.io/Application:argocd/shopify-label"},"finalizers":["resources-finalizer.argocd.argoproj.io"],"labels":{"e-dani.com/portfolio":"skirmshop"},"name":"shopify-label","namespace":"argocd"},"spec":{"destination":{"namespace":"skirmshop","server":"https://kubernetes.default.svc"},"ignoreDifferences":[{"group":"external-secrets.io","jqPathExpressions":[".spec.data[]?.remoteRef.conversionStrategy",".spec.data[]?.remoteRef.decodingStrategy",".spec.data[]?.remoteRef.metadataPolicy",".spec.data[]?.remoteRef.nullBytePolicy",".spec.dataFrom[]?.extract.conversionStrategy",".spec.dataFrom[]?.extract.decodingStrategy",".spec.dataFrom[]?.extract.metadataPolicy",".spec.dataFrom[]?.extract.nullBytePolicy"],"kind":"ExternalSecret"},{"group":"postgresql.cnpg.io","kind":"Cluster","managedFieldsManagers":["manager"]}],"project":"default","source":{"path":"k8s","repoURL":"https://github.com/pocharlies/k8s-shopify-label-pocharlies","targetRevision":"main"},"syncPolicy":{"automated":{"prune":false,"selfHeal":true},"syncOptions":["CreateNamespace=true","ServerSideApply=true"]}}}
+    creationTimestamp: "2026-05-21T22:15:37Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 237
+    labels:
+      e-dani.com/portfolio: skirmshop
+    name: shopify-label
+    namespace: argocd
+    resourceVersion: "2058435"
+    uid: 5b4cf588-e933-4284-b1a9-b11284bc20b4
+  spec:
+    destination:
+      namespace: skirmshop
+      server: https://kubernetes.default.svc
+    ignoreDifferences:
+    - group: external-secrets.io
+      jqPathExpressions:
+      - .spec.data[]?.remoteRef.conversionStrategy
+      - .spec.data[]?.remoteRef.decodingStrategy
+      - .spec.data[]?.remoteRef.metadataPolicy
+      - .spec.data[]?.remoteRef.nullBytePolicy
+      - .spec.dataFrom[]?.extract.conversionStrategy
+      - .spec.dataFrom[]?.extract.decodingStrategy
+      - .spec.dataFrom[]?.extract.metadataPolicy
+      - .spec.dataFrom[]?.extract.nullBytePolicy
+      kind: ExternalSecret
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      managedFieldsManagers:
+      - manager
+    project: default
+    source:
+      path: k8s
+      repoURL: https://github.com/pocharlies/k8s-shopify-label-pocharlies
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: false
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  status:
+    controllerNamespace: argocd
+    health:
+      lastTransitionTime: "2026-05-22T00:25:35Z"
+      status: Healthy
+    history:
+    - deployStartedAt: "2026-05-21T22:15:38Z"
+      deployedAt: "2026-05-21T22:15:40Z"
+      id: 0
+      initiatedBy:
+        automated: true
+      revision: 2eb0f84253f743f51199592459d544ccf34250c8
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-label-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T22:21:59Z"
+      deployedAt: "2026-05-21T22:22:04Z"
+      id: 1
+      initiatedBy:
+        automated: true
+      revision: 3172caa88ed00f2c2fd4571fd8f487443f088bf8
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-label-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T23:06:07Z"
+      deployedAt: "2026-05-21T23:06:09Z"
+      id: 2
+      initiatedBy:
+        automated: true
+      revision: a6604556ae468d2c841b6597869c3bd7d8872662
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-label-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-22T00:15:53Z"
+      deployedAt: "2026-05-22T00:15:54Z"
+      id: 3
+      initiatedBy:
+        automated: true
+      revision: be94a1c34116ba85a3f81e93061f6d3e93ad915c
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-label-pocharlies
+        targetRevision: main
+    operationState:
+      finishedAt: "2026-05-22T00:15:54Z"
+      message: successfully synced (all tasks run)
+      operation:
+        initiatedBy:
+          automated: true
+        retry:
+          limit: 5
+        sync:
+          revision: be94a1c34116ba85a3f81e93061f6d3e93ad915c
+          source:
+            path: k8s
+            repoURL: https://github.com/pocharlies/k8s-shopify-label-pocharlies
+            targetRevision: main
+          syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+      phase: Succeeded
+      startedAt: "2026-05-22T00:15:53Z"
+      syncResult:
+        resources:
+        - group: ""
+          hookPhase: Running
+          kind: ConfigMap
+          message: configmap/synapse-tokens serverside-applied
+          name: synapse-tokens
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: PersistentVolumeClaim
+          message: persistentvolumeclaim/labels-postgres-data serverside-applied
+          name: labels-postgres-data
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/labels-routing-service serverside-applied
+          name: labels-routing-service
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/labels-nats serverside-applied
+          name: labels-nats
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/labels-saga-launcher serverside-applied
+          name: labels-saga-launcher
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/labels-postgres serverside-applied
+          name: labels-postgres
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/labels-label-storage serverside-applied
+          name: labels-label-storage
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/labels-event-gateway serverside-applied
+          name: labels-event-gateway
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/labels-shopify-app serverside-applied
+          name: labels-shopify-app
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/labels-synapse-api serverside-applied
+          name: labels-synapse-api
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/labels-synapse-correlator serverside-applied
+          name: labels-synapse-correlator
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/labels-redis serverside-applied
+          name: labels-redis
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/labels-ups-adapter serverside-applied
+          name: labels-ups-adapter
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - ghcr.io/serverlessworkflow/synapse/operator:1.0.0-alpha1
+          kind: Deployment
+          message: deployment.apps/labels-synapse-operator serverside-applied
+          name: labels-synapse-operator
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - ghcr.io/serverlessworkflow/synapse/correlator:1.0.0-alpha1
+          kind: Deployment
+          message: deployment.apps/labels-synapse-correlator serverside-applied
+          name: labels-synapse-correlator
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - harbor.e-dani.com/homelab/skirmshop-labels-label-storage:latest
+          kind: Deployment
+          message: deployment.apps/labels-label-storage serverside-applied
+          name: labels-label-storage
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - harbor.e-dani.com/homelab/skirmshop-labels-ups-adapter:latest
+          kind: Deployment
+          message: deployment.apps/labels-ups-adapter serverside-applied
+          name: labels-ups-adapter
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - harbor.e-dani.com/homelab/skirmshop-labels-saga-launcher:latest
+          kind: Deployment
+          message: deployment.apps/labels-saga-launcher serverside-applied
+          name: labels-saga-launcher
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - ghcr.io/serverlessworkflow/synapse/api:1.0.0-alpha1
+          kind: Deployment
+          message: deployment.apps/labels-synapse-api serverside-applied
+          name: labels-synapse-api
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - harbor.e-dani.com/homelab/skirmshop-labels-event-gateway:latest
+          kind: Deployment
+          message: deployment.apps/labels-event-gateway serverside-applied
+          name: labels-event-gateway
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - redis:8.0.0
+          kind: Deployment
+          message: deployment.apps/labels-redis serverside-applied
+          name: labels-redis
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - harbor.e-dani.com/homelab/skirmshop-labels-shopify-app:latest
+          kind: Deployment
+          message: deployment.apps/labels-shopify-app serverside-applied
+          name: labels-shopify-app
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - harbor.e-dani.com/homelab/skirmshop-labels-routing-service:latest
+          kind: Deployment
+          message: deployment.apps/labels-routing-service serverside-applied
+          name: labels-routing-service
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - nats:2.10-alpine
+          kind: Deployment
+          message: deployment.apps/labels-nats serverside-applied
+          name: labels-nats
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - postgres:16-alpine
+          kind: StatefulSet
+          message: statefulset.apps/labels-postgres serverside-applied
+          name: labels-postgres
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: external-secrets.io
+          hookPhase: Running
+          kind: ExternalSecret
+          message: externalsecret.external-secrets.io/labels-secrets serverside-applied
+          name: labels-secrets
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: traefik.io
+          hookPhase: Running
+          kind: IngressRoute
+          message: ingressroute.traefik.io/skirmshop-labels-public serverside-applied
+          name: skirmshop-labels-public
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: traefik.io
+          hookPhase: Running
+          kind: IngressRoute
+          message: ingressroute.traefik.io/skirmshop-labels-ups-public serverside-applied
+          name: skirmshop-labels-ups-public
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: traefik.io
+          hookPhase: Running
+          kind: Middleware
+          message: middleware.traefik.io/strip-labels serverside-applied
+          name: strip-labels
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        - group: traefik.io
+          hookPhase: Running
+          kind: Middleware
+          message: middleware.traefik.io/strip-labels-ups serverside-applied
+          name: strip-labels-ups
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        revision: be94a1c34116ba85a3f81e93061f6d3e93ad915c
+        source:
+          path: k8s
+          repoURL: https://github.com/pocharlies/k8s-shopify-label-pocharlies
+          targetRevision: main
+    reconciledAt: "2026-05-22T00:44:10Z"
+    resourceHealthSource: appTree
+    resources:
+    - kind: ConfigMap
+      name: synapse-tokens
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - kind: PersistentVolumeClaim
+      name: labels-postgres-data
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - kind: Service
+      name: labels-event-gateway
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - kind: Service
+      name: labels-label-storage
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - kind: Service
+      name: labels-nats
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - kind: Service
+      name: labels-postgres
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - kind: Service
+      name: labels-redis
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - kind: Service
+      name: labels-routing-service
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - kind: Service
+      name: labels-saga-launcher
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - kind: Service
+      name: labels-shopify-app
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - kind: Service
+      name: labels-synapse-api
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - kind: Service
+      name: labels-synapse-correlator
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - kind: Service
+      name: labels-ups-adapter
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: labels-event-gateway
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: labels-label-storage
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: labels-nats
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: labels-redis
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: labels-routing-service
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: labels-saga-launcher
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: labels-shopify-app
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: labels-synapse-api
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: labels-synapse-correlator
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: labels-synapse-operator
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: labels-ups-adapter
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: apps
+      kind: StatefulSet
+      name: labels-postgres
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: external-secrets.io
+      kind: ExternalSecret
+      name: labels-secrets
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: traefik.io
+      kind: IngressRoute
+      name: skirmshop-labels-public
+      namespace: skirmshop
+      status: Synced
+      version: v1alpha1
+    - group: traefik.io
+      kind: IngressRoute
+      name: skirmshop-labels-ups-public
+      namespace: skirmshop
+      status: Synced
+      version: v1alpha1
+    - group: traefik.io
+      kind: Middleware
+      name: strip-labels
+      namespace: skirmshop
+      status: Synced
+      version: v1alpha1
+    - group: traefik.io
+      kind: Middleware
+      name: strip-labels-ups
+      namespace: skirmshop
+      status: Synced
+      version: v1alpha1
+    sourceHydrator: {}
+    sourceType: Directory
+    summary:
+      images:
+      - alpine/curl:latest
+      - ghcr.io/serverlessworkflow/synapse/api:1.0.0-alpha1
+      - ghcr.io/serverlessworkflow/synapse/correlator:1.0.0-alpha1
+      - ghcr.io/serverlessworkflow/synapse/operator:1.0.0-alpha1
+      - harbor.e-dani.com/homelab/skirmshop-labels-event-gateway:latest
+      - harbor.e-dani.com/homelab/skirmshop-labels-label-storage:latest
+      - harbor.e-dani.com/homelab/skirmshop-labels-routing-service:latest
+      - harbor.e-dani.com/homelab/skirmshop-labels-saga-launcher:latest
+      - harbor.e-dani.com/homelab/skirmshop-labels-shopify-app:latest
+      - harbor.e-dani.com/homelab/skirmshop-labels-ups-adapter:latest
+      - nats:2.10-alpine
+      - postgres:16-alpine
+      - redis:8.0.0
+    sync:
+      comparedTo:
+        destination:
+          namespace: skirmshop
+          server: https://kubernetes.default.svc
+        ignoreDifferences:
+        - group: external-secrets.io
+          jqPathExpressions:
+          - .spec.data[]?.remoteRef.conversionStrategy
+          - .spec.data[]?.remoteRef.decodingStrategy
+          - .spec.data[]?.remoteRef.metadataPolicy
+          - .spec.data[]?.remoteRef.nullBytePolicy
+          - .spec.dataFrom[]?.extract.conversionStrategy
+          - .spec.dataFrom[]?.extract.decodingStrategy
+          - .spec.dataFrom[]?.extract.metadataPolicy
+          - .spec.dataFrom[]?.extract.nullBytePolicy
+          kind: ExternalSecret
+        - group: postgresql.cnpg.io
+          kind: Cluster
+          managedFieldsManagers:
+          - manager
+        source:
+          path: k8s
+          repoURL: https://github.com/pocharlies/k8s-shopify-label-pocharlies
+          targetRevision: main
+      revision: e7cdebc6fac9c7fe0f558151882918c4a20bbad9
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: root:argoproj.io/Application:argocd/shopify-picker
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"argoproj.io/v1alpha1","kind":"Application","metadata":{"annotations":{"argocd.argoproj.io/tracking-id":"root:argoproj.io/Application:argocd/shopify-picker"},"finalizers":["resources-finalizer.argocd.argoproj.io"],"labels":{"e-dani.com/portfolio":"skirmshop"},"name":"shopify-picker","namespace":"argocd"},"spec":{"destination":{"namespace":"skirmshop","server":"https://kubernetes.default.svc"},"ignoreDifferences":[{"group":"external-secrets.io","jqPathExpressions":[".spec.data[]?.remoteRef.conversionStrategy",".spec.data[]?.remoteRef.decodingStrategy",".spec.data[]?.remoteRef.metadataPolicy",".spec.data[]?.remoteRef.nullBytePolicy",".spec.dataFrom[]?.extract.conversionStrategy",".spec.dataFrom[]?.extract.decodingStrategy",".spec.dataFrom[]?.extract.metadataPolicy",".spec.dataFrom[]?.extract.nullBytePolicy"],"kind":"ExternalSecret"},{"group":"postgresql.cnpg.io","kind":"Cluster","managedFieldsManagers":["manager"]}],"project":"default","source":{"path":"k8s","repoURL":"https://github.com/pocharlies/k8s-shopify-picker-pocharlies","targetRevision":"main"},"syncPolicy":{"automated":{"prune":false,"selfHeal":true},"syncOptions":["CreateNamespace=true","ServerSideApply=true"]}}}
+    creationTimestamp: "2026-05-21T22:15:37Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 162
+    labels:
+      e-dani.com/portfolio: skirmshop
+    name: shopify-picker
+    namespace: argocd
+    resourceVersion: "2058501"
+    uid: ccac012a-0b21-4b6b-961a-c7a3ddfc61fb
+  spec:
+    destination:
+      namespace: skirmshop
+      server: https://kubernetes.default.svc
+    ignoreDifferences:
+    - group: external-secrets.io
+      jqPathExpressions:
+      - .spec.data[]?.remoteRef.conversionStrategy
+      - .spec.data[]?.remoteRef.decodingStrategy
+      - .spec.data[]?.remoteRef.metadataPolicy
+      - .spec.data[]?.remoteRef.nullBytePolicy
+      - .spec.dataFrom[]?.extract.conversionStrategy
+      - .spec.dataFrom[]?.extract.decodingStrategy
+      - .spec.dataFrom[]?.extract.metadataPolicy
+      - .spec.dataFrom[]?.extract.nullBytePolicy
+      kind: ExternalSecret
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      managedFieldsManagers:
+      - manager
+    project: default
+    source:
+      path: k8s
+      repoURL: https://github.com/pocharlies/k8s-shopify-picker-pocharlies
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: false
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  status:
+    controllerNamespace: argocd
+    health:
+      lastTransitionTime: "2026-05-22T00:25:27Z"
+      status: Healthy
+    history:
+    - deployStartedAt: "2026-05-21T22:15:38Z"
+      deployedAt: "2026-05-21T22:15:39Z"
+      id: 0
+      initiatedBy:
+        automated: true
+      revision: dec3163b6dc95bc68a65939244dc47c2696875c1
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-picker-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T23:06:06Z"
+      deployedAt: "2026-05-21T23:06:07Z"
+      id: 1
+      initiatedBy:
+        automated: true
+      revision: d2db78335efee1a99782d88c3855adaad4c6476f
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-picker-pocharlies
+        targetRevision: main
+    operationState:
+      finishedAt: "2026-05-22T00:08:27Z"
+      message: successfully synced (all tasks run)
+      operation:
+        initiatedBy:
+          automated: true
+        retry:
+          limit: 5
+        sync:
+          autoHealAttemptsCount: 2
+          resources:
+          - group: apps
+            kind: Deployment
+            name: skirmshop-picker
+          revision: d2db78335efee1a99782d88c3855adaad4c6476f
+          source:
+            path: k8s
+            repoURL: https://github.com/pocharlies/k8s-shopify-picker-pocharlies
+            targetRevision: main
+          syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+      phase: Succeeded
+      startedAt: "2026-05-22T00:08:27Z"
+      syncResult:
+        resources:
+        - group: apps
+          hookPhase: Running
+          images:
+          - harbor.e-dani.com/homelab/skirmshop-picker:latest
+          kind: Deployment
+          message: deployment.apps/skirmshop-picker serverside-applied
+          name: skirmshop-picker
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        revision: d2db78335efee1a99782d88c3855adaad4c6476f
+        source:
+          path: k8s
+          repoURL: https://github.com/pocharlies/k8s-shopify-picker-pocharlies
+          targetRevision: main
+    reconciledAt: "2026-05-22T00:44:15Z"
+    resourceHealthSource: appTree
+    resources:
+    - kind: Service
+      name: skirmshop-picker
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: skirmshop-picker
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: traefik.io
+      kind: IngressRoute
+      name: skirmshop-picker-public
+      namespace: skirmshop
+      status: Synced
+      version: v1alpha1
+    - group: traefik.io
+      kind: Middleware
+      name: strip-picker
+      namespace: skirmshop
+      status: Synced
+      version: v1alpha1
+    sourceHydrator: {}
+    sourceType: Directory
+    summary:
+      images:
+      - harbor.e-dani.com/homelab/skirmshop-picker:latest
+    sync:
+      comparedTo:
+        destination:
+          namespace: skirmshop
+          server: https://kubernetes.default.svc
+        ignoreDifferences:
+        - group: external-secrets.io
+          jqPathExpressions:
+          - .spec.data[]?.remoteRef.conversionStrategy
+          - .spec.data[]?.remoteRef.decodingStrategy
+          - .spec.data[]?.remoteRef.metadataPolicy
+          - .spec.data[]?.remoteRef.nullBytePolicy
+          - .spec.dataFrom[]?.extract.conversionStrategy
+          - .spec.dataFrom[]?.extract.decodingStrategy
+          - .spec.dataFrom[]?.extract.metadataPolicy
+          - .spec.dataFrom[]?.extract.nullBytePolicy
+          kind: ExternalSecret
+        - group: postgresql.cnpg.io
+          kind: Cluster
+          managedFieldsManagers:
+          - manager
+        source:
+          path: k8s
+          repoURL: https://github.com/pocharlies/k8s-shopify-picker-pocharlies
+          targetRevision: main
+      revision: b75eda1045f9a8962876af2e74100742f33798a8
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: root:argoproj.io/Application:argocd/shopify-bundles
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"argoproj.io/v1alpha1","kind":"Application","metadata":{"annotations":{"argocd.argoproj.io/tracking-id":"root:argoproj.io/Application:argocd/shopify-bundles"},"finalizers":["resources-finalizer.argocd.argoproj.io"],"labels":{"e-dani.com/portfolio":"skirmshop"},"name":"shopify-bundles","namespace":"argocd"},"spec":{"destination":{"namespace":"skirmshop","server":"https://kubernetes.default.svc"},"ignoreDifferences":[{"group":"external-secrets.io","jqPathExpressions":[".spec.data[]?.remoteRef.conversionStrategy",".spec.data[]?.remoteRef.decodingStrategy",".spec.data[]?.remoteRef.metadataPolicy",".spec.data[]?.remoteRef.nullBytePolicy",".spec.dataFrom[]?.extract.conversionStrategy",".spec.dataFrom[]?.extract.decodingStrategy",".spec.dataFrom[]?.extract.metadataPolicy",".spec.dataFrom[]?.extract.nullBytePolicy"],"kind":"ExternalSecret"},{"group":"postgresql.cnpg.io","kind":"Cluster","managedFieldsManagers":["manager"]}],"project":"default","source":{"path":"k8s","repoURL":"https://github.com/pocharlies/k8s-shopify-bundles-pocharlies","targetRevision":"main"},"syncPolicy":{"automated":{"prune":false,"selfHeal":true},"syncOptions":["CreateNamespace=true","ServerSideApply=true"]}}}
+    creationTimestamp: "2026-05-21T22:15:37Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 243
+    labels:
+      e-dani.com/portfolio: skirmshop
+    name: shopify-bundles
+    namespace: argocd
+    resourceVersion: "2058618"
+    uid: d5ddcc22-de84-4071-8caf-72b6bfbea9e8
+  spec:
+    destination:
+      namespace: skirmshop
+      server: https://kubernetes.default.svc
+    ignoreDifferences:
+    - group: external-secrets.io
+      jqPathExpressions:
+      - .spec.data[]?.remoteRef.conversionStrategy
+      - .spec.data[]?.remoteRef.decodingStrategy
+      - .spec.data[]?.remoteRef.metadataPolicy
+      - .spec.data[]?.remoteRef.nullBytePolicy
+      - .spec.dataFrom[]?.extract.conversionStrategy
+      - .spec.dataFrom[]?.extract.decodingStrategy
+      - .spec.dataFrom[]?.extract.metadataPolicy
+      - .spec.dataFrom[]?.extract.nullBytePolicy
+      kind: ExternalSecret
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      managedFieldsManagers:
+      - manager
+    project: default
+    source:
+      path: k8s
+      repoURL: https://github.com/pocharlies/k8s-shopify-bundles-pocharlies
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: false
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  status:
+    controllerNamespace: argocd
+    health:
+      lastTransitionTime: "2026-05-22T00:25:48Z"
+      status: Healthy
+    history:
+    - deployStartedAt: "2026-05-21T22:15:38Z"
+      deployedAt: "2026-05-21T22:15:39Z"
+      id: 0
+      initiatedBy:
+        automated: true
+      revision: 212495534bd6e6f61ad26ca3e8773163bbd8e549
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-bundles-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T22:45:13Z"
+      deployedAt: "2026-05-21T22:45:14Z"
+      id: 1
+      initiatedBy:
+        automated: true
+      revision: 3239094377118b8b4f205ad0bee94f805a2e55ae
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-bundles-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T23:06:07Z"
+      deployedAt: "2026-05-21T23:06:07Z"
+      id: 2
+      initiatedBy:
+        automated: true
+      revision: 31831283b8696d9784da6fb75e045e2557d0c99d
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-bundles-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T23:17:32Z"
+      deployedAt: "2026-05-21T23:17:33Z"
+      id: 3
+      initiatedBy:
+        automated: true
+      revision: de65aa6d4e7d5425b6558fe81f14627ea900c587
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-bundles-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T23:25:07Z"
+      deployedAt: "2026-05-21T23:25:07Z"
+      id: 4
+      initiatedBy: {}
+      revision: f33d4ed7e471e5a9581fcb0627ba746c5e18e55a
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-bundles-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-22T00:06:14Z"
+      deployedAt: "2026-05-22T00:06:14Z"
+      id: 5
+      initiatedBy:
+        automated: true
+      revision: 4ce6506d08b18d60c00954babb22955acab98a95
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-bundles-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-22T00:16:41Z"
+      deployedAt: "2026-05-22T00:16:41Z"
+      id: 6
+      initiatedBy:
+        automated: true
+      revision: f8651b701d2e3cfacd4c577c131e0a8b8c151c01
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-bundles-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-22T00:17:46Z"
+      deployedAt: "2026-05-22T00:17:46Z"
+      id: 7
+      initiatedBy:
+        automated: true
+      revision: cf0520a3b9fdac2bf8f4835f34ea8b3067bb7634
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-bundles-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-22T00:18:22Z"
+      deployedAt: "2026-05-22T00:18:22Z"
+      id: 8
+      initiatedBy:
+        automated: true
+      revision: 41c38c56104e3b9dbcea4e8bca79d806145c84e1
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-bundles-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-22T00:21:44Z"
+      deployedAt: "2026-05-22T00:21:44Z"
+      id: 9
+      initiatedBy:
+        automated: true
+      revision: d9eae0e54996fb12de37b3eb02bf4d1bda3e29fc
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-bundles-pocharlies
+        targetRevision: main
+    operationState:
+      finishedAt: "2026-05-22T00:21:44Z"
+      message: successfully synced (all tasks run)
+      operation:
+        initiatedBy:
+          automated: true
+        retry:
+          limit: 5
+        sync:
+          revision: d9eae0e54996fb12de37b3eb02bf4d1bda3e29fc
+          source:
+            path: k8s
+            repoURL: https://github.com/pocharlies/k8s-shopify-bundles-pocharlies
+            targetRevision: main
+          syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+      phase: Succeeded
+      startedAt: "2026-05-22T00:21:44Z"
+      syncResult:
+        resources:
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/bundles-app serverside-applied
+          name: bundles-app
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - harbor.e-dani.com/homelab/shopify-bundle-app@sha256:ff57063ed7edf3d1ffd83aedd5292222fae1f43e685913343b35d185a93a2321
+          kind: Deployment
+          message: deployment.apps/bundles-app serverside-applied
+          name: bundles-app
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: traefik.io
+          hookPhase: Running
+          kind: IngressRoute
+          message: ingressroute.traefik.io/skirmshop-bundles-public serverside-applied
+          name: skirmshop-bundles-public
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        revision: d9eae0e54996fb12de37b3eb02bf4d1bda3e29fc
+        source:
+          path: k8s
+          repoURL: https://github.com/pocharlies/k8s-shopify-bundles-pocharlies
+          targetRevision: main
+    reconciledAt: "2026-05-22T00:44:23Z"
+    resourceHealthSource: appTree
+    resources:
+    - kind: Service
+      name: bundles-app
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: bundles-app
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: traefik.io
+      kind: IngressRoute
+      name: skirmshop-bundles-public
+      namespace: skirmshop
+      status: Synced
+      version: v1alpha1
+    sourceHydrator: {}
+    sourceType: Directory
+    summary:
+      images:
+      - harbor.e-dani.com/homelab/shopify-bundle-app@sha256:ff57063ed7edf3d1ffd83aedd5292222fae1f43e685913343b35d185a93a2321
+    sync:
+      comparedTo:
+        destination:
+          namespace: skirmshop
+          server: https://kubernetes.default.svc
+        ignoreDifferences:
+        - group: external-secrets.io
+          jqPathExpressions:
+          - .spec.data[]?.remoteRef.conversionStrategy
+          - .spec.data[]?.remoteRef.decodingStrategy
+          - .spec.data[]?.remoteRef.metadataPolicy
+          - .spec.data[]?.remoteRef.nullBytePolicy
+          - .spec.dataFrom[]?.extract.conversionStrategy
+          - .spec.dataFrom[]?.extract.decodingStrategy
+          - .spec.dataFrom[]?.extract.metadataPolicy
+          - .spec.dataFrom[]?.extract.nullBytePolicy
+          kind: ExternalSecret
+        - group: postgresql.cnpg.io
+          kind: Cluster
+          managedFieldsManagers:
+          - manager
+        source:
+          path: k8s
+          repoURL: https://github.com/pocharlies/k8s-shopify-bundles-pocharlies
+          targetRevision: main
+      revision: 359e3331b5a0d7abbeaaff3fe202832e43cfa570
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: root:argoproj.io/Application:argocd/shopify-sii
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"argoproj.io/v1alpha1","kind":"Application","metadata":{"annotations":{"argocd.argoproj.io/tracking-id":"root:argoproj.io/Application:argocd/shopify-sii"},"finalizers":["resources-finalizer.argocd.argoproj.io"],"labels":{"e-dani.com/portfolio":"skirmshop"},"name":"shopify-sii","namespace":"argocd"},"spec":{"destination":{"namespace":"skirmshop","server":"https://kubernetes.default.svc"},"ignoreDifferences":[{"group":"external-secrets.io","jqPathExpressions":[".spec.data[]?.remoteRef.conversionStrategy",".spec.data[]?.remoteRef.decodingStrategy",".spec.data[]?.remoteRef.metadataPolicy",".spec.data[]?.remoteRef.nullBytePolicy",".spec.dataFrom[]?.extract.conversionStrategy",".spec.dataFrom[]?.extract.decodingStrategy",".spec.dataFrom[]?.extract.metadataPolicy",".spec.dataFrom[]?.extract.nullBytePolicy"],"kind":"ExternalSecret"},{"group":"postgresql.cnpg.io","kind":"Cluster","managedFieldsManagers":["manager"]}],"project":"default","source":{"path":"k8s","repoURL":"https://github.com/pocharlies/k8s-shopify-sii-pocharlies","targetRevision":"main"},"syncPolicy":{"automated":{"prune":false,"selfHeal":true},"syncOptions":["CreateNamespace=true","ServerSideApply=true"]}}}
+    creationTimestamp: "2026-05-21T22:15:37Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 191
+    labels:
+      e-dani.com/portfolio: skirmshop
+    name: shopify-sii
+    namespace: argocd
+    resourceVersion: "2058055"
+    uid: 0b1fa164-0a89-449d-b34c-77c0cbf4b1cb
+  spec:
+    destination:
+      namespace: skirmshop
+      server: https://kubernetes.default.svc
+    ignoreDifferences:
+    - group: external-secrets.io
+      jqPathExpressions:
+      - .spec.data[]?.remoteRef.conversionStrategy
+      - .spec.data[]?.remoteRef.decodingStrategy
+      - .spec.data[]?.remoteRef.metadataPolicy
+      - .spec.data[]?.remoteRef.nullBytePolicy
+      - .spec.dataFrom[]?.extract.conversionStrategy
+      - .spec.dataFrom[]?.extract.decodingStrategy
+      - .spec.dataFrom[]?.extract.metadataPolicy
+      - .spec.dataFrom[]?.extract.nullBytePolicy
+      kind: ExternalSecret
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      managedFieldsManagers:
+      - manager
+    project: default
+    source:
+      path: k8s
+      repoURL: https://github.com/pocharlies/k8s-shopify-sii-pocharlies
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: false
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  status:
+    controllerNamespace: argocd
+    health:
+      lastTransitionTime: "2026-05-22T00:25:46Z"
+      status: Healthy
+    history:
+    - deployStartedAt: "2026-05-21T22:15:38Z"
+      deployedAt: "2026-05-21T22:15:39Z"
+      id: 0
+      initiatedBy:
+        automated: true
+      revision: de453e1deca92e67ef55a532a8162ed97db70dad
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-sii-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T22:53:34Z"
+      deployedAt: "2026-05-21T22:53:35Z"
+      id: 1
+      initiatedBy:
+        automated: true
+      revision: c8b42a69faf781c6399ab5f5f2cfecc17d97df2f
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-sii-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T23:06:07Z"
+      deployedAt: "2026-05-21T23:06:08Z"
+      id: 2
+      initiatedBy:
+        automated: true
+      revision: 7401d3d5807fe55f1109c81de849cb4cd21d27b0
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-sii-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T23:17:33Z"
+      deployedAt: "2026-05-21T23:17:33Z"
+      id: 3
+      initiatedBy:
+        automated: true
+      revision: a76f8a137573b8e3ffaa68c46b599daed839758d
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-sii-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T23:25:07Z"
+      deployedAt: "2026-05-21T23:25:07Z"
+      id: 4
+      initiatedBy: {}
+      revision: 8d33df3eba10d95ddf4282ac8374d77a952165b1
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-sii-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-22T00:06:28Z"
+      deployedAt: "2026-05-22T00:06:29Z"
+      id: 5
+      initiatedBy:
+        automated: true
+      revision: 50b71e22a89d4f0aa8dc72daaf5ba02d9cce1a18
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-shopify-sii-pocharlies
+        targetRevision: main
+    operationState:
+      finishedAt: "2026-05-22T00:08:25Z"
+      message: successfully synced (all tasks run)
+      operation:
+        initiatedBy:
+          automated: true
+        retry:
+          limit: 5
+        sync:
+          autoHealAttemptsCount: 1
+          resources:
+          - group: apps
+            kind: Deployment
+            name: sii-app
+          revision: 50b71e22a89d4f0aa8dc72daaf5ba02d9cce1a18
+          source:
+            path: k8s
+            repoURL: https://github.com/pocharlies/k8s-shopify-sii-pocharlies
+            targetRevision: main
+          syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+      phase: Succeeded
+      startedAt: "2026-05-22T00:08:25Z"
+      syncResult:
+        resources:
+        - group: apps
+          hookPhase: Running
+          images:
+          - harbor.e-dani.com/homelab/shopify-sii-app@sha256:a9ede9128f21bee51b9159f4bd65deb59026d4bebf65db80b4bec243d961b097
+          kind: Deployment
+          message: deployment.apps/sii-app serverside-applied
+          name: sii-app
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        revision: 50b71e22a89d4f0aa8dc72daaf5ba02d9cce1a18
+        source:
+          path: k8s
+          repoURL: https://github.com/pocharlies/k8s-shopify-sii-pocharlies
+          targetRevision: main
+    reconciledAt: "2026-05-22T00:43:35Z"
+    resourceHealthSource: appTree
+    resources:
+    - kind: Service
+      name: sii-app
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: sii-app
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: traefik.io
+      kind: IngressRoute
+      name: skirmshop-sii-public
+      namespace: skirmshop
+      status: Synced
+      version: v1alpha1
+    sourceHydrator: {}
+    sourceType: Directory
+    summary:
+      images:
+      - harbor.e-dani.com/homelab/shopify-sii-app@sha256:a9ede9128f21bee51b9159f4bd65deb59026d4bebf65db80b4bec243d961b097
+    sync:
+      comparedTo:
+        destination:
+          namespace: skirmshop
+          server: https://kubernetes.default.svc
+        ignoreDifferences:
+        - group: external-secrets.io
+          jqPathExpressions:
+          - .spec.data[]?.remoteRef.conversionStrategy
+          - .spec.data[]?.remoteRef.decodingStrategy
+          - .spec.data[]?.remoteRef.metadataPolicy
+          - .spec.data[]?.remoteRef.nullBytePolicy
+          - .spec.dataFrom[]?.extract.conversionStrategy
+          - .spec.dataFrom[]?.extract.decodingStrategy
+          - .spec.dataFrom[]?.extract.metadataPolicy
+          - .spec.dataFrom[]?.extract.nullBytePolicy
+          kind: ExternalSecret
+        - group: postgresql.cnpg.io
+          kind: Cluster
+          managedFieldsManagers:
+          - manager
+        source:
+          path: k8s
+          repoURL: https://github.com/pocharlies/k8s-shopify-sii-pocharlies
+          targetRevision: main
+      revision: 3e9153fde26fed97957d783f80c119b127c88434
+      status: Synced
+- apiVersion: argoproj.io/v1alpha1
+  kind: Application
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: root:argoproj.io/Application:argocd/firecrawl
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"argoproj.io/v1alpha1","kind":"Application","metadata":{"annotations":{"argocd.argoproj.io/tracking-id":"root:argoproj.io/Application:argocd/firecrawl"},"finalizers":["resources-finalizer.argocd.argoproj.io"],"name":"firecrawl","namespace":"argocd"},"spec":{"destination":{"namespace":"skirmshop","server":"https://kubernetes.default.svc"},"ignoreDifferences":[{"group":"external-secrets.io","jqPathExpressions":[".spec.data[]?.remoteRef.conversionStrategy",".spec.data[]?.remoteRef.decodingStrategy",".spec.data[]?.remoteRef.metadataPolicy",".spec.data[]?.remoteRef.nullBytePolicy",".spec.dataFrom[]?.extract.conversionStrategy",".spec.dataFrom[]?.extract.decodingStrategy",".spec.dataFrom[]?.extract.metadataPolicy",".spec.dataFrom[]?.extract.nullBytePolicy"],"kind":"ExternalSecret"},{"group":"postgresql.cnpg.io","kind":"Cluster","managedFieldsManagers":["manager"]}],"project":"default","source":{"path":"k8s","repoURL":"https://github.com/pocharlies/k8s-firecrawl-pocharlies","targetRevision":"main"},"syncPolicy":{"automated":{"prune":false,"selfHeal":true},"syncOptions":["CreateNamespace=true","ServerSideApply=true"]}}}
+    creationTimestamp: "2026-05-21T22:15:37Z"
+    finalizers:
+    - resources-finalizer.argocd.argoproj.io
+    generation: 155
+    name: firecrawl
+    namespace: argocd
+    resourceVersion: "2057639"
+    uid: ad3ef3b4-ae52-41a9-ad54-62274c91e768
+  spec:
+    destination:
+      namespace: skirmshop
+      server: https://kubernetes.default.svc
+    ignoreDifferences:
+    - group: external-secrets.io
+      jqPathExpressions:
+      - .spec.data[]?.remoteRef.conversionStrategy
+      - .spec.data[]?.remoteRef.decodingStrategy
+      - .spec.data[]?.remoteRef.metadataPolicy
+      - .spec.data[]?.remoteRef.nullBytePolicy
+      - .spec.dataFrom[]?.extract.conversionStrategy
+      - .spec.dataFrom[]?.extract.decodingStrategy
+      - .spec.dataFrom[]?.extract.metadataPolicy
+      - .spec.dataFrom[]?.extract.nullBytePolicy
+      kind: ExternalSecret
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      managedFieldsManagers:
+      - manager
+    project: default
+    source:
+      path: k8s
+      repoURL: https://github.com/pocharlies/k8s-firecrawl-pocharlies
+      targetRevision: main
+    syncPolicy:
+      automated:
+        prune: false
+        selfHeal: true
+      syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  status:
+    controllerNamespace: argocd
+    health:
+      lastTransitionTime: "2026-05-22T00:15:11Z"
+      status: Healthy
+    history:
+    - deployStartedAt: "2026-05-21T22:16:35Z"
+      deployedAt: "2026-05-21T22:16:36Z"
+      id: 0
+      initiatedBy:
+        automated: true
+      revision: 7eed12fdb7ae763171ad5847156eb4f57fbf0794
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-firecrawl-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-21T23:06:06Z"
+      deployedAt: "2026-05-21T23:06:07Z"
+      id: 1
+      initiatedBy:
+        automated: true
+      revision: f8675ba99cb0154ba57e59138a16795b892aa8fd
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-firecrawl-pocharlies
+        targetRevision: main
+    - deployStartedAt: "2026-05-22T00:14:05Z"
+      deployedAt: "2026-05-22T00:14:05Z"
+      id: 2
+      initiatedBy:
+        automated: true
+      revision: 599883159b8ff1ceb10d4a2cdee0313b25e4ee64
+      source:
+        path: k8s
+        repoURL: https://github.com/pocharlies/k8s-firecrawl-pocharlies
+        targetRevision: main
+    operationState:
+      finishedAt: "2026-05-22T00:14:05Z"
+      message: successfully synced (all tasks run)
+      operation:
+        initiatedBy:
+          automated: true
+        retry:
+          limit: 5
+        sync:
+          revision: 599883159b8ff1ceb10d4a2cdee0313b25e4ee64
+          source:
+            path: k8s
+            repoURL: https://github.com/pocharlies/k8s-firecrawl-pocharlies
+            targetRevision: main
+          syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+      phase: Succeeded
+      startedAt: "2026-05-22T00:14:05Z"
+      syncResult:
+        resources:
+        - group: ""
+          hookPhase: Running
+          kind: Namespace
+          message: namespace/skirmshop serverside-applied
+          name: skirmshop
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/firecrawl-api serverside-applied
+          name: firecrawl-api
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: ""
+          hookPhase: Running
+          kind: Service
+          message: service/firecrawl-playwright serverside-applied
+          name: firecrawl-playwright
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - ghcr.io/firecrawl/playwright-service:latest
+          kind: Deployment
+          message: deployment.apps/firecrawl-playwright serverside-applied
+          name: firecrawl-playwright
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: apps
+          hookPhase: Running
+          images:
+          - ghcr.io/firecrawl/firecrawl:latest
+          kind: Deployment
+          message: deployment.apps/firecrawl-api serverside-applied
+          name: firecrawl-api
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1
+        - group: traefik.io
+          hookPhase: Running
+          kind: IngressRoute
+          message: ingressroute.traefik.io/firecrawl-public serverside-applied
+          name: firecrawl-public
+          namespace: skirmshop
+          status: Synced
+          syncPhase: Sync
+          version: v1alpha1
+        revision: 599883159b8ff1ceb10d4a2cdee0313b25e4ee64
+        source:
+          path: k8s
+          repoURL: https://github.com/pocharlies/k8s-firecrawl-pocharlies
+          targetRevision: main
+    reconciledAt: "2026-05-22T00:42:57Z"
+    resourceHealthSource: appTree
+    resources:
+    - kind: Namespace
+      name: skirmshop
+      status: Synced
+      version: v1
+    - kind: Service
+      name: firecrawl-api
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - kind: Service
+      name: firecrawl-playwright
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: firecrawl-api
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: apps
+      kind: Deployment
+      name: firecrawl-playwright
+      namespace: skirmshop
+      status: Synced
+      version: v1
+    - group: traefik.io
+      kind: IngressRoute
+      name: firecrawl-public
+      namespace: skirmshop
+      status: Synced
+      version: v1alpha1
+    sourceHydrator: {}
+    sourceType: Directory
+    summary:
+      images:
+      - ghcr.io/firecrawl/playwright-service:latest
+    sync:
+      comparedTo:
+        destination:
+          namespace: skirmshop
+          server: https://kubernetes.default.svc
+        ignoreDifferences:
+        - group: external-secrets.io
+          jqPathExpressions:
+          - .spec.data[]?.remoteRef.conversionStrategy
+          - .spec.data[]?.remoteRef.decodingStrategy
+          - .spec.data[]?.remoteRef.metadataPolicy
+          - .spec.data[]?.remoteRef.nullBytePolicy
+          - .spec.dataFrom[]?.extract.conversionStrategy
+          - .spec.dataFrom[]?.extract.decodingStrategy
+          - .spec.dataFrom[]?.extract.metadataPolicy
+          - .spec.dataFrom[]?.extract.nullBytePolicy
+          kind: ExternalSecret
+        - group: postgresql.cnpg.io
+          kind: Cluster
+          managedFieldsManagers:
+          - manager
+        source:
+          path: k8s
+          repoURL: https://github.com/pocharlies/k8s-firecrawl-pocharlies
+          targetRevision: main
+      revision: a7ad2568c286a34c4a478755b92420f8dde5487d
+      status: Synced
+kind: List
+metadata:
+  resourceVersion: ""

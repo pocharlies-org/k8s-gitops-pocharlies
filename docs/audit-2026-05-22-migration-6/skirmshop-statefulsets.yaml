@@ -1,0 +1,198 @@
+apiVersion: v1
+items:
+- apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: shopify-label:apps/StatefulSet:skirmshop/labels-postgres
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 3
+    name: labels-postgres
+    namespace: skirmshop
+    resourceVersion: "1918222"
+    uid: ff6d1bbd-d9cd-4ff8-a37b-52e285505609
+  spec:
+    persistentVolumeClaimRetentionPolicy:
+      whenDeleted: Retain
+      whenScaled: Retain
+    podManagementPolicy: OrderedReady
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: labels-postgres
+    serviceName: labels-postgres
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: labels-postgres
+      spec:
+        containers:
+        - env:
+          - name: POSTGRES_DB
+            value: labels
+          - name: PGDATA
+            value: /var/lib/postgresql/data/pgdata
+          - name: POSTGRES_USER
+            valueFrom:
+              secretKeyRef:
+                key: LABELS_DB_USER
+                name: labels-secrets
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: LABELS_DB_PASSWORD
+                name: labels-secrets
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          name: postgres
+          ports:
+          - containerPort: 5432
+            name: postgres
+            protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+              - pg_isready
+              - -U
+              - skirmshop
+              - -d
+              - labels
+            failureThreshold: 3
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /var/lib/postgresql/data
+            name: data
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: labels-postgres-data
+    updateStrategy:
+      rollingUpdate:
+        partition: 0
+      type: RollingUpdate
+  status:
+    availableReplicas: 1
+    collisionCount: 0
+    currentReplicas: 1
+    currentRevision: labels-postgres-5798d5ff7d
+    observedGeneration: 3
+    readyReplicas: 1
+    replicas: 1
+    updateRevision: labels-postgres-5798d5ff7d
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"apps/v1","kind":"StatefulSet","metadata":{"annotations":{},"name":"shared-rabbitmq","namespace":"skirmshop"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"shared-rabbitmq"}},"serviceName":"shared-rabbitmq","template":{"metadata":{"labels":{"app":"shared-rabbitmq"}},"spec":{"containers":[{"envFrom":[{"secretRef":{"name":"rabbitmq-secrets"}}],"image":"rabbitmq:3-management","name":"rabbitmq","ports":[{"containerPort":5672,"name":"amqp"},{"containerPort":15672,"name":"mgmt"}],"readinessProbe":{"exec":{"command":["rabbitmq-diagnostics","check_port_connectivity"]},"initialDelaySeconds":20,"periodSeconds":15},"resources":{"limits":{"memory":"1Gi"},"requests":{"cpu":"100m","memory":"256Mi"}},"volumeMounts":[{"mountPath":"/var/lib/rabbitmq","name":"data"}]}],"enableServiceLinks":false,"nodeSelector":{"kubernetes.io/arch":"amd64","topology":"lan"},"volumes":[{"name":"data","persistentVolumeClaim":{"claimName":"shared-rabbitmq-data"}}]}}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 1
+    name: shared-rabbitmq
+    namespace: skirmshop
+    resourceVersion: "2017185"
+    uid: bc830207-c30a-415c-9fa2-d6ca8fdfaf4c
+  spec:
+    persistentVolumeClaimRetentionPolicy:
+      whenDeleted: Retain
+      whenScaled: Retain
+    podManagementPolicy: OrderedReady
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: shared-rabbitmq
+    serviceName: shared-rabbitmq
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          app: shared-rabbitmq
+      spec:
+        containers:
+        - envFrom:
+          - secretRef:
+              name: rabbitmq-secrets
+          image: rabbitmq:3-management
+          imagePullPolicy: IfNotPresent
+          name: rabbitmq
+          ports:
+          - containerPort: 5672
+            name: amqp
+            protocol: TCP
+          - containerPort: 15672
+            name: mgmt
+            protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+              - rabbitmq-diagnostics
+              - check_port_connectivity
+            failureThreshold: 3
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 1Gi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+          - mountPath: /var/lib/rabbitmq
+            name: data
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: shared-rabbitmq-data
+    updateStrategy:
+      rollingUpdate:
+        partition: 0
+      type: RollingUpdate
+  status:
+    availableReplicas: 1
+    collisionCount: 0
+    currentReplicas: 1
+    currentRevision: shared-rabbitmq-fbdf5fbdb
+    observedGeneration: 1
+    readyReplicas: 1
+    replicas: 1
+    updateRevision: shared-rabbitmq-fbdf5fbdb
+    updatedReplicas: 1
+kind: List
+metadata:
+  resourceVersion: ""

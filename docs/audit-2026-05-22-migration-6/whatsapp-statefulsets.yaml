@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations:
+    argocd.argoproj.io/tracking-id: socialmedia:apps/StatefulSet:whatsapp-mcp/whatsapp-mcp-postgres
+  creationTimestamp: "2026-05-21T08:17:41Z"
+  generation: 1
+  name: whatsapp-mcp-postgres
+  namespace: whatsapp-mcp
+  resourceVersion: "1918381"
+  uid: e778d597-fa4c-4eed-92a2-74b0c02b10f7
+spec:
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: whatsapp-mcp-postgres
+  serviceName: whatsapp-mcp-postgres
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: whatsapp-mcp-postgres
+    spec:
+      containers:
+      - env:
+        - name: POSTGRES_DB
+          value: whatsappmcp
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              key: DB_USER
+              name: whatsapp-mcp-secrets
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: DB_PASSWORD
+              name: whatsapp-mcp-secrets
+        image: pgvector/pgvector:pg16
+        imagePullPolicy: IfNotPresent
+        name: postgres
+        ports:
+        - containerPort: 5432
+          name: postgres
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - whatsappmcp
+            - -d
+            - whatsappmcp
+          failureThreshold: 3
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            memory: 2Gi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: data
+      dnsPolicy: ClusterFirst
+      enableServiceLinks: false
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        kubernetes.io/hostname: ubuntu
+        topology: lan
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: whatsapp-mcp-postgres-data
+  updateStrategy:
+    rollingUpdate:
+      partition: 0
+    type: RollingUpdate
+status:
+  availableReplicas: 1
+  collisionCount: 0
+  currentReplicas: 1
+  currentRevision: whatsapp-mcp-postgres-76dc99bd48
+  observedGeneration: 1
+  readyReplicas: 1
+  replicas: 1
+  updateRevision: whatsapp-mcp-postgres-76dc99bd48
+  updatedReplicas: 1

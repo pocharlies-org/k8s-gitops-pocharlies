@@ -1,0 +1,885 @@
+apiVersion: v1
+items:
+- apiVersion: postgresql.cnpg.io/v1
+  kind: Cluster
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: postgres-shared:postgresql.cnpg.io/Cluster:databases/postgres-shared
+    creationTimestamp: "2026-05-19T23:41:10Z"
+    generation: 5
+    labels:
+      app.kubernetes.io/component: postgres
+      app.kubernetes.io/managed-by: argocd
+      app.kubernetes.io/part-of: shared-infrastructure
+    name: postgres-shared
+    namespace: databases
+    resourceVersion: "2019269"
+    uid: 3c148f78-f8b5-4c6b-b23d-25aa0d7382cb
+  spec:
+    affinity:
+      nodeSelector:
+        kubernetes.io/hostname: ubuntu
+      podAntiAffinityType: preferred
+      tolerations:
+      - effect: NoExecute
+        key: node.kubernetes.io/not-ready
+        operator: Exists
+        tolerationSeconds: 300
+      - effect: NoExecute
+        key: node.kubernetes.io/unreachable
+        operator: Exists
+        tolerationSeconds: 300
+      topologyKey: kubernetes.io/hostname
+    backup:
+      barmanObjectStore:
+        data:
+          compression: gzip
+          jobs: 2
+        destinationPath: s3://cnpg-backups/postgres-shared
+        endpointURL: http://minio-s3.minio.svc.cluster.local:9000
+        s3Credentials:
+          accessKeyId:
+            key: ACCESS_KEY_ID
+            name: postgres-shared-minio
+          secretAccessKey:
+            key: ACCESS_SECRET_KEY
+            name: postgres-shared-minio
+        wal:
+          compression: gzip
+          maxParallel: 4
+      retentionPolicy: 30d
+      target: prefer-standby
+    bootstrap:
+      initdb:
+        database: app
+        encoding: UTF8
+        localeCType: C
+        localeCollate: C
+        owner: app
+    enablePDB: true
+    enableSuperuserAccess: true
+    failoverDelay: 0
+    imageName: ghcr.io/cloudnative-pg/postgresql:17.2
+    instances: 1
+    logLevel: info
+    managed:
+      roles:
+      - comment: 'n8n workflow automation (repo: pocharlies/k8s-n8n-pocharlies)'
+        connectionLimit: -1
+        ensure: present
+        inherit: true
+        login: true
+        name: n8n
+        passwordSecret:
+          name: n8n-db-credentials
+      - comment: n8n staging workflow automation
+        connectionLimit: -1
+        ensure: present
+        inherit: true
+        login: true
+        name: n8n_stg
+        passwordSecret:
+          name: n8n-stg-db-credentials
+      - comment: 'LiteLLM router (repo: pocharlies/k8s-litellm-pocharlies)'
+        connectionLimit: -1
+        ensure: present
+        inherit: true
+        login: true
+        name: litellm
+        passwordSecret:
+          name: litellm-db-credentials
+      - comment: 'TeslaMate (repo: pocharlies/k8s-teslamate-pocharlies)'
+        connectionLimit: -1
+        ensure: present
+        inherit: true
+        login: true
+        name: teslamate
+        passwordSecret:
+          name: teslamate-db-credentials
+    maxSyncReplicas: 0
+    minSyncReplicas: 0
+    monitoring:
+      customQueriesConfigMap:
+      - key: queries
+        name: cnpg-default-monitoring
+      disableDefaultQueries: false
+      enablePodMonitor: false
+    postgresGID: 26
+    postgresUID: 26
+    postgresql:
+      parameters:
+        archive_mode: "on"
+        archive_timeout: 5min
+        checkpoint_completion_target: "0.9"
+        default_statistics_target: "100"
+        dynamic_shared_memory_type: posix
+        effective_cache_size: 1GB
+        full_page_writes: "on"
+        log_destination: csvlog
+        log_directory: /controller/log
+        log_filename: postgres
+        log_min_duration_statement: "1000"
+        log_rotation_age: "0"
+        log_rotation_size: "0"
+        log_statement: ddl
+        log_truncate_on_rotation: "false"
+        logging_collector: "on"
+        maintenance_work_mem: 128MB
+        max_connections: "200"
+        max_parallel_workers: "32"
+        max_replication_slots: "32"
+        max_worker_processes: "32"
+        shared_buffers: 256MB
+        shared_memory_type: mmap
+        shared_preload_libraries: ""
+        ssl_max_protocol_version: TLSv1.3
+        ssl_min_protocol_version: TLSv1.3
+        wal_buffers: 16MB
+        wal_keep_size: 512MB
+        wal_level: logical
+        wal_log_hints: "on"
+        wal_receiver_timeout: 5s
+        wal_sender_timeout: 5s
+        work_mem: 16MB
+      syncReplicaElectionConstraint:
+        enabled: false
+    primaryUpdateMethod: switchover
+    primaryUpdateStrategy: unsupervised
+    replicationSlots:
+      highAvailability:
+        enabled: true
+        slotPrefix: _cnpg_
+      synchronizeReplicas:
+        enabled: true
+      updateInterval: 30
+    resources:
+      limits:
+        cpu: "2"
+        memory: 2Gi
+      requests:
+        cpu: 200m
+        memory: 512Mi
+    smartShutdownTimeout: 180
+    startDelay: 3600
+    stopDelay: 1800
+    storage:
+      resizeInUseVolumes: true
+      size: 20Gi
+      storageClass: longhorn
+    switchoverDelay: 3600
+    walStorage:
+      resizeInUseVolumes: true
+      size: 5Gi
+      storageClass: longhorn
+  status:
+    availableArchitectures:
+    - goArch: amd64
+      hash: 0a8f22a9c14805f67b92f6994d6487da7570929108443d1a70a66b8d47a51b2f
+    - goArch: arm64
+      hash: c8318d0576271cba8bdb120a6500f273038035a9bf97e36c9a367ea0ae3590c0
+    certificates:
+      clientCASecret: postgres-shared-ca
+      expirations:
+        postgres-shared-ca: 2026-08-17 23:36:10 +0000 UTC
+        postgres-shared-replication: 2026-08-17 23:36:10 +0000 UTC
+        postgres-shared-server: 2026-08-17 23:36:10 +0000 UTC
+      replicationTLSSecret: postgres-shared-replication
+      serverAltDNSNames:
+      - postgres-shared-rw
+      - postgres-shared-rw.databases
+      - postgres-shared-rw.databases.svc
+      - postgres-shared-rw.databases.svc.cluster.local
+      - postgres-shared-r
+      - postgres-shared-r.databases
+      - postgres-shared-r.databases.svc
+      - postgres-shared-r.databases.svc.cluster.local
+      - postgres-shared-ro
+      - postgres-shared-ro.databases
+      - postgres-shared-ro.databases.svc
+      - postgres-shared-ro.databases.svc.cluster.local
+      serverCASecret: postgres-shared-ca
+      serverTLSSecret: postgres-shared-server
+    cloudNativePGCommitHash: c56e00d4
+    cloudNativePGOperatorHash: 0a8f22a9c14805f67b92f6994d6487da7570929108443d1a70a66b8d47a51b2f
+    conditions:
+    - lastTransitionTime: "2026-05-21T23:40:57Z"
+      message: Cluster is Ready
+      reason: ClusterIsReady
+      status: "True"
+      type: Ready
+    - lastTransitionTime: "2026-05-21T23:35:49Z"
+      message: Continuous archiving is working
+      reason: ContinuousArchivingSuccess
+      status: "True"
+      type: ContinuousArchiving
+    - lastTransitionTime: "2026-05-22T00:04:22Z"
+      message: Backup was successful
+      reason: LastBackupSucceeded
+      status: "True"
+      type: LastBackupSucceeded
+    configMapResourceVersion:
+      metrics:
+        cnpg-default-monitoring: "312124"
+    currentPrimary: postgres-shared-1
+    currentPrimaryTimestamp: "2026-05-19T23:41:54.890666Z"
+    firstRecoverabilityPoint: "2026-05-20T03:00:05Z"
+    firstRecoverabilityPointByMethod:
+      barmanObjectStore: "2026-05-20T03:00:05Z"
+    healthyPVC:
+    - postgres-shared-1
+    - postgres-shared-1-wal
+    image: ghcr.io/cloudnative-pg/postgresql:17.2
+    instanceNames:
+    - postgres-shared-1
+    instances: 1
+    instancesReportedState:
+      postgres-shared-1:
+        isPrimary: true
+        timeLineID: 1
+    instancesStatus:
+      healthy:
+      - postgres-shared-1
+    lastSuccessfulBackup: "2026-05-22T00:04:14Z"
+    lastSuccessfulBackupByMethod:
+      barmanObjectStore: "2026-05-22T00:04:14Z"
+    latestGeneratedNode: 1
+    managedRolesStatus:
+      byStatus:
+        not-managed:
+        - app
+        reconciled:
+        - n8n_stg
+        - litellm
+        - teslamate
+        - n8n
+        reserved:
+        - streaming_replica
+        - postgres
+      passwordStatus:
+        litellm:
+          resourceVersion: "1982615"
+          transactionID: 1480
+        n8n:
+          resourceVersion: "314357"
+          transactionID: 753
+        n8n_stg:
+          resourceVersion: "1977112"
+          transactionID: 1279
+        teslamate:
+          resourceVersion: "1982644"
+          transactionID: 1486
+    phase: Cluster in healthy state
+    poolerIntegrations:
+      pgBouncerIntegration: {}
+    pvcCount: 2
+    readService: postgres-shared-r
+    readyInstances: 1
+    secretsResourceVersion:
+      applicationSecretVersion: "312076"
+      clientCaSecretVersion: "312072"
+      managedRoleSecretVersion:
+        litellm-db-credentials: "1982615"
+        n8n-db-credentials: "314357"
+        n8n-stg-db-credentials: "1977112"
+        teslamate-db-credentials: "1982644"
+      replicationSecretVersion: "312074"
+      serverCaSecretVersion: "312072"
+      serverSecretVersion: "312073"
+      superuserSecretVersion: "312075"
+    switchReplicaClusterStatus: {}
+    targetPrimary: postgres-shared-1
+    targetPrimaryTimestamp: "2026-05-19T23:41:10.714548Z"
+    timelineID: 1
+    topology:
+      instances:
+        postgres-shared-1: {}
+      nodesUsed: 1
+      successfullyExtracted: true
+    writeService: postgres-shared-rw
+- apiVersion: postgresql.cnpg.io/v1
+  kind: Cluster
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: litellm:postgresql.cnpg.io/Cluster:litellm/litellm-postgres
+    creationTimestamp: "2026-05-21T07:18:11Z"
+    generation: 1
+    name: litellm-postgres
+    namespace: litellm
+    resourceVersion: "1927379"
+    uid: 26237b45-61bb-435e-8c41-540e18e89252
+  spec:
+    affinity:
+      nodeSelector:
+        kubernetes.io/hostname: ubuntu
+      podAntiAffinityType: preferred
+    backup:
+      barmanObjectStore:
+        destinationPath: s3://cnpg-backups/litellm-postgres/
+        endpointURL: http://minio-s3.minio.svc.cluster.local:9000
+        s3Credentials:
+          accessKeyId:
+            key: ACCESS_KEY_ID
+            name: minio-backup-creds
+          secretAccessKey:
+            key: SECRET_ACCESS_KEY
+            name: minio-backup-creds
+        wal:
+          compression: gzip
+      target: prefer-standby
+    bootstrap:
+      initdb:
+        database: litellm
+        encoding: UTF8
+        localeCType: C
+        localeCollate: C
+        owner: litellm
+        secret:
+          name: litellm-postgres-creds
+    enablePDB: true
+    enableSuperuserAccess: false
+    failoverDelay: 0
+    imageName: ghcr.io/cloudnative-pg/postgresql:16
+    instances: 1
+    logLevel: info
+    maxSyncReplicas: 0
+    minSyncReplicas: 0
+    monitoring:
+      customQueriesConfigMap:
+      - key: queries
+        name: cnpg-default-monitoring
+      disableDefaultQueries: false
+      enablePodMonitor: false
+    postgresGID: 26
+    postgresUID: 26
+    postgresql:
+      parameters:
+        archive_mode: "on"
+        archive_timeout: 5min
+        dynamic_shared_memory_type: posix
+        full_page_writes: "on"
+        log_destination: csvlog
+        log_directory: /controller/log
+        log_filename: postgres
+        log_rotation_age: "0"
+        log_rotation_size: "0"
+        log_truncate_on_rotation: "false"
+        logging_collector: "on"
+        max_connections: "100"
+        max_parallel_workers: "32"
+        max_replication_slots: "32"
+        max_worker_processes: "32"
+        shared_buffers: 128MB
+        shared_memory_type: mmap
+        shared_preload_libraries: ""
+        ssl_max_protocol_version: TLSv1.3
+        ssl_min_protocol_version: TLSv1.3
+        wal_keep_size: 512MB
+        wal_level: logical
+        wal_log_hints: "on"
+        wal_receiver_timeout: 5s
+        wal_sender_timeout: 5s
+      syncReplicaElectionConstraint:
+        enabled: false
+    primaryUpdateMethod: restart
+    primaryUpdateStrategy: unsupervised
+    replicationSlots:
+      highAvailability:
+        enabled: true
+        slotPrefix: _cnpg_
+      synchronizeReplicas:
+        enabled: true
+      updateInterval: 30
+    resources: {}
+    smartShutdownTimeout: 180
+    startDelay: 3600
+    stopDelay: 1800
+    storage:
+      resizeInUseVolumes: true
+      size: 10Gi
+      storageClass: longhorn
+    switchoverDelay: 3600
+  status:
+    availableArchitectures:
+    - goArch: amd64
+      hash: 0a8f22a9c14805f67b92f6994d6487da7570929108443d1a70a66b8d47a51b2f
+    - goArch: arm64
+      hash: c8318d0576271cba8bdb120a6500f273038035a9bf97e36c9a367ea0ae3590c0
+    certificates:
+      clientCASecret: litellm-postgres-ca
+      expirations:
+        litellm-postgres-ca: 2026-08-19 07:13:11 +0000 UTC
+        litellm-postgres-replication: 2026-08-19 07:13:11 +0000 UTC
+        litellm-postgres-server: 2026-08-19 07:13:11 +0000 UTC
+      replicationTLSSecret: litellm-postgres-replication
+      serverAltDNSNames:
+      - litellm-postgres-rw
+      - litellm-postgres-rw.litellm
+      - litellm-postgres-rw.litellm.svc
+      - litellm-postgres-rw.litellm.svc.cluster.local
+      - litellm-postgres-r
+      - litellm-postgres-r.litellm
+      - litellm-postgres-r.litellm.svc
+      - litellm-postgres-r.litellm.svc.cluster.local
+      - litellm-postgres-ro
+      - litellm-postgres-ro.litellm
+      - litellm-postgres-ro.litellm.svc
+      - litellm-postgres-ro.litellm.svc.cluster.local
+      serverCASecret: litellm-postgres-ca
+      serverTLSSecret: litellm-postgres-server
+    cloudNativePGCommitHash: c56e00d4
+    cloudNativePGOperatorHash: 0a8f22a9c14805f67b92f6994d6487da7570929108443d1a70a66b8d47a51b2f
+    conditions:
+    - lastTransitionTime: "2026-05-21T19:53:31Z"
+      message: Cluster is Ready
+      reason: ClusterIsReady
+      status: "True"
+      type: Ready
+    - lastTransitionTime: "2026-05-21T07:41:17Z"
+      message: Continuous archiving is working
+      reason: ContinuousArchivingSuccess
+      status: "True"
+      type: ContinuousArchiving
+    configMapResourceVersion:
+      metrics:
+        cnpg-default-monitoring: "1397899"
+    currentPrimary: litellm-postgres-1
+    currentPrimaryTimestamp: "2026-05-21T07:18:36.320447Z"
+    healthyPVC:
+    - litellm-postgres-1
+    image: ghcr.io/cloudnative-pg/postgresql:16
+    instanceNames:
+    - litellm-postgres-1
+    instances: 1
+    instancesReportedState:
+      litellm-postgres-1:
+        isPrimary: true
+        timeLineID: 1
+    instancesStatus:
+      healthy:
+      - litellm-postgres-1
+    latestGeneratedNode: 1
+    managedRolesStatus: {}
+    phase: Cluster in healthy state
+    poolerIntegrations:
+      pgBouncerIntegration: {}
+    pvcCount: 1
+    readService: litellm-postgres-r
+    readyInstances: 1
+    secretsResourceVersion:
+      applicationSecretVersion: "1918386"
+      clientCaSecretVersion: "1397847"
+      replicationSecretVersion: "1397850"
+      serverCaSecretVersion: "1397847"
+      serverSecretVersion: "1397848"
+    switchReplicaClusterStatus: {}
+    targetPrimary: litellm-postgres-1
+    targetPrimaryTimestamp: "2026-05-21T07:18:11.804592Z"
+    timelineID: 1
+    topology:
+      instances:
+        litellm-postgres-1: {}
+      nodesUsed: 1
+      successfullyExtracted: true
+    writeService: litellm-postgres-rw
+- apiVersion: postgresql.cnpg.io/v1
+  kind: Cluster
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"postgresql.cnpg.io/v1","kind":"Cluster","metadata":{"annotations":{},"name":"shared-postgres","namespace":"skirmshop"},"spec":{"affinity":{"nodeSelector":{"kubernetes.io/hostname":"ubuntu"}},"backup":{"barmanObjectStore":{"destinationPath":"s3://velero-backups/shared-postgres/","endpointURL":"http://minio-s3.minio.svc.cluster.local:9000","s3Credentials":{"accessKeyId":{"key":"ACCESS_KEY_ID","name":"minio-backup-creds"},"secretAccessKey":{"key":"SECRET_ACCESS_KEY","name":"minio-backup-creds"}},"wal":{"compression":"gzip"}},"retentionPolicy":"30d"},"bootstrap":{"initdb":{"database":"skirmshop","owner":"skirmshop","postInitSQL":["CREATE DATABASE bundles OWNER skirmshop;","CREATE DATABASE sii OWNER skirmshop;","CREATE DATABASE collections_tree OWNER skirmshop;","CREATE DATABASE affiliate OWNER skirmshop;","CREATE DATABASE translations OWNER skirmshop;","CREATE DATABASE firecrawl OWNER skirmshop;","CREATE DATABASE back_in_stock OWNER skirmshop;","CREATE DATABASE product_ai OWNER skirmshop;","CREATE DATABASE pocharlies OWNER skirmshop;","CREATE DATABASE skirmbooks OWNER skirmshop;"],"secret":{"name":"shared-postgres-app"}}},"imageName":"ghcr.io/cloudnative-pg/postgresql:16","instances":1,"postgresql":{"parameters":{"max_connections":"200","shared_buffers":"256MB","work_mem":"16MB"}},"storage":{"size":"50Gi","storageClass":"longhorn"},"superuserSecret":{"name":"shared-postgres-superuser"}}}
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 2
+    name: shared-postgres
+    namespace: skirmshop
+    resourceVersion: "2015715"
+    uid: 16b3226a-8da2-4926-9711-c5908dc5358f
+  spec:
+    affinity:
+      nodeSelector:
+        kubernetes.io/hostname: ubuntu
+      podAntiAffinityType: preferred
+    backup:
+      barmanObjectStore:
+        destinationPath: s3://cnpg-backups/shared-postgres/
+        endpointURL: http://minio-s3.minio.svc.cluster.local:9000
+        s3Credentials:
+          accessKeyId:
+            key: ACCESS_KEY_ID
+            name: minio-backup-creds
+          secretAccessKey:
+            key: SECRET_ACCESS_KEY
+            name: minio-backup-creds
+        wal:
+          compression: gzip
+      retentionPolicy: 30d
+      target: prefer-standby
+    bootstrap:
+      initdb:
+        database: skirmshop
+        encoding: UTF8
+        localeCType: C
+        localeCollate: C
+        owner: skirmshop
+        postInitSQL:
+        - CREATE DATABASE bundles OWNER skirmshop;
+        - CREATE DATABASE sii OWNER skirmshop;
+        - CREATE DATABASE collections_tree OWNER skirmshop;
+        - CREATE DATABASE affiliate OWNER skirmshop;
+        - CREATE DATABASE translations OWNER skirmshop;
+        - CREATE DATABASE firecrawl OWNER skirmshop;
+        - CREATE DATABASE back_in_stock OWNER skirmshop;
+        - CREATE DATABASE product_ai OWNER skirmshop;
+        - CREATE DATABASE pocharlies OWNER skirmshop;
+        - CREATE DATABASE skirmbooks OWNER skirmshop;
+        secret:
+          name: shared-postgres-app
+    enablePDB: true
+    enableSuperuserAccess: false
+    failoverDelay: 0
+    imageName: ghcr.io/cloudnative-pg/postgresql:16
+    instances: 1
+    logLevel: info
+    maxSyncReplicas: 0
+    minSyncReplicas: 0
+    monitoring:
+      customQueriesConfigMap:
+      - key: queries
+        name: cnpg-default-monitoring
+      disableDefaultQueries: false
+      enablePodMonitor: false
+    postgresGID: 26
+    postgresUID: 26
+    postgresql:
+      parameters:
+        archive_mode: "on"
+        archive_timeout: 5min
+        dynamic_shared_memory_type: posix
+        full_page_writes: "on"
+        log_destination: csvlog
+        log_directory: /controller/log
+        log_filename: postgres
+        log_rotation_age: "0"
+        log_rotation_size: "0"
+        log_truncate_on_rotation: "false"
+        logging_collector: "on"
+        max_connections: "200"
+        max_parallel_workers: "32"
+        max_replication_slots: "32"
+        max_worker_processes: "32"
+        shared_buffers: 256MB
+        shared_memory_type: mmap
+        shared_preload_libraries: ""
+        ssl_max_protocol_version: TLSv1.3
+        ssl_min_protocol_version: TLSv1.3
+        wal_keep_size: 512MB
+        wal_level: logical
+        wal_log_hints: "on"
+        wal_receiver_timeout: 5s
+        wal_sender_timeout: 5s
+        work_mem: 16MB
+      syncReplicaElectionConstraint:
+        enabled: false
+    primaryUpdateMethod: restart
+    primaryUpdateStrategy: unsupervised
+    replicationSlots:
+      highAvailability:
+        enabled: true
+        slotPrefix: _cnpg_
+      synchronizeReplicas:
+        enabled: true
+      updateInterval: 30
+    resources: {}
+    smartShutdownTimeout: 180
+    startDelay: 3600
+    stopDelay: 1800
+    storage:
+      resizeInUseVolumes: true
+      size: 50Gi
+      storageClass: longhorn
+    superuserSecret:
+      name: shared-postgres-superuser
+    switchoverDelay: 3600
+  status:
+    availableArchitectures:
+    - goArch: amd64
+      hash: 0a8f22a9c14805f67b92f6994d6487da7570929108443d1a70a66b8d47a51b2f
+    - goArch: arm64
+      hash: c8318d0576271cba8bdb120a6500f273038035a9bf97e36c9a367ea0ae3590c0
+    certificates:
+      clientCASecret: shared-postgres-ca
+      expirations:
+        shared-postgres-ca: 2026-08-19 07:56:05 +0000 UTC
+        shared-postgres-replication: 2026-08-19 07:56:05 +0000 UTC
+        shared-postgres-server: 2026-08-19 07:56:05 +0000 UTC
+      replicationTLSSecret: shared-postgres-replication
+      serverAltDNSNames:
+      - shared-postgres-rw
+      - shared-postgres-rw.skirmshop
+      - shared-postgres-rw.skirmshop.svc
+      - shared-postgres-rw.skirmshop.svc.cluster.local
+      - shared-postgres-r
+      - shared-postgres-r.skirmshop
+      - shared-postgres-r.skirmshop.svc
+      - shared-postgres-r.skirmshop.svc.cluster.local
+      - shared-postgres-ro
+      - shared-postgres-ro.skirmshop
+      - shared-postgres-ro.skirmshop.svc
+      - shared-postgres-ro.skirmshop.svc.cluster.local
+      serverCASecret: shared-postgres-ca
+      serverTLSSecret: shared-postgres-server
+    cloudNativePGCommitHash: c56e00d4
+    cloudNativePGOperatorHash: 0a8f22a9c14805f67b92f6994d6487da7570929108443d1a70a66b8d47a51b2f
+    conditions:
+    - lastTransitionTime: "2026-05-21T19:53:35Z"
+      message: Cluster is Ready
+      reason: ClusterIsReady
+      status: "True"
+      type: Ready
+    - lastTransitionTime: "2026-05-22T00:01:55Z"
+      message: 'unexpected failure invoking barman-cloud-wal-archive: exit status
+        4'
+      reason: ContinuousArchivingFailing
+      status: "False"
+      type: ContinuousArchiving
+    - lastTransitionTime: "2026-05-22T00:01:00Z"
+      message: exit status 1
+      reason: LastBackupFailed
+      status: "False"
+      type: LastBackupSucceeded
+    configMapResourceVersion:
+      metrics:
+        cnpg-default-monitoring: "1421810"
+    currentPrimary: shared-postgres-1
+    currentPrimaryTimestamp: "2026-05-21T08:01:47.356805Z"
+    firstRecoverabilityPoint: "2026-05-21T09:01:24Z"
+    firstRecoverabilityPointByMethod:
+      barmanObjectStore: "2026-05-21T09:01:24Z"
+    healthyPVC:
+    - shared-postgres-1
+    image: ghcr.io/cloudnative-pg/postgresql:16
+    instanceNames:
+    - shared-postgres-1
+    instances: 1
+    instancesReportedState:
+      shared-postgres-1:
+        isPrimary: true
+        timeLineID: 1
+    instancesStatus:
+      healthy:
+      - shared-postgres-1
+    lastFailedBackup: "2026-05-22T00:01:02Z"
+    lastSuccessfulBackup: "2026-05-21T23:01:37Z"
+    lastSuccessfulBackupByMethod:
+      barmanObjectStore: "2026-05-21T23:01:37Z"
+    latestGeneratedNode: 1
+    managedRolesStatus: {}
+    phase: Cluster in healthy state
+    poolerIntegrations:
+      pgBouncerIntegration: {}
+    pvcCount: 1
+    readService: shared-postgres-r
+    readyInstances: 1
+    secretsResourceVersion:
+      applicationSecretVersion: "1881476"
+      clientCaSecretVersion: "1421692"
+      replicationSecretVersion: "1421698"
+      serverCaSecretVersion: "1421692"
+      serverSecretVersion: "1421694"
+    switchReplicaClusterStatus: {}
+    targetPrimary: shared-postgres-1
+    targetPrimaryTimestamp: "2026-05-21T08:01:05.725814Z"
+    timelineID: 1
+    topology:
+      instances:
+        shared-postgres-1: {}
+      nodesUsed: 1
+      successfullyExtracted: true
+    writeService: shared-postgres-rw
+- apiVersion: postgresql.cnpg.io/v1
+  kind: Cluster
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: teslamate:postgresql.cnpg.io/Cluster:teslamate/teslamate-postgres
+    creationTimestamp: "2026-05-21T00:31:16Z"
+    generation: 4
+    name: teslamate-postgres
+    namespace: teslamate
+    resourceVersion: "1927378"
+    uid: 0ba69f87-1355-4450-b4bd-2eca5b70c8af
+  spec:
+    affinity:
+      nodeSelector:
+        kubernetes.io/hostname: ubuntu
+      podAntiAffinityType: preferred
+    backup:
+      barmanObjectStore:
+        destinationPath: s3://velero-backups/teslamate-postgres/
+        endpointURL: http://minio-s3.minio.svc.cluster.local:9000
+        s3Credentials:
+          accessKeyId:
+            key: ACCESS_KEY_ID
+            name: minio-backup-creds
+          secretAccessKey:
+            key: SECRET_ACCESS_KEY
+            name: minio-backup-creds
+        wal:
+          compression: gzip
+      target: prefer-standby
+    bootstrap:
+      initdb:
+        database: teslamate
+        encoding: UTF8
+        localeCType: C
+        localeCollate: C
+        owner: teslamate
+        secret:
+          name: teslamate-postgres-creds
+    enablePDB: true
+    enableSuperuserAccess: false
+    failoverDelay: 0
+    imageName: ghcr.io/cloudnative-pg/postgresql:16
+    instances: 1
+    logLevel: info
+    maxSyncReplicas: 0
+    minSyncReplicas: 0
+    monitoring:
+      customQueriesConfigMap:
+      - key: queries
+        name: cnpg-default-monitoring
+      disableDefaultQueries: false
+      enablePodMonitor: false
+    postgresGID: 26
+    postgresUID: 26
+    postgresql:
+      parameters:
+        archive_mode: "on"
+        archive_timeout: 5min
+        dynamic_shared_memory_type: posix
+        full_page_writes: "on"
+        log_destination: csvlog
+        log_directory: /controller/log
+        log_filename: postgres
+        log_rotation_age: "0"
+        log_rotation_size: "0"
+        log_truncate_on_rotation: "false"
+        logging_collector: "on"
+        max_connections: "100"
+        max_parallel_workers: "32"
+        max_replication_slots: "32"
+        max_worker_processes: "32"
+        shared_buffers: 128MB
+        shared_memory_type: mmap
+        shared_preload_libraries: ""
+        ssl_max_protocol_version: TLSv1.3
+        ssl_min_protocol_version: TLSv1.3
+        wal_keep_size: 512MB
+        wal_level: logical
+        wal_log_hints: "on"
+        wal_receiver_timeout: 5s
+        wal_sender_timeout: 5s
+      syncReplicaElectionConstraint:
+        enabled: false
+    primaryUpdateMethod: restart
+    primaryUpdateStrategy: unsupervised
+    replicationSlots:
+      highAvailability:
+        enabled: true
+        slotPrefix: _cnpg_
+      synchronizeReplicas:
+        enabled: true
+      updateInterval: 30
+    resources: {}
+    smartShutdownTimeout: 180
+    startDelay: 3600
+    stopDelay: 1800
+    storage:
+      resizeInUseVolumes: true
+      size: 10Gi
+      storageClass: longhorn
+    switchoverDelay: 3600
+  status:
+    availableArchitectures:
+    - goArch: amd64
+      hash: 0a8f22a9c14805f67b92f6994d6487da7570929108443d1a70a66b8d47a51b2f
+    - goArch: arm64
+      hash: c8318d0576271cba8bdb120a6500f273038035a9bf97e36c9a367ea0ae3590c0
+    certificates:
+      clientCASecret: teslamate-postgres-ca
+      expirations:
+        teslamate-postgres-ca: 2026-08-19 00:26:16 +0000 UTC
+        teslamate-postgres-replication: 2026-08-19 00:26:16 +0000 UTC
+        teslamate-postgres-server: 2026-08-19 00:26:16 +0000 UTC
+      replicationTLSSecret: teslamate-postgres-replication
+      serverAltDNSNames:
+      - teslamate-postgres-rw
+      - teslamate-postgres-rw.teslamate
+      - teslamate-postgres-rw.teslamate.svc
+      - teslamate-postgres-rw.teslamate.svc.cluster.local
+      - teslamate-postgres-r
+      - teslamate-postgres-r.teslamate
+      - teslamate-postgres-r.teslamate.svc
+      - teslamate-postgres-r.teslamate.svc.cluster.local
+      - teslamate-postgres-ro
+      - teslamate-postgres-ro.teslamate
+      - teslamate-postgres-ro.teslamate.svc
+      - teslamate-postgres-ro.teslamate.svc.cluster.local
+      serverCASecret: teslamate-postgres-ca
+      serverTLSSecret: teslamate-postgres-server
+    cloudNativePGCommitHash: c56e00d4
+    cloudNativePGOperatorHash: 0a8f22a9c14805f67b92f6994d6487da7570929108443d1a70a66b8d47a51b2f
+    conditions:
+    - lastTransitionTime: "2026-05-21T19:53:34Z"
+      message: Cluster is Ready
+      reason: ClusterIsReady
+      status: "True"
+      type: Ready
+    - lastTransitionTime: "2026-05-21T00:42:46Z"
+      message: Continuous archiving is working
+      reason: ContinuousArchivingSuccess
+      status: "True"
+      type: ContinuousArchiving
+    configMapResourceVersion:
+      metrics:
+        cnpg-default-monitoring: "1161294"
+    currentPrimary: teslamate-postgres-1
+    currentPrimaryTimestamp: "2026-05-21T00:31:53.266955Z"
+    healthyPVC:
+    - teslamate-postgres-1
+    image: ghcr.io/cloudnative-pg/postgresql:16
+    instanceNames:
+    - teslamate-postgres-1
+    instances: 1
+    instancesReportedState:
+      teslamate-postgres-1:
+        isPrimary: true
+        timeLineID: 1
+    instancesStatus:
+      healthy:
+      - teslamate-postgres-1
+    latestGeneratedNode: 1
+    managedRolesStatus: {}
+    phase: Cluster in healthy state
+    poolerIntegrations:
+      pgBouncerIntegration: {}
+    pvcCount: 1
+    readService: teslamate-postgres-r
+    readyInstances: 1
+    secretsResourceVersion:
+      applicationSecretVersion: "1918448"
+      clientCaSecretVersion: "1161230"
+      replicationSecretVersion: "1161239"
+      serverCaSecretVersion: "1161230"
+      serverSecretVersion: "1161235"
+    switchReplicaClusterStatus: {}
+    targetPrimary: teslamate-postgres-1
+    targetPrimaryTimestamp: "2026-05-21T00:31:16.664252Z"
+    timelineID: 1
+    topology:
+      instances:
+        teslamate-postgres-1: {}
+      nodesUsed: 1
+      successfullyExtracted: true
+    writeService: teslamate-postgres-rw
+kind: List
+metadata:
+  resourceVersion: ""

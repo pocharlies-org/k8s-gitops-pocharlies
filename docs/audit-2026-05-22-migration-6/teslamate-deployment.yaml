@@ -1,0 +1,146 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    argocd.argoproj.io/tracking-id: teslamate:apps/Deployment:teslamate/teslamate
+    deployment.kubernetes.io/revision: "5"
+  creationTimestamp: "2026-05-21T00:31:16Z"
+  generation: 8
+  name: teslamate
+  namespace: teslamate
+  resourceVersion: "2017210"
+  uid: 96d19602-7198-46a2-81e4-0b1fdfde38a3
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: teslamate
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/restartedAt: "2026-05-21T02:54:54+02:00"
+      creationTimestamp: null
+      labels:
+        app: teslamate
+    spec:
+      containers:
+      - env:
+        - name: DATABASE_USER
+          valueFrom:
+            secretKeyRef:
+              key: DB_USER
+              name: teslamate-secrets
+        - name: DATABASE_PASS
+          valueFrom:
+            secretKeyRef:
+              key: DB_PASSWORD
+              name: teslamate-secrets
+        - name: DATABASE_NAME
+          value: teslamate
+        - name: DATABASE_HOST
+          value: teslamate-postgres-rw.teslamate.svc.cluster.local
+        - name: ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              key: ENCRYPTION_KEY
+              name: teslamate-secrets
+        - name: MQTT_HOST
+          value: teslamate-mosquitto.teslamate.svc.cluster.local
+        - name: DISABLE_MQTT
+          value: "false"
+        - name: TZ
+          value: Europe/Madrid
+        - name: TESLA_AUTH_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              key: TESLA_AUTH_CLIENT_ID
+              name: teslamate-secrets
+              optional: true
+        - name: TESLA_AUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: TESLA_AUTH_CLIENT_SECRET
+              name: teslamate-secrets
+              optional: true
+        image: teslamate/teslamate:latest
+        imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 3
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          successThreshold: 1
+          tcpSocket:
+            port: 4000
+          timeoutSeconds: 1
+        name: teslamate
+        ports:
+        - containerPort: 4000
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          successThreshold: 1
+          tcpSocket:
+            port: 4000
+          timeoutSeconds: 1
+        resources:
+          limits:
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      enableServiceLinks: false
+      initContainers:
+      - command:
+        - sh
+        - -c
+        - |
+          until pg_isready -h teslamate-postgres-rw.teslamate.svc.cluster.local -p 5432; do
+            echo "waiting for postgres..."; sleep 3; done
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: DB_PASSWORD
+              name: teslamate-secrets
+        image: postgres:16-alpine
+        imagePullPolicy: IfNotPresent
+        name: wait-db
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      nodeSelector:
+        kubernetes.io/arch: amd64
+        topology: lan
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+status:
+  availableReplicas: 1
+  conditions:
+  - lastTransitionTime: "2026-05-21T00:43:43Z"
+    lastUpdateTime: "2026-05-21T00:58:24Z"
+    message: ReplicaSet "teslamate-588f66d4b7" has successfully progressed.
+    reason: NewReplicaSetAvailable
+    status: "True"
+    type: Progressing
+  - lastTransitionTime: "2026-05-22T00:03:56Z"
+    lastUpdateTime: "2026-05-22T00:03:56Z"
+    message: Deployment has minimum availability.
+    reason: MinimumReplicasAvailable
+    status: "True"
+    type: Available
+  observedGeneration: 8
+  readyReplicas: 1
+  replicas: 1
+  updatedReplicas: 1

@@ -9,7 +9,7 @@ spec:
   source:
     repoURL: https://github.com/pocharlies/k8s-socialmedia-pocharlies
     targetRevision: main
-    path: k8s
+    path: k8s/overlays/prod
   destination:
     server: https://kubernetes.default.svc
     namespace: whatsapp-mcp

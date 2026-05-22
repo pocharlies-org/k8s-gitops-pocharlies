@@ -1,0 +1,113 @@
+apiVersion: v1
+items:
+- apiVersion: postgresql.cnpg.io/v1
+  kind: Database
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: postgres-shared:postgresql.cnpg.io/Database:databases/litellm
+    creationTimestamp: "2026-05-21T23:34:13Z"
+    finalizers:
+    - cnpg.io/deleteDatabase
+    generation: 1
+    labels:
+      app.kubernetes.io/component: postgres-database
+      app.kubernetes.io/managed-by: argocd
+      app.kubernetes.io/part-of: shared-infrastructure
+    name: litellm
+    namespace: databases
+    resourceVersion: "1987589"
+    uid: 4edb1474-1c66-4489-9289-e6ab4dd47e7b
+  spec:
+    cluster:
+      name: postgres-shared
+    databaseReclaimPolicy: retain
+    ensure: present
+    name: litellm
+    owner: litellm
+  status:
+    applied: true
+    observedGeneration: 1
+- apiVersion: postgresql.cnpg.io/v1
+  kind: Database
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: n8n:postgresql.cnpg.io/Database:databases/n8n
+    creationTimestamp: "2026-05-19T23:56:01Z"
+    finalizers:
+    - cnpg.io/deleteDatabase
+    generation: 1
+    labels:
+      app.kubernetes.io/component: database
+      app.kubernetes.io/name: n8n
+      app.kubernetes.io/part-of: workflow-automation
+    name: n8n
+    namespace: databases
+    resourceVersion: "1918086"
+    uid: d8ba52d9-c8bc-45c2-9c5f-ab06029acae8
+  spec:
+    cluster:
+      name: postgres-shared
+    databaseReclaimPolicy: retain
+    ensure: present
+    name: n8n
+    owner: n8n
+  status:
+    applied: true
+    observedGeneration: 1
+- apiVersion: postgresql.cnpg.io/v1
+  kind: Database
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: n8n-stg:postgresql.cnpg.io/Database:databases/n8n-stg
+    creationTimestamp: "2026-05-21T23:28:11Z"
+    finalizers:
+    - cnpg.io/deleteDatabase
+    generation: 1
+    labels:
+      app.kubernetes.io/component: database
+      app.kubernetes.io/name: n8n-stg
+      app.kubernetes.io/part-of: workflow-automation
+    name: n8n-stg
+    namespace: databases
+    resourceVersion: "1980895"
+    uid: 3799a184-f5b0-4a44-82b4-03c61d5aa03c
+  spec:
+    cluster:
+      name: postgres-shared
+    databaseReclaimPolicy: retain
+    ensure: present
+    name: n8n_stg
+    owner: n8n_stg
+  status:
+    applied: true
+    observedGeneration: 1
+- apiVersion: postgresql.cnpg.io/v1
+  kind: Database
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: postgres-shared:postgresql.cnpg.io/Database:databases/teslamate
+    creationTimestamp: "2026-05-21T23:34:13Z"
+    finalizers:
+    - cnpg.io/deleteDatabase
+    generation: 1
+    labels:
+      app.kubernetes.io/component: postgres-database
+      app.kubernetes.io/managed-by: argocd
+      app.kubernetes.io/part-of: shared-infrastructure
+    name: teslamate
+    namespace: databases
+    resourceVersion: "1982637"
+    uid: 0e112873-5dfa-4999-99f1-5fab751feed5
+  spec:
+    cluster:
+      name: postgres-shared
+    databaseReclaimPolicy: retain
+    ensure: present
+    name: teslamate
+    owner: teslamate
+  status:
+    applied: true
+    observedGeneration: 1
+kind: List
+metadata:
+  resourceVersion: ""

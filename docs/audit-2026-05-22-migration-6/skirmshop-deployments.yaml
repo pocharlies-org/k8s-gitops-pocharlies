@@ -1,0 +1,756 @@
+apiVersion: v1
+items:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: shopify-bundles:apps/Deployment:skirmshop/bundles-app
+      deployment.kubernetes.io/revision: "17"
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 25
+    name: bundles-app
+    namespace: skirmshop
+    resourceVersion: "2044703"
+    uid: 8dc8be69-93c0-44cb-9cd0-299b057fcf84
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: bundles-app
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-22T01:14:11+02:00"
+        creationTimestamp: null
+        labels:
+          app: bundles-app
+      spec:
+        containers:
+        - env:
+          - name: PORT
+            value: "3460"
+          - name: DATABASE_URL
+            value: postgresql://$(DB_USER):$(DB_PASSWORD)@shared-postgres-rw.skirmshop.svc.cluster.local:5432/skirmshop
+          - name: SHOPIFY_APP_URL
+            value: https://skirmshop.e-dani.com/bundles
+          - name: SHOPIFY_ALLOWED_SHOPS
+            value: skirmshop-spain.myshopify.com
+          - name: SHOPIFY_APP_PROXY_MAX_AGE_SECONDS
+            value: "300"
+          - name: STANDALONE_CONFIGURATOR_ENABLED
+            value: "false"
+          - name: SCOPES
+            value: read_products,write_products,read_inventory,read_orders,write_app_proxy
+          - name: NODE_ENV
+            value: production
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: harbor.e-dani.com/homelab/shopify-bundle-app@sha256:ff57063ed7edf3d1ffd83aedd5292222fae1f43e685913343b35d185a93a2321
+          imagePullPolicy: Always
+          name: bundles-app
+          ports:
+          - containerPort: 3460
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 3460
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          role: edge
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: role
+          operator: Equal
+          value: edge
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T19:36:00Z"
+      lastUpdateTime: "2026-05-21T19:36:00Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-21T16:42:42Z"
+      lastUpdateTime: "2026-05-22T00:25:48Z"
+      message: ReplicaSet "bundles-app-776c95b9f" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 25
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: shopify-sii:apps/Deployment:skirmshop/sii-app
+      deployment.kubernetes.io/revision: "14"
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 20
+    name: sii-app
+    namespace: skirmshop
+    resourceVersion: "2044661"
+    uid: c90ec776-55f4-4cba-9a88-0e8a3626805b
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: sii-app
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-22T01:14:11+02:00"
+        creationTimestamp: null
+        labels:
+          app: sii-app
+      spec:
+        containers:
+        - env:
+          - name: PORT
+            value: "3000"
+          - name: NODE_ENV
+            value: production
+          - name: DATABASE_URL
+            value: postgresql://$(DB_USER):$(DB_PASSWORD)@shared-postgres-rw.skirmshop.svc.cluster.local:5432/skirmshop
+          - name: SHOPIFY_APP_URL
+            value: https://skirmshop.e-dani.com/sii
+          - name: SHOPIFY_STORE
+            value: skirmshop-spain.myshopify.com
+          - name: SCOPES
+            value: read_orders,read_all_orders,read_products,write_orders,read_customers,write_customers
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: harbor.e-dani.com/homelab/shopify-sii-app@sha256:a9ede9128f21bee51b9159f4bd65deb59026d4bebf65db80b4bec243d961b097
+          imagePullPolicy: Always
+          name: sii-app
+          ports:
+          - containerPort: 3000
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 3000
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          role: edge
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: role
+          operator: Equal
+          value: edge
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T19:36:02Z"
+      lastUpdateTime: "2026-05-21T19:36:02Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-21T16:52:22Z"
+      lastUpdateTime: "2026-05-22T00:25:46Z"
+      message: ReplicaSet "sii-app-79d4579545" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 20
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: shopify-picker:apps/Deployment:skirmshop/skirmshop-picker
+      deployment.kubernetes.io/revision: "8"
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 12
+    name: skirmshop-picker
+    namespace: skirmshop
+    resourceVersion: "2044381"
+    uid: eb498b65-7660-4476-939b-e08b599a8a17
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: skirmshop-picker
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-22T01:14:11+02:00"
+        creationTimestamp: null
+        labels:
+          app: skirmshop-picker
+      spec:
+        containers:
+        - env:
+          - name: DATABASE_URL
+            value: postgresql://$(DB_USER):$(DB_PASSWORD)@shared-postgres-rw.skirmshop.svc.cluster.local:5432/skirmshop
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: harbor.e-dani.com/homelab/skirmshop-picker:latest
+          imagePullPolicy: Always
+          name: picker
+          ports:
+          - containerPort: 3480
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 3480
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          role: edge
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: role
+          operator: Equal
+          value: edge
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T19:35:53Z"
+      lastUpdateTime: "2026-05-21T19:35:53Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-21T08:01:06Z"
+      lastUpdateTime: "2026-05-22T00:25:27Z"
+      message: ReplicaSet "skirmshop-picker-854b6d996" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 12
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: firecrawl:apps/Deployment:skirmshop/firecrawl-api
+      deployment.kubernetes.io/revision: "17"
+    creationTimestamp: "2026-05-21T08:01:06Z"
+    generation: 21
+    name: firecrawl-api
+    namespace: skirmshop
+    resourceVersion: "2032557"
+    uid: 1384bec7-4b16-4700-b673-8ae957b78896
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 0
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: firecrawl-api
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T10:37:06+02:00"
+        creationTimestamp: null
+        labels:
+          app: firecrawl-api
+      spec:
+        containers:
+        - env:
+          - name: REDIS_URL
+            value: redis://labels-redis.skirmshop.svc.cluster.local:6379
+          - name: REDIS_RATE_LIMIT_URL
+            value: redis://labels-redis.skirmshop.svc.cluster.local:6379
+          - name: ENV
+            value: local
+          - name: HOST
+            value: 0.0.0.0
+          - name: PORT
+            value: "3002"
+          - name: PLAYWRIGHT_MICROSERVICE_URL
+            value: http://firecrawl-playwright.skirmshop.svc.cluster.local:3000/scrape
+          - name: USE_DB_AUTHENTICATION
+            value: "false"
+          - name: _RMQUSER
+            valueFrom:
+              secretKeyRef:
+                key: RABBITMQ_DEFAULT_USER
+                name: rabbitmq-secrets
+          - name: _RMQPASS
+            valueFrom:
+              secretKeyRef:
+                key: RABBITMQ_DEFAULT_PASS
+                name: rabbitmq-secrets
+          - name: RABBITMQ_URL
+            value: amqp://$(_RMQUSER):$(_RMQPASS)@shared-rabbitmq.skirmshop.svc.cluster.local:5672
+          - name: NUQ_RABBITMQ_URL
+            value: amqp://$(_RMQUSER):$(_RMQPASS)@shared-rabbitmq.skirmshop.svc.cluster.local:5672
+          - name: POSTGRES_HOST
+            value: shared-postgres-rw.skirmshop.svc.cluster.local
+          - name: POSTGRES_PORT
+            value: "5432"
+          - name: POSTGRES_DB
+            value: firecrawl
+          - name: POSTGRES_USER
+            valueFrom:
+              secretKeyRef:
+                key: username
+                name: shared-postgres-app
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: password
+                name: shared-postgres-app
+          - name: NUQ_DATABASE_URL
+            value: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: ghcr.io/firecrawl/firecrawl:latest
+          imagePullPolicy: Always
+          name: firecrawl-api
+          ports:
+          - containerPort: 3002
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: 3002
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 3Gi
+            requests:
+              cpu: 200m
+              memory: 512Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: arm64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: role
+          operator: Equal
+          value: edge
+  status:
+    conditions:
+    - lastTransitionTime: "2026-05-21T09:01:03Z"
+      lastUpdateTime: "2026-05-22T00:11:36Z"
+      message: ReplicaSet "firecrawl-api-649756bbcb" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    - lastTransitionTime: "2026-05-22T00:14:05Z"
+      lastUpdateTime: "2026-05-22T00:14:05Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    observedGeneration: 21
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: shopify-label:apps/Deployment:skirmshop/labels-shopify-app
+      deployment.kubernetes.io/revision: "13"
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 16
+    name: labels-shopify-app
+    namespace: skirmshop
+    resourceVersion: "2044526"
+    uid: 35473fc7-61c5-4e36-b787-9cf3076dfcb6
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: labels-shopify-app
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T18:30:06+02:00"
+        creationTimestamp: null
+        labels:
+          app: labels-shopify-app
+      spec:
+        containers:
+        - env:
+          - name: PORT
+            value: "3000"
+          - name: DATABASE_URL
+            value: postgresql://$(LABELS_DB_USER):$(LABELS_DB_PASSWORD)@labels-postgres.skirmshop.svc.cluster.local:5432/labels
+          - name: REDIS_URL
+            value: redis://labels-redis.skirmshop.svc.cluster.local:6379
+          - name: RABBITMQ_URL
+            value: amqp://$(RABBITMQ_USER):$(RABBITMQ_PASS)@shared-rabbitmq.skirmshop.svc.cluster.local:5672
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: harbor.e-dani.com/homelab/skirmshop-labels-shopify-app:latest
+          imagePullPolicy: Always
+          name: shopify-app
+          ports:
+          - containerPort: 3000
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          role: edge
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: role
+          operator: Equal
+          value: edge
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T19:41:01Z"
+      lastUpdateTime: "2026-05-21T19:41:01Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-21T16:16:54Z"
+      lastUpdateTime: "2026-05-22T00:25:35Z"
+      message: ReplicaSet "labels-shopify-app-8fdd8b786" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 16
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: shopify-label:apps/Deployment:skirmshop/labels-label-storage
+      deployment.kubernetes.io/revision: "9"
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 12
+    name: labels-label-storage
+    namespace: skirmshop
+    resourceVersion: "2044492"
+    uid: f0b98146-c886-4daa-85b6-2e2a991b76d0
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: labels-label-storage
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T16:59:13+02:00"
+        creationTimestamp: null
+        labels:
+          app: labels-label-storage
+      spec:
+        containers:
+        - env:
+          - name: PORT
+            value: "3000"
+          - name: DATABASE_URL
+            value: postgresql://$(LABELS_DB_USER):$(LABELS_DB_PASSWORD)@labels-postgres.skirmshop.svc.cluster.local:5432/labels
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: harbor.e-dani.com/homelab/skirmshop-labels-label-storage:latest
+          imagePullPolicy: Always
+          name: label-storage
+          ports:
+          - containerPort: 3000
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 30m
+              memory: 64Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          role: edge
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: role
+          operator: Equal
+          value: edge
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T19:35:50Z"
+      lastUpdateTime: "2026-05-21T19:35:50Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-21T16:36:50Z"
+      lastUpdateTime: "2026-05-22T00:25:34Z"
+      message: ReplicaSet "labels-label-storage-5f8d45bbbf" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 12
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: shopify-label:apps/Deployment:skirmshop/labels-event-gateway
+      deployment.kubernetes.io/revision: "9"
+    creationTimestamp: "2026-05-21T08:01:05Z"
+    generation: 12
+    name: labels-event-gateway
+    namespace: skirmshop
+    resourceVersion: "2044274"
+    uid: 1ad8bf65-82f4-4191-ac0e-4350421d1f34
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: labels-event-gateway
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T16:59:13+02:00"
+        creationTimestamp: null
+        labels:
+          app: labels-event-gateway
+      spec:
+        containers:
+        - env:
+          - name: PORT
+            value: "3000"
+          - name: RABBITMQ_URL
+            value: amqp://$(RABBITMQ_USER):$(RABBITMQ_PASS)@shared-rabbitmq.skirmshop.svc.cluster.local:5672
+          - name: NATS_URL
+            value: nats://labels-nats.skirmshop.svc.cluster.local:4222
+          envFrom:
+          - secretRef:
+              name: labels-secrets
+          image: harbor.e-dani.com/homelab/skirmshop-labels-event-gateway:latest
+          imagePullPolicy: Always
+          name: event-gateway
+          ports:
+          - containerPort: 3000
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 256Mi
+            requests:
+              cpu: 30m
+              memory: 64Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          role: edge
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        tolerations:
+        - effect: NoSchedule
+          key: role
+          operator: Equal
+          value: edge
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T19:35:40Z"
+      lastUpdateTime: "2026-05-21T19:35:40Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-21T16:36:49Z"
+      lastUpdateTime: "2026-05-22T00:25:22Z"
+      message: ReplicaSet "labels-event-gateway-84b655cc5c" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 12
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+kind: List
+metadata:
+  resourceVersion: ""

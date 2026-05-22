@@ -1,0 +1,277 @@
+apiVersion: v1
+items:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: socialmedia:apps/Deployment:whatsapp-mcp/whatsapp-connector
+      deployment.kubernetes.io/revision: "3"
+    creationTimestamp: "2026-05-21T08:17:41Z"
+    generation: 4
+    name: whatsapp-connector
+    namespace: whatsapp-mcp
+    resourceVersion: "1918523"
+    uid: 67088ef8-c804-4d4a-b1da-10498de0f1d2
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: whatsapp-connector
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T16:32:04+02:00"
+        creationTimestamp: null
+        labels:
+          app: whatsapp-connector
+      spec:
+        containers:
+        - env:
+          - name: REDIS_URL
+            value: redis://whatsapp-mcp-redis.whatsapp-mcp.svc.cluster.local:6379
+          - name: NATS_URL
+            value: nats://whatsapp-mcp-nats.whatsapp-mcp.svc.cluster.local:4222
+          - name: DATABASE_URL
+            value: postgresql://$(DB_USER):$(DB_PASSWORD)@whatsapp-mcp-postgres.whatsapp-mcp.svc.cluster.local:5432/whatsappmcp
+          envFrom:
+          - secretRef:
+              name: whatsapp-mcp-secrets
+          image: harbor.e-dani.com/homelab/whatsappmcp-whatsapp-connector:latest
+          imagePullPolicy: Always
+          name: whatsapp-connector
+          ports:
+          - containerPort: 3001
+            name: http
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /status
+              port: 3001
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T20:30:39Z"
+      lastUpdateTime: "2026-05-21T20:30:39Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-21T20:29:21Z"
+      lastUpdateTime: "2026-05-21T20:30:39Z"
+      message: ReplicaSet "whatsapp-connector-55c595d7b6" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 4
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: socialmedia:apps/Deployment:whatsapp-mcp/mcp-server
+      deployment.kubernetes.io/revision: "4"
+    creationTimestamp: "2026-05-21T08:17:41Z"
+    generation: 4
+    name: mcp-server
+    namespace: whatsapp-mcp
+    resourceVersion: "1918540"
+    uid: bc469507-1344-48d7-a89d-bb0f35f10834
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: mcp-server
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T16:32:04+02:00"
+        creationTimestamp: null
+        labels:
+          app: mcp-server
+      spec:
+        containers:
+        - env:
+          - name: NATS_URL
+            value: nats://whatsapp-mcp-nats.whatsapp-mcp.svc.cluster.local:4222
+          - name: DATABASE_URL
+            value: postgresql://$(DB_USER):$(DB_PASSWORD)@whatsapp-mcp-postgres.whatsapp-mcp.svc.cluster.local:5432/whatsappmcp
+          envFrom:
+          - secretRef:
+              name: whatsapp-mcp-secrets
+          image: harbor.e-dani.com/homelab/whatsappmcp-mcp-server:latest
+          imagePullPolicy: Always
+          name: mcp-server
+          ports:
+          - containerPort: 3000
+            name: http
+            protocol: TCP
+          resources:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 128Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T14:31:42Z"
+      lastUpdateTime: "2026-05-21T14:31:42Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-21T14:31:42Z"
+      lastUpdateTime: "2026-05-21T22:15:44Z"
+      message: ReplicaSet "mcp-server-74cc7d7d5d" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 4
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      argocd.argoproj.io/tracking-id: socialmedia:apps/Deployment:whatsapp-mcp/telegram-sync
+      deployment.kubernetes.io/revision: "8"
+    creationTimestamp: "2026-05-21T08:17:41Z"
+    generation: 9
+    name: telegram-sync
+    namespace: whatsapp-mcp
+    resourceVersion: "1918526"
+    uid: 46572d7d-839f-44df-b9fe-3db8019a4cfe
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        app: telegram-sync
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          kubectl.kubernetes.io/restartedAt: "2026-05-21T18:48:06+02:00"
+        creationTimestamp: null
+        labels:
+          app: telegram-sync
+      spec:
+        containers:
+        - env:
+          - name: NATS_URL
+            value: nats://whatsapp-mcp-nats.whatsapp-mcp.svc.cluster.local:4222
+          - name: DATABASE_URL
+            value: postgresql://$(DB_USER):$(DB_PASSWORD)@whatsapp-mcp-postgres.whatsapp-mcp.svc.cluster.local:5432/whatsappmcp
+          - name: MINIO_ENDPOINT
+            value: whatsapp-mcp-minio.whatsapp-mcp.svc.cluster.local:9000
+          - name: MINIO_ACCESS_KEY
+            value: $(MINIO_ROOT_USER)
+          - name: MINIO_SECRET_KEY
+            value: $(MINIO_ROOT_PASSWORD)
+          - name: MINIO_USE_SSL
+            value: "false"
+          envFrom:
+          - secretRef:
+              name: whatsapp-mcp-secrets
+          image: harbor.e-dani.com/homelab/whatsappmcp-telegram-sync:latest
+          imagePullPolicy: Always
+          name: telegram-sync
+          ports:
+          - containerPort: 3080
+            name: http
+            protocol: TCP
+          resources:
+            limits:
+              memory: 2Gi
+            requests:
+              cpu: 100m
+              memory: 512Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        enableServiceLinks: false
+        nodeSelector:
+          kubernetes.io/arch: amd64
+          topology: lan
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-05-21T19:55:51Z"
+      lastUpdateTime: "2026-05-21T19:55:51Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-05-21T14:32:01Z"
+      lastUpdateTime: "2026-05-21T20:30:19Z"
+      message: ReplicaSet "telegram-sync-86cc4f5b97" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 9
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+kind: List
+metadata:
+  resourceVersion: ""
