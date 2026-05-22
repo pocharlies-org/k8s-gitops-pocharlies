@@ -8,6 +8,7 @@ resources:
   - apps/adguard.yaml
   - apps/ai.yaml
   - apps/firecrawl.yaml
+  - apps/jarvis.yaml
   - apps/libreplay.yaml
   - apps/litellm.yaml
   - apps/n8n.yaml
