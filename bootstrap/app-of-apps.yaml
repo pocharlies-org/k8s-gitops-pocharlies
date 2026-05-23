@@ -8,13 +8,13 @@ metadata:
   name: root
   namespace: argocd
   annotations:
-    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-gitops-pocharlies
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-gitops-pocharlies
   labels:
     e-dani.com/tier: infra
 spec:
   project: default
   source:
-    repoURL: https://github.com/pocharlies/k8s-gitops-pocharlies
+    repoURL: https://github.com/pocharlies-org/k8s-gitops-pocharlies
     targetRevision: deploy/prod
     path: .
   destination:
