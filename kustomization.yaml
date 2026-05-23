@@ -25,6 +25,8 @@ resources:
   - apps/skirmbooks.yaml
   - apps/socialmedia.yaml
   - apps/teslamate.yaml
+  - apps/stt-mcp.yaml
+  - apps/teslamate-mcp.yaml
   - argocd/ingressroute.yaml
   - argocd/repositories.yaml
 patches:
