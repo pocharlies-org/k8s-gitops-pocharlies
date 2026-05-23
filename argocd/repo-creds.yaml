@@ -1,0 +1,47 @@
+# GitOps-managed credentials for PRIVATE repos consumed by ArgoCD.
+#
+# Unlike the public inventory in repositories.yaml (URL-only, generated), private
+# repos need a credential. Rather than registering them out-of-band (snowflake
+# Secrets that live outside Git), we materialize the ArgoCD repository Secret from
+# Vault via External Secrets — declarative, versioned, recoverable.
+#
+# k8s-shopify-framework-pocharlies is private and is consumed as a remote Kustomize
+# base by every shopify app overlay (git@...//base?ref=deploy/prod). ArgoCD's
+# repo-server needs this read-only deploy key to clone it.
+#
+# Prereqs (one-time):
+#   1. read-only deploy key added to the framework repo (GitHub > Deploy keys)
+#   2. its private key stored in Vault:
+#        vault kv put secret/argocd/k8s-shopify-framework sshPrivateKey=@<keyfile>
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: repo-k8s-shopify-framework-pocharlies
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: argocd
+    app.kubernetes.io/component: repo-credentials
+spec:
+  refreshInterval: "1h"
+  secretStoreRef:
+    name: vault-backend
+    kind: ClusterSecretStore
+  target:
+    name: repo-k8s-shopify-framework-pocharlies
+    creationPolicy: Owner
+    deletionPolicy: Retain
+    template:
+      metadata:
+        labels:
+          argocd.argoproj.io/secret-type: repository
+      type: Opaque
+      data:
+        type: git
+        name: k8s-shopify-framework-pocharlies
+        url: git@github.com:pocharlies/k8s-shopify-framework-pocharlies.git
+        sshPrivateKey: "{{ .sshPrivateKey }}"
+  data:
+    - secretKey: sshPrivateKey
+      remoteRef:
+        key: secret/argocd/k8s-shopify-framework
+        property: sshPrivateKey
