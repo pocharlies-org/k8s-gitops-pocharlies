@@ -269,25 +269,18 @@ jobs:
             -output pretty \
             "${manifests[@]}"
 
-      - name: Configure SSH for private kustomize bases
+      - name: Configure git auth for private kustomize bases
         env:
-          FRAMEWORK_DEPLOY_KEY: ${{ secrets.FRAMEWORK_DEPLOY_KEY }}
+          FRAMEWORK_REPO_TOKEN: ${{ secrets.FRAMEWORK_REPO_TOKEN }}
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          ssh-keyscan -t ed25519,rsa github.com >> ~/.ssh/known_hosts 2>/dev/null || true
-          if [ -n "${FRAMEWORK_DEPLOY_KEY:-}" ]; then
-            printf '%s\n' "$FRAMEWORK_DEPLOY_KEY" > ~/.ssh/fw_deploy_key
-            chmod 600 ~/.ssh/fw_deploy_key
-            {
-              echo "Host github.com"
-              echo "  IdentityFile ~/.ssh/fw_deploy_key"
-              echo "  IdentitiesOnly yes"
-            } >> ~/.ssh/config
-            chmod 600 ~/.ssh/config
-            echo "Private-base SSH key configured."
+          if [ -n "${FRAMEWORK_REPO_TOKEN:-}" ]; then
+            git config --global \
+              url."https://x-access-token:${FRAMEWORK_REPO_TOKEN}@github.com/".insteadOf \
+              "https://github.com/"
+            echo "HTTPS token configured for private kustomize bases."
           else
-            echo "No FRAMEWORK_DEPLOY_KEY secret; known_hosts only (repo has no private base)."
+            echo "No FRAMEWORK_REPO_TOKEN secret; assuming public bases."
           fi
 
       - name: Render kustomize overlays
