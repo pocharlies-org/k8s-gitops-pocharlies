@@ -27,7 +27,6 @@ resources:
   - apps/teslamate.yaml
   - argocd/ingressroute.yaml
   - argocd/repositories.yaml
-  - argocd/repo-creds.yaml
 patches:
   - target:
       group: argoproj.io
