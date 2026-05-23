@@ -67,3 +67,18 @@ patches:
           namespace: databases
           jsonPointers:
             - /spec
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+      name: auto-reply-worker
+    patch: |-
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: ""
+          kind: ConfigMap
+          name: auto-reply-config
+          namespace: whatsapp-mcp
+          jsonPointers:
+            - /data
