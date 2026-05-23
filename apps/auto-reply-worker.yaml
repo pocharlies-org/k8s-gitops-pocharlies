@@ -23,3 +23,15 @@ spec:
       prune: false
     syncOptions:
       - CreateNamespace=true
+      - RespectIgnoreDifferences=true
+  # The chart ships the auto-reply-config ConfigMap with an empty rule set as a
+  # bootstrap default, but the rules are managed at runtime via the dashboard
+  # (which patches the live ConfigMap). Ignore its data so Argo's self-heal does
+  # not revert rules edited from the control UI.
+  ignoreDifferences:
+    - group: ""
+      kind: ConfigMap
+      name: auto-reply-config
+      namespace: whatsapp-mcp
+      jsonPointers:
+        - /data
