@@ -20,6 +20,7 @@ resources:
   - apps/shopify-label.yaml
   - apps/shopify-picker.yaml
   - apps/shopify-sii.yaml
+  - apps/shopify-serial-numbers.yaml
   - apps/shopify-translations.yaml
   - apps/shopify-affiliate.yaml
   - apps/skirmbooks.yaml
