@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: shopify-sync
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-shopify-sync-pocharlies
+  labels:
+    e-dani.com/portfolio: skirmshop
+    e-dani.com/tier: cron
+    e-dani.com/activation: disabled
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-shopify-sync-pocharlies
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: skirmshop
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
