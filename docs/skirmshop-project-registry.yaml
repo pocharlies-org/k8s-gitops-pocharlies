@@ -1,0 +1,536 @@
+schemaVersion: skirmshop-project-registry/v1
+observedAt: "2026-05-25"
+source:
+  host: sauvage
+  path: /home/ubuntu/skirmshop
+  clusterContext: k3s homelab
+policy:
+  canonicalRuntime: k8s-gitops
+  activationOrder: dependencies-first
+  inactivePreparation: disabled-k8s-skeleton
+  cleanupRule: remove-legacy-only-after-validated-k8s-equivalent
+  defaultNamespace: skirmshop
+  edgeNode: sauvage
+memoryEvidence:
+  - date: "2026-05-25"
+    sourceId: rollout-2026-05-25T01-38-10-019e5c5a-6eac-7b63-8745-f52af1a68289:397928-473612:m3
+    note: User-approved migration plan for registry and disabled skeletons.
+  - date: "2026-05-24"
+    sourceId: rollout-2026-05-25T01-38-10-019e5c5a-6eac-7b63-8745-f52af1a68289:0-397928:m9
+    note: Audit found skirmshop app runtime mostly in k8s; remaining host pieces are crons and shared Docker infra.
+  - date: "2026-05-23"
+    sourceId: claude-hook-2026-05-23T01:02:48Z-FINDING-shopify-Remix-prod-images--shopify-sii-app--shop
+    note: Shopify Remix prod images may strip scripts; validate cron images before unsuspending.
+activationChecklist:
+  - Confirm source repo and branch to release.
+  - Build and push image to Harbor or GHCR.
+  - Add or verify Vault secret at the registry path.
+  - Run kustomize build and kubeconform in the skeleton repo.
+  - Add the ArgoCD Application from apps-disabled to the root kustomization only when ready.
+  - Keep replicas at 0 or CronJobs suspended until a manual validation job succeeds.
+  - Cut traffic or remove host cron only after k8s logs, metrics, and rollback are validated.
+directories:
+  - name: .claude
+    status: support-cache
+    path: /home/ubuntu/skirmshop/.claude
+    repo: null
+    entrypoint: null
+    secrets: none
+    database: none
+    ingress: none
+    cron: none
+    k8sTarget: none
+    priority: archive
+    activation: never-runtime
+  - name: .firecrawl
+    status: support-cache
+    path: /home/ubuntu/skirmshop/.firecrawl
+    repo: null
+    entrypoint: null
+    secrets: none
+    database: none
+    ingress: none
+    cron: none
+    k8sTarget: none
+    priority: archive
+    activation: never-runtime
+  - name: .planning
+    status: support-docs
+    path: /home/ubuntu/skirmshop/.planning
+    repo: null
+    entrypoint: null
+    secrets: none
+    database: none
+    ingress: none
+    cron: none
+    k8sTarget: none
+    priority: archive
+    activation: never-runtime
+  - name: .pytest_cache
+    status: cache
+    path: /home/ubuntu/skirmshop/.pytest_cache
+    repo: null
+    entrypoint: null
+    secrets: none
+    database: none
+    ingress: none
+    cron: none
+    k8sTarget: none
+    priority: archive
+    activation: never-runtime
+  - name: .secrets
+    status: legacy-secret-files
+    path: /home/ubuntu/skirmshop/.secrets
+    repo: null
+    entrypoint: null
+    secrets: migrate-to-vault-per-app
+    database: none
+    ingress: none
+    cron: none
+    k8sTarget: vault/external-secrets
+    priority: p1
+    activation: audit-before-delete
+  - name: _archive
+    status: archive
+    path: /home/ubuntu/skirmshop/_archive
+    repo: null
+    entrypoint: null
+    secrets: none
+    database: none
+    ingress: none
+    cron: none
+    k8sTarget: none
+    priority: archive
+    activation: never-runtime
+  - name: _migration-audit
+    status: audit-artifacts
+    path: /home/ubuntu/skirmshop/_migration-audit
+    repo: null
+    entrypoint: reports
+    secrets: none
+    database: none
+    ingress: none
+    cron: none
+    k8sTarget: docs
+    priority: p3
+    activation: keep-readonly
+  - name: _ops
+    status: ops-scripts
+    path: /home/ubuntu/skirmshop/_ops
+    repo: null
+    entrypoint: scripts
+    secrets: audit
+    database: none
+    ingress: none
+    cron: none
+    k8sTarget: docs-or-ci
+    priority: p3
+    activation: classify-script-by-script
+  - name: archives
+    status: archive
+    path: /home/ubuntu/skirmshop/archives
+    repo: null
+    entrypoint: null
+    secrets: none
+    database: none
+    ingress: none
+    cron: none
+    k8sTarget: none
+    priority: archive
+    activation: never-runtime
+  - name: backups
+    status: backup-artifacts
+    path: /home/ubuntu/skirmshop/backups
+    repo: null
+    entrypoint: dumps
+    secrets: may-contain-sensitive-dumps
+    database: backup-dumps
+    ingress: none
+    cron: none
+    k8sTarget: velero-or-restic-policy
+    priority: p2
+    activation: retain-until-backup-policy-reviewed
+  - name: bin
+    status: ops-scripts
+    path: /home/ubuntu/skirmshop/bin
+    repo: null
+    entrypoint: shell-scripts
+    secrets: may-touch-synapse-secrets
+    database: none
+    ingress: none
+    cron: none
+    k8sTarget: docs-or-ci
+    priority: p3
+    activation: classify-script-by-script
+  - name: docs
+    status: docs
+    path: /home/ubuntu/skirmshop/docs
+    repo: null
+    entrypoint: markdown
+    secrets: none
+    database: none
+    ingress: none
+    cron: none
+    k8sTarget: docs
+    priority: p3
+    activation: keep-readonly
+  - name: k8s-shopify-sii-pocharlies
+    status: local-gitops-copy
+    path: /home/ubuntu/skirmshop/k8s-shopify-sii-pocharlies
+    repo: https://github.com/pocharlies-org/k8s-shopify-sii-pocharlies.git
+    entrypoint: k8s manifests
+    secrets: existing-k8s
+    database: postgres-shared/sii-and-skirmshop
+    ingress: skirmshop.e-dani.com/sii
+    cron: k8s CronJobs active
+    k8sTarget: k8s-shopify-sii-pocharlies
+    priority: active
+    activation: already-active
+  - name: node_modules
+    status: dependency-cache
+    path: /home/ubuntu/skirmshop/node_modules
+    repo: null
+    entrypoint: null
+    secrets: none
+    database: none
+    ingress: none
+    cron: none
+    k8sTarget: none
+    priority: archive
+    activation: never-runtime
+  - name: pocharlies-webgui
+    status: inactive-half-project
+    path: /home/ubuntu/skirmshop/pocharlies-webgui
+    repo: git@github.com:pocharlies/pocharlies-webgui.git
+    entrypoint: ghcr.io/open-webui/open-webui:main
+    secrets: secret/skirmshop/pocharlies-webgui
+    database: postgres-shared/pocharlies
+    ingress: legacy webui.e-dani.com -> host port 3000 was present, not active from this compose
+    cron: none
+    k8sTarget: k8s-pocharlies-webgui-pocharlies
+    priority: p2
+    activation: disabled-skeleton-created
+  - name: scripts
+    status: ad-hoc-scripts
+    path: /home/ubuntu/skirmshop/scripts
+    repo: null
+    entrypoint: mixed scripts
+    secrets: audit-before-run
+    database: mixed
+    ingress: none
+    cron: none observed
+    k8sTarget: classify-per-script
+    priority: p3
+    activation: classify-script-by-script
+  - name: "search console"
+    status: data-export
+    path: /home/ubuntu/skirmshop/search console
+    repo: null
+    entrypoint: csv-data
+    secrets: none
+    database: none
+    ingress: none
+    cron: none
+    k8sTarget: none
+    priority: archive
+    activation: never-runtime
+  - name: shared-infra
+    status: active-host-infra
+    path: /home/ubuntu/skirmshop/shared-infra
+    repo: https://github.com/pocharlies/shared-infra.git
+    entrypoint: docker compose
+    secrets: local env plus vault targets
+    database: shared-postgres host still running
+    ingress: none
+    cron: ovh prebackup depends on shared-postgres
+    k8sTarget: k8s-infra-pocharlies/databases/postgres-shared
+    priority: p0
+    activation: audit-and-dependency-cutover
+  - name: shopify-affiliate-api
+    status: active-k8s-with-host-crons
+    path: /home/ubuntu/skirmshop/shopify-affiliate-api
+    repo: https://github.com/pocharlies-org/skirmshop-affiliate-api.git
+    entrypoint: npm run docker-start
+    secrets: secret/skirmshop/affiliate
+    database: postgres-shared/affiliate
+    ingress: affiliate.skirmshop.es and go.skirmshop.es in k8s edge
+    cron: host gdpr-prune and sync-discounts remain; k8s CronJobs are suspended
+    k8sTarget: k8s-shopify-affiliate-pocharlies
+    priority: p0
+    activation: validate-cron-image-then-unsuspend
+  - name: shopify-app-framework
+    status: library
+    path: /home/ubuntu/skirmshop/shopify-app-framework
+    repo: https://github.com/pocharlies-org/shopify-app-framework.git
+    entrypoint: package library
+    secrets: none
+    database: none
+    ingress: none
+    cron: none
+    k8sTarget: k8s-shopify-framework-pocharlies
+    priority: library
+    activation: never-runtime
+  - name: shopify-back-in-stock
+    status: inactive-half-project
+    path: /home/ubuntu/skirmshop/shopify-back-in-stock
+    repo: git@github.com:pocharlies-org/shopify-back-in-stock.git
+    entrypoint: npm run docker-start
+    secrets: secret/skirmshop/back-in-stock
+    database: postgres-shared/back_in_stock
+    ingress: legacy sauvage.e-dani.com/apps/back-in-stock -> host port 3470 is not listening
+    cron: none
+    k8sTarget: k8s-shopify-back-in-stock-pocharlies
+    priority: p1
+    activation: disabled-skeleton-created
+  - name: shopify-bundle-app
+    status: active-k8s
+    path: /home/ubuntu/skirmshop/shopify-bundle-app
+    repo: https://github.com/pocharlies-org/shopify-bundle-app.git
+    entrypoint: npm run docker-start
+    secrets: bundles-secrets
+    database: postgres-shared/bundles
+    ingress: skirmshop.e-dani.com/bundles
+    cron: none
+    k8sTarget: k8s-shopify-bundles-pocharlies
+    priority: active
+    activation: already-active
+  - name: shopify-collections-tree-app
+    status: active-k8s
+    path: /home/ubuntu/skirmshop/shopify-collections-tree-app
+    repo: https://github.com/pocharlies-org/shopify-collections-tree-app.git
+    entrypoint: npm run docker-start
+    secrets: collections-tree-secrets
+    database: postgres-shared/collections_tree
+    ingress: skirmshop.e-dani.com/collections-tree
+    cron: none
+    k8sTarget: k8s-shopify-collections-tree-pocharlies
+    priority: active
+    activation: already-active
+  - name: shopify-product-ai-app
+    status: inactive-half-project
+    path: /home/ubuntu/skirmshop/shopify-product-ai-app
+    repo: null
+    entrypoint: npm run docker-start
+    secrets: secret/skirmshop/product-ai
+    database: postgres-shared/product_ai
+    ingress: legacy skirmshop.e-dani.com/product-ai -> host port 3459 is not listening
+    cron: none
+    k8sTarget: k8s-shopify-product-ai-pocharlies
+    priority: p1
+    activation: disabled-skeleton-created
+  - name: shopify-sii-app
+    status: active-k8s
+    path: /home/ubuntu/skirmshop/shopify-sii-app
+    repo: https://github.com/pocharlies-org/shopify-sii-app.git
+    entrypoint: npm run docker-start
+    secrets: sii-secrets
+    database: postgres-shared/sii-and-skirmshop
+    ingress: skirmshop.e-dani.com/sii and sii.e-dani.com/sii
+    cron: k8s CronJobs active
+    k8sTarget: k8s-shopify-sii-pocharlies
+    priority: active
+    activation: already-active
+  - name: shopify-sync-app
+    status: active-host-cron
+    path: /home/ubuntu/skirmshop/shopify-sync-app
+    repo: https://github.com/pocharlies-org/shopify-sync-app.git
+    entrypoint: npx tsx scripts/sync-warehouse-locations.ts sync
+    secrets: secret/skirmshop/shopify-sync
+    database: state-file .warehouse-sync-state.json
+    ingress: none
+    cron: host every 4h at minute 17
+    k8sTarget: k8s-shopify-sync-pocharlies
+    priority: p0
+    activation: disabled-cronjob-skeleton-created
+  - name: shopify-translation-app
+    status: active-k8s
+    path: /home/ubuntu/skirmshop/shopify-translation-app
+    repo: https://github.com/pocharlies-org/shopify-translation-app.git
+    entrypoint: npm run docker-start
+    secrets: translations-secrets
+    database: postgres-shared/translations
+    ingress: skirmshop.e-dani.com/translations
+    cron: none
+    k8sTarget: k8s-shopify-translations-pocharlies
+    priority: active
+    activation: already-active
+  - name: skirmshop-brain
+    status: legacy-v1-archive
+    path: /home/ubuntu/skirmshop/skirmshop-brain
+    repo: git@github.com:pocharlies-org/skirmshop-brain.git
+    entrypoint: python app.py
+    secrets: historical
+    database: historical
+    ingress: legacy routes retired
+    cron: none
+    k8sTarget: none
+    priority: archive
+    activation: never-runtime
+  - name: skirmshop-brain-k8s
+    status: local-gitops-copy
+    path: /home/ubuntu/skirmshop/skirmshop-brain-k8s
+    repo: https://github.com/pocharlies/skirmshop-brain-k8s.git
+    entrypoint: k8s manifests
+    secrets: skirmshop-brain-secrets
+    database: brain graph/vector stores
+    ingress: brain.e-dani.com
+    cron: brain audit pending migration
+    k8sTarget: skirmshop-brain-k8s
+    priority: active
+    activation: already-active
+  - name: skirmshop-brain-v2
+    status: active-k8s-source-plus-host-cron
+    path: /home/ubuntu/skirmshop/skirmshop-brain-v2
+    repo: https://github.com/pocharlies-org/skirmshop-brain-v2.git
+    entrypoint: uvicorn src.app:app
+    secrets: skirmshop-brain-secrets
+    database: brain prod/stg services in k8s
+    ingress: brain.e-dani.com
+    cron: host brain-audit daily 04:30
+    k8sTarget: skirmshop-brain-k8s
+    priority: p0
+    activation: move-audit-cron-to-k8s-before-host-cleanup
+  - name: skirmshop-chatbot
+    status: active-k8s-with-monitoring-crons
+    path: /home/ubuntu/skirmshop/skirmshop-chatbot
+    repo: https://github.com/pocharlies/skirmshop-chatbot.git
+    entrypoint: node dist/src/main.js
+    secrets: chatbot-secrets
+    database: chatbot data source needs confirmation after k8s cutover
+    ingress: skirmshop.e-dani.com/chatbot
+    cron: host chatbot_sync and chatbot_daily_report remain
+    k8sTarget: k8s-shopify-chatbot-pocharlies
+    priority: p1
+    activation: active-runtime; defer-cron-lift-until-source-of-truth-confirmed
+  - name: skirmshop-chatbot.env-backups
+    status: env-backups
+    path: /home/ubuntu/skirmshop/skirmshop-chatbot.env-backups
+    repo: null
+    entrypoint: backups
+    secrets: sensitive-env-backups
+    database: none
+    ingress: none
+    cron: none
+    k8sTarget: vault-audit
+    priority: p2
+    activation: audit-before-delete
+  - name: skirmshop-collections
+    status: empty-or-archive
+    path: /home/ubuntu/skirmshop/skirmshop-collections
+    repo: null
+    entrypoint: none-observed
+    secrets: none
+    database: none
+    ingress: none
+    cron: none
+    k8sTarget: none
+    priority: archive
+    activation: keep-as-memory-only-if-still-empty
+  - name: skirmshop-competitor-crawler
+    status: inactive-half-project
+    path: /home/ubuntu/skirmshop/skirmshop-competitor-crawler
+    repo: null
+    entrypoint: python crawler container
+    secrets: secret/skirmshop/competitor-crawler
+    database: pushes-to-skirmshop-brain
+    ingress: none
+    cron: none
+    k8sTarget: k8s-skirmshop-competitor-crawler-pocharlies
+    priority: p2
+    activation: disabled-skeleton-created
+  - name: skirmshop-firecrawl
+    status: active-k8s
+    path: /home/ubuntu/skirmshop/skirmshop-firecrawl
+    repo: https://github.com/pocharlies-org/skirmshop-firecrawl.git
+    entrypoint: firecrawl api and playwright
+    secrets: firecrawl-secrets
+    database: postgres-shared/firecrawl
+    ingress: internal service
+    cron: none
+    k8sTarget: k8s-firecrawl-pocharlies
+    priority: active
+    activation: already-active
+  - name: skirmshop-gestoria
+    status: active-k8s-nested-app
+    path: /home/ubuntu/skirmshop/skirmshop-gestoria
+    repo: nested skirmbooks-ui
+    entrypoint: skirmbooks-ui
+    secrets: skirmbooks secrets
+    database: postgres-shared/skirmbooks
+    ingress: skirmbooks.e-dani.com
+    cron: none
+    k8sTarget: k8s-skirmbooks-pocharlies
+    priority: active
+    activation: already-active
+  - name: skirmshop-labels
+    status: active-k8s
+    path: /home/ubuntu/skirmshop/skirmshop-labels
+    repo: https://github.com/pocharlies-org/skirmshop-labels.git
+    entrypoint: labels microservices
+    secrets: labels and rabbitmq secrets
+    database: postgres-shared/labels plus nats/redis
+    ingress: skirmshop.e-dani.com/labels*
+    cron: none
+    k8sTarget: k8s-shopify-label-pocharlies
+    priority: active
+    activation: already-active
+  - name: skirmshop-monitoring
+    status: active-host-crons-and-legacy-monitoring
+    path: /home/ubuntu/skirmshop/skirmshop-monitoring
+    repo: https://github.com/pocharlies-org/skirmshop-monitoring.git
+    entrypoint: cron-wrapper and monitoring scripts
+    secrets: monitoring env
+    database: monitoring postgres
+    ingress: none
+    cron: backup, chatbot reports, gmail metrics, wrappers
+    k8sTarget: split-between-observability-brain-and-chatbot
+    priority: p0
+    activation: migrate-crons-individually
+  - name: skirmshop-picqer
+    status: active-k8s
+    path: /home/ubuntu/skirmshop/skirmshop-picqer
+    repo: https://github.com/pocharlies/skirmshop-picqer.git
+    entrypoint: picker app
+    secrets: picker-secrets
+    database: postgres-shared/skirmshop
+    ingress: skirmshop.e-dani.com/picker behind Authelia
+    cron: picker CronJobs active in k8s
+    k8sTarget: k8s-shopify-picker-pocharlies
+    priority: active
+    activation: already-active
+  - name: skirmshop-serial-numbers
+    status: active-k8s
+    path: /home/ubuntu/skirmshop/skirmshop-serial-numbers
+    repo: https://github.com/pocharlies-org/skirmshop-serial-numbers.git
+    entrypoint: npm run docker-start
+    secrets: serial-numbers-secrets
+    database: postgres-shared/skirmshop
+    ingress: skirmshop.e-dani.com/sn
+    cron: none
+    k8sTarget: k8s-shopify-serial-numbers-pocharlies
+    priority: active
+    activation: already-active
+  - name: skirmshop-theme
+    status: shopify-theme
+    path: /home/ubuntu/skirmshop/skirmshop-theme
+    repo: https://github.com/pocharlies/skirmshopes-theme
+    entrypoint: Shopify theme deploy
+    secrets: Shopify theme token
+    database: none
+    ingress: Shopify hosted
+    cron: none
+    k8sTarget: ci-only
+    priority: p3
+    activation: no-k8s-runtime
+  - name: skirmshopshopifyapp
+    status: inactive-half-project
+    path: /home/ubuntu/skirmshop/skirmshopshopifyapp
+    repo: https://github.com/pocharlies-org/skirmshopshopifyapp.git
+    entrypoint: npm run docker-start
+    secrets: secret/skirmshop/legacy-shopify-app
+    database: postgres-shared/skirmshop
+    ingress: legacy skirmshop.e-dani.com root -> host port 3456 is not listening
+    cron: none
+    k8sTarget: k8s-skirmshopshopifyapp-pocharlies
+    priority: p2
+    activation: disabled-skeleton-created
