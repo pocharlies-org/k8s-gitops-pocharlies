@@ -1,0 +1,44 @@
+# Adopción a GitOps del edge público (release Helm `traefik-edge` que hasta
+# ahora se gestionaba a mano con `helm upgrade`). Chart upstream + values del
+# repo k8s-infra (multi-source, patrón loki/vm).
+#
+# MANUAL-SYNC A PROPÓSITO (sin bloque syncPolicy.automated): es el ingress
+# público => riesgo alto. Revisar el diff antes del primer sync (botón DIFF en
+# la UI o `argocd app diff traefik-edge`). El tracking de ArgoCD es por
+# anotación argocd.argoproj.io/instance, así que NO toca el label
+# app.kubernetes.io/instance de Helm => el selector (inmutable) del DaemonSet
+# queda intacto y el pod NO se recrea. Churn esperado: mínimo.
+#
+# TRAS ADOPTAR: gestionar SOLO por ArgoCD (no más `helm upgrade` manual; el
+# values.yaml de k8s-infra/networking/traefik-edge/ es la fuente de verdad).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: traefik-edge
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-infra-pocharlies
+  labels:
+    e-dani.com/tier: infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  sources:
+    - repoURL: https://traefik.github.io/charts
+      chart: traefik
+      targetRevision: 40.2.0
+      helm:
+        releaseName: traefik-edge
+        valueFiles:
+          - $values/networking/traefik-edge/values.yaml
+    - repoURL: https://github.com/pocharlies/k8s-infra-pocharlies
+      targetRevision: deploy/prod
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: traefik-edge
+  syncPolicy:
+    # Sin 'automated': sync manual tras revisar el diff.
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false

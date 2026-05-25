@@ -5,6 +5,7 @@ resources:
   - legacy/postgres-shared.yaml
   - infra/infra.yaml
   - infra/observability.yaml
+  - infra/traefik-edge.yaml
   - apps/adguard.yaml
   - apps/ai.yaml
   - apps/firecrawl.yaml
@@ -26,6 +27,7 @@ resources:
   - apps/skirmbooks.yaml
   - apps/socialmedia.yaml
   - apps/teslamate.yaml
+  - apps/cv.yaml
   - argocd/ingressroute.yaml
   - argocd/repositories.yaml
 patches:
