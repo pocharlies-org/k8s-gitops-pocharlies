@@ -8,7 +8,7 @@ metadata:
   labels:
     e-dani.com/portfolio: skirmshop
     e-dani.com/tier: app
-    e-dani.com/activation: disabled
+  finalizers: [resources-finalizer.argocd.argoproj.io]
 spec:
   project: default
   source:
@@ -19,6 +19,9 @@ spec:
     server: https://kubernetes.default.svc
     namespace: skirmshop
   syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
