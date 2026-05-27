@@ -1,5 +1,5 @@
 schemaVersion: skirmshop-project-registry/v1
-observedAt: "2026-05-25"
+observedAt: "2026-05-27"
 source:
   host: sauvage
   path: /home/ubuntu/skirmshop
@@ -29,6 +29,50 @@ activationChecklist:
   - Add the ArgoCD Application from apps-disabled to the root kustomization only when ready.
   - Keep replicas at 0 or CronJobs suspended until a manual validation job succeeds.
   - Cut traffic or remove host cron only after k8s logs, metrics, and rollback are validated.
+implementationStatus:
+  updatedAt: "2026-05-27"
+  completed:
+    - Six disabled skeleton repos were published to GitHub and CI was validated.
+    - shopify-sync-app now runs as k8s CronJob shopify-sync-warehouse; host warehouse_sync cron removed after manual Job validation.
+    - skirmshop-brain Gmail ingestion and cleanup metrics now run as k8s CronJobs; host gmail crons removed after manual Job validation.
+    - skirmshop-chatbot monitoring sync/report now run as k8s CronJobs against the live chatbot-data PVC; host chatbot crons removed after full sync and report validation.
+    - shopify-bundles deploy/prod was synced to the simple-bundles image and the duplicate Docker container was stopped after public API validation.
+  held:
+    - skirmshop-brain-audit remains suspended in k8s and active on host; manual k8s Job generated a report but exited 2 because audit severity is critical.
+    - shared-postgres, shared-rabbitmq, and pocharlies-redis remain host infrastructure until all remaining host consumers are cut over.
+hostInfraAudit:
+  observedAt: "2026-05-27"
+  containers:
+    - name: shared-postgres
+      status: active-host-infra
+      listen: 127.0.0.1:5432
+      consumers:
+        - skirmshop-monitoring PG_DSN/postgres-exporter
+        - legacy or inactive app envs: shopify-affiliate-api, shopify-product-ai-app, pocharlies-webgui, shopify-back-in-stock, skirmshop-serial-numbers
+        - compose-era firecrawl and labels references; active k8s equivalents should be checked before shutdown
+      target: CNPG postgres-shared or per-app databases in k8s
+      cutover: do-not-stop-until-no-host-consumers
+    - name: shared-rabbitmq
+      status: active-host-infra
+      listen: 127.0.0.1:5672 and 100.109.183.9:5672
+      consumers:
+        - legacy or inactive app envs: shopify-affiliate-api, shopify-product-ai-app, shopify-back-in-stock, shopify-sii-app, skirmshop-picqer
+        - monitoring reaches shared-infra network for RabbitMQ exporter paths
+      target: k8s RabbitMQ per app or shared-rabbitmq service
+      cutover: do-not-stop-until-no-host-consumers
+    - name: pocharlies-redis
+      status: active-host-infra
+      listen: 127.0.0.1:6381
+      consumers:
+        - legacy affiliate rate-limit/product-cache env
+        - legacy SII VIES cache env
+      target: k8s Redis per app where still required
+      cutover: do-not-stop-until-consumers-removed
+    - name: bundles-app
+      status: stopped-duplicate
+      stoppedAt: "2026-05-27"
+      backup: /home/ubuntu/backups/k8s-legacy-decom/20260527T035240Z-bundles-app-restop
+      k8sValidation: skirmshop.e-dani.com/bundles/api/storefront/simple/product returned HTTP 200 from k8s after deploy/prod sync
 directories:
   - name: .claude
     status: support-cache
@@ -293,7 +337,7 @@ directories:
     cron: none
     k8sTarget: k8s-shopify-bundles-pocharlies
     priority: active
-    activation: already-active
+    activation: already-active; duplicate Docker host container stopped 2026-05-27 after k8s API validation
   - name: shopify-collections-tree-app
     status: active-k8s
     path: /home/ubuntu/skirmshop/shopify-collections-tree-app
@@ -331,17 +375,17 @@ directories:
     priority: active
     activation: already-active
   - name: shopify-sync-app
-    status: active-host-cron
+    status: active-k8s-cron
     path: /home/ubuntu/skirmshop/shopify-sync-app
     repo: https://github.com/pocharlies-org/shopify-sync-app.git
     entrypoint: npx tsx scripts/sync-warehouse-locations.ts sync
     secrets: secret/skirmshop/shopify-sync
     database: state-file .warehouse-sync-state.json
     ingress: none
-    cron: host every 4h at minute 17
+    cron: k8s CronJob shopify-sync-warehouse active, Europe/Madrid 17 */4 * * *
     k8sTarget: k8s-shopify-sync-pocharlies
     priority: p0
-    activation: disabled-cronjob-skeleton-created
+    activation: activated-2026-05-27; host warehouse_sync cron removed after manual Job validation
   - name: shopify-translation-app
     status: active-k8s
     path: /home/ubuntu/skirmshop/shopify-translation-app
@@ -374,34 +418,34 @@ directories:
     secrets: skirmshop-brain-secrets
     database: brain graph/vector stores
     ingress: brain.e-dani.com
-    cron: brain audit pending migration
+    cron: gmail ingestion and cleanup metrics active in k8s; audit CronJob remains suspended
     k8sTarget: skirmshop-brain-k8s
     priority: active
     activation: already-active
   - name: skirmshop-brain-v2
-    status: active-k8s-source-plus-host-cron
+    status: active-k8s-source-plus-host-audit-cron
     path: /home/ubuntu/skirmshop/skirmshop-brain-v2
     repo: https://github.com/pocharlies-org/skirmshop-brain-v2.git
     entrypoint: uvicorn src.app:app
     secrets: skirmshop-brain-secrets
     database: brain prod/stg services in k8s
     ingress: brain.e-dani.com
-    cron: host brain-audit daily 04:30
+    cron: host brain-audit daily 04:30 remains; k8s audit manual Job exited 2 with critical audit report; gmail host crons removed
     k8sTarget: skirmshop-brain-k8s
     priority: p0
-    activation: move-audit-cron-to-k8s-before-host-cleanup
+    activation: keep-audit-host-until-critical-report-exit-policy-is-decided
   - name: skirmshop-chatbot
-    status: active-k8s-with-monitoring-crons
+    status: active-k8s-with-k8s-monitoring-crons
     path: /home/ubuntu/skirmshop/skirmshop-chatbot
     repo: https://github.com/pocharlies/skirmshop-chatbot.git
     entrypoint: node dist/src/main.js
     secrets: chatbot-secrets
-    database: chatbot data source needs confirmation after k8s cutover
+    database: live SQLite on k8s PVC chatbot-data
     ingress: skirmshop.e-dani.com/chatbot
-    cron: host chatbot_sync and chatbot_daily_report remain
+    cron: k8s CronJobs chatbot-sync and chatbot-daily-report active; host crons removed
     k8sTarget: k8s-shopify-chatbot-pocharlies
     priority: p1
-    activation: active-runtime; defer-cron-lift-until-source-of-truth-confirmed
+    activation: active-runtime; monitoring crons migrated 2026-05-27 after full sync/report validation
   - name: skirmshop-chatbot.env-backups
     status: env-backups
     path: /home/ubuntu/skirmshop/skirmshop-chatbot.env-backups
@@ -475,17 +519,17 @@ directories:
     priority: active
     activation: already-active
   - name: skirmshop-monitoring
-    status: active-host-crons-and-legacy-monitoring
+    status: active-host-ops-and-legacy-monitoring
     path: /home/ubuntu/skirmshop/skirmshop-monitoring
     repo: https://github.com/pocharlies-org/skirmshop-monitoring.git
     entrypoint: cron-wrapper and monitoring scripts
     secrets: monitoring env
     database: monitoring postgres
     ingress: none
-    cron: backup, chatbot reports, gmail metrics, wrappers
+    cron: host ops remain (backup_sauvage, dr_verify, sauvage-container-watcher); chatbot/gmail/shopify-sync crons removed
     k8sTarget: split-between-observability-brain-and-chatbot
     priority: p0
-    activation: migrate-crons-individually
+    activation: keep-host-ops; app crons migrated individually
   - name: skirmshop-picqer
     status: active-k8s
     path: /home/ubuntu/skirmshop/skirmshop-picqer
