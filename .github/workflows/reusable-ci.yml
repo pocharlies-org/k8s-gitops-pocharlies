@@ -65,7 +65,6 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
   app:
@@ -367,150 +366,12 @@ jobs:
           OPENCLAW_TELEGRAM_ACCOUNT: ${{ secrets.OPENCLAW_TELEGRAM_ACCOUNT }}
           OPENCLAW_TELEGRAM_TARGET: ${{ secrets.OPENCLAW_TELEGRAM_TARGET }}
           OPENCLAW_TELEGRAM_THREAD_ID: ${{ secrets.OPENCLAW_TELEGRAM_THREAD_ID }}
-          GITHUB_TOKEN: ${{ github.token }}
         with:
           script: |
             const { execFileSync } = require('node:child_process');
             const fs = require('node:fs');
             const os = require('node:os');
             const path = require('node:path');
-
-            const FAILURE_CONCLUSIONS = new Set(['failure', 'cancelled', 'timed_out', 'action_required']);
-
-            function failureExcerpt(text, maxLines = 220, maxChars = 16000) {
-              const lines = String(text || '').split(/\r?\n/).filter((line) => line.trim());
-              if (!lines.length) return '';
-              const markerPatterns = [
-                /##\[error\]/i,
-                /\bERR_[A-Z0-9_]+\b/,
-                /\bELIFECYCLE\b/,
-                /prettier\/prettier/i,
-                /\u2716\s+\d+\s+problems/i,
-                /\berror\s{2,}/i,
-                /failed/i,
-                /exit (status|code) \d+/i,
-              ];
-              const cleanupPatterns = [
-                /Post job cleanup/i,
-                /Cleaning up orphan processes/i,
-                /actions are deprecated/i,
-              ];
-              let markerIndex = -1;
-              for (let index = lines.length - 1; index >= 0; index -= 1) {
-                const line = lines[index];
-                if (cleanupPatterns.some((pattern) => pattern.test(line))) continue;
-                if (markerPatterns.some((pattern) => pattern.test(line))) {
-                  markerIndex = index;
-                  break;
-                }
-              }
-              if (markerIndex < 0) markerIndex = lines.length - 1;
-              const before = Math.floor(maxLines * 0.75);
-              const after = maxLines - before;
-              let selected = lines.slice(
-                Math.max(0, markerIndex - before),
-                Math.min(lines.length, markerIndex + after),
-              );
-              let out = selected.join('\n');
-              if (out.length > maxChars) {
-                selected = lines
-                  .filter(
-                    (line) =>
-                      !cleanupPatterns.some((pattern) => pattern.test(line)) &&
-                      markerPatterns.some((pattern) => pattern.test(line)),
-                  )
-                  .slice(-maxLines);
-                out = selected.join('\n');
-              }
-              if (out.length > maxChars) {
-                out = out.slice(-maxChars);
-                const firstNewline = out.indexOf('\n');
-                if (firstNewline > 0) out = out.slice(firstNewline + 1);
-              }
-              return out;
-            }
-
-            function redact(text) {
-              let out = String(text || '');
-              for (const value of [
-                process.env.GITHUB_TOKEN,
-                process.env.OPENCLAW_GITHUB_NOTIFY_TOKEN,
-                process.env.OPENCLAW_TELEGRAM_BOT_TOKEN,
-                process.env.OPENCLAW_GATEWAY_TOKEN,
-              ]) {
-                if (value && value.length > 6) out = out.split(value).join('***');
-              }
-              return out
-                .replace(/gh[pousr]_[A-Za-z0-9_]+/g, '***')
-                .replace(/github_pat_[A-Za-z0-9_]+/g, '***');
-            }
-
-            async function fetchJobLogTail(job) {
-              if (!process.env.GITHUB_TOKEN || !job.id) return '';
-              const url = `https://api.github.com/repos/${context.repo.owner}/${context.repo.repo}/actions/jobs/${job.id}/logs`;
-              try {
-                const response = await fetch(url, {
-                  headers: {
-                    authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-                    accept: 'application/vnd.github+json',
-                    'x-github-api-version': '2022-11-28',
-                  },
-                });
-                if (!response.ok) {
-                  core.warning(`Failed to fetch logs for job ${job.id}: HTTP ${response.status}`);
-                  return '';
-                }
-                return failureExcerpt(redact(await response.text()));
-              } catch (error) {
-                core.warning(`Failed to fetch logs for job ${job.id}: ${error.message}`);
-                return '';
-              }
-            }
-
-            async function collectFailedJobDetails() {
-              const jobs = [];
-              try {
-                for (let page = 1; page <= 5; page += 1) {
-                  const response = await github.rest.actions.listJobsForWorkflowRun({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    run_id: context.runId,
-                    per_page: 100,
-                    page,
-                  });
-                  jobs.push(...response.data.jobs);
-                  if (response.data.jobs.length < 100) break;
-                }
-              } catch (error) {
-                core.warning(`Failed to list workflow jobs for run ${context.runId}: ${error.message}`);
-                return [];
-              }
-              const failedJobs = jobs.filter((job) => FAILURE_CONCLUSIONS.has(String(job.conclusion || '').toLowerCase()));
-              const details = [];
-              for (const job of failedJobs) {
-                const steps = Array.isArray(job.steps) ? job.steps : [];
-                const failedSteps = steps.filter((step) => FAILURE_CONCLUSIONS.has(String(step.conclusion || '').toLowerCase()));
-                details.push({
-                  id: job.id,
-                  name: job.name,
-                  status: job.status,
-                  conclusion: job.conclusion,
-                  url: job.html_url,
-                  startedAt: job.started_at,
-                  completedAt: job.completed_at,
-                  failedSteps: failedSteps.map((step) => ({
-                    name: step.name,
-                    number: step.number,
-                    status: step.status,
-                    conclusion: step.conclusion,
-                    startedAt: step.started_at,
-                    completedAt: step.completed_at,
-                  })),
-                  logTail: await fetchJobLogTail(job),
-                });
-              }
-              return details;
-            }
 
             const failedJobs = {
               app: '${{ needs.app.result }}',
@@ -520,11 +381,6 @@ jobs:
             const failed = Object.entries(failedJobs)
               .filter(([, result]) => ['failure', 'cancelled'].includes(result))
               .map(([name, result]) => `${name}:${result}`);
-            const jobDetails = await collectFailedJobDetails();
-            const firstFailedStep = jobDetails
-              .flatMap((job) => job.failedSteps || [])
-              .map((step) => step.name)
-              .find(Boolean);
             const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
             const text = [
               `GitHub Actions CI failed`,
@@ -532,24 +388,20 @@ jobs:
               `ref: ${context.ref}`,
               `sha: ${context.sha.slice(0, 12)}`,
               `jobs: ${failed.join(', ')}`,
-              firstFailedStep ? `failed step: ${firstFailedStep}` : null,
               `run: ${runUrl}`,
-            ].filter(Boolean).join('\n');
+            ].join('\n');
             const payload = {
               source: 'github-actions',
-              destination: { group: 'synapse', topic: 'github' },
+              destination: { group: 'synaspte', topic: 'github' },
               event: 'ci_failed',
               repo: `${context.repo.owner}/${context.repo.repo}`,
               workflow: context.workflow,
               runId: context.runId,
               runNumber: context.runNumber,
-              runAttempt: context.runAttempt,
-              eventName: context.eventName,
               ref: context.ref,
               sha: context.sha,
               actor: context.actor,
               failedJobs: failed,
-              jobs: jobDetails,
               runUrl,
               text,
             };
@@ -568,7 +420,6 @@ jobs:
               });
               if (!response.ok) {
                 core.warning(`OpenClaw webhook returned HTTP ${response.status}`);
-                return false;
               }
               return true;
             }
