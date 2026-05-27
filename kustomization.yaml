@@ -24,6 +24,7 @@ resources:
   - apps/shopify-translations.yaml
   - apps/shopify-affiliate.yaml
   - apps/skirmshopshopifyapp.yaml
+  - apps-disabled/shopify-back-in-stock.yaml
   - apps-disabled/shopify-sync.yaml
   - apps/skirmbooks.yaml
   - apps/socialmedia.yaml
