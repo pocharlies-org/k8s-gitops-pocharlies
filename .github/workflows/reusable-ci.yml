@@ -377,9 +377,51 @@ jobs:
 
             const FAILURE_CONCLUSIONS = new Set(['failure', 'cancelled', 'timed_out', 'action_required']);
 
-            function tailText(text, maxLines = 220, maxChars = 12000) {
+            function failureExcerpt(text, maxLines = 220, maxChars = 16000) {
               const lines = String(text || '').split(/\r?\n/).filter((line) => line.trim());
-              let out = lines.slice(-maxLines).join('\n');
+              if (!lines.length) return '';
+              const markerPatterns = [
+                /##\[error\]/i,
+                /\bERR_[A-Z0-9_]+\b/,
+                /\bELIFECYCLE\b/,
+                /prettier\/prettier/i,
+                /\u2716\s+\d+\s+problems/i,
+                /\berror\s{2,}/i,
+                /failed/i,
+                /exit (status|code) \d+/i,
+              ];
+              const cleanupPatterns = [
+                /Post job cleanup/i,
+                /Cleaning up orphan processes/i,
+                /actions are deprecated/i,
+              ];
+              let markerIndex = -1;
+              for (let index = lines.length - 1; index >= 0; index -= 1) {
+                const line = lines[index];
+                if (cleanupPatterns.some((pattern) => pattern.test(line))) continue;
+                if (markerPatterns.some((pattern) => pattern.test(line))) {
+                  markerIndex = index;
+                  break;
+                }
+              }
+              if (markerIndex < 0) markerIndex = lines.length - 1;
+              const before = Math.floor(maxLines * 0.75);
+              const after = maxLines - before;
+              let selected = lines.slice(
+                Math.max(0, markerIndex - before),
+                Math.min(lines.length, markerIndex + after),
+              );
+              let out = selected.join('\n');
+              if (out.length > maxChars) {
+                selected = lines
+                  .filter(
+                    (line) =>
+                      !cleanupPatterns.some((pattern) => pattern.test(line)) &&
+                      markerPatterns.some((pattern) => pattern.test(line)),
+                  )
+                  .slice(-maxLines);
+                out = selected.join('\n');
+              }
               if (out.length > maxChars) {
                 out = out.slice(-maxChars);
                 const firstNewline = out.indexOf('\n');
@@ -418,7 +460,7 @@ jobs:
                   core.warning(`Failed to fetch logs for job ${job.id}: HTTP ${response.status}`);
                   return '';
                 }
-                return tailText(redact(await response.text()));
+                return failureExcerpt(redact(await response.text()));
               } catch (error) {
                 core.warning(`Failed to fetch logs for job ${job.id}: ${error.message}`);
                 return '';
@@ -427,16 +469,21 @@ jobs:
 
             async function collectFailedJobDetails() {
               const jobs = [];
-              for (let page = 1; page <= 5; page += 1) {
-                const response = await github.rest.actions.listJobsForWorkflowRun({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  run_id: context.runId,
-                  per_page: 100,
-                  page,
-                });
-                jobs.push(...response.data.jobs);
-                if (response.data.jobs.length < 100) break;
+              try {
+                for (let page = 1; page <= 5; page += 1) {
+                  const response = await github.rest.actions.listJobsForWorkflowRun({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: context.runId,
+                    per_page: 100,
+                    page,
+                  });
+                  jobs.push(...response.data.jobs);
+                  if (response.data.jobs.length < 100) break;
+                }
+              } catch (error) {
+                core.warning(`Failed to list workflow jobs for run ${context.runId}: ${error.message}`);
+                return [];
               }
               const failedJobs = jobs.filter((job) => FAILURE_CONCLUSIONS.has(String(job.conclusion || '').toLowerCase()));
               const details = [];
