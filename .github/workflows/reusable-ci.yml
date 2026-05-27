@@ -366,8 +366,14 @@ jobs:
           OPENCLAW_TELEGRAM_ACCOUNT: ${{ secrets.OPENCLAW_TELEGRAM_ACCOUNT }}
           OPENCLAW_TELEGRAM_TARGET: ${{ secrets.OPENCLAW_TELEGRAM_TARGET }}
           OPENCLAW_TELEGRAM_THREAD_ID: ${{ secrets.OPENCLAW_TELEGRAM_THREAD_ID }}
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_TOKEN || github.token }}
         with:
+          # Use the notify PAT (if configured) so the enriched report can read
+          # job logs (needs actions:read) without the workflow token requiring
+          # it — keeps the reusable startable under the org's default-read token.
+          # Falls back to the default token (log excerpt is skipped if it lacks
+          # actions:read, handled by the script's try/catch).
+          github-token: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_TOKEN || github.token }}
           script: |
             const { execFileSync } = require('node:child_process');
             const fs = require('node:fs');
