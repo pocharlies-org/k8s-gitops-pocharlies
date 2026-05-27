@@ -60,6 +60,8 @@ on:
         required: false
       OPENCLAW_TELEGRAM_THREAD_ID:
         required: false
+      FRAMEWORK_REPO_TOKEN:
+        required: false
 
 permissions:
   contents: read
