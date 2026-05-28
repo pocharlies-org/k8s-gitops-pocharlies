@@ -71,6 +71,19 @@ stringData:
 apiVersion: v1
 kind: Secret
 metadata:
+  name: repo-k8s-litellm-pocharlies
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+type: Opaque
+stringData:
+  type: git
+  name: k8s-litellm-pocharlies
+  url: https://github.com/pocharlies-org/k8s-litellm-pocharlies
+---
+apiVersion: v1
+kind: Secret
+metadata:
   name: repo-k8s-adguard-pocharlies
   namespace: argocd
   labels:
@@ -132,19 +145,6 @@ stringData:
   type: git
   name: k8s-libreplay-pocharlies
   url: https://github.com/pocharlies/k8s-libreplay-pocharlies
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: repo-k8s-litellm-pocharlies
-  namespace: argocd
-  labels:
-    argocd.argoproj.io/secret-type: repository
-type: Opaque
-stringData:
-  type: git
-  name: k8s-litellm-pocharlies
-  url: https://github.com/pocharlies/k8s-litellm-pocharlies
 ---
 apiVersion: v1
 kind: Secret
