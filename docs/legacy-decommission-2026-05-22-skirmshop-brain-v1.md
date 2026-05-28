@@ -2,6 +2,10 @@
 
 Date: 2026-05-22
 
+> Update 2026-05-28: the `skirmshop-brain-stg` environment was later decommissioned —
+> only `prod` remains. The staging references below reflect the state on 2026-05-22 and
+> are kept for historical accuracy.
+
 ## Summary
 
 The Docker legacy container `skirmshop-brain` on `sauvage` was stopped. It was the v1 runtime using image `skirmshop-brain-brain` and exposing port `5000`.
