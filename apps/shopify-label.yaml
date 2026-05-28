@@ -25,3 +25,22 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+  # ConfigMaps mutated at runtime (admin Tarifas UI, weekly VAT sync
+  # CronJob). Argo keeps the seed shape from the manifest but ignores
+  # `data` and the per-edit annotations so self-heal doesn't roll back a
+  # legitimate live update.
+  ignoreDifferences:
+    - group: ""
+      kind: ConfigMap
+      name: labels-cex-surcharges
+      jsonPointers:
+        - /data
+        - /metadata/annotations/skirmshop.labels~1last-edit-at
+        - /metadata/annotations/skirmshop.labels~1fuel-history
+    - group: ""
+      kind: ConfigMap
+      name: labels-vat-rates
+      jsonPointers:
+        - /data
+        - /metadata/annotations/skirmshop.labels~1synced-at
+        - /metadata/annotations/skirmshop.labels~1source
