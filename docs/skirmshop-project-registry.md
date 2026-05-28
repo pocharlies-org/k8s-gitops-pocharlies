@@ -28,7 +28,7 @@ without losing half-finished projects. The machine-readable source is
 - `shopify-sii`.
 - `shopify-translations`.
 - `skirmbooks`.
-- `skirmshop-brain-prod` and `skirmshop-brain-stg`.
+- `skirmshop-brain-prod` (single environment; `skirmshop-brain-stg` decommissioned 2026-05-28).
 - `firecrawl`.
 
 ## Active outside k8s
