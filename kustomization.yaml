@@ -83,6 +83,10 @@ patches:
           jsonPointers:
             - /spec/revisionHistoryLimit
             - /spec/updateStrategy
+            - /spec/volumeClaimTemplates
+            - /spec/template/metadata/creationTimestamp
+          managedFieldsManagers:
+            - kube-controller-manager
   - target:
       group: argoproj.io
       version: v1alpha1
