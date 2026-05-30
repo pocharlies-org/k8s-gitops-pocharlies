@@ -73,6 +73,16 @@ patches:
           namespace: databases
           jsonPointers:
             - /spec
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: StatefulSet
+          name: shared-rabbitmq
+          namespace: databases
+          jsonPointers:
+            - /spec/revisionHistoryLimit
+            - /spec/updateStrategy
   - target:
       group: argoproj.io
       version: v1alpha1
