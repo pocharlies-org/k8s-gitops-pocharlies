@@ -539,7 +539,7 @@ directories:
     entrypoint: picker app
     secrets: picker-secrets
     database: postgres-shared/skirmshop
-    ingress: skirmshop.e-dani.com/picker behind Authelia
+    ingress: skirmshop.e-dani.com/picker behind Keycloak SSO
     cron: picker CronJobs active in k8s
     k8sTarget: k8s-shopify-picker-pocharlies
     priority: active

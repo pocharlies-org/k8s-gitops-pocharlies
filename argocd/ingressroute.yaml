@@ -1,7 +1,7 @@
 ---
-# ArgoCD IngressRoute — auth handled by Authelia ForwardAuth
+# ArgoCD IngressRoute — auth handled by Keycloak SSO where enabled
 # ArgoCD itself has its own login page; no ForwardAuth needed here
-# (ArgoCD SSO via Authelia OIDC is a future enhancement)
+# (native ArgoCD SSO via Keycloak OIDC is a future enhancement)
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:

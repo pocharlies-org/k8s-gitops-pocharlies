@@ -5,7 +5,7 @@ global:
     kubernetes.io/hostname: ubuntu
 
 dex:
-  enabled: false   # SSO via Authelia ForwardAuth
+  enabled: false   # Native SSO via Keycloak OIDC can be enabled later
 
 configs:
   params:
