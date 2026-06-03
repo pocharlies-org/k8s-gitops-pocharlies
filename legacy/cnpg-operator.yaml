@@ -23,7 +23,7 @@ spec:
           grafanaDashboard:
             create: false
         nodeSelector:
-          kubernetes.io/hostname: ubuntu
+          node-pool: ks5-nvme
         resources:
           requests:
             cpu: 100m
