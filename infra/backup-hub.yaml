@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: backup-hub
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/dgx-infra/tree/codex/control-nexus-native-app/k8s/backup/ovh-pvc-hub
+  labels:
+    e-dani.com/tier: infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies/dgx-infra
+    targetRevision: codex/control-nexus-native-app
+    path: k8s/backup/ovh-pvc-hub
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: backup-hub
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

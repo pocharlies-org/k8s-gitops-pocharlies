@@ -5,6 +5,7 @@ resources:
   - legacy/postgres-shared.yaml
   - infra/infra.yaml
   - infra/observability.yaml
+  - infra/backup-hub.yaml
   - apps/adguard.yaml
   - apps/ai.yaml
   - apps/firecrawl.yaml
