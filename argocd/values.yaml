@@ -1,8 +1,10 @@
 # ArgoCD — single-replica homelab install
 global:
   domain: argocd.lan.e-dani.com
+  # On the ks5 (OVH) HA control-plane pool, not ubuntu — ArgoCD is the GitOps
+  # brain and must survive a ubuntu (home node) failure. Was hostname:ubuntu.
   nodeSelector:
-    kubernetes.io/hostname: ubuntu
+    node-pool: ks5-nvme
 
 dex:
   enabled: false   # SSO via Authelia ForwardAuth
