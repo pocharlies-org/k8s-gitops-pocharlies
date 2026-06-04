@@ -25,3 +25,40 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+  # /spec/replicas of the DGX2 vLLM deploys is owned by the dashboard (it
+  # alternates DGX2 between the 35B-NVFP4 and 27B-NVFP4 vision model — one GB10,
+  # one model at a time). Ignore replicas so selfHeal doesn't fight the dashboard.
+  ignoreDifferences:
+  - group: external-secrets.io
+    jqPathExpressions:
+    - .spec.data[]?.remoteRef.conversionStrategy
+    - .spec.data[]?.remoteRef.decodingStrategy
+    - .spec.data[]?.remoteRef.metadataPolicy
+    - .spec.data[]?.remoteRef.nullBytePolicy
+    - .spec.dataFrom[]?.extract.conversionStrategy
+    - .spec.dataFrom[]?.extract.decodingStrategy
+    - .spec.dataFrom[]?.extract.metadataPolicy
+    - .spec.dataFrom[]?.extract.nullBytePolicy
+    kind: ExternalSecret
+  - group: postgresql.cnpg.io
+    kind: Cluster
+    managedFieldsManagers:
+    - manager
+  - group: apps
+    kind: Deployment
+    name: vllm-35b
+    namespace: llm
+    jsonPointers:
+    - /spec/replicas
+  - group: apps
+    kind: Deployment
+    name: vllm-35b-nvfp4-dgx2
+    namespace: llm
+    jsonPointers:
+    - /spec/replicas
+  - group: apps
+    kind: Deployment
+    name: vllm-27b-nvfp4-dgx2
+    namespace: llm
+    jsonPointers:
+    - /spec/replicas
