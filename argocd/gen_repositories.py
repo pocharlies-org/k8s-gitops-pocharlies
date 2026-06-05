@@ -30,6 +30,7 @@ GIT_PUBLIC = [
 HELM_PUBLIC = {
     "cloudnative-pg": "https://cloudnative-pg.github.io/charts",
     "grafana": "https://grafana.github.io/helm-charts",
+    "kedacore": "https://kedacore.github.io/charts",
     "prometheus-community": "https://prometheus-community.github.io/helm-charts",
     "victoria-metrics": "https://victoriametrics.github.io/helm-charts",
 }

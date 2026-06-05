@@ -294,6 +294,20 @@ stringData:
 apiVersion: v1
 kind: Secret
 metadata:
+  name: repo-helm-kedacore
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+type: Opaque
+stringData:
+  type: helm
+  name: kedacore
+  url: https://kedacore.github.io/charts
+  enableOCI: "false"
+---
+apiVersion: v1
+kind: Secret
+metadata:
   name: repo-helm-prometheus-community
   namespace: argocd
   labels:
