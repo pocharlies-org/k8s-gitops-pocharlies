@@ -58,6 +58,19 @@ stringData:
 apiVersion: v1
 kind: Secret
 metadata:
+  name: repo-k8s-skirmshop-drive-mirror-pocharlies
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+type: Opaque
+stringData:
+  type: git
+  name: k8s-skirmshop-drive-mirror-pocharlies
+  url: https://github.com/pocharlies-org/k8s-skirmshop-drive-mirror-pocharlies
+---
+apiVersion: v1
+kind: Secret
+metadata:
   name: repo-k8s-skirmbooks-pocharlies
   namespace: argocd
   labels:
