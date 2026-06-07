@@ -102,18 +102,3 @@ patches:
           namespace: whatsapp-mcp
           jsonPointers:
             - /data
-  - target:
-      group: argoproj.io
-      version: v1alpha1
-      kind: Application
-      name: ai
-    patch: |-
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value:
-          group: apps
-          kind: Deployment
-          name: vllm-35b
-          namespace: llm
-          jsonPointers:
-            - /spec/replicas
