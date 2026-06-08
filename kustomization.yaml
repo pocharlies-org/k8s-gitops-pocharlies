@@ -4,6 +4,7 @@ resources:
   - legacy/cnpg-operator.yaml
   - legacy/postgres-shared.yaml
   - infra/infra.yaml
+  - infra/keda.yaml
   - infra/observability.yaml
   - infra/backup-hub.yaml
   - apps/adguard.yaml
