@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cv
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-cv-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies/k8s-cv-pocharlies
+    targetRevision: deploy/prod
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cv
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

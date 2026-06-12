@@ -7,6 +7,7 @@ resources:
   - infra/keda.yaml
   - infra/observability.yaml
   - infra/backup-hub.yaml
+  - infra/traefik-edge.yaml
   - apps/adguard.yaml
   - apps/ai.yaml
   - apps/firecrawl.yaml
@@ -30,6 +31,7 @@ resources:
   - apps/skirmbooks.yaml
   - apps/socialmedia.yaml
   - apps/teslamate.yaml
+  - apps/cv.yaml
   - apps/stt-mcp.yaml
   - apps/teslamate-mcp.yaml
   - apps/video-mcp.yaml
@@ -97,7 +99,6 @@ patches:
       - op: add
         path: /spec/ignoreDifferences/-
         value:
-          group: ""
           kind: ConfigMap
           name: auto-reply-config
           namespace: whatsapp-mcp
