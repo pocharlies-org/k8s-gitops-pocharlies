@@ -25,10 +25,27 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
-  # KEDA owns .spec.replicas for the BGE deployments (VRAM/load-gated autoscaling).
-  # Scope the ignore to these 6 Deployments only — NOT cluster-wide apps/Deployment,
-  # which would also stop ArgoCD healing vLLM replica drift (arbiter-managed baseline).
   ignoreDifferences:
+    # Pre-existing: ignore apiserver-defaulted ESO/cnpg fields (kept to avoid regressing
+    # the ai app's sync — these match the live state applied previously).
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.data[]?.remoteRef.conversionStrategy
+        - .spec.data[]?.remoteRef.decodingStrategy
+        - .spec.data[]?.remoteRef.metadataPolicy
+        - .spec.data[]?.remoteRef.nullBytePolicy
+        - .spec.dataFrom[]?.extract.conversionStrategy
+        - .spec.dataFrom[]?.extract.decodingStrategy
+        - .spec.dataFrom[]?.extract.metadataPolicy
+        - .spec.dataFrom[]?.extract.nullBytePolicy
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      managedFieldsManagers:
+        - manager
+    # KEDA owns .spec.replicas for the 6 BGE deployments (VRAM/load-gated autoscaling).
+    # Scoped by name — NOT cluster-wide apps/Deployment, which would also stop ArgoCD
+    # healing vLLM replica drift (arbiter-managed baseline).
     - group: apps
       kind: Deployment
       name: bge-m3-embedding
