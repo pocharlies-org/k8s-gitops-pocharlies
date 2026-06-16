@@ -20,8 +20,42 @@ spec:
     namespace: llm
   syncPolicy:
     automated:
-      prune: false
+      prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+  # KEDA owns .spec.replicas for the BGE deployments (VRAM/load-gated autoscaling).
+  # Scope the ignore to these 6 Deployments only — NOT cluster-wide apps/Deployment,
+  # which would also stop ArgoCD healing vLLM replica drift (arbiter-managed baseline).
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: bge-m3-embedding
+      namespace: llm
+      jsonPointers: ["/spec/replicas"]
+    - group: apps
+      kind: Deployment
+      name: bge-m3-embedding-dgx2
+      namespace: llm
+      jsonPointers: ["/spec/replicas"]
+    - group: apps
+      kind: Deployment
+      name: bge-m3-embedding-cpu
+      namespace: llm
+      jsonPointers: ["/spec/replicas"]
+    - group: apps
+      kind: Deployment
+      name: bge-reranker
+      namespace: llm
+      jsonPointers: ["/spec/replicas"]
+    - group: apps
+      kind: Deployment
+      name: bge-reranker-dgx2
+      namespace: llm
+      jsonPointers: ["/spec/replicas"]
+    - group: apps
+      kind: Deployment
+      name: bge-reranker-cpu
+      namespace: llm
+      jsonPointers: ["/spec/replicas"]
