@@ -43,9 +43,11 @@ spec:
       kind: Cluster
       managedFieldsManagers:
         - manager
-    # KEDA owns .spec.replicas for the 6 BGE deployments (VRAM/load-gated autoscaling).
-    # Scoped by name — NOT cluster-wide apps/Deployment, which would also stop ArgoCD
-    # healing vLLM replica drift (arbiter-managed baseline).
+    # Replicas of controller-managed Deployments are ignored so ArgoCD doesn't fight the
+    # controller: KEDA owns the 6 BGE replicas (VRAM/load-gated autoscaling); the gpu_arbiter
+    # owns the resident vLLM replica (on-demand GPU eviction — see the vllm entry below).
+    # Scoped by name — NOT cluster-wide apps/Deployment — so any OTHER Deployment still gets
+    # its replica drift healed.
     - group: apps
       kind: Deployment
       name: bge-m3-embedding
@@ -74,5 +76,16 @@ spec:
     - group: apps
       kind: Deployment
       name: bge-reranker-cpu
+      namespace: llm
+      jsonPointers: ["/spec/replicas"]
+    # vLLM resident on the GB10 (dgx2): the gpu_arbiter scales it 0<->1 to free the
+    # single GB10 for on-demand workloads (comfyui/trellis/ltx) and restores it after.
+    # ArgoCD must NOT selfHeal that replica change — otherwise it reverts the eviction
+    # within minutes and the on-demand pod stays Pending (Insufficient nvidia.com/gpu;
+    # verified live 2026-06-17). Same rationale as the BGE/KEDA ignores: the arbiter,
+    # not ArgoCD, owns these replicas. (GPU on-demand design decision, approved.)
+    - group: apps
+      kind: Deployment
+      name: vllm-gemma4-26b-a4b-nvfp4-dgx2
       namespace: llm
       jsonPointers: ["/spec/replicas"]
