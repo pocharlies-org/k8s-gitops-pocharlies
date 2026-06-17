@@ -71,6 +71,19 @@ stringData:
 apiVersion: v1
 kind: Secret
 metadata:
+  name: repo-k8s-skirmshop-wiki-pocharlies
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+type: Opaque
+stringData:
+  type: git
+  name: k8s-skirmshop-wiki-pocharlies
+  url: https://github.com/pocharlies-org/k8s-skirmshop-wiki-pocharlies
+---
+apiVersion: v1
+kind: Secret
+metadata:
   name: repo-k8s-litellm-pocharlies
   namespace: argocd
   labels:

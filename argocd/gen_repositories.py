@@ -4,12 +4,15 @@ Public git repos (URL-only, no creds) + public Helm chart repos. The 3 private
 repos (jarvis/brain SSH, auto-reply-worker) are already registered out-of-band
 and intentionally NOT redefined here (their creds live outside Git)."""
 
+from pathlib import Path
+
 GIT_PUBLIC = [
     "https://github.com/pocharlies-org/k8s-gitops-pocharlies",
     "https://github.com/pocharlies-org/k8s-shopify-affiliate-pocharlies",
     "https://github.com/pocharlies-org/k8s-shopify-chatbot-pocharlies",
     "https://github.com/pocharlies-org/k8s-shopify-collections-tree-pocharlies",
     "https://github.com/pocharlies-org/k8s-skirmbooks-pocharlies",
+    "https://github.com/pocharlies-org/k8s-skirmshop-wiki-pocharlies",
     "https://github.com/pocharlies-org/k8s-litellm-pocharlies",
     "https://github.com/pocharlies/k8s-adguard-pocharlies",
     "https://github.com/pocharlies/k8s-ai-pocharlies",
@@ -78,7 +81,8 @@ parts = ["\n".join(docs)]
 parts += [git_secret(u) for u in GIT_PUBLIC]
 parts += [helm_secret(n, u) for n, u in HELM_PUBLIC.items()]
 
-with open("/home/dibanez/k8s/k8s-gitops-pocharlies/argocd/repositories.yaml", "w") as fh:
+repo_root = Path(__file__).resolve().parents[1]
+with open(repo_root / "argocd" / "repositories.yaml", "w") as fh:
     fh.write("---\n".join(p.rstrip() + "\n" for p in parts))
 
 print(f"wrote {len(GIT_PUBLIC)} git + {len(HELM_PUBLIC)} helm repository secrets")
