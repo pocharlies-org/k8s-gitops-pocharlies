@@ -105,3 +105,21 @@ patches:
           namespace: whatsapp-mcp
           jsonPointers:
             - /data
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+      name: synapse-customer-enrichment-canary
+    patch: |-
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: synapse-adapter-customer-enrichment
+          namespace: synapse
+          jsonPointers:
+            - /spec/replicas
+      - op: add
+        path: /spec/syncPolicy/syncOptions/-
+        value: RespectIgnoreDifferences=true
