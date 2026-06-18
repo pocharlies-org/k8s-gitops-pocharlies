@@ -29,6 +29,9 @@ spec:
     server: https://kubernetes.default.svc
     namespace: arc-systems
   syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -94,6 +97,9 @@ spec:
     server: https://kubernetes.default.svc
     namespace: arc-runners
   syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
