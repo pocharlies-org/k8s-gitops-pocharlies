@@ -1,0 +1,99 @@
+# Actions Runner Controller (GitHub Actions self-hosted runners) — GitOps.
+# Adopta los releases helm imperativos previos (arc / arc-k8s, chart 0.14.1).
+# Sync MANUAL a propósito en la primera adopción: hay runners CI corriendo y
+# la sincronización automática se habilita SOLO tras verificar diff de adopción
+# benigno. El secret arc-github-app lo materializa ESO desde Vault (no aquí).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-6"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set-controller
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc
+      values: |
+        metrics:
+          controllerManagerAddr: :8080
+          listenerAddr: :8080
+          listenerEndpoint: /metrics
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-systems
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-k8s
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-k8s
+      values: |
+        containerMode:
+          type: dind
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-app
+        githubConfigUrl: https://github.com/pocharlies-org
+        maxRunners: 3
+        minRunners: 0
+        runnerScaleSetName: arc-k8s
+        template:
+          spec:
+            nodeSelector:
+              kubernetes.io/arch: amd64
+              workload: cpu
+            tolerations:
+              - effect: PreferNoSchedule
+                key: pool
+                operator: Equal
+                value: dev
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.335.1
+                command: ["/home/runner/run.sh"]
+                resources:
+                  requests:
+                    cpu: "500m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+              - name: dind
+                resources:
+                  requests:
+                    cpu: "250m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-runners
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

@@ -8,6 +8,7 @@ resources:
   - infra/observability.yaml
   - infra/backup-hub.yaml
   - infra/traefik-edge.yaml
+  - infra/arc.yaml
   - apps/adguard.yaml
   - apps/ai.yaml
   - apps/firecrawl.yaml
