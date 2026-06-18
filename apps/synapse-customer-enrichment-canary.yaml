@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: synapse-customer-enrichment-canary
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/synapse
+  labels:
+    e-dani.com/tier: app
+    e-dani.com/portfolio: synapse
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/synapse
+    targetRevision: codex/synapse-customer-canary
+    path: deploy/k8s/canaries/customer-enrichment
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: synapse
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
