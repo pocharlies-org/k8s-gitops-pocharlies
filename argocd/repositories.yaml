@@ -84,6 +84,19 @@ stringData:
 apiVersion: v1
 kind: Secret
 metadata:
+  name: repo-k8s-dgx-synapse-mcp-pocharlies
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+type: Opaque
+stringData:
+  type: git
+  name: k8s-dgx-synapse-mcp-pocharlies
+  url: https://github.com/pocharlies-org/k8s-dgx-synapse-mcp-pocharlies
+---
+apiVersion: v1
+kind: Secret
+metadata:
   name: repo-k8s-litellm-pocharlies
   namespace: argocd
   labels:

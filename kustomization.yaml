@@ -37,6 +37,7 @@ resources:
   - apps/stt-mcp.yaml
   - apps/teslamate-mcp.yaml
   - apps/video-mcp.yaml
+  - apps/dgx-synapse-mcp.yaml
   - argocd/ingressroute.yaml
   - argocd/repositories.yaml
 patches:

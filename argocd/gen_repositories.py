@@ -13,6 +13,7 @@ GIT_PUBLIC = [
     "https://github.com/pocharlies-org/k8s-shopify-collections-tree-pocharlies",
     "https://github.com/pocharlies-org/k8s-skirmshop-drive-mirror-pocharlies",
     "https://github.com/pocharlies-org/k8s-skirmbooks-pocharlies",
+    "https://github.com/pocharlies-org/k8s-dgx-synapse-mcp-pocharlies",
     "https://github.com/pocharlies-org/k8s-litellm-pocharlies",
     "https://github.com/pocharlies/k8s-adguard-pocharlies",
     "https://github.com/pocharlies/k8s-ai-pocharlies",
