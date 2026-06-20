@@ -73,7 +73,7 @@ jobs:
     if: ${{ inputs.run_node }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Detect package.json
         id: package
@@ -84,17 +84,17 @@ jobs:
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: pnpm/action-setup@v4
-        if: ${{ steps.package.outputs.present == 'true' }}
-        with:
-          version: ${{ inputs.pnpm_version }}
-
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         if: ${{ steps.package.outputs.present == 'true' }}
         with:
           node-version: ${{ inputs.node_version }}
-          cache: pnpm
-          cache-dependency-path: ${{ inputs.app_path }}/pnpm-lock.yaml
+
+      - name: Enable pnpm
+        if: ${{ steps.package.outputs.present == 'true' }}
+        run: |
+          corepack enable
+          corepack prepare pnpm@${{ inputs.pnpm_version }} --activate
+          pnpm --version
 
       - name: Install native Node build tools
         if: ${{ steps.package.outputs.present == 'true' }}
@@ -155,7 +155,7 @@ jobs:
     if: ${{ inputs.run_kustomize }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install YAML and Kubernetes tools
         run: |
@@ -313,9 +313,9 @@ jobs:
     if: ${{ inputs.run_docker_build && inputs.images != '[]' }}
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ inputs.node_version }}
 
@@ -354,7 +354,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Send failure report
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           OPENCLAW_GITHUB_NOTIFY_URL: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_URL }}
           OPENCLAW_GITHUB_NOTIFY_TOKEN: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_TOKEN }}
