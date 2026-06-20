@@ -112,6 +112,21 @@ patches:
       group: argoproj.io
       version: v1alpha1
       kind: Application
+      name: ai
+    patch: |-
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: vllm-gemma4-26b-a4b-nvfp4-dgx2
+          namespace: llm
+          jsonPointers:
+            - /spec/replicas
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
       name: synapse-customer-enrichment-canary
     patch: |-
       - op: add
