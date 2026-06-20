@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: libreplay-staging
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-libreplay-pocharlies
+  labels:
+    e-dani.com/tier: app
+    libreplay.e-dani.com/environment: staging
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies/k8s-libreplay-pocharlies
+    targetRevision: deploy/prod
+    path: staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: libreplay-staging
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

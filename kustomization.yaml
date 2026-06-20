@@ -14,6 +14,7 @@ resources:
   - apps/firecrawl.yaml
   - apps/jarvis.yaml
   - apps/libreplay.yaml
+  - apps/libreplay-staging.yaml
   - apps/litellm.yaml
   - apps/auto-reply-worker.yaml
   - apps/shopify-bundles.yaml
