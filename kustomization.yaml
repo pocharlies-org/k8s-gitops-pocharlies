@@ -150,3 +150,30 @@ patches:
       - op: add
         path: /spec/syncPolicy/syncOptions/-
         value: RespectIgnoreDifferences=true
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+      name: libreplay
+    patch: |-
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: libreplay-web
+          namespace: libreplay
+          jsonPointers:
+            - /spec/replicas
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: libreplay-worker
+          namespace: libreplay
+          jsonPointers:
+            - /spec/replicas
+      - op: add
+        path: /spec/syncPolicy/syncOptions/-
+        value: RespectIgnoreDifferences=true
