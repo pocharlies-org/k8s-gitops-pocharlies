@@ -6,6 +6,10 @@ on:
       runner:
         type: string
         default: arc-k8s
+      registry:
+        description: Container registry to authenticate against for base-image pulls.
+        type: string
+        default: harbor.lan.e-dani.com
       node_version:
         type: string
         default: "20"
@@ -61,6 +65,10 @@ on:
       OPENCLAW_TELEGRAM_THREAD_ID:
         required: false
       FRAMEWORK_REPO_TOKEN:
+        required: false
+      HARBOR_USER:
+        required: false
+      HARBOR_PASSWORD:
         required: false
 
 permissions:
@@ -312,12 +320,25 @@ jobs:
     runs-on: ${{ inputs.runner }}
     if: ${{ inputs.run_docker_build && inputs.images != '[]' }}
     timeout-minutes: 90
+    env:
+      HARBOR_USER: ${{ secrets.HARBOR_USER }}
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ inputs.node_version }}
+
+      # Dockerfiles pull base images through the Harbor docker-hub proxy-cache
+      # project (harbor.lan/cache/...), which requires authentication. This job
+      # does not push, but it must log in to pull those base layers (else 401).
+      - name: Log in to Harbor (base-image cache proxy)
+        if: ${{ env.HARBOR_USER != '' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ inputs.registry }}
+          username: ${{ secrets.HARBOR_USER }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
 
       - name: Build images without pushing
         env:
