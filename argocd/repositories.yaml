@@ -235,7 +235,7 @@ type: Opaque
 stringData:
   type: git
   name: k8s-shopify-picker-pocharlies
-  url: https://github.com/pocharlies/k8s-shopify-picker-pocharlies
+  url: https://github.com/pocharlies-org/k8s-shopify-picker-pocharlies
 ---
 apiVersion: v1
 kind: Secret

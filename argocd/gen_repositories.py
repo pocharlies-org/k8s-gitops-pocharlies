@@ -24,7 +24,7 @@ GIT_PUBLIC = [
     "https://github.com/pocharlies/k8s-observability-pocharlies",
     "https://github.com/pocharlies/k8s-shopify-bundles-pocharlies",
     "https://github.com/pocharlies/k8s-shopify-label-pocharlies",
-    "https://github.com/pocharlies/k8s-shopify-picker-pocharlies",
+    "https://github.com/pocharlies-org/k8s-shopify-picker-pocharlies",
     "https://github.com/pocharlies/k8s-shopify-sii-pocharlies",
     "https://github.com/pocharlies/k8s-shopify-translations-pocharlies",
     "https://github.com/pocharlies/k8s-socialmedia-pocharlies",
