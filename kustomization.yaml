@@ -34,6 +34,7 @@ resources:
   - apps/synapse-customer-enrichment-canary.yaml
   - apps/socialmedia.yaml
   - apps/teslamate.yaml
+  - apps/tomorrowland.yaml
   - apps/cv.yaml
   - apps/stt-mcp.yaml
   - apps/teslamate-mcp.yaml

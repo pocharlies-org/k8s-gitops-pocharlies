@@ -1,0 +1,33 @@
+# ArgoCD Application for the Tomorrowland Planner.
+# Copy this file into k8s-gitops-pocharlies/apps/tomorrowland.yaml (the
+# app-of-apps directory) and let ArgoCD reconcile it.
+#
+# Tracks deploy/prod (promoted by the release workflow). The plain manifest at
+# k8s/manifest.yaml creates the tomorrowland namespace plus the edge IngressRoute
+# (and references the keycloak-ns SSO middleware managed under keycloak-next).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tomorrowland
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-tomorrowland-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies/k8s-tomorrowland-pocharlies
+    targetRevision: deploy/prod
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tomorrowland
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
