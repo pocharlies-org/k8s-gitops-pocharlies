@@ -1,0 +1,40 @@
+# Skirmshop Control Panel (Phase 0) — unified store-management web app (Claude-design
+# SPA + FastAPI BFF) over the existing microservices. Workloads only; the
+# admin.skirmshop.es landing takeover is a separate, deliberate step (so prune is
+# disabled and there is no ingress resource here yet).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: skirmshop-control-panel
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+  labels:
+    e-dani.com/portfolio: skirmshop
+    e-dani.com/tier: app
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-skirmshop-control-panel-pocharlies
+    targetRevision: deploy/prod
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: skirmshop
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+  revisionHistoryLimit: 5

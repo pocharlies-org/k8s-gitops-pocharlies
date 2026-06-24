@@ -26,6 +26,7 @@ resources:
   - apps/shopify-serial-numbers.yaml
   - apps/shopify-translations.yaml
   - apps/shopify-affiliate.yaml
+  - apps/skirmshop-control-panel.yaml
   - apps/skirmshop-drive-mirror.yaml
   - apps/skirmshopshopifyapp.yaml
   - apps-disabled/shopify-back-in-stock.yaml
