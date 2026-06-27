@@ -121,7 +121,7 @@ patches:
         value:
           group: apps
           kind: Deployment
-          name: vllm-gemma4-26b-a4b-nvfp4-dgx2
+          name: vllm-35b-nvfp4-dgx2
           namespace: llm
           jsonPointers:
             - /spec/replicas
