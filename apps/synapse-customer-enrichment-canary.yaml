@@ -12,7 +12,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies-org/synapse
-    targetRevision: codex/synapse-customer-canary
+    targetRevision: main
     path: deploy/k8s/canaries/customer-enrichment
   destination:
     server: https://kubernetes.default.svc
