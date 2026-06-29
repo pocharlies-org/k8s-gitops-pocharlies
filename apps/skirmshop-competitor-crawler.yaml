@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: skirmshop-competitor-crawler
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-skirmshop-competitor-crawler-pocharlies
+  labels:
+    e-dani.com/portfolio: skirmshop
+    e-dani.com/tier: worker
+    e-dani.com/activation: f7-controlled
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-skirmshop-competitor-crawler-pocharlies
+    targetRevision: codex/competitor-crawler-F7-production-comedida
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: skirmshop
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

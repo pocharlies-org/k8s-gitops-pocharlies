@@ -28,6 +28,7 @@ resources:
   - apps/shopify-affiliate.yaml
   - apps/skirmshop-control-panel.yaml
   - apps/skirmshop-drive-mirror.yaml
+  - apps/skirmshop-competitor-crawler.yaml
   - apps/skirmshopshopifyapp.yaml
   - apps-disabled/shopify-back-in-stock.yaml
   - apps-disabled/shopify-sync.yaml
