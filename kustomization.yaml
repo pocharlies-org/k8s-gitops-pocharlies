@@ -17,7 +17,6 @@ resources:
   - apps/libreplay-staging.yaml
   - apps/litellm.yaml
   - apps/openclaw-qwen36.yaml
-  - apps/auto-reply-worker.yaml
   - apps/shopify-bundles.yaml
   - apps/shopify-chatbot.yaml
   - apps/shopify-collections-tree.yaml
@@ -97,20 +96,6 @@ patches:
             - /spec/template/metadata/creationTimestamp
           managedFieldsManagers:
             - kube-controller-manager
-  - target:
-      group: argoproj.io
-      version: v1alpha1
-      kind: Application
-      name: auto-reply-worker
-    patch: |-
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value:
-          kind: ConfigMap
-          name: auto-reply-config
-          namespace: whatsapp-mcp
-          jsonPointers:
-            - /data
   - target:
       group: argoproj.io
       version: v1alpha1
