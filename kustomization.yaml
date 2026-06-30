@@ -112,6 +112,24 @@ patches:
           namespace: llm
           jsonPointers:
             - /spec/replicas
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: vllm-qwen36-27b-nvfp4-dgx2
+          namespace: llm
+          jsonPointers:
+            - /spec/replicas
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: vllm-vision-deep-dgx2
+          namespace: llm
+          jsonPointers:
+            - /spec/replicas
   - target:
       group: argoproj.io
       version: v1alpha1
