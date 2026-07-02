@@ -28,7 +28,18 @@ spec:
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false          # never prune the manually-created secrets (backend-tokens, oidc-client, workspace-mcp-oauth-tokens)
+      prune: false          # never prune the manually-created secrets (oidc-client, workspace-mcp-oauth-tokens)
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+  # ESO defaults these fields on the ExternalSecret CR (not in git) → perpetual OutOfSync. Ignore them
+  # (estate pattern; template.engineVersion/mergePolicy are the ones our backend-tokens ES hits).
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.target.template.engineVersion
+        - .spec.target.template.mergePolicy
+        - .spec.data[]?.remoteRef.conversionStrategy
+        - .spec.data[]?.remoteRef.decodingStrategy
+        - .spec.data[]?.remoteRef.metadataPolicy
