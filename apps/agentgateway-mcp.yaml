@@ -1,0 +1,34 @@
+# ArgoCD Application for the PROD gateway. Drop this into the app-of-apps repo
+# (k8s-gitops-pocharlies) at apps/agentgateway-mcp.yaml on branch deploy/prod → the `root`
+# app auto-syncs it. Mirrors the estate MCP pattern (see apps/stt-mcp.yaml).
+#
+# ⚠️ Add it AFTER seeding Vault secret/agentgateway/prod (see docs/prod-cutover.md §Follow-ups),
+# otherwise the `agentgateway-backend-tokens` ExternalSecret is SecretSyncedError → the app health
+# shows Degraded. The gateway itself works meanwhile on the manual secret (optional:true).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: agentgateway-mcp
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-agentgateway-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-agentgateway-pocharlies
+    targetRevision: deploy/prod
+    path: k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: agentgateway
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false          # never prune the manually-created secrets (backend-tokens, oidc-client, workspace-mcp-oauth-tokens)
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
