@@ -25,6 +25,7 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
   ignoreDifferences:
     # Pre-existing: ignore apiserver-defaulted ESO/cnpg fields (kept to avoid regressing
     # the ai app's sync — these match the live state applied previously).
