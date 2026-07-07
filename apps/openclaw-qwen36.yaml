@@ -9,7 +9,7 @@ metadata:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
 spec:
-  project: default
+  project: openclaw-controlled
   source:
     repoURL: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
     targetRevision: deploy/prod
@@ -36,6 +36,9 @@ spec:
       managedFieldsManagers:
         - manager
   syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true

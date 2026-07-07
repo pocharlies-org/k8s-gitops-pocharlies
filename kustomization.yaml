@@ -43,6 +43,7 @@ resources:
   - apps/video-mcp.yaml
   - apps/dgx-synapse-mcp.yaml
   - argocd/ingressroute.yaml
+  - argocd/project-openclaw-controlled.yaml
   - argocd/repositories.yaml
 patches:
   - target:

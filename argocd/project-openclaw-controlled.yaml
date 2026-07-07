@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: openclaw-controlled
+  namespace: argocd
+spec:
+  description: OpenClaw deploys gated by safe-deploy hooks and a night maintenance window.
+  sourceRepos:
+    - https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: openclaw-qwen36
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  syncWindows:
+    - kind: deny
+      schedule: "0 5 * * *"
+      duration: 22h
+      applications:
+        - openclaw-qwen36
+      manualSync: true
+      timeZone: Europe/Madrid
+      description: "Deny automated OpenClaw syncs outside 03:00-05:00 Europe/Madrid; manual urgent syncs still run safe-deploy hooks."
