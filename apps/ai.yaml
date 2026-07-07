@@ -90,3 +90,19 @@ spec:
       name: vllm-35b-nvfp4-dgx2
       namespace: llm
       jsonPointers: ["/spec/replicas"]
+    # KEDA pause annotation on the BGE-dgx2 ScaledObjects: the gpu_arbiter sets
+    # autoscaling.keda.sh/paused-replicas="0" to evict the preemptible BGE embedder/
+    # reranker off the GB10 while ComfyUI/Trellis run, and removes it on release. ArgoCD
+    # must NOT selfHeal that annotation away mid-job (it would unpause KEDA and let BGE
+    # fight ComfyUI for the GPU). Same "arbiter owns this, not ArgoCD" rationale as the
+    # replica ignores above.
+    - group: keda.sh
+      kind: ScaledObject
+      name: keda-bge-embedding-gpu-dgx2
+      namespace: llm
+      jsonPointers: ["/metadata/annotations/autoscaling.keda.sh~1paused-replicas"]
+    - group: keda.sh
+      kind: ScaledObject
+      name: keda-bge-reranker-gpu-dgx2
+      namespace: llm
+      jsonPointers: ["/metadata/annotations/autoscaling.keda.sh~1paused-replicas"]
