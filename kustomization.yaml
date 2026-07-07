@@ -149,6 +149,27 @@ patches:
           namespace: llm
           jsonPointers:
             - /spec/replicas
+      # gpu_arbiter pauses these BGE-dgx2 ScaledObjects (autoscaling.keda.sh/paused-replicas=0)
+      # to evict the preemptible embedder/reranker off the GB10 while ComfyUI/Trellis run,
+      # and removes the annotation on release. selfHeal must NOT revert it mid-job.
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: keda.sh
+          kind: ScaledObject
+          name: keda-bge-embedding-gpu-dgx2
+          namespace: llm
+          jsonPointers:
+            - /metadata/annotations/autoscaling.keda.sh~1paused-replicas
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: keda.sh
+          kind: ScaledObject
+          name: keda-bge-reranker-gpu-dgx2
+          namespace: llm
+          jsonPointers:
+            - /metadata/annotations/autoscaling.keda.sh~1paused-replicas
   - target:
       group: argoproj.io
       version: v1alpha1
