@@ -10,6 +10,8 @@ spec:
   destinations:
     - server: https://kubernetes.default.svc
       namespace: openclaw-qwen36
+    - server: https://kubernetes.default.svc
+      namespace: node-debug
   clusterResourceWhitelist:
     - group: "*"
       kind: "*"
