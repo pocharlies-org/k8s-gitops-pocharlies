@@ -22,6 +22,6 @@ spec:
       duration: 22h
       applications:
         - openclaw-qwen36
-      manualSync: true
+      manualSync: false
       timeZone: Europe/Madrid
-      description: "Deny automated OpenClaw syncs outside 03:00-05:00 Europe/Madrid; manual urgent syncs still run safe-deploy hooks."
+      description: "Deny automated OpenClaw syncs outside 03:00-05:00 Europe/Madrid; manual urgent syncs are allowed and still run safe-deploy hooks."
