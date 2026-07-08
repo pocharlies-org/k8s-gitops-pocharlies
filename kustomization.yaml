@@ -12,6 +12,7 @@ resources:
   - apps/jarvis.yaml
   - apps/libreplay.yaml
   - apps/litellm.yaml
+  - apps/langfuse.yaml
   - apps/n8n.yaml
   - apps/n8n-stg.yaml
   - apps/auto-reply-worker.yaml
