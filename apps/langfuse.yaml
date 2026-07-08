@@ -1,0 +1,43 @@
+# Langfuse v3 — LLM observability (traces/sessions/prompt debugging), additive to the
+# Prometheus/Grafana/VictoriaMetrics operational stack (does NOT replace SLO metrics).
+#
+# Multi-source Application:
+#   source 1  = upstream Helm chart langfuse/langfuse (pinned), values pulled from source 2.
+#   source 2  = the service repo: provides $values (chart valueFile) AND applies the
+#               platform manifests in k8s/platform (ExternalSecret, IngressRoute, NetworkPolicy).
+# `$values` resolves to the ref repo ROOT, so the valueFile is `$values/k8s/values.yaml`
+# while only `k8s/platform/*` is rendered as manifests (values.yaml lives outside that path).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: langfuse
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-langfuse-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  sources:
+    - repoURL: https://langfuse.github.io/langfuse-k8s
+      chart: langfuse
+      targetRevision: 1.5.38
+      helm:
+        releaseName: langfuse
+        valueFiles:
+          - $values/k8s/values.yaml
+    - repoURL: https://github.com/pocharlies-org/k8s-langfuse-pocharlies
+      targetRevision: deploy/prod
+      ref: values
+      path: k8s/platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: langfuse
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

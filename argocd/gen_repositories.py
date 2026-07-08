@@ -15,6 +15,7 @@ GIT_PUBLIC = [
     "https://github.com/pocharlies-org/k8s-skirmbooks-pocharlies",
     "https://github.com/pocharlies-org/k8s-dgx-synapse-mcp-pocharlies",
     "https://github.com/pocharlies-org/k8s-litellm-pocharlies",
+    "https://github.com/pocharlies-org/k8s-langfuse-pocharlies",
     "https://github.com/pocharlies/k8s-adguard-pocharlies",
     "https://github.com/pocharlies/k8s-ai-pocharlies",
     "https://github.com/pocharlies/k8s-firecrawl-pocharlies",
@@ -34,6 +35,7 @@ GIT_PUBLIC = [
 HELM_PUBLIC = {
     "cloudnative-pg": "https://cloudnative-pg.github.io/charts",
     "grafana": "https://grafana.github.io/helm-charts",
+    "langfuse": "https://langfuse.github.io/langfuse-k8s",
     "prometheus-community": "https://prometheus-community.github.io/helm-charts",
     "victoria-metrics": "https://victoriametrics.github.io/helm-charts",
 }
