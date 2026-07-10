@@ -12,12 +12,10 @@ spec:
   source:
     repoURL: https://cloudnative-pg.github.io/charts
     chart: cloudnative-pg
-    # Chart 0.28.3 ships CloudNativePG 1.29.1 and supports Kubernetes
-    # 1.33-1.35. The upstream 1.29.2 patch has no matching official chart;
-    # overriding only the image would leave older CRDs. This is the safe
-    # chart-managed bridge through Kubernetes 1.34. Once the cluster is 1.34,
-    # a separate change moves to chart 0.29.0 / CNPG 1.30.0 before K8s 1.35.
-    targetRevision: 0.28.3
+    # Apply only after every node is healthy on Kubernetes 1.34. Chart 0.29.0
+    # ships CNPG 1.30.0, which supports Kubernetes 1.34-1.36 and must be green
+    # before the K3s 1.35 hop.
+    targetRevision: 0.29.0
     helm:
       releaseName: cnpg
       values: |
