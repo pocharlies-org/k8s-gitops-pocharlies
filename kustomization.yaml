@@ -35,6 +35,7 @@ resources:
   - apps-disabled/shopify-back-in-stock.yaml
   - apps-disabled/shopify-sync.yaml
   - apps/skirmbooks.yaml
+  - apps/synapse.yaml
   - apps/synapse-customer-enrichment-canary.yaml
   - apps/socialmedia.yaml
   - apps/teslamate.yaml
