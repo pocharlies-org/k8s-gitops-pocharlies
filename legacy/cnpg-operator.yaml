@@ -12,18 +12,40 @@ spec:
   source:
     repoURL: https://cloudnative-pg.github.io/charts
     chart: cloudnative-pg
-    targetRevision: 0.23.2
+    # Chart 0.28.3 ships CloudNativePG 1.29.1 and supports Kubernetes
+    # 1.33-1.35. The upstream 1.29.2 patch has no matching official chart;
+    # overriding only the image would leave older CRDs. This is the safe
+    # chart-managed bridge through Kubernetes 1.34. Once the cluster is 1.34,
+    # a separate change moves to chart 0.29.0 / CNPG 1.30.0 before K8s 1.35.
+    targetRevision: 0.28.3
     helm:
       releaseName: cnpg
       values: |
+        replicaCount: 2
+        updateStrategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxUnavailable: 0
+            maxSurge: 1
         config:
           create: true
+          data:
+            CLUSTERS_ROLLOUT_DELAY: "300"
+            INSTANCES_ROLLOUT_DELAY: "120"
         monitoring:
           podMonitorEnabled: false
           grafanaDashboard:
             create: false
         nodeSelector:
           node-pool: ks5-nvme
+        affinity:
+          podAntiAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: cloudnative-pg
+                    app.kubernetes.io/instance: cnpg
+                topologyKey: kubernetes.io/hostname
         resources:
           requests:
             cpu: 100m
