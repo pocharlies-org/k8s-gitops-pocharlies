@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: offers-mcp
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-offers-mcp-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-offers-mcp-pocharlies
+    targetRevision: master
+    path: k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: offers-mcp
+  syncPolicy:
+    automated:
+      selfHeal: true
+      # The first sync adopts resources that were applied manually. Keep
+      # pruning disabled until the adoption diff and rollback have been
+      # exercised in production.
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
