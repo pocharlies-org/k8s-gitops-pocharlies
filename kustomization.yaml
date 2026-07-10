@@ -18,6 +18,7 @@ resources:
   - apps/litellm.yaml
   - apps/langfuse.yaml
   - apps/openclaw-qwen36.yaml
+  - apps/offers-mcp.yaml
   - apps/shopify-bundles.yaml
   - apps/shopify-chatbot.yaml
   - apps/shopify-collections-tree.yaml
