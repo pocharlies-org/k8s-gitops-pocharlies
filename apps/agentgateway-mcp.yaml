@@ -1,10 +1,5 @@
-# ArgoCD Application for the PROD gateway. Drop this into the app-of-apps repo
-# (k8s-gitops-pocharlies) at apps/agentgateway-mcp.yaml on branch deploy/prod → the `root`
-# app auto-syncs it. Mirrors the estate MCP pattern (see apps/stt-mcp.yaml).
-#
-# ⚠️ Add it AFTER seeding Vault secret/agentgateway/prod (see docs/prod-cutover.md §Follow-ups),
-# otherwise the `agentgateway-backend-tokens` ExternalSecret is SecretSyncedError → the app health
-# shows Degraded. The gateway itself works meanwhile on the manual secret (optional:true).
+# ArgoCD Application for the PROD gateway. Listed in the root kustomization, so `root`
+# owns it. Mirrors the estate MCP pattern (see apps/stt-mcp.yaml).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -20,7 +15,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies-org/k8s-agentgateway-pocharlies
-    targetRevision: deploy/prod
+    targetRevision: main
     path: k8s/overlays/prod
   destination:
     server: https://kubernetes.default.svc
@@ -28,10 +23,21 @@ spec:
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false          # never prune the manually-created secrets (oidc-client, workspace-mcp-oauth-tokens)
+      # Prune only ever removes resources this Application tracks, i.e. ones it previously
+      # synced from git and that git no longer declares. Secrets created by hand and never
+      # present in the overlay (oidc-client, workspace-mcp-oauth-tokens) are untracked, so
+      # prune does not touch them.
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      # skirmshop-plugins-mcp-src is a generated ConfigMap mounted by its Deployment. Any
+      # change that alters its generated name (e.g. re-enabling kustomize's name-suffix hash,
+      # which makes a JS edit roll the pods) creates the new ConfigMap and orphans the old one
+      # in the same sync. PruneLast defers the orphan's deletion until the rest of the sync has
+      # applied and the Deployment has rolled onto the new name, so pods still mounting the old
+      # ConfigMap never lose it mid-rollout.
+      - PruneLast=true
   # ESO defaults these fields on the ExternalSecret CR (not in git) → perpetual OutOfSync. Ignore them
   # (estate pattern; template.engineVersion/mergePolicy are the ones our backend-tokens ES hits).
   ignoreDifferences:
