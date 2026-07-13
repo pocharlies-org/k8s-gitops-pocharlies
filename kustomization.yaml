@@ -145,6 +145,39 @@ patches:
           namespace: llm
           jsonPointers:
             - /spec/replicas
+      # GOTCHA (incidente 2026-07-12): TODO deploy resident nuevo/renombrado con
+      # replicas>0 en git DEBE entrar aquí, o el selfHeal re-aplica replicas en <10s
+      # tras la eviction del gpu_arbiter y ComfyUI/Trellis quedan Pending hasta el
+      # ready-timeout (vídeo/3D rotos en silencio). Los canaries v024 del 27b y el
+      # uncensored se añaden de una vez aunque hoy pinneen 0: pelearían igual al
+      # abrirse su gate.
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: vllm-qwen36-27b-nvfp4-v024-f1-dgx2
+          namespace: llm
+          jsonPointers:
+            - /spec/replicas
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: vllm-qwen36-27b-nvfp4-v024-f2-dgx2
+          namespace: llm
+          jsonPointers:
+            - /spec/replicas
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: vllm-qwen36-27b-uncensored-dgx2
+          namespace: llm
+          jsonPointers:
+            - /spec/replicas
       - op: add
         path: /spec/ignoreDifferences/-
         value:
