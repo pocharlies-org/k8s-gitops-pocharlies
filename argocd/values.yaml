@@ -1,8 +1,11 @@
 # ArgoCD — single-replica homelab install
 global:
   domain: argocd.lan.e-dani.com
+  # Pin the control plane to the ks5-nvme pool (ks5-cp-1/2/3): untainted, NVMe-backed.
+  # A single-hostname pin is unsafe here — the chart merges global.nodeSelector with the
+  # live objects' existing keys, so hostname + node-pool intersect to zero nodes.
   nodeSelector:
-    kubernetes.io/hostname: ubuntu
+    node-pool: ks5-nvme
 
 dex:
   enabled: false   # SSO via Authelia ForwardAuth
