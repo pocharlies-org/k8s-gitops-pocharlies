@@ -30,6 +30,11 @@ applicationSet:
 
 redis:
   enabled: true
+  # Pinned to Harbor mirror (Kyverno restrict-image-registries):
+  # mirrored from ecr-public.aws.com/docker/library/redis:8.2.3-alpine
+  image:
+    repository: harbor.lan.e-dani.com/homelab/redis
+    tag: 8.2.3-alpine
 
 controller:
   replicas: 1
