@@ -38,6 +38,12 @@ redis:
   image:
     repository: harbor.lan.e-dani.com/homelab/redis
     tag: 8.2.3-alpine
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
 
 controller:
   replicas: 1
