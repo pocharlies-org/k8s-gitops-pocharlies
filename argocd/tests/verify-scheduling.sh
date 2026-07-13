@@ -20,22 +20,34 @@ helm template argocd argo-cd \
   --repo https://argoproj.github.io/argo-helm \
   --version "${CHART_VERSION}" \
   --namespace argocd \
-  --values "${VALUES}" \
-  --show-only templates/argocd-application-controller/statefulset.yaml >"${rendered}"
+  --values "${VALUES}" >"${rendered}"
 
 python3 - "${rendered}" <<'PY'
 import sys, yaml
 
 with open(sys.argv[1]) as fh:
-    sts = yaml.safe_load(fh)
+    documents = [document for document in yaml.safe_load_all(fh) if document]
+
+def resource(kind, name):
+    return next(
+        document
+        for document in documents
+        if document.get("kind") == kind and document.get("metadata", {}).get("name") == name
+    )
+
+sts = resource("StatefulSet", "argocd-application-controller")
 spec = sts["spec"]["template"]["spec"]
 selector = spec.get("nodeSelector", {}) or {}
 mem = spec["containers"][0]["resources"]["limits"]["memory"]
+redis = resource("Deployment", "argocd-redis")
+redis_resources = redis["spec"]["template"]["spec"]["containers"][0].get("resources", {})
+redis_mem = redis_resources.get("limits", {}).get("memory")
 
 print("--- rendered controller nodeSelector")
 for k, v in sorted(selector.items()):
     print(f"    {k}: {v}")
 print(f"--- rendered controller memory limit: {mem}")
+print(f"--- rendered Redis memory limit: {redis_mem}")
 
 failures = []
 if selector.get("node-pool") != "ks5-nvme":
@@ -44,6 +56,8 @@ if "kubernetes.io/hostname" in selector:
     failures.append("controller must not be pinned to a single hostname")
 if mem != "2Gi":
     failures.append(f"controller memory limit must stay 2Gi, got {mem!r}")
+if redis_mem != "256Mi":
+    failures.append(f"Redis memory limit must be 256Mi, got {redis_mem!r}")
 
 for f in failures:
     print(f"FAIL: {f}", file=sys.stderr)
