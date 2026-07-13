@@ -46,6 +46,7 @@ resources:
   - apps/video-mcp.yaml
   - apps/dgx-synapse-mcp.yaml
   - apps/serpientetool.yaml
+  - apps/agentgateway-mcp.yaml
   - argocd/ingressroute.yaml
   - argocd/project-openclaw-controlled.yaml
   - argocd/repositories.yaml
@@ -201,6 +202,22 @@ patches:
       - op: add
         path: /spec/syncPolicy/syncOptions/-
         value: RespectIgnoreDifferences=true
+  # The blanket Application patch above REPLACES /spec/ignoreDifferences, so it drops the two
+  # target.template paths agentgateway-mcp declares in its own file. ESO defaults both on the
+  # backend-tokens ExternalSecret, so without them the app is perpetually OutOfSync. Append
+  # them back onto the ExternalSecret entry (index 0) the blanket patch just wrote.
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+      name: agentgateway-mcp
+    patch: |-
+      - op: add
+        path: /spec/ignoreDifferences/0/jqPathExpressions/-
+        value: .spec.target.template.engineVersion
+      - op: add
+        path: /spec/ignoreDifferences/0/jqPathExpressions/-
+        value: .spec.target.template.mergePolicy
   - target:
       group: argoproj.io
       version: v1alpha1
