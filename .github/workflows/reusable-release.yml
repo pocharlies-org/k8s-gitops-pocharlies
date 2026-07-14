@@ -237,7 +237,12 @@ jobs:
             cosign sign --yes "$digest_ref"
             cosign attest --yes --type spdxjson --predicate "$sbom" "$digest_ref"
 
-            certificate_identity="^https://github.com/${GITHUB_REPOSITORY}/.github/workflows/[^@]+@refs/(heads|tags)/.+$"
+            # GitHub records the reusable workflow in Sigstore's
+            # `job_workflow_ref` claim.  The caller repository remains in the
+            # image provenance labels, but it is not the certificate SAN.
+            # Trust only this centrally reviewed release workflow, whether a
+            # caller pins it by branch/tag or by an immutable commit SHA.
+            certificate_identity="^https://github.com/pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-release\\.yml@(refs/(heads|tags)/.+|[0-9a-f]{40})$"
             certificate_issuer="https://token.actions.githubusercontent.com"
             cosign verify \
               --certificate-identity-regexp "$certificate_identity" \

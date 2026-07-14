@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Static fail-closed contract for immutable image release evidence."""
 
+import re
 from pathlib import Path
 
 
@@ -26,6 +27,7 @@ required = [
     "cosign attest --yes --type spdxjson",
     "cosign verify \\",
     "cosign verify-attestation \\",
+    "pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-release\\\\.yml@",
     "https://token.actions.githubusercontent.com",
     "release-evidence.json",
     "retention-days: 90",
@@ -46,5 +48,26 @@ assert '--tag "$version_ref"' in loop
 assert '--tag "$sha_ref"' in loop
 assert "--force" not in workflow
 assert "COSIGN_PASSWORD" not in workflow
+assert "${GITHUB_REPOSITORY}/.github/workflows/[^@]+" not in workflow
+
+identity_match = re.search(r'certificate_identity="([^"]+)"', workflow)
+assert identity_match is not None, "missing certificate identity"
+# Shell double quotes collapse the YAML literal `\\` to `\` before Cosign
+# compiles the regular expression.
+certificate_identity = identity_match.group(1).replace("\\\\", "\\")
+assert re.fullmatch(
+    certificate_identity,
+    "https://github.com/pocharlies-org/k8s-gitops-pocharlies/"
+    ".github/workflows/reusable-release.yml@refs/heads/main",
+)
+assert re.fullmatch(
+    certificate_identity,
+    "https://github.com/pocharlies-org/k8s-gitops-pocharlies/"
+    ".github/workflows/reusable-release.yml@152bb87a41aae94c1dd9dcd659807bd807426807",
+)
+assert not re.fullmatch(
+    certificate_identity,
+    "https://github.com/pocharlies-org/synapse/.github/workflows/release.yml@refs/heads/main",
+)
 
 print("Immutable image release supply-chain contract passed")
