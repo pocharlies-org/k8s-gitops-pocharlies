@@ -16,6 +16,11 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertNotIn("kubernetes.io/hostname:", runner_values)
         self.assertNotIn("workload: cpu", runner_values)
 
+    def test_runner_pool_reserves_rollout_headroom(self) -> None:
+        manifest = (ROOT / "infra/arc.yaml").read_text()
+        self.assertIn("maxRunners: 2", manifest)
+        self.assertNotIn("maxRunners: 3", manifest)
+
 
 if __name__ == "__main__":
     unittest.main()
