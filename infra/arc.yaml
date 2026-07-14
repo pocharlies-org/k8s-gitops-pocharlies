@@ -68,6 +68,10 @@ spec:
           spec:
             nodeSelector:
               kubernetes.io/arch: amd64
+              # CI must remain available if the home-lab Ubuntu node is down.
+              # This hard selector confines every new ephemeral runner to the
+              # three OVH KS5 nodes; existing runners finish in place.
+              node-pool: ks5-nvme
               workload: cpu
             tolerations:
               - effect: PreferNoSchedule
