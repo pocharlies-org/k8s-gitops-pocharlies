@@ -38,6 +38,10 @@ spec:
         - manager
   syncPolicy:
     automated:
+      # Fail closed while the state-writer/RWOP migration is incomplete.  A
+      # deny sync window alone still lets Argo create a Running operation that
+      # can become stuck at "blocked by sync window".
+      enabled: false
       selfHeal: true
       prune: false
     syncOptions:
