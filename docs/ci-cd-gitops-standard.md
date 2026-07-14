@@ -43,12 +43,30 @@ live only in overlays, and ArgoCD owns stable state.
 - any branch push: CI lint/test/manifest validation.
 - `stg`: build immutable `stg-<sha>` images, stamp `k8s/overlays/stg`, ArgoCD deploys staging.
 - PR `stg` -> `main`: review the already-tested staging changes.
-- any Git tag: build immutable release images and push them to Harbor.
+- any Git tag: build release images, fail closed on fixable HIGH/CRITICAL
+  vulnerabilities or embedded secrets, and only then push them to Harbor.
 - production deploys: the release workflow creates a promotion branch from the
   latest ArgoCD-tracked branch and opens a PR with the immutable artifact digest.
 
 Tags must be Docker-compatible image tags (`v1.2.3`, `2026.05.22`, etc.).
 The release workflow also publishes `sha-<short_sha>` for traceability.
+Every published digest is signed keylessly with the GitHub Actions OIDC
+identity, receives a signed SPDX JSON SBOM attestation, and is verified before
+the workflow succeeds. The workflow uploads a 90-day evidence artifact with
+the digest and SBOM. Callers of `reusable-release.yml` must grant only:
+
+```yaml
+permissions:
+  contents: read
+  id-token: write
+```
+
+The OIDC permission is used exclusively for Sigstore signing; no long-lived
+Cosign key or password is accepted. A failed scan may leave no published tag;
+a signing or attestation failure leaves an unsigned digest that must never be
+promoted. Production manifests pin the verified `repository@sha256:...`, not
+either mutable tag.
+
 It must not push directly or force-push to `deploy/prod`. The promotion PR must
 pass required checks and review; this shared workflow never auto-merges it.
 

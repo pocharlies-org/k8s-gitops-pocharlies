@@ -26,9 +26,10 @@ jobs:
     secrets: inherit
 
   release-contract:
-    name: GitOps promotion contract
+    name: GitOps and release security contracts
     runs-on: arc-k8s
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - run: python3 scripts/check-manifest-promotion.py
+      - run: python3 scripts/check-release-supply-chain.py
