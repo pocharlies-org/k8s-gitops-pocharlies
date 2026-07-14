@@ -39,6 +39,15 @@ class OpenClawOperationGateTest(unittest.TestCase):
             1,
         )
 
+    def test_openclaw_application_activates_the_tested_writer_lease(self) -> None:
+        application = (ROOT / "apps/openclaw-qwen36.yaml").read_text()
+
+        self.assertIn(
+            "operations.pocharlies.org/state-writer-lease: active",
+            application,
+        )
+        self.assertIn("targetRevision: deploy/prod", application)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,6 +6,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
+    # The OpenClaw deploy/prod chart now carries the tested singleton PVC writer
+    # lease. Keep this GitOps-declared so only Argo can begin a gated sync.
+    operations.pocharlies.org/state-writer-lease: active
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
