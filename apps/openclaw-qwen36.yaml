@@ -4,6 +4,7 @@ metadata:
   name: openclaw-qwen36
   namespace: argocd
   annotations:
+    argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
   labels:
     e-dani.com/tier: app

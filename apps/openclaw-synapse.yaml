@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: openclaw-synapse
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: openclaw-synapse
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
+    targetRevision: deploy/prod
+    path: helm/openclaw-qwen36
+    helm:
+      releaseName: openclaw-synapse
+      valueFiles:
+        - values-synapse.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openclaw-synapse
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
