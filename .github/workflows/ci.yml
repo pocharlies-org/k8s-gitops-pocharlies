@@ -24,3 +24,10 @@ jobs:
       run_docker_build: false
       kustomize_paths: "."
     secrets: inherit
+  synapse-sre-foundation-contract:
+    name: Synapse SRE foundation Application contract
+    runs-on: arc-k8s
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest tests/test_synapse_sre_foundation_app.py
