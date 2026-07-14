@@ -55,6 +55,7 @@ resources:
   - argocd/openclaw-synapse-namespace.yaml
   - argocd/project-openclaw-synapse.yaml
   - argocd/openclaw-release-verifier-rbac.yaml
+  - argocd/openclaw-operation-admission-gate.yaml
   - argocd/repositories.yaml
 patches:
   - target:
