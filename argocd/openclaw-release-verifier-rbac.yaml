@@ -1,0 +1,37 @@
+# Central ownership boundary for the OpenClaw post-deploy verifier.
+#
+# The OpenClaw AppProject is intentionally restricted to its workload namespace;
+# it must never gain general write access to argocd.  The root GitOps application
+# therefore owns this single-resource, read-only cross-namespace grant.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: openclaw-qwen36-release-verifier
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: openclaw-qwen36
+    app.kubernetes.io/component: release-verifier
+    app.kubernetes.io/managed-by: root-gitops
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    resourceNames: ["openclaw-qwen36"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: openclaw-qwen36-release-verifier
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: openclaw-qwen36
+    app.kubernetes.io/component: release-verifier
+    app.kubernetes.io/managed-by: root-gitops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: openclaw-qwen36-release-verifier
+subjects:
+  - kind: ServiceAccount
+    name: openclaw-qwen36-release-verifier
+    namespace: openclaw-qwen36

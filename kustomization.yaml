@@ -49,6 +49,7 @@ resources:
   - apps/agentgateway-mcp.yaml
   - argocd/ingressroute.yaml
   - argocd/project-openclaw-controlled.yaml
+  - argocd/openclaw-release-verifier-rbac.yaml
   - argocd/repositories.yaml
 patches:
   - target:
