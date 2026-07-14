@@ -1,0 +1,64 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: openclaw-operation-state-writer-gate
+  labels:
+    app.kubernetes.io/name: openclaw-qwen36
+    app.kubernetes.io/component: deployment-safety
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - argoproj.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - UPDATE
+        resources:
+          - applications
+        scope: Namespaced
+  validations:
+    - expression: >-
+        object.metadata.namespace != 'argocd'
+        || object.metadata.name != 'openclaw-qwen36'
+        || !has(object.operation)
+        || (
+          has(object.metadata.annotations)
+          && 'operations.pocharlies.org/state-writer-lease' in object.metadata.annotations
+          && object.metadata.annotations['operations.pocharlies.org/state-writer-lease'] == 'active'
+        )
+      message: >-
+        OpenClaw sync operations are denied until GitOps activates the
+        state-writer lease gate.
+      reason: Forbidden
+    - expression: >-
+        object.metadata.namespace != 'argocd'
+        || object.metadata.name != 'openclaw-qwen36'
+        || request.userInfo.username == 'system:serviceaccount:argocd:argocd-application-controller'
+        || !(
+          has(object.metadata.annotations)
+          && 'operations.pocharlies.org/state-writer-lease' in object.metadata.annotations
+          && object.metadata.annotations['operations.pocharlies.org/state-writer-lease'] == 'active'
+        )
+        || (
+          has(oldObject.metadata.annotations)
+          && 'operations.pocharlies.org/state-writer-lease' in oldObject.metadata.annotations
+          && oldObject.metadata.annotations['operations.pocharlies.org/state-writer-lease'] == 'active'
+        )
+      message: >-
+        Only the Argo CD application controller may activate the OpenClaw
+        state-writer lease gate from GitOps.
+      reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: openclaw-operation-state-writer-gate
+  labels:
+    app.kubernetes.io/name: openclaw-qwen36
+    app.kubernetes.io/component: deployment-safety
+spec:
+  policyName: openclaw-operation-state-writer-gate
+  validationActions:
+    - Deny
