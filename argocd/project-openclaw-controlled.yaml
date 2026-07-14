@@ -24,6 +24,6 @@ spec:
       duration: 22h
       applications:
         - openclaw-qwen36
-      manualSync: false
+      manualSync: true
       timeZone: Europe/Madrid
-      description: "Temporary incident freeze: deny automated and manual OpenClaw syncs outside 03:00-05:00 Europe/Madrid until the shared-state writer lease is deployed."
+      description: "Deny automated OpenClaw syncs outside 03:00-05:00 Europe/Madrid; manual urgent syncs are allowed after the state-writer lease rollout gate."
