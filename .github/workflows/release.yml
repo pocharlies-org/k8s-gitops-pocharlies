@@ -13,6 +13,7 @@ on:
 permissions:
   actions: read
   contents: write
+  pull-requests: write
 
 concurrency:
   group: release-prod-${{ github.repository }}
@@ -36,4 +37,5 @@ jobs:
       source_path: "."
       artifact_name: k8s-gitops-pocharlies
       version: ${{ github.event.inputs.image_tag || github.ref_name }}
+      promotion_mode: pull-request
     secrets: inherit

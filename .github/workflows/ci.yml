@@ -24,3 +24,11 @@ jobs:
       run_docker_build: false
       kustomize_paths: "."
     secrets: inherit
+
+  release-contract:
+    name: GitOps promotion contract
+    runs-on: arc-k8s
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/check-manifest-promotion.py

@@ -44,10 +44,13 @@ live only in overlays, and ArgoCD owns stable state.
 - `stg`: build immutable `stg-<sha>` images, stamp `k8s/overlays/stg`, ArgoCD deploys staging.
 - PR `stg` -> `main`: review the already-tested staging changes.
 - any Git tag: build immutable release images and push them to Harbor.
-- production deploys: update the relevant ArgoCD-tracked image tag/digest when ready.
+- production deploys: the release workflow creates a promotion branch from the
+  latest ArgoCD-tracked branch and opens a PR with the immutable artifact digest.
 
 Tags must be Docker-compatible image tags (`v1.2.3`, `2026.05.22`, etc.).
 The release workflow also publishes `sha-<short_sha>` for traceability.
+It must not push directly or force-push to `deploy/prod`. The promotion PR must
+pass required checks and review; this shared workflow never auto-merges it.
 
 ## Environment Rules
 
@@ -109,9 +112,10 @@ runbook with time, command, reason, observed impact, and the Git follow-up.
 
 Preferred rollback is Git:
 
-1. Revert the production overlay commit or set images back to a previous tag.
-2. Merge to `main`.
-3. Let ArgoCD reconcile production.
+1. Create a rollback branch from the latest `deploy/prod` and revert the
+   production overlay commit or restore the previous digest.
+2. Open, review and merge a PR into `deploy/prod`.
+3. Let ArgoCD reconcile production and verify health/soak.
 
 Emergency rollback may use ArgoCD UI/CLI to sync an older Git revision. Follow
 with a Git revert so the declared state matches what is running.

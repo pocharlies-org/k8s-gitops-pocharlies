@@ -13,7 +13,9 @@
 4. Smoke test staging.
 5. Open PR `stg` -> `main`.
 6. Tag the release commit; release workflow builds and pushes immutable images to Harbor.
-7. Update the production image tag/digest when ready, then let ArgoCD deploy production.
+7. The release workflow creates a branch from the latest `deploy/prod` and opens
+   a production promotion PR containing the immutable digest.
+8. Review and merge that PR after all gates pass, then let ArgoCD deploy production.
 
 ## Secrets
 
@@ -36,9 +38,10 @@ image tag, and result in this runbook when a manual migration is needed.
 
 Preferred rollback:
 
-1. Revert the production overlay image stamp or restore the previous `vX.Y.Z`.
-2. Merge to `main`.
-3. Confirm ArgoCD sync and smoke test.
+1. Branch from the latest `deploy/prod` and revert the production overlay image
+   stamp or restore the previous digest.
+2. Review and merge the rollback PR into `deploy/prod`.
+3. Confirm ArgoCD sync, health and smoke/soak checks.
 
 Emergency rollback:
 
