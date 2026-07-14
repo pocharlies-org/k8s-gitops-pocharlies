@@ -32,6 +32,7 @@ resources:
   - apps/skirmshop-wiki.yaml
   - apps/socialmedia.yaml
   - apps/synapse-migrations.yaml
+  - apps/synapse-sre-foundation.yaml
   - apps/teslamate.yaml
   - apps/stt-mcp.yaml
   - apps/teslamate-mcp.yaml
