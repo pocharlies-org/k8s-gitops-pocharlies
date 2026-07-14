@@ -36,6 +36,7 @@ resources:
   - apps/teslamate-mcp.yaml
   - apps/video-mcp.yaml
   - argocd/ingressroute.yaml
+  - argocd/openclaw-release-verifier-rbac.yaml
   - argocd/repositories.yaml
 patches:
   - target:
