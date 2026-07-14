@@ -10,7 +10,11 @@ workflow = (ROOT / ".github/workflows/reusable-release.yml").read_text(encoding=
 required = [
     "id-token: write",
     "aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567",
-    "sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6",
+    "COSIGN_VERSION: v3.0.6",
+    "https://github.com/sigstore/cosign/releases/download/",
+    "c956e5dfcac53d52bcf058360d579472f0c1d2d9b69f55209e256fe7783f4c74",
+    "bedac92e8c3729864e13d4a17048007cfafa79d5deca993a43a90ffe018ef2b8",
+    "sha256sum --check --strict",
     "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
     "--scanners vuln,secret",
     "--severity HIGH,CRITICAL",
