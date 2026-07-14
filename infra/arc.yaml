@@ -61,7 +61,9 @@ spec:
           namespace: arc-systems
         githubConfigSecret: arc-github-app
         githubConfigUrl: https://github.com/pocharlies-org
-        maxRunners: 3
+        # Keep one KS5 node worth of requested CPU available for production
+        # maxSurge rollouts; two CI jobs may still run concurrently.
+        maxRunners: 2
         minRunners: 0
         runnerScaleSetName: arc-k8s
         template:
