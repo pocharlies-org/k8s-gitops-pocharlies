@@ -26,7 +26,7 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
 
     def test_openclaw_has_dedicated_runner_pool(self) -> None:
         self.assertIn("https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies", self.openclaw_values)
-        self.assertIn("maxRunners: 1", self.openclaw_values)
+        self.assertIn("maxRunners: 2", self.openclaw_values)
         self.assertIn("runnerScaleSetName: arc-openclaw", self.openclaw_values)
         self.assertIn("node-pool: ks5-nvme", self.openclaw_values)
 
