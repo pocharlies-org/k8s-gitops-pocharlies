@@ -135,11 +135,86 @@ spec:
           && has(object.status)
           && has(object.status.operationState)
           && object.status.operationState.phase == 'Terminating'
-          && object.status.operationState.operation == oldObject.status.operationState.operation
+          && has(object.status.conditions) == has(oldObject.status.conditions)
+          && (!has(object.status.conditions) || object.status.conditions == oldObject.status.conditions)
+          && has(object.status.controllerNamespace) == has(oldObject.status.controllerNamespace)
+          && (!has(object.status.controllerNamespace) || object.status.controllerNamespace == oldObject.status.controllerNamespace)
+          && has(object.status.health) == has(oldObject.status.health)
+          && (!has(object.status.health) || object.status.health == oldObject.status.health)
+          && has(object.status.history) == has(oldObject.status.history)
+          && (!has(object.status.history) || object.status.history == oldObject.status.history)
+          && has(object.status.observedAt) == has(oldObject.status.observedAt)
+          && (!has(object.status.observedAt) || object.status.observedAt == oldObject.status.observedAt)
+          && has(object.status.reconciledAt) == has(oldObject.status.reconciledAt)
+          && (!has(object.status.reconciledAt) || object.status.reconciledAt == oldObject.status.reconciledAt)
+          && has(object.status.resourceHealthSource) == has(oldObject.status.resourceHealthSource)
+          && (!has(object.status.resourceHealthSource) || object.status.resourceHealthSource == oldObject.status.resourceHealthSource)
+          && has(object.status.resources) == has(oldObject.status.resources)
+          && (!has(object.status.resources) || object.status.resources == oldObject.status.resources)
+          && has(object.status.sourceHydrator) == has(oldObject.status.sourceHydrator)
+          && (!has(object.status.sourceHydrator) || object.status.sourceHydrator == oldObject.status.sourceHydrator)
+          && has(object.status.sourceType) == has(oldObject.status.sourceType)
+          && (!has(object.status.sourceType) || object.status.sourceType == oldObject.status.sourceType)
+          && has(object.status.sourceTypes) == has(oldObject.status.sourceTypes)
+          && (!has(object.status.sourceTypes) || object.status.sourceTypes == oldObject.status.sourceTypes)
+          && has(object.status.summary) == has(oldObject.status.summary)
+          && (!has(object.status.summary) || object.status.summary == oldObject.status.summary)
+          && has(object.status.sync) == has(oldObject.status.sync)
+          && (!has(object.status.sync) || object.status.sync == oldObject.status.sync)
+          && has(object.status.operationState.finishedAt) == has(oldObject.status.operationState.finishedAt)
+          && (!has(object.status.operationState.finishedAt) || object.status.operationState.finishedAt == oldObject.status.operationState.finishedAt)
+          && has(object.status.operationState.message) == has(oldObject.status.operationState.message)
+          && (!has(object.status.operationState.message) || object.status.operationState.message == oldObject.status.operationState.message)
+          && has(object.status.operationState.operation) == has(oldObject.status.operationState.operation)
+          && (!has(object.status.operationState.operation) || object.status.operationState.operation == oldObject.status.operationState.operation)
+          && has(object.status.operationState.retryCount) == has(oldObject.status.operationState.retryCount)
+          && (!has(object.status.operationState.retryCount) || object.status.operationState.retryCount == oldObject.status.operationState.retryCount)
+          && has(object.status.operationState.startedAt) == has(oldObject.status.operationState.startedAt)
+          && (!has(object.status.operationState.startedAt) || object.status.operationState.startedAt == oldObject.status.operationState.startedAt)
+          && has(object.status.operationState.syncResult) == has(oldObject.status.operationState.syncResult)
+          && (!has(object.status.operationState.syncResult) || object.status.operationState.syncResult == oldObject.status.operationState.syncResult)
+        )
+        || (
+          request.userInfo.username == 'system:serviceaccount:argocd:openclaw-operation-executor'
+          && !has(oldObject.operation)
+          && has(object.operation)
+          && has(oldObject.status)
+          && has(oldObject.status.operationState)
+          && oldObject.status.operationState.phase in ['Succeeded', 'Failed', 'Error']
+          && has(object.status)
+          && !has(object.status.operationState)
+          && has(object.status.conditions) == has(oldObject.status.conditions)
+          && (!has(object.status.conditions) || object.status.conditions == oldObject.status.conditions)
+          && has(object.status.controllerNamespace) == has(oldObject.status.controllerNamespace)
+          && (!has(object.status.controllerNamespace) || object.status.controllerNamespace == oldObject.status.controllerNamespace)
+          && has(object.status.health) == has(oldObject.status.health)
+          && (!has(object.status.health) || object.status.health == oldObject.status.health)
+          && has(object.status.history) == has(oldObject.status.history)
+          && (!has(object.status.history) || object.status.history == oldObject.status.history)
+          && has(object.status.observedAt) == has(oldObject.status.observedAt)
+          && (!has(object.status.observedAt) || object.status.observedAt == oldObject.status.observedAt)
+          && has(object.status.reconciledAt) == has(oldObject.status.reconciledAt)
+          && (!has(object.status.reconciledAt) || object.status.reconciledAt == oldObject.status.reconciledAt)
+          && has(object.status.resourceHealthSource) == has(oldObject.status.resourceHealthSource)
+          && (!has(object.status.resourceHealthSource) || object.status.resourceHealthSource == oldObject.status.resourceHealthSource)
+          && has(object.status.resources) == has(oldObject.status.resources)
+          && (!has(object.status.resources) || object.status.resources == oldObject.status.resources)
+          && has(object.status.sourceHydrator) == has(oldObject.status.sourceHydrator)
+          && (!has(object.status.sourceHydrator) || object.status.sourceHydrator == oldObject.status.sourceHydrator)
+          && has(object.status.sourceType) == has(oldObject.status.sourceType)
+          && (!has(object.status.sourceType) || object.status.sourceType == oldObject.status.sourceType)
+          && has(object.status.sourceTypes) == has(oldObject.status.sourceTypes)
+          && (!has(object.status.sourceTypes) || object.status.sourceTypes == oldObject.status.sourceTypes)
+          && has(object.status.summary) == has(oldObject.status.summary)
+          && (!has(object.status.summary) || object.status.summary == oldObject.status.summary)
+          && has(object.status.sync) == has(oldObject.status.sync)
+          && (!has(object.status.sync) || object.status.sync == oldObject.status.sync)
         )
       message: >-
         Only the Argo CD application controller may change the trusted OpenClaw
-        status, except for the Argo server's strict Running-to-Terminating path.
+        status, except for the Argo server's strict Running-to-Terminating path
+        and the executor's atomic removal of one terminal operationState while
+        consuming a reviewed approval with every other status field unchanged.
       reason: Forbidden
     - expression: >-
         object.metadata.namespace != 'argocd'
@@ -150,6 +225,28 @@ spec:
       message: >-
         Only the dedicated short-lived OpenClaw operation executor may consume
         a reviewed approval.
+      reason: Forbidden
+    - expression: >-
+        object.metadata.namespace != 'argocd'
+        || object.metadata.name != 'openclaw-qwen36'
+        || !has(object.operation)
+        || has(oldObject.operation)
+        || (
+          request.userInfo.username == 'system:serviceaccount:argocd:openclaw-operation-executor'
+          && (
+            !has(oldObject.status)
+            || !has(oldObject.status.operationState)
+            || (
+              oldObject.status.operationState.phase in ['Succeeded', 'Failed', 'Error']
+              && has(object.status)
+              && !has(object.status.operationState)
+            )
+          )
+        )
+      message: >-
+        A reviewed OpenClaw operation must atomically clear any previous
+        terminal operationState; Running and Terminating state must never be
+        cleared or replaced by the executor.
       reason: Forbidden
     - expression: >-
         object.metadata.namespace != 'argocd'
