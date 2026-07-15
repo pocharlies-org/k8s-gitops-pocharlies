@@ -1,0 +1,34 @@
+# Adopt the legacy Helm release so its scheduling and HA policy are controlled
+# by GitOps. The first sync remains manual because this ingress terminates LAN
+# TLS and fronts the internal Harbor endpoint used by release pipelines.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: traefik-lan
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-infra-pocharlies
+  labels:
+    e-dani.com/tier: infra
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://traefik.github.io/charts
+      chart: traefik
+      targetRevision: 40.2.0
+      helm:
+        releaseName: traefik-lan
+        valueFiles:
+          - $values/networking/traefik-lan/values.yaml
+    - repoURL: https://github.com/pocharlies-org/k8s-infra-pocharlies
+      targetRevision: deploy/prod
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: traefik-lan
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
