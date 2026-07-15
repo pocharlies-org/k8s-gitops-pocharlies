@@ -97,7 +97,7 @@ def validate_common(release: str, expected_max: int) -> tuple[dict, dict]:
     return runner_set, pod_spec
 
 
-_, openclaw_spec = validate_common("arc-openclaw", 1)
+_, openclaw_spec = validate_common("arc-openclaw", 2)
 assert [container["name"] for container in openclaw_spec["containers"]] == ["runner"]
 assert openclaw_spec.get("initContainers", []) == []
 assert openclaw_spec.get("volumes", []) == []
