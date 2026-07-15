@@ -248,6 +248,63 @@ spec:
   validationActions:
     - Deny
 ---
+# This gate intentionally covers every Deployment in the dedicated production
+# namespace, including future chart components. Workload names/labels are not a
+# safe ownership boundary for DELETE, generated-name CREATE or /scale requests.
+# deployments/status is deliberately absent so Kubernetes controllers can keep
+# reconciling status without acquiring a production write exception.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: openclaw-runtime-deployment-write-gate
+  labels:
+    app.kubernetes.io/name: openclaw-qwen36
+    app.kubernetes.io/component: deployment-safety
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - apps
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
+        resources:
+          - deployments
+          - deployments/scale
+        scope: Namespaced
+  matchConditions:
+    - name: production-openclaw-namespace-only
+      expression: request.namespace == 'openclaw-qwen36'
+  validations:
+    - expression: >-
+        request.userInfo.username ==
+        'system:serviceaccount:argocd:argocd-application-controller'
+      message: >-
+        Direct writes to production OpenClaw Deployments, including rollout
+        restart and scale, are denied; use reviewed GitOps through Argo CD.
+      reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: openclaw-runtime-deployment-write-gate
+  labels:
+    app.kubernetes.io/name: openclaw-qwen36
+    app.kubernetes.io/component: deployment-safety
+spec:
+  policyName: openclaw-runtime-deployment-write-gate
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: openclaw-qwen36
+  validationActions:
+    - Deny
+    - Audit
+---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
