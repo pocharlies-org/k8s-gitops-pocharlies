@@ -1,3 +1,44 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openclaw-operation-executor
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: openclaw-qwen36
+    app.kubernetes.io/component: deployment-safety
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: openclaw-operation-executor
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: openclaw-qwen36
+    app.kubernetes.io/component: deployment-safety
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    resourceNames: ["openclaw-qwen36"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: openclaw-operation-executor
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: openclaw-qwen36
+    app.kubernetes.io/component: deployment-safety
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: openclaw-operation-executor
+subjects:
+  - kind: ServiceAccount
+    name: openclaw-operation-executor
+    namespace: argocd
+---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
@@ -22,33 +63,177 @@ spec:
     - expression: >-
         object.metadata.namespace != 'argocd'
         || object.metadata.name != 'openclaw-qwen36'
-        || !has(object.operation)
         || (
           has(object.metadata.annotations)
           && 'operations.pocharlies.org/state-writer-lease' in object.metadata.annotations
-          && object.metadata.annotations['operations.pocharlies.org/state-writer-lease'] == 'active'
+          && (
+            (
+              object.metadata.annotations['operations.pocharlies.org/state-writer-lease'] == 'inactive'
+              && !('operations.pocharlies.org/approved-revision' in object.metadata.annotations)
+              && !('operations.pocharlies.org/approval-id' in object.metadata.annotations)
+              && !('operations.pocharlies.org/approval-sequence' in object.metadata.annotations)
+              && !('operations.pocharlies.org/approved-prune' in object.metadata.annotations)
+            )
+            || (
+              object.metadata.annotations['operations.pocharlies.org/state-writer-lease'] == 'active'
+              && 'operations.pocharlies.org/approved-revision' in object.metadata.annotations
+              && object.metadata.annotations['operations.pocharlies.org/approved-revision'].matches('^[0-9a-f]{40}$')
+              && 'operations.pocharlies.org/approval-id' in object.metadata.annotations
+              && object.metadata.annotations['operations.pocharlies.org/approval-id'].matches('^[a-z0-9][a-z0-9-]{7,63}$')
+              && 'operations.pocharlies.org/approval-sequence' in object.metadata.annotations
+              && object.metadata.annotations['operations.pocharlies.org/approval-sequence'].matches('^[0-9]{14}$')
+              && 'operations.pocharlies.org/approved-prune' in object.metadata.annotations
+              && object.metadata.annotations['operations.pocharlies.org/approved-prune'] in ['true', 'false']
+            )
+          )
         )
       message: >-
-        OpenClaw sync operations are denied until GitOps activates the
-        state-writer lease gate.
+        The OpenClaw writer lease must be inactive without stale approvals, or
+        active with a reviewed revision, approval id, monotonic UTC sequence,
+        and prune decision.
       reason: Forbidden
     - expression: >-
         object.metadata.namespace != 'argocd'
         || object.metadata.name != 'openclaw-qwen36'
         || request.userInfo.username == 'system:serviceaccount:argocd:argocd-application-controller'
-        || !(
-          has(object.metadata.annotations)
-          && 'operations.pocharlies.org/state-writer-lease' in object.metadata.annotations
-          && object.metadata.annotations['operations.pocharlies.org/state-writer-lease'] == 'active'
-        )
+        || object.spec == oldObject.spec
+      message: >-
+        Only the Argo CD application controller may change the OpenClaw
+        Application spec from reviewed GitOps.
+      reason: Forbidden
+    - expression: >-
+        object.metadata.namespace != 'argocd'
+        || object.metadata.name != 'openclaw-qwen36'
+        || request.userInfo.username == 'system:serviceaccount:argocd:argocd-application-controller'
         || (
-          has(oldObject.metadata.annotations)
-          && 'operations.pocharlies.org/state-writer-lease' in oldObject.metadata.annotations
-          && oldObject.metadata.annotations['operations.pocharlies.org/state-writer-lease'] == 'active'
+          has(object.metadata.annotations) == has(oldObject.metadata.annotations)
+          && (!has(object.metadata.annotations) || object.metadata.annotations == oldObject.metadata.annotations)
+          && has(object.metadata.labels) == has(oldObject.metadata.labels)
+          && (!has(object.metadata.labels) || object.metadata.labels == oldObject.metadata.labels)
+          && has(object.metadata.finalizers) == has(oldObject.metadata.finalizers)
+          && (!has(object.metadata.finalizers) || object.metadata.finalizers == oldObject.metadata.finalizers)
+          && has(object.metadata.ownerReferences) == has(oldObject.metadata.ownerReferences)
+          && (!has(object.metadata.ownerReferences) || object.metadata.ownerReferences == oldObject.metadata.ownerReferences)
         )
       message: >-
-        Only the Argo CD application controller may activate the OpenClaw
-        state-writer lease gate from GitOps.
+        Only the Argo CD application controller may change OpenClaw annotations,
+        labels, finalizers, or owner references from reviewed GitOps.
+      reason: Forbidden
+    - expression: >-
+        object.metadata.namespace != 'argocd'
+        || object.metadata.name != 'openclaw-qwen36'
+        || request.userInfo.username == 'system:serviceaccount:argocd:argocd-application-controller'
+        || (
+          has(object.status) == has(oldObject.status)
+          && (!has(object.status) || object.status == oldObject.status)
+        )
+        || (
+          request.userInfo.username == 'system:serviceaccount:argocd:argocd-server'
+          && has(oldObject.status)
+          && has(oldObject.status.operationState)
+          && oldObject.status.operationState.phase == 'Running'
+          && has(object.status)
+          && has(object.status.operationState)
+          && object.status.operationState.phase == 'Terminating'
+          && object.status.operationState.operation == oldObject.status.operationState.operation
+        )
+      message: >-
+        Only the Argo CD application controller may change the trusted OpenClaw
+        status, except for the Argo server's strict Running-to-Terminating path.
+      reason: Forbidden
+    - expression: >-
+        object.metadata.namespace != 'argocd'
+        || object.metadata.name != 'openclaw-qwen36'
+        || !has(object.operation)
+        || has(oldObject.operation)
+        || request.userInfo.username == 'system:serviceaccount:argocd:openclaw-operation-executor'
+      message: >-
+        Only the dedicated short-lived OpenClaw operation executor may consume
+        a reviewed approval.
+      reason: Forbidden
+    - expression: >-
+        object.metadata.namespace != 'argocd'
+        || object.metadata.name != 'openclaw-qwen36'
+        || !has(object.operation)
+        || (
+          has(object.operation.sync)
+          && has(object.operation.sync.revision)
+          && has(object.operation.sync.prune)
+          && !has(object.operation.sync.autoHealAttemptsCount)
+          && !has(object.operation.sync.dryRun)
+          && !has(object.operation.sync.manifests)
+          && !has(object.operation.sync.resources)
+          && !has(object.operation.sync.revisions)
+          && !has(object.operation.sync.source)
+          && !has(object.operation.sync.sources)
+          && !has(object.operation.sync.syncStrategy)
+          && !has(object.operation.retry)
+          && has(oldObject.spec.syncPolicy)
+          && has(oldObject.spec.syncPolicy.syncOptions)
+          && has(object.operation.sync.syncOptions)
+          && object.operation.sync.syncOptions == oldObject.spec.syncPolicy.syncOptions
+          && object.operation.sync.revision == object.metadata.annotations['operations.pocharlies.org/approved-revision']
+          && has(object.operation.info)
+          && object.operation.info.size() == 2
+          && object.operation.info.filter(item,
+            item.name == 'approval-id'
+            && item.value == object.metadata.annotations['operations.pocharlies.org/approval-id']
+          ).size() == 1
+          && object.operation.info.filter(item,
+            item.name == 'approval-sequence'
+            && item.value == object.metadata.annotations['operations.pocharlies.org/approval-sequence']
+          ).size() == 1
+          && object.metadata.annotations['operations.pocharlies.org/approved-prune'] == (
+            object.operation.sync.prune ? 'true' : 'false'
+          )
+        )
+      message: >-
+        OpenClaw operations must use only the exact GitOps-approved commit,
+        approval id/sequence, and explicit prune decision; source/manifests
+        overrides, selective sync, custom sync strategies,
+        retry policies, and sync options differing from GitOps are forbidden.
+      reason: Forbidden
+    - expression: >-
+        object.metadata.namespace != 'argocd'
+        || object.metadata.name != 'openclaw-qwen36'
+        || request.userInfo.username == 'system:serviceaccount:argocd:argocd-application-controller'
+        || !has(oldObject.operation)
+        || (
+          request.userInfo.username == 'system:serviceaccount:argocd:argocd-server'
+          && has(object.operation)
+          && object.operation == oldObject.operation
+          && has(oldObject.status)
+          && has(oldObject.status.operationState)
+          && oldObject.status.operationState.phase == 'Running'
+          && has(object.status)
+          && has(object.status.operationState)
+          && object.status.operationState.phase == 'Terminating'
+        )
+      message: >-
+        While an OpenClaw operation is in flight, only the Argo CD application
+        controller may update it; the Argo server may only request the strict
+        Running-to-Terminating transition.
+      reason: Forbidden
+    - expression: >-
+        object.metadata.namespace != 'argocd'
+        || object.metadata.name != 'openclaw-qwen36'
+        || !has(object.operation)
+        || has(oldObject.operation)
+        || !(
+          has(oldObject.status)
+          && has(oldObject.status.operationState)
+          && has(oldObject.status.operationState.operation.info)
+          && oldObject.status.operationState.operation.info.exists(item,
+            item.name == 'approval-sequence'
+            && (
+              !item.value.matches('^[0-9]{14}$')
+              || int(object.metadata.annotations['operations.pocharlies.org/approval-sequence']) <= int(item.value)
+            )
+          )
+        )
+      message: >-
+        The approval sequence must be a strictly newer UTC value than the last
+        consumed OpenClaw operation sequence.
       reason: Forbidden
 ---
 apiVersion: admissionregistration.k8s.io/v1
@@ -60,5 +245,89 @@ metadata:
     app.kubernetes.io/component: deployment-safety
 spec:
   policyName: openclaw-operation-state-writer-gate
+  validationActions:
+    - Deny
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: openclaw-application-delete-gate
+  labels:
+    app.kubernetes.io/name: openclaw-qwen36
+    app.kubernetes.io/component: deployment-safety
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - argoproj.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - DELETE
+        resources:
+          - applications
+        scope: Namespaced
+  validations:
+    - expression: >-
+        oldObject.metadata.namespace != 'argocd'
+        || oldObject.metadata.name != 'openclaw-qwen36'
+        || request.userInfo.username == 'system:serviceaccount:argocd:argocd-application-controller'
+      message: >-
+        Only the root GitOps application controller may delete the protected
+        OpenClaw Application.
+      reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: openclaw-application-delete-gate
+  labels:
+    app.kubernetes.io/name: openclaw-qwen36
+    app.kubernetes.io/component: deployment-safety
+spec:
+  policyName: openclaw-application-delete-gate
+  validationActions:
+    - Deny
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: openclaw-application-create-gate
+  labels:
+    app.kubernetes.io/name: openclaw-qwen36
+    app.kubernetes.io/component: deployment-safety
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - argoproj.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+        resources:
+          - applications
+        scope: Namespaced
+  validations:
+    - expression: >-
+        object.metadata.namespace != 'argocd'
+        || object.metadata.name != 'openclaw-qwen36'
+        || request.userInfo.username == 'system:serviceaccount:argocd:argocd-application-controller'
+      message: >-
+        Only the root GitOps application controller may create the protected
+        OpenClaw Application.
+      reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: openclaw-application-create-gate
+  labels:
+    app.kubernetes.io/name: openclaw-qwen36
+    app.kubernetes.io/component: deployment-safety
+spec:
+  policyName: openclaw-application-create-gate
   validationActions:
     - Deny
