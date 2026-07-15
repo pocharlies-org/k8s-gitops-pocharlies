@@ -39,6 +39,77 @@ spec:
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
+  name: arc-openclaw
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-openclaw
+      values: |
+        containerMode:
+          type: dind
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-app
+        githubConfigUrl: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
+        # Dedicated OpenClaw pool. The shared arc-k8s pool is organization-wide
+        # and can be saturated by unrelated repos; beta deploys need deterministic
+        # access to the in-cluster BuildKit/Harbor network.
+        maxRunners: 2
+        minRunners: 0
+        runnerScaleSetName: arc-openclaw
+        template:
+          spec:
+            nodeSelector:
+              kubernetes.io/arch: amd64
+              node-pool: ks5-nvme
+            tolerations:
+              - effect: PreferNoSchedule
+                key: pool
+                operator: Equal
+                value: dev
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.335.1
+                command: ["/home/runner/run.sh"]
+                resources:
+                  requests:
+                    cpu: "500m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+              - name: dind
+                resources:
+                  requests:
+                    cpu: "250m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-runners
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
   name: arc-k8s
   namespace: argocd
   labels:
