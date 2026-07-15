@@ -228,7 +228,8 @@ class OpenClawOperationGateTest(unittest.TestCase):
         for command in (
             "create deployment",
             "patch deployment",
-            "rollout restart",
+            "kubectl rollout restart equivalent",
+            "kubectl.kubernetes.io/restartedAt",
             "scale \"deployment/$DEPLOYMENT\"",
             "delete \"deployment/$DEPLOYMENT\"",
             "--subresource=status",
