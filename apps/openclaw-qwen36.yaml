@@ -8,7 +8,11 @@ metadata:
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
     # Closed by default. A reviewed GitOps change may activate this only for
     # the exact maintenance window, and must close it again after verification.
-    operations.pocharlies.org/state-writer-lease: inactive
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: d3b0cd3cf71998592ebafaffe6127e895613f66d
+    operations.pocharlies.org/approval-id: openclaw-prod-sync-d3b0cd3
+    operations.pocharlies.org/approval-sequence: "20260715032322"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
