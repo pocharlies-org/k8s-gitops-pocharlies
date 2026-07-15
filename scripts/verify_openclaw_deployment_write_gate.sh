@@ -58,8 +58,12 @@ expect_denied "direct metadata UPDATE" \
   --patch '{"metadata":{"annotations":{"operations.pocharlies.org/admission-probe":"direct-update"}}}' \
   --dry-run=server -o name
 
-expect_denied "kubectl rollout restart" \
-  kubectl -n "$NAMESPACE" rollout restart "deployment/$DEPLOYMENT" \
+# `kubectl rollout restart` does not expose --dry-run in every supported
+# kubectl release. Exercise the exact pod-template annotation mutation that the
+# command emits, while retaining a server-side dry run.
+expect_denied "kubectl rollout restart equivalent" \
+  kubectl -n "$NAMESPACE" patch deployment "$DEPLOYMENT" --type=strategic \
+  --patch '{"spec":{"template":{"metadata":{"annotations":{"kubectl.kubernetes.io/restartedAt":"2099-01-01T00:00:00Z"}}}}}' \
   --dry-run=server -o name
 
 expect_denied "scale subresource UPDATE" \
