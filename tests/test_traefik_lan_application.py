@@ -28,6 +28,10 @@ class TraefikLanApplicationTest(unittest.TestCase):
                 },
             },
         )
+        self.assertEqual(
+            sources[1]["repoURL"],
+            "https://github.com/pocharlies/k8s-infra-pocharlies",
+        )
         self.assertEqual(sources[1]["targetRevision"], "deploy/prod")
         self.assertEqual(sources[1]["ref"], "values")
         self.assertNotIn("automated", self.application["spec"]["syncPolicy"])
