@@ -6,7 +6,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    operations.pocharlies.org/state-writer-lease: active
+    # Closed by default. A reviewed GitOps change may activate this only for
+    # the exact maintenance window, and must close it again after verification.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]

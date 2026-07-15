@@ -15,11 +15,11 @@ class OpenClawControlledSyncWindowTest(unittest.TestCase):
         self.assertNotIn('manualSync: false', project)
         self.assertIn('after the state-writer lease rollout gate', project)
 
-    def test_application_activates_the_admission_gate_from_gitops(self) -> None:
+    def test_application_keeps_the_admission_gate_closed_by_default(self) -> None:
         application = (ROOT / "apps/openclaw-qwen36.yaml").read_text()
 
         self.assertIn(
-            "operations.pocharlies.org/state-writer-lease: active",
+            "operations.pocharlies.org/state-writer-lease: inactive",
             application,
         )
 
