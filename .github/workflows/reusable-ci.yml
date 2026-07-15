@@ -225,6 +225,19 @@ jobs:
             "$KUBECONFORM_TGZ"
           tar xzf "$KUBECONFORM_TGZ" -C "$RUNNER_TEMP/bin" kubeconform
 
+          HELM_VERSION=v3.18.6
+          HELM_SHA256=3f43c0aa57243852dd542493a0f54f1396c0bc8ec7296bbb2c01e802010819ce
+          HELM_TGZ="$RUNNER_TEMP/helm.tar.gz"
+          download_file \
+            "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" \
+            "$HELM_TGZ"
+          echo "${HELM_SHA256}  ${HELM_TGZ}" | sha256sum -c -
+          tar xzf "$HELM_TGZ" -C "$RUNNER_TEMP" linux-amd64/helm
+          install -m 0755 "$RUNNER_TEMP/linux-amd64/helm" "$RUNNER_TEMP/bin/helm"
+
+      - name: Verify rendered ARC runner contract
+        run: scripts/verify_arc_runner_render.sh
+
       - name: YAML lint
         run: |
           set -euo pipefail

@@ -54,8 +54,6 @@ spec:
     helm:
       releaseName: arc-openclaw
       values: |
-        containerMode:
-          type: dind
         controllerServiceAccount:
           name: arc-gha-rs-controller
           namespace: arc-systems
@@ -64,11 +62,21 @@ spec:
         # Dedicated OpenClaw pool. The shared arc-k8s pool is organization-wide
         # and can be saturated by unrelated repos; beta deploys need deterministic
         # access to the in-cluster BuildKit/Harbor network.
-        maxRunners: 2
+        # One repo-scoped runner is deliberate: OpenClaw validation and release
+        # work must make progress without allowing CI to saturate a KS5 node.
+        maxRunners: 1
         minRunners: 0
         runnerScaleSetName: arc-openclaw
         template:
           spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  - labelSelector:
+                      matchLabels:
+                        app.kubernetes.io/component: runner
+                        app.kubernetes.io/part-of: gha-runner-scale-set
+                    topologyKey: kubernetes.io/hostname
             nodeSelector:
               kubernetes.io/arch: amd64
               node-pool: ks5-nvme
@@ -85,14 +93,6 @@ spec:
                   requests:
                     cpu: "500m"
                     memory: "1Gi"
-                  limits:
-                    cpu: "2"
-                    memory: "4Gi"
-              - name: dind
-                resources:
-                  requests:
-                    cpu: "250m"
-                    memory: "512Mi"
                   limits:
                     cpu: "2"
                     memory: "4Gi"
@@ -125,8 +125,6 @@ spec:
     helm:
       releaseName: arc-k8s
       values: |
-        containerMode:
-          type: dind
         controllerServiceAccount:
           name: arc-gha-rs-controller
           namespace: arc-systems
@@ -135,11 +133,19 @@ spec:
         # Keep KS5 headroom for production maxSurge rollouts while allowing
         # OpenClaw infra pipelines to make progress when other repos occupy
         # the shared organization runner pool.
-        maxRunners: 4
+        maxRunners: 2
         minRunners: 0
         runnerScaleSetName: arc-k8s
         template:
           spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  - labelSelector:
+                      matchLabels:
+                        app.kubernetes.io/component: runner
+                        app.kubernetes.io/part-of: gha-runner-scale-set
+                    topologyKey: kubernetes.io/hostname
             nodeSelector:
               kubernetes.io/arch: amd64
               # CI must remain available if the home-lab Ubuntu node is down.
@@ -151,18 +157,33 @@ spec:
                 key: pool
                 operator: Equal
                 value: dev
-            containers:
-              - name: runner
+            # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
+            # container. containerMode must stay unset when that sidecar is
+            # customized, otherwise Helm silently discards its resources.
+            initContainers:
+              - name: init-dind-externals
                 image: ghcr.io/actions/actions-runner:2.335.1
-                command: ["/home/runner/run.sh"]
+                command: ["cp", "-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
                 resources:
                   requests:
-                    cpu: "500m"
-                    memory: "1Gi"
+                    cpu: "10m"
+                    memory: "32Mi"
                   limits:
-                    cpu: "2"
-                    memory: "4Gi"
+                    cpu: "100m"
+                    memory: "128Mi"
+                volumeMounts:
+                  - name: dind-externals
+                    mountPath: /home/runner/tmpDir
               - name: dind
+                image: docker:dind
+                args:
+                  - dockerd
+                  - --host=unix:///var/run/docker.sock
+                  - --group=$(DOCKER_GROUP_GID)
+                env:
+                  - name: DOCKER_GROUP_GID
+                    value: "123"
+                restartPolicy: Always
                 resources:
                   requests:
                     cpu: "250m"
@@ -170,6 +191,49 @@ spec:
                   limits:
                     cpu: "2"
                     memory: "4Gi"
+                securityContext:
+                  privileged: true
+                startupProbe:
+                  exec:
+                    command: ["docker", "info"]
+                  initialDelaySeconds: 0
+                  failureThreshold: 24
+                  periodSeconds: 5
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+                  - name: dind-externals
+                    mountPath: /home/runner/externals
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.335.1
+                command: ["/home/runner/run.sh"]
+                env:
+                  - name: DOCKER_HOST
+                    value: unix:///var/run/docker.sock
+                  - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+                    value: "120"
+                resources:
+                  requests:
+                    cpu: "500m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+            volumes:
+              - name: work
+                emptyDir: {}
+              - name: dind-sock
+                emptyDir: {}
+              - name: dind-externals
+                emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
     namespace: arc-runners
