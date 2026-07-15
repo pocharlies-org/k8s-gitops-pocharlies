@@ -23,9 +23,6 @@ spec:
     server: https://kubernetes.default.svc
     namespace: openclaw-synapse
   syncPolicy:
-    automated:
-      selfHeal: true
-      prune: false
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
