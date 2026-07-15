@@ -111,6 +111,13 @@ assert [container["name"] for container in shared_spec["initContainers"]] == [
     "init-dind-externals",
     "dind",
 ]
+externals_init = shared_spec["initContainers"][0]
+assert externals_init["command"] == ["cp"]
+assert externals_init["args"] == [
+    "-r",
+    "/home/runner/externals/.",
+    "/home/runner/tmpDir/",
+]
 
 shared_runner = shared_spec["containers"][0]
 runner_env = {item["name"]: item.get("value") for item in shared_runner["env"]}
