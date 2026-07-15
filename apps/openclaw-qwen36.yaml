@@ -6,11 +6,8 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 7526be1622eeca680cf7ff06817e7471741f90a6
-    operations.pocharlies.org/approval-id: openclaw-prod-hook-name-fix-7526be1-20260715094839
-    operations.pocharlies.org/approval-sequence: "20260715094839"
-    operations.pocharlies.org/approved-prune: "false"
+    # Closed until the robust bounded-name contract has completed review.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
