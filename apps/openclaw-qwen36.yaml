@@ -9,9 +9,9 @@ metadata:
     # Closed by default. A reviewed GitOps change may activate this only for
     # the exact maintenance window, and must close it again after verification.
     operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: e7d7a4d651d87a99c1688153a82551c2b24d568c
-    operations.pocharlies.org/approval-id: openclaw-prod-resync-e7d7a4d-20260715060718
-    operations.pocharlies.org/approval-sequence: "20260715060718"
+    operations.pocharlies.org/approved-revision: a28d18d5a3764fcdff06bf9582bfcbd443cab577
+    operations.pocharlies.org/approval-id: openclaw-ornith-sync-a28d18d-20260715070027
+    operations.pocharlies.org/approval-sequence: "20260715070027"
     operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
