@@ -6,11 +6,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: cbffacd0cb540c8f68c315ea383e010cd1244bde
-    operations.pocharlies.org/approval-id: openclaw-prod-postsync-ingress-open-cbffacd-20260715100947
-    operations.pocharlies.org/approval-sequence: "20260715100947"
-    operations.pocharlies.org/approved-prune: "false"
+    # Closed after the cbffacd recovery reached Succeeded/Healthy and the
+    # router proved resumed, ingress-open and fully drained.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
