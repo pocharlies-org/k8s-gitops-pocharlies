@@ -1,4 +1,5 @@
 from pathlib import Path
+import subprocess
 import unittest
 
 
@@ -6,6 +7,28 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class OpenClawOperationGateTest(unittest.TestCase):
+    def runtime_deployment_gate(self) -> tuple[str, str]:
+        manifest = (
+            ROOT / "argocd/openclaw-operation-admission-gate.yaml"
+        ).read_text()
+        marker = (
+            "kind: ValidatingAdmissionPolicy\n"
+            "metadata:\n"
+            "  name: openclaw-runtime-deployment-write-gate\n"
+        )
+        binding_marker = (
+            "\n---\n"
+            "apiVersion: admissionregistration.k8s.io/v1\n"
+            "kind: ValidatingAdmissionPolicyBinding\n"
+            "metadata:\n"
+            "  name: openclaw-runtime-deployment-write-gate\n"
+        )
+
+        self.assertEqual(manifest.count(marker), 1)
+        _, runtime_documents = manifest.split(marker, 1)
+        policy, binding = runtime_documents.split(binding_marker, 1)
+        return policy, binding
+
     def test_gate_is_fail_closed_and_scoped_to_argocd_applications(self) -> None:
         manifest = (
             ROOT / "argocd/openclaw-operation-admission-gate.yaml"
@@ -153,6 +176,70 @@ class OpenClawOperationGateTest(unittest.TestCase):
             root.count("argocd/openclaw-operation-admission-gate.yaml"),
             1,
         )
+
+    def test_runtime_deployment_gate_covers_direct_writes_and_scale(self) -> None:
+        policy, binding = self.runtime_deployment_gate()
+
+        self.assertIn("failurePolicy: Fail", policy)
+        for operation in ("CREATE", "UPDATE", "DELETE"):
+            self.assertIn(f"          - {operation}", policy)
+        self.assertIn("          - deployments\n", policy)
+        self.assertIn("          - deployments/scale\n", policy)
+        self.assertNotIn("deployments/status", policy)
+        self.assertNotIn("          - '*'", policy)
+        self.assertIn("validationActions:\n    - Deny", binding)
+        self.assertIn("    - Audit", binding)
+
+    def test_runtime_deployment_gate_has_exact_namespace_scope(self) -> None:
+        policy, binding = self.runtime_deployment_gate()
+
+        self.assertIn(
+            "expression: request.namespace == 'openclaw-qwen36'",
+            policy,
+        )
+        self.assertIn("namespaceSelector:", binding)
+        self.assertIn("kubernetes.io/metadata.name: openclaw-qwen36", binding)
+        self.assertNotIn("openclaw-synapse", policy + binding)
+        self.assertNotIn("objectSelector:", policy + binding)
+
+    def test_runtime_deployment_gate_has_no_name_or_label_bypass(self) -> None:
+        policy, _ = self.runtime_deployment_gate()
+
+        self.assertNotRegex(policy, r"\brequest\.name\b")
+        self.assertNotIn("object.metadata.labels", policy)
+        self.assertNotIn("oldObject.metadata.labels", policy)
+
+    def test_runtime_deployment_gate_allows_only_the_argo_controller(self) -> None:
+        policy, _ = self.runtime_deployment_gate()
+        argo_controller = (
+            "system:serviceaccount:argocd:argocd-application-controller"
+        )
+
+        self.assertEqual(policy.count(argo_controller), 1)
+        self.assertIn("request.userInfo.username ==", policy)
+        self.assertIn("including rollout\n        restart and scale", policy)
+        self.assertNotIn("request.userInfo.groups", policy)
+
+    def test_adversarial_harness_is_server_dry_run_only(self) -> None:
+        script_path = ROOT / "scripts/verify_openclaw_deployment_write_gate.sh"
+        script = script_path.read_text()
+
+        subprocess.run(["bash", "-n", script_path], check=True)
+        for command in (
+            "create deployment",
+            "patch deployment",
+            "rollout restart",
+            "scale \"deployment/$DEPLOYMENT\"",
+            "delete \"deployment/$DEPLOYMENT\"",
+            "--subresource=status",
+            "kubectl --as=\"$ARGO_USER\"",
+            "Synapse namespace UPDATE",
+            "unrelated namespace CREATE",
+        ):
+            self.assertIn(command, script)
+        self.assertGreaterEqual(script.count("--dry-run=server"), 9)
+        self.assertNotIn("--dry-run=none", script)
+        self.assertNotIn("kubectl apply", script)
 
 
 if __name__ == "__main__":
