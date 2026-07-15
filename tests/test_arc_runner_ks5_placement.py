@@ -18,8 +18,8 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
 
     def test_runner_pool_reserves_rollout_headroom(self) -> None:
         manifest = (ROOT / "infra/arc.yaml").read_text()
-        self.assertIn("maxRunners: 2", manifest)
-        self.assertNotIn("maxRunners: 3", manifest)
+        self.assertIn("maxRunners: 4", manifest)
+        self.assertNotIn("maxRunners: 2", manifest)
 
 
 if __name__ == "__main__":
