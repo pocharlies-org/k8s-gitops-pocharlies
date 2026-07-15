@@ -6,11 +6,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: e5ceb152733cb891136c9b3b5e8eba0b6a04e6be
-    operations.pocharlies.org/approval-id: openclaw-prod-hook-contract-e5ceb15-20260715103537
-    operations.pocharlies.org/approval-sequence: "20260715103537"
-    operations.pocharlies.org/approved-prune: "false"
+    # Closed after revision e5ceb15 reached Succeeded/Synced/Healthy and both
+    # bounded safe-deploy hooks completed with the router fully drained.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
