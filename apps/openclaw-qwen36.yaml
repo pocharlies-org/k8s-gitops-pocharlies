@@ -6,9 +6,13 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Closed after revision e5ceb15 reached Succeeded/Synced/Healthy and both
-    # bounded safe-deploy hooks completed with the router fully drained.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Reviewed one-shot window for the immutable rho .6 image promotion. The
+    # canonical executor must consume this exact revision once with prune=false.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: e701d390b0b1b2d7c32ed5581d566e59e4f6854f
+    operations.pocharlies.org/approval-id: openclaw-rho6-sync-e701d39-20260715134427
+    operations.pocharlies.org/approval-sequence: "20260715134427"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
