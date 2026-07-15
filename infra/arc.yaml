@@ -62,9 +62,10 @@ spec:
         # Dedicated OpenClaw pool. The shared arc-k8s pool is organization-wide
         # and can be saturated by unrelated repos; beta deploys need deterministic
         # access to the in-cluster BuildKit/Harbor network.
-        # One repo-scoped runner is deliberate: OpenClaw validation and release
-        # work must make progress without allowing CI to saturate a KS5 node.
-        maxRunners: 1
+        # Two repo-scoped runners let a beta deploy progress when a PR
+        # validation job is already running. Required pod anti-affinity below
+        # prevents both runners from landing on the same KS5 host.
+        maxRunners: 2
         minRunners: 0
         runnerScaleSetName: arc-openclaw
         template:
