@@ -38,6 +38,15 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
     def test_shared_dind_is_a_resource_bounded_restartable_init_container(self) -> None:
         self.assertNotIn("containerMode:", self.shared_values)
         self.assertIn("initContainers:", self.shared_values)
+        self.assertIn('command: ["cp"]', self.shared_values)
+        self.assertIn(
+            'args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]',
+            self.shared_values,
+        )
+        self.assertNotIn(
+            'command: ["cp", "-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]',
+            self.shared_values,
+        )
         self.assertIn("name: dind", self.shared_values)
         self.assertIn("restartPolicy: Always", self.shared_values)
         self.assertIn('cpu: "250m"', self.shared_values)

@@ -19,14 +19,18 @@ jobs:
   standard:
     uses: ./.github/workflows/reusable-ci.yml
     with:
-      runner: arc-k8s
+      # Bootstrap only: arc-k8s cannot run this repair until its DinD init is
+      # fixed. arc-openclaw is scoped to a different repository, so use the
+      # hosted runner once; the follow-up token-boundary PR restores arc-k8s
+      # after a live canary proves the pool healthy.
+      runner: ubuntu-latest
       run_node: false
       run_docker_build: false
       kustomize_paths: "."
     secrets: inherit
   synapse-sre-foundation-contract:
     name: Synapse SRE foundation Application contract
-    runs-on: arc-k8s
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4

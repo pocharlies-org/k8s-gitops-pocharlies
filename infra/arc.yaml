@@ -163,7 +163,12 @@ spec:
             initContainers:
               - name: init-dind-externals
                 image: ghcr.io/actions/actions-runner:2.335.1
-                command: ["cp", "-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+                # Keep command and args explicit.  The pre-GitOps Helm manager
+                # still owns the args field in the live ARS; a full command
+                # plus those retained args executes cp twice and recursively
+                # copies tmpDir into itself.
+                command: ["cp"]
+                args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
                 resources:
                   requests:
                     cpu: "10m"
