@@ -49,8 +49,20 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         )
         self.assertIn("name: dind", self.shared_values)
         self.assertIn("restartPolicy: Always", self.shared_values)
-        self.assertIn('cpu: "250m"', self.shared_values)
+        self.assertIn('cpu: "50m"', self.shared_values)
         self.assertIn('memory: "512Mi"', self.shared_values)
+
+    def test_shared_runner_cpu_reservations_fit_two_anti_affine_pods(self) -> None:
+        externals = self.shared_values.split("name: init-dind-externals", 1)[1]
+        externals = externals.split("name: dind", 1)[0]
+        dind = self.shared_values.split("name: dind", 1)[1]
+        dind = dind.split("name: runner", 1)[0]
+        runner = self.shared_values.split("name: runner", 1)[1]
+
+        self.assertIn('cpu: "5m"', externals)
+        self.assertIn('cpu: "50m"', dind)
+        self.assertIn('cpu: "100m"', runner)
+        self.assertNotIn('cpu: "500m"', runner)
 
     def test_runner_pods_cannot_co_locate_on_one_ks5_host(self) -> None:
         for values in (self.openclaw_values, self.shared_values):
