@@ -118,16 +118,24 @@ assert externals_init["args"] == [
     "/home/runner/externals/.",
     "/home/runner/tmpDir/",
 ]
+assert externals_init["resources"] == {
+    "requests": {"cpu": "5m", "memory": "32Mi"},
+    "limits": {"cpu": "100m", "memory": "128Mi"},
+}
 
 shared_runner = shared_spec["containers"][0]
 runner_env = {item["name"]: item.get("value") for item in shared_runner["env"]}
 assert runner_env["DOCKER_HOST"] == "unix:///var/run/docker.sock"
+assert shared_runner["resources"] == {
+    "requests": {"cpu": "100m", "memory": "1Gi"},
+    "limits": {"cpu": "2", "memory": "4Gi"},
+}
 
 dind = shared_spec["initContainers"][1]
 assert dind["restartPolicy"] == "Always"
 assert dind["securityContext"]["privileged"] is True
 assert dind["resources"] == {
-    "requests": {"cpu": "250m", "memory": "512Mi"},
+    "requests": {"cpu": "50m", "memory": "512Mi"},
     "limits": {"cpu": "2", "memory": "4Gi"},
 }
 assert {volume["name"] for volume in shared_spec["volumes"]} == {

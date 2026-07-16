@@ -172,7 +172,9 @@ spec:
                 args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
                 resources:
                   requests:
-                    cpu: "10m"
+                    # Scheduling reservation only; the 100m limit preserves
+                    # burst capacity while avoiding false KS5 CPU exhaustion.
+                    cpu: "5m"
                     memory: "32Mi"
                   limits:
                     cpu: "100m"
@@ -192,7 +194,9 @@ spec:
                 restartPolicy: Always
                 resources:
                   requests:
-                    cpu: "250m"
+                    # DinD is idle while a runner waits for a job. Reserve its
+                    # steady-state footprint and retain the 2-core burst limit.
+                    cpu: "50m"
                     memory: "512Mi"
                   limits:
                     cpu: "2"
@@ -223,7 +227,10 @@ spec:
                     value: "120"
                 resources:
                   requests:
-                    cpu: "500m"
+                    # ARC runners are ephemeral and burst-bound. A small CPU
+                    # request lets two anti-affine runners schedule on KS5;
+                    # the unchanged 2-core limit protects build throughput.
+                    cpu: "100m"
                     memory: "1Gi"
                   limits:
                     cpu: "2"
