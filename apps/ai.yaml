@@ -5,6 +5,9 @@ metadata:
   namespace: argocd
   annotations:
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-ai-pocharlies
+    e-dani.com/rho-pin-purpose: ornith-256k-prefill-32768
+    e-dani.com/rho-rollback-revision: d418fb2c597c076c7e428fda05bff6532070a891
+    e-dani.com/rho-restore-target-revision: deploy/prod
   labels:
     e-dani.com/tier: app
   finalizers:
@@ -13,7 +16,9 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies/k8s-ai-pocharlies
-    targetRevision: deploy/prod
+    # Temporary RHO benchmark pin. Roll back to the annotated immutable revision
+    # before restoring branch tracking in a separate reviewed change.
+    targetRevision: 1108446612275e60671df65cd92df0ead1bffacf
     path: k8s
   destination:
     server: https://kubernetes.default.svc
