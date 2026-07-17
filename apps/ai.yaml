@@ -18,7 +18,7 @@ spec:
     repoURL: https://github.com/pocharlies/k8s-ai-pocharlies
     # Temporary RHO benchmark pin. Roll back to the annotated immutable revision
     # before restoring branch tracking in a separate reviewed change.
-    targetRevision: 1108446612275e60671df65cd92df0ead1bffacf
+    targetRevision: d1548ceace9f0835c47456865a9908fd20af8b47
     path: k8s
   destination:
     server: https://kubernetes.default.svc
