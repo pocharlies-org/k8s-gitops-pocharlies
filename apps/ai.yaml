@@ -22,13 +22,16 @@ spec:
     # decoding on. Roll back to the annotated immutable revision (path k8s) to
     # return to the exact baseline identity.
     #
-    # Rolled forward 758cd27 -> ac27f46 on 2026-07-22: the pinned 758cd27 still
-    # carried the abandoned "RHO 256K benchmark isolation" (replicas: 0 on
-    # omnivoice-tts-dgx2 and stt-turbo), which had kept the voice stack dark for
-    # six days. Leaving the pin here would have re-zeroed both on the next root
-    # sync, because this app selfHeals /spec/replicas for every Deployment not
-    # listed in the ignoreDifferences patch below — and neither is.
-    targetRevision: ac27f469aef2ffd7ad156ba8e82a0e27b583aa1b
+    # Rolled forward 758cd27 -> ac27f46 -> c84b699 on 2026-07-22, dismantling the
+    # abandoned "RHO 256K benchmark isolation" in two steps: ac27f46 restored
+    # omnivoice-tts-dgx2 and stt-turbo to replicas 1 (the voice stack had been dark
+    # for six days), c84b699 un-wedged the DGX1 BGE embedder and reranker, which the
+    # same window had pinned at zero behind an unreachable KEDA activationThreshold.
+    # Note the pin is what gates all of it: leaving it on an older revision re-zeroes
+    # those Deployments on the next root sync, because this app selfHeals
+    # /spec/replicas for every Deployment not listed in the ignoreDifferences patch
+    # below — and none of them are.
+    targetRevision: c84b699c6ca510bb30e82ed59e69ef9e0f494fb9
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
