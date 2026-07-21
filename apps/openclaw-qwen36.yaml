@@ -6,9 +6,12 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Closed after revision 86299d6 reached Succeeded/Synced/Healthy and the
-    # bounded safe-deploy hooks completed with prune=false.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # One-shot approval for the reviewed Traefik LAN trusted-proxy fix.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: cdcd8153894e6570eb2b4d1e30009d02e8eb399e
+    operations.pocharlies.org/approval-id: openclaw-proxy-trust-cdcd815-20260721230829
+    operations.pocharlies.org/approval-sequence: "20260721230829"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
