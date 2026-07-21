@@ -5,7 +5,7 @@ metadata:
   namespace: argocd
   annotations:
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-ai-pocharlies
-    e-dani.com/rho-pin-purpose: ornith-mtp-graft-ab-k1
+    e-dani.com/rho-pin-purpose: ornith-mtp-graft-ab-k3
     e-dani.com/rho-rollback-revision: d1548ceace9f0835c47456865a9908fd20af8b47
     e-dani.com/rho-restore-target-revision: deploy/prod
   labels:
@@ -21,7 +21,7 @@ spec:
     # BF16 mtp.* head, fail-closed SHA verify in the init container) and turns
     # speculative decoding on. Roll back to the annotated immutable revision
     # (path k8s) to return to the exact baseline identity.
-    targetRevision: 4bb86f00f6853aa4117d95ee3c67c3f722928383
+    targetRevision: 99cd402e2e229eba95f14f8aa60814e0978ed546
     path: overlays/ornith-mtp-graft-20260721
   destination:
     server: https://kubernetes.default.svc
