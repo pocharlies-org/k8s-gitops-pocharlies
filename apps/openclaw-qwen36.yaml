@@ -6,9 +6,12 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Closed after revision e701d39 reached Succeeded/Synced/Healthy and the
-    # bounded safe-deploy hooks completed with prune=false.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # One-shot approval for the reviewed Skirmshop cron permission rollout.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 86299d6b38cf488ba6fbf2ae533e4c940f04784e
+    operations.pocharlies.org/approval-id: openclaw-skirmshop-cron-86299d6-20260721224413
+    operations.pocharlies.org/approval-sequence: "20260721224413"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
