@@ -38,7 +38,6 @@ resources:
   - apps-disabled/shopify-sync.yaml
   - apps/skirmbooks.yaml
   - apps/synapse.yaml
-  - apps/synapse-customer-enrichment-canary.yaml
   - apps/socialmedia.yaml
   - apps/synapse-migrations.yaml
   - apps/synapse-sre-foundation.yaml
@@ -216,33 +215,6 @@ patches:
           namespace: llm
           jsonPointers:
             - /metadata/annotations/autoscaling.keda.sh~1paused-replicas
-  - target:
-      group: argoproj.io
-      version: v1alpha1
-      kind: Application
-      name: synapse-customer-enrichment-canary
-    patch: |-
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value:
-          group: apps
-          kind: Deployment
-          name: synapse-adapter-customer-enrichment
-          namespace: synapse
-          jsonPointers:
-            - /spec/replicas
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value:
-          group: apps
-          kind: Deployment
-          name: synapse-adapter-product-enrichment
-          namespace: synapse
-          jsonPointers:
-            - /spec/replicas
-      - op: add
-        path: /spec/syncPolicy/syncOptions/-
-        value: RespectIgnoreDifferences=true
   # The blanket Application patch above REPLACES /spec/ignoreDifferences, so it drops the two
   # target.template paths agentgateway-mcp declares in its own file. ESO defaults both on the
   # backend-tokens ExternalSecret, so without them the app is perpetually OutOfSync. Append
