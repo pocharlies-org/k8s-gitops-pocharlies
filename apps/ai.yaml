@@ -5,9 +5,8 @@ metadata:
   namespace: argocd
   annotations:
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-ai-pocharlies
-    e-dani.com/rho-pin-purpose: ornith-nvfp4-baseline-completion
+    e-dani.com/rho-pin-purpose: ornith-mtp-graft-ab-k1
     e-dani.com/rho-rollback-revision: d1548ceace9f0835c47456865a9908fd20af8b47
-    e-dani.com/rho-canary-revision: be0deb71e632f567d1a92b6b2ce2f2f4ed4eeeeb
     e-dani.com/rho-restore-target-revision: deploy/prod
   labels:
     e-dani.com/tier: app
@@ -17,12 +16,13 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies/k8s-ai-pocharlies
-    # Temporary RHO A/B baseline pin: back to the audited base runtime to finish
-    # the 76 remaining baseline samples. The PR45739 canary revision stays
-    # annotated (e-dani.com/rho-canary-revision) as the documented return point;
-    # restore branch tracking in a separate reviewed change when the A/B closes.
-    targetRevision: d1548ceace9f0835c47456865a9908fd20af8b47
-    path: k8s
+    # Temporary RHO A/B pin: Ornith MTP graft profile (K=1). Same audited image
+    # and weights; the overlay serves a locally grafted checkpoint (base-model
+    # BF16 mtp.* head, fail-closed SHA verify in the init container) and turns
+    # speculative decoding on. Roll back to the annotated immutable revision
+    # (path k8s) to return to the exact baseline identity.
+    targetRevision: 4bb86f00f6853aa4117d95ee3c67c3f722928383
+    path: overlays/ornith-mtp-graft-20260721
   destination:
     server: https://kubernetes.default.svc
     namespace: llm
