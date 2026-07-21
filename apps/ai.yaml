@@ -5,7 +5,7 @@ metadata:
   namespace: argocd
   annotations:
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-ai-pocharlies
-    e-dani.com/rho-pin-purpose: ornith-production-promotion
+    e-dani.com/rho-pin-purpose: ornith-production-promotion + omnivoice restore
     e-dani.com/rho-rollback-revision: d1548ceace9f0835c47456865a9908fd20af8b47
     e-dani.com/rho-restore-target-revision: deploy/prod
   labels:
@@ -16,12 +16,19 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies/k8s-ai-pocharlies
-    # Temporary RHO A/B pin: Ornith MTP graft profile (K=1). Same audited image
-    # and weights; the overlay serves a locally grafted checkpoint (base-model
-    # BF16 mtp.* head, fail-closed SHA verify in the init container) and turns
-    # speculative decoding on. Roll back to the annotated immutable revision
-    # (path k8s) to return to the exact baseline identity.
-    targetRevision: 758cd2715e67a7acde999f05e089b9000fb8c029
+    # RHO pin: Ornith MTP graft profile. Same audited image and weights; the
+    # overlay serves a locally grafted checkpoint (base-model BF16 mtp.* head,
+    # fail-closed SHA verify in the init container) and turns speculative
+    # decoding on. Roll back to the annotated immutable revision (path k8s) to
+    # return to the exact baseline identity.
+    #
+    # Rolled forward 758cd27 -> ac27f46 on 2026-07-22: the pinned 758cd27 still
+    # carried the abandoned "RHO 256K benchmark isolation" (replicas: 0 on
+    # omnivoice-tts-dgx2 and stt-turbo), which had kept the voice stack dark for
+    # six days. Leaving the pin here would have re-zeroed both on the next root
+    # sync, because this app selfHeals /spec/replicas for every Deployment not
+    # listed in the ignoreDifferences patch below — and neither is.
+    targetRevision: ac27f469aef2ffd7ad156ba8e82a0e27b583aa1b
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
