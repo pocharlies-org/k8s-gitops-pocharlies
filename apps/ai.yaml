@@ -21,7 +21,7 @@ spec:
     # BF16 mtp.* head, fail-closed SHA verify in the init container) and turns
     # speculative decoding on. Roll back to the annotated immutable revision
     # (path k8s) to return to the exact baseline identity.
-    targetRevision: 4480ea7d9af30dd6b2c834890e8d892fad8c6cb4
+    targetRevision: 679c13d17bc05f39ff15b37e9cbefff73f575349
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
