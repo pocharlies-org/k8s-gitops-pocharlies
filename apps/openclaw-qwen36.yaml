@@ -10,9 +10,9 @@ metadata:
     # bootstrap. This does not enable migration or workload mounts. Close this
     # lease after the exact revision is synced and healthy.
     operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: b10112ebe39bcb8b78efb8c4c8893de6bb3597dd
-    operations.pocharlies.org/approval-id: openclaw-rwx-b10112e-20260722064048
-    operations.pocharlies.org/approval-sequence: "20260722064048"
+    operations.pocharlies.org/approved-revision: fb04012bcd91d04021fa0daa3313e2fd8e674f3c
+    operations.pocharlies.org/approval-id: openclaw-rwx-fb04012-20260722070746
+    operations.pocharlies.org/approval-sequence: "20260722070746"
     operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
