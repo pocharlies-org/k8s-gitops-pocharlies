@@ -6,10 +6,15 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Revision 14a26a9 is Succeeded, Synced and Healthy; main, social and
-    # readonly are Ready with zero restarts and no schema/config errors. The
-    # consumed one-shot production lease is closed.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Approve the context-injection retirement batch (9 commits since 14a26a9):
+    # brain-memory prompt-recall off, group history injection off, typingMode
+    # instant, ornith/dense lean A/B agents, requireMention in
+    # pocharlies-operations, second telegram account, guard/test syncs.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: ddbbbc8fdef513b2a6841cf1cc5d9ff8dccc4dc0
+    operations.pocharlies.org/approval-id: openclaw-context-injection-ddbbbc8
+    operations.pocharlies.org/approval-sequence: "20260722234844"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
