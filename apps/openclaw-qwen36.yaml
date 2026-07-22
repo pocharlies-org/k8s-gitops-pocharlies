@@ -6,9 +6,15 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Closed after revision 1955cf0 reached Succeeded/Synced/Healthy and both
-    # bounded safe-deploy hooks completed with prune=false.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Reviewed one-shot approval for the workflow-only production-verifier
+    # revision. The rendered chart is unchanged from 1955cf0; syncing this
+    # exact SHA enables the read-only 15-minute production soak. Close the
+    # lease immediately after the revision is healthy.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 6ef3885e9ef5f97fe5afa24f2d860846494ee0eb
+    operations.pocharlies.org/approval-id: openclaw-verify-6ef3885-20260722074353
+    operations.pocharlies.org/approval-sequence: "20260722074353"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
