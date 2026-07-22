@@ -6,9 +6,14 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Revision 86d4f19 failed safely in PreSync; SyncFail recovery completed.
-    # Its reviewed one-shot production lease is closed before a corrected rollout.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Reviewed one-shot approval for the corrected main-plane loopDetection rollout.
+    # Five ce12ba4-bound RWO snapshots are ReadyToUse; prune remains disabled.
+    # Close this lease immediately after the exact revision is verified healthy.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: ce12ba4b813b244a3e935a97d7609efc75ef9fd7
+    operations.pocharlies.org/approval-id: openclaw-loop-ce12ba4
+    operations.pocharlies.org/approval-sequence: "20260722162203"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
