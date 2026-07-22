@@ -6,14 +6,15 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # ROLLBACK approval: 725f22b crashlooped (EX_CONFIG) because its brain-memory
-    # promptRecallMinScore default is only accepted by the Stage 3 recall-filter
-    # image; the current gateway image rejects it. Roll back to the last healthy
-    # revision ce12ba4b. prune disabled. Close this lease after verified healthy.
+    # Recovery approval: 14a26a9 gates promptRecallMinScore by the exact gateway
+    # image capability and removes it from the current pinned image's rendered
+    # config. Production is already healthy on this reviewed hotfix; this
+    # one-shot operation only converges the emergency ConfigMap repair and its
+    # Deployment checksums back to Git. Close the lease after exact verification.
     operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: ce12ba4b813b244a3e935a97d7609efc75ef9fd7
-    operations.pocharlies.org/approval-id: openclaw-loop-ce12ba4-rollback
-    operations.pocharlies.org/approval-sequence: "20260722182134"
+    operations.pocharlies.org/approved-revision: 14a26a967f6c1365ff0a876fe9daa8a388598a5f
+    operations.pocharlies.org/approval-id: openclaw-brain-schema-14a26a9
+    operations.pocharlies.org/approval-sequence: "20260722184125"
     operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
