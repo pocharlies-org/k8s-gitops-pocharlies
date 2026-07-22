@@ -6,9 +6,14 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # No reviewed state-writing operation is currently open. One-shot
-    # approvals are removed immediately after the exact revision is healthy.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Reviewed one-shot approval to materialize the bounded admission retry
+    # fix on the existing 2026.6.11 image. Close this lease after the exact
+    # revision is synced and healthy.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 1955cf0710d2cbaa04ebdf396ee2d1c819fe6470
+    operations.pocharlies.org/approval-id: openclaw-prestage-1955cf0-20260722072900
+    operations.pocharlies.org/approval-sequence: "20260722072900"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
