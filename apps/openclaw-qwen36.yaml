@@ -6,9 +6,15 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Revision ce12ba4 is Synced/Healthy and its loopDetection runtime was verified.
-    # The consumed one-shot production lease is closed.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Reviewed one-shot approval for openclaw deploy/prod 725f22b config rollout:
+    # 5th loopDetection block on the social agent, canary picker removal + Ornith
+    # provider labels, and the promptRecallMinScore default. prune stays disabled.
+    # Close this lease immediately after the exact revision is verified healthy.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 725f22bf1b669003cf0b2b0ad74cf5fc246e85cb
+    operations.pocharlies.org/approval-id: openclaw-loop-725f22b
+    operations.pocharlies.org/approval-sequence: "20260722180738"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
