@@ -6,14 +6,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Reviewed one-shot approval for the stable OpenClaw 2026.7.1-2 promotion.
-    # Five revision-bound RWO snapshots are ReadyToUse; prune remains disabled.
-    # Close this lease immediately after the exact revision is verified healthy.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 6ddc31e9fcca30a0bbcc4cb18cae5d6a435de62d
-    operations.pocharlies.org/approval-id: openclaw-upgrade-6ddc31e-20260722101500
-    operations.pocharlies.org/approval-sequence: "20260722101500"
-    operations.pocharlies.org/approved-prune: "false"
+    # OpenClaw 2026.7.1-2 revision 6ddc31e9fcca30a0bbcc4cb18cae5d6a435de62d
+    # is verified healthy; the reviewed one-shot production lease is closed.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
