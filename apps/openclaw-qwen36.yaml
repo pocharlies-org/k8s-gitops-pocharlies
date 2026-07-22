@@ -6,14 +6,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Reviewed one-shot approval for the empty encrypted 10Gi RWX workspace
-    # bootstrap. This does not enable migration or workload mounts. Close this
-    # lease after the exact revision is synced and healthy.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: fb04012bcd91d04021fa0daa3313e2fd8e674f3c
-    operations.pocharlies.org/approval-id: openclaw-rwx-fb04012-20260722070746
-    operations.pocharlies.org/approval-sequence: "20260722070746"
-    operations.pocharlies.org/approved-prune: "false"
+    # No reviewed state-writing operation is currently open. One-shot
+    # approvals are removed immediately after the exact revision is healthy.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
