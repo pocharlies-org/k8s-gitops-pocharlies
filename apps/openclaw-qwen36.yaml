@@ -6,23 +6,17 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Approve revision bff62a1: new ConfigMap-seeded plugin `voice-switcher`
-    # (tool set_speaker) + bundled skill so any agent can switch the active TTS
-    # persona at runtime (persistent messages.tts prefs at /data/settings/tts.json
-    # for Listen/voice notes; the skill also emits the Talk voice directive).
-    # Speakers Leila/Daniel/Lambrini. Adds a seed initContainer + configmap,
-    # messages.tts.prefsPath, plugins.allow/entries/load.paths, and set_speaker
-    # to skirmshop.tools.allow + local.tools.alsoAllow. CARRIES the pending
-    # trunk ancestors 09aa6dd (ornith+dense -> single 'local' agent) and
-    # 80285ed (enable brain-memory, allowlist llm-task) — deploying the tip
-    # deploys them too. Rendered bff62a1 config validated against the pinned
-    # 2026.7.1-3 binary (only known-false plugin-path diagnostics); helm renders
-    # the seed-voice-switcher-plugin initContainer; plugin node --check + tests pass.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: bff62a1ccf189ca85c5b684bd0818ca419213fd5
-    operations.pocharlies.org/approval-id: voice-switcher-skill-bff62a1
-    operations.pocharlies.org/approval-sequence: "20260723153342"
-    operations.pocharlies.org/approved-prune: "false"
+    # Revision bff62a1 is Succeeded and Healthy at 2026-07-23T~15:37Z: the
+    # voice-switcher plugin (tool set_speaker) + bundled skill are live — any
+    # agent can switch the active TTS persona at runtime (persistent prefs at
+    # /data/settings/tts.json for Listen/voice notes; skill emits the Talk voice
+    # directive). Also deployed the carried ancestors 09aa6dd (single 'local'
+    # agent) and 80285ed (brain-memory enabled, llm-task allowlisted). Verified
+    # post-roll: new pod 0 restarts, gateway loaded 25 plugins incl.
+    # voice-switcher (+ brain-memory), files seeded to /data/extensions/
+    # voice-switcher, no plugin/skill load errors. The consumed one-shot lease
+    # is closed.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
