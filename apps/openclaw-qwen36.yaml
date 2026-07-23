@@ -6,16 +6,19 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Revision b7c97d6 (config-only) is Succeeded and Healthy at
-    # 2026-07-23T~13:17Z: dgx-audio omnivoice TTS provider + egress
-    # NetworkPolicy repointed from the retired
-    # dgx-call-agent.dgx-call-agent.svc:8788 (namespace gone) to the moved
-    # OmniVoice audio gateway omnivoice-audio.llm.svc:8000 (DGX1, DGX1->DGX2
-    # failover). Fixes the iOS app falling back to the on-device Apple voice.
-    # Verified post-roll: new pod runtime-config -> omnivoice-audio (x2), live
-    # /audio/tts leila_clean_16s -> 200 opus. The consumed one-shot lease is
-    # closed.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Reviewed one-shot approval for the Abel/Leila per-group Telegram allowlist
+    # fix (8a76be0). Multi-account mode (2nd account @oppocharliesbot) made the
+    # core read accounts.<id>.groups and ignore channel-level telegram.groups,
+    # silently dropping Abel (Skirmshop ES OP) and Leila (Hogar) while still
+    # answering Daniel; 8a76be0 mirrors the per-group allowlists into
+    # accounts.default.groups. 8a76be0 is a direct child of the just-deployed
+    # b7c97d6, so this also keeps the omnivoice fix. Config-only; prune disabled.
+    # Close this lease immediately after the exact revision is verified healthy.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 8a76be07789488562d0c062366d5bea9b3271191
+    operations.pocharlies.org/approval-id: openclaw-abel-allowlist-fix-8a76be0-20260723132049
+    operations.pocharlies.org/approval-sequence: "20260723132049"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
