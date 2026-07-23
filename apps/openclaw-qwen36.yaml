@@ -6,20 +6,15 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Approve config-only revision 1277de5: add a top-level `talk` block so
-    # native iOS Talk (stt-tts) speaks replies with the self-hosted OmniVoice
-    # cloned voice (leila_clean_16s) via the openai talk provider pointed at
-    # the OpenAI-compatible backend omnivoice-tts-dgx2.llm:8000/v1 (DGX1,
-    # DGX1->DGX2 failover) instead of falling back to the on-device Apple
-    # voice; STT stays on-device. Carries the pending 9abd225 (brain_cypher
-    # deny) already on deploy/prod. Rendered 1277de5 config validated against
-    # the pinned 2026.7.1-3 binary (only known-false plugin-path diagnostics)
-    # and POST /v1/audio/speech voice=leila_clean_16s -> 200.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 1277de5224a5c0d3dd6368c603cdc8231bc1aaa9
-    operations.pocharlies.org/approval-id: talk-omnivoice-tts-1277de5
-    operations.pocharlies.org/approval-sequence: "20260723143300"
-    operations.pocharlies.org/approved-prune: "false"
+    # Revision 1277de5 (config-only) is Succeeded and Healthy at
+    # 2026-07-23T~14:36Z: top-level `talk` block live -> native iOS Talk
+    # (stt-tts) speaks replies with the OmniVoice cloned voice leila_clean_16s
+    # via the openai talk provider -> omnivoice-tts-dgx2.llm:8000/v1 (DGX1,
+    # DGX1->DGX2 failover); STT stays on-device (Apple). Also deployed the
+    # 9abd225 brain_cypher deny it carried. Verified post-roll: new pod
+    # runtime-config has the talk block; gateway POST /v1/audio/speech
+    # voice=leila_clean_16s -> 200 opus. The consumed one-shot lease is closed.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
