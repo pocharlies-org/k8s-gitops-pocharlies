@@ -6,16 +6,13 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # OUTAGE hotfix: ddbbbc8 crash-looped the gateway with exit 78 EX_CONFIG
-    # (agents.list typingMode from e5a22c7/03af8af is not in the pinned
-    # 2026.7.1-2 boot schema; bisected against the deployed binary in the
-    # readonly pod). 25a8b93 strips agents typingMode only; everything else
-    # from the approved batch stays.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 25a8b938acd4d63061ac63cebf38f91a9d272125
-    operations.pocharlies.org/approval-id: openclaw-typingmode-exconfig-hotfix-25a8b93
-    operations.pocharlies.org/approval-sequence: "20260723000630"
-    operations.pocharlies.org/approved-prune: "false"
+    # Revision 25a8b93 is Succeeded, Synced and Healthy at 2026-07-23T01:36Z:
+    # context-injection retirement batch live (brain-memory recall off, group
+    # history off, requireMention ops group, ornith/dense agents, second
+    # account, email-topic-model plugin seeded to the PVC pending image
+    # 2026.7.1-3). typingMode was stripped by the hotfix (agent schema rejects
+    # it on core 2026.7.1). The consumed one-shot production lease is closed.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
