@@ -6,21 +6,16 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Approve config-only revision b7c97d6 (k8s-openclaw-qwen36-pocharlies
-    # deploy/prod): repoint the dgx-audio omnivoice TTS provider + egress
-    # NetworkPolicy from the retired dgx-call-agent.dgx-call-agent.svc:8788
-    # (namespace gone) to the moved OmniVoice audio gateway
-    # omnivoice-audio.llm.svc:8000 (DGX1, DGX1->DGX2 failover). The iOS app
-    # was falling back to the on-device Apple voice because gateway TTS could
-    # not reach the dead endpoint. Same core/image 2026.7.1-3; rendered
-    # b7c97d6 config validated against the pinned binary in the readonly pod
-    # (only the known-false plugin-path diagnostics; no schema delta) and a
-    # live POST /audio/tts voice_id=leila_clean_16s -> 200 opus.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: b7c97d6530b58daa50c106c5bc645c6483de401a
-    operations.pocharlies.org/approval-id: omnivoice-audio-endpoint-fix-b7c97d6
-    operations.pocharlies.org/approval-sequence: "20260723131156"
-    operations.pocharlies.org/approved-prune: "false"
+    # Revision b7c97d6 (config-only) is Succeeded and Healthy at
+    # 2026-07-23T~13:17Z: dgx-audio omnivoice TTS provider + egress
+    # NetworkPolicy repointed from the retired
+    # dgx-call-agent.dgx-call-agent.svc:8788 (namespace gone) to the moved
+    # OmniVoice audio gateway omnivoice-audio.llm.svc:8000 (DGX1, DGX1->DGX2
+    # failover). Fixes the iOS app falling back to the on-device Apple voice.
+    # Verified post-roll: new pod runtime-config -> omnivoice-audio (x2), live
+    # /audio/tts leila_clean_16s -> 200 opus. The consumed one-shot lease is
+    # closed.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
