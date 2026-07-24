@@ -6,17 +6,16 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Revision bff62a1 is Succeeded and Healthy at 2026-07-23T~15:37Z: the
-    # voice-switcher plugin (tool set_speaker) + bundled skill are live — any
-    # agent can switch the active TTS persona at runtime (persistent prefs at
-    # /data/settings/tts.json for Listen/voice notes; skill emits the Talk voice
-    # directive). Also deployed the carried ancestors 09aa6dd (single 'local'
-    # agent) and 80285ed (brain-memory enabled, llm-task allowlisted). Verified
-    # post-roll: new pod 0 restarts, gateway loaded 25 plugins incl.
-    # voice-switcher (+ brain-memory), files seeded to /data/extensions/
-    # voice-switcher, no plugin/skill load errors. The consumed one-shot lease
-    # is closed.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Approve the isolated Telegram room-history rollout. Revision 6a7e9d3
+    # renames both bot identities and gives only @oppocharliesbot an ordered
+    # ambient room-event stream plus historyLimit 30; @oppocharliesllmbot stays
+    # mention-gated with global historyLimit 0. The reviewed revision also
+    # carries the already-merged deploy/prod changes since live bff62a1.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 6a7e9d3ff765b04a89bddbf576b43471b83a3403
+    operations.pocharlies.org/approval-id: openclaw-telegram-room-history-6a7e9d3
+    operations.pocharlies.org/approval-sequence: "20260724095301"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
