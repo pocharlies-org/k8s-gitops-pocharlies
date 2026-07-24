@@ -6,12 +6,16 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Revision bff62a1 remains the last Succeeded production operation. The
-    # proposed 6a7e9d3 room-history rollout was not submitted because it also
-    # carries four already-merged deploy/prod changes and requires explicit
-    # approval of that cumulative production scope. No operation consumed the
-    # proposed lease, so it is closed.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Explicit owner approval received 2026-07-24 for the cumulative 6a7e9d3
+    # rollout: four already-merged deploy/prod changes since live bff62a1 plus
+    # the isolated Telegram room-history change. @oppocharliesbot receives
+    # ordered ambient room events and historyLimit 30; @oppocharliesllmbot
+    # remains mention-gated with global historyLimit 0.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 6a7e9d3ff765b04a89bddbf576b43471b83a3403
+    operations.pocharlies.org/approval-id: openclaw-telegram-room-history-6a7e9d3
+    operations.pocharlies.org/approval-sequence: "20260724112036"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
