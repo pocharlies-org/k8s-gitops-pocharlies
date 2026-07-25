@@ -6,13 +6,20 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Revision 6a7e9d3 is Succeeded, Synced and Healthy at
-    # 2026-07-24T11:24:44Z. The cumulative rollout completed with zero OpenClaw
-    # container restarts; runtime schema and Telegram probes passed. The public
-    # bot names are "openclaw" and "history openclaw pooling"; only the latter
-    # has ordered ambient room events plus historyLimit 30. The consumed
-    # one-shot production lease is closed.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Owner approval requested 2026-07-25 for the cumulative 6c97de4 rollout.
+    # Live 6a7e9d3 predates d520db09 by nine hours, so "history openclaw
+    # pooling" (@oppocharliesbot) still runs requireMention false with
+    # historyLimit 30 in Pocharlies Operations. On 2026-07-25T07:11Z a single
+    # main-lane turn there repeated the Telegram send tool 20 times against
+    # message 815 with zero inbound updates, ending only on an operator /stop
+    # after 194s. Cumulative scope: 19e3b256 drops dense-uncensored (the model
+    # that ran the loop) from all planes, d520db09 restores the mention gate,
+    # and fae6f30c/e0b3f0e6/6c97de43 move the self-update token to Vault.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 6c97de432a9e6041dec8c98a25cabd799083bb8f
+    operations.pocharlies.org/approval-id: openclaw-require-mention-6c97de4
+    operations.pocharlies.org/approval-sequence: "20260725092414"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
