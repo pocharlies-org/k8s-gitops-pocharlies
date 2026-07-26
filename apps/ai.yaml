@@ -5,8 +5,8 @@ metadata:
   namespace: argocd
   annotations:
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-ai-pocharlies
-    e-dani.com/rho-pin-purpose: ornith-production-promotion + omnivoice restore
-    e-dani.com/rho-rollback-revision: d1548ceace9f0835c47456865a9908fd20af8b47
+    e-dani.com/rho-pin-purpose: ornith mm-limit + DGX2 hybrid co-residency sizing
+    e-dani.com/rho-rollback-revision: f847542d0549017c54c584d2707ce6ea759c6fd7
     e-dani.com/rho-restore-target-revision: deploy/prod
   labels:
     e-dani.com/tier: app
@@ -31,7 +31,7 @@ spec:
     # those Deployments on the next root sync, because this app selfHeals
     # /spec/replicas for every Deployment not listed in the ignoreDifferences patch
     # below — and none of them are.
-    targetRevision: 2e6c029cc53c19e3605675a6277e3f21027674e4
+    targetRevision: 41ccfc71293b43c24624770810e4754a98d28915
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
