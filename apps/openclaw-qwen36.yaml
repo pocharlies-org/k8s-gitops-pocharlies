@@ -6,12 +6,15 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Revision 1be5088 completed successfully. The LAN route returns the
-    # dashboard without Keycloak, the public route still redirects to Keycloak,
-    # OpenClaw device auth remains enabled, and the superseded middleware was
-    # pruned. Revision 5690e70 advanced deploy/prod afterward and remains
-    # pending its own controlled approval.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # One-shot rollout of the reviewed, source-only bodybuilding Brain MCP
+    # adapter. It constrains schema/default routing to bodybuilding-coach and
+    # leaves the existing agent, Telegram binding and runtime safety policy
+    # unchanged. PR 229 CI and the isolated authenticated smoke test passed.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 5690e707cf9030139d5805105037394a0ae59b1e
+    operations.pocharlies.org/approval-id: bodybuilding-brain-adapter-5690e70
+    operations.pocharlies.org/approval-sequence: "20260726165755"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
