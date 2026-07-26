@@ -6,15 +6,14 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # One-shot approval for the schema-compatible bodybuilding coach rollout.
-    # Revision 4b76d0c replaces the rejected brain-memory agentConnections
-    # property with a dedicated read-only stdio MCP pinned to the isolated
-    # bodybuilding Brain service, credential and instance.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 4b76d0c6950a661c5717fd5e7beca5f644cce0b4
-    operations.pocharlies.org/approval-id: bodybuilding-coach-4b76d0c
-    operations.pocharlies.org/approval-sequence: "20260726162642"
-    operations.pocharlies.org/approved-prune: "false"
+    # Revision 4b76d0c succeeded from 2026-07-26T16:28:29Z to 16:31:58Z and is
+    # Synced/Healthy. The culturismo agent, exact Telegram binding, uncensored
+    # model-only profile and isolated Brain credential are live; both Telegram
+    # accounts probe healthy and the router is open with queue depth zero.
+    # Functional MCP verification found the inherited search adapter still
+    # rejects the new bodybuilding-coach instance name, so a source-only
+    # adapter correction requires a fresh one-shot approval.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
