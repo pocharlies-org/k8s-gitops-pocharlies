@@ -6,17 +6,15 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Approve revision a96e1e5: codex-auth plugin delivered by ConfigMap
-    # (configmap-codex-auth-plugin + seed-codex-auth-plugin initContainer), so
-    # /codex-login and /codex-login-status reach the gateway without an image
-    # rebuild. Manifest-only change; helm template renders clean and the repo
-    # delivery/tool contract tests plus the 22 plugin unit tests pass. The sync
-    # also converges the already-merged openclaw-config ConfigMap and the
-    # openclaw-lan IngressRoute. Prune stays false.
+    # Approve revision 248b775: registers the codex-auth plugin in the runtime
+    # config (plugins.load.paths + allow + entries) so the already-seeded
+    # /data/extensions/codex-auth actually loads and /codex-login-status works.
+    # Verified live that bundledDiscovery does not load undeclared extension
+    # dirs. Full repo suite passes (519 tests). Prune stays false.
     operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: a96e1e533428d1f823752d917196a7c6e3c9305d
-    operations.pocharlies.org/approval-id: codex-auth-plugin-a96e1e5-20260726230230
-    operations.pocharlies.org/approval-sequence: "20260726230230"
+    operations.pocharlies.org/approved-revision: 248b77551b3b56ae502d0b7246e41aabc5f2befc
+    operations.pocharlies.org/approval-id: codex-auth-register-248b775-20260726231202
+    operations.pocharlies.org/approval-sequence: "20260726231202"
     operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
