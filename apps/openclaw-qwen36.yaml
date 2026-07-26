@@ -6,14 +6,14 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Revision 4b76d0c succeeded from 2026-07-26T16:28:29Z to 16:31:58Z and is
-    # Synced/Healthy. The culturismo agent, exact Telegram binding, uncensored
-    # model-only profile and isolated Brain credential are live; both Telegram
-    # accounts probe healthy and the router is open with queue depth zero.
-    # Functional MCP verification found the inherited search adapter still
-    # rejects the new bodybuilding-coach instance name, so a source-only
-    # adapter correction requires a fresh one-shot approval.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # One-shot approval for the reviewed OpenClaw LAN device-auth change. The
+    # public route remains behind Keycloak; the LAN/Tailscale route keeps its
+    # network allowlist and OpenClaw device pairing/token authentication.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 1be508828af562352553f895eebacff76d2d6fca
+    operations.pocharlies.org/approval-id: openclaw-lan-device-auth-1be5088
+    operations.pocharlies.org/approval-sequence: "20260726164148"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
