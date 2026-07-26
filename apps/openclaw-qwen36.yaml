@@ -6,12 +6,15 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # One-shot approval for the reviewed bodybuilding-coach integration.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 4fed830390c3d9bb936fce0b70cc4ca4bf5b40f5
-    operations.pocharlies.org/approval-id: bodybuilding-coach-4fed830
-    operations.pocharlies.org/approval-sequence: "20260726155006"
-    operations.pocharlies.org/approved-prune: "false"
+    # Revision 4fed830 failed from 2026-07-26T15:53:07Z to 15:57:10Z because
+    # the deployed brain-memory plugin rejected the new agentConnections
+    # property. The operation was terminated and the previous runtime config
+    # restored. Recovery was verified with a healthy 5/5 operator pod, the
+    # default Telegram account in listen-only webhook mode, the legacy account
+    # in isolated polling mode, and the durable router resumed with ingress
+    # open and queue depth zero. The bodybuilding agent is not live from this
+    # approval; a compatible revision requires a new one-shot lease.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
