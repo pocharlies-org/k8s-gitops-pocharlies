@@ -6,18 +6,12 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Revision 6c97de4 is Succeeded and Healthy, 2026-07-25T22:43:50Z to
-    # 22:46:14Z. Pod openclaw-qwen36-openclaw-84cd7cb9f9-fvpds came up with zero
-    # container restarts and no startup errors; both Telegram providers started
-    # (@oppocharliesbot isolated polling, @oppocharliesllmbot listen-only
-    # webhook). Verified in the live runtime config: "history openclaw pooling"
-    # now has requireMention true in Pocharlies Operations, and dense-uncensored
-    # is gone from all planes (0 occurrences, was 7). historyLimit 30 on that
-    # account is unchanged and still unreviewed. The consumed one-shot
-    # production lease is closed; re-consume is already denied by the monotonic
-    # approval-sequence rule. Drift outstanding: 1311510c (Tailscale subnet
-    # router WebSocket) landed after this approval and needs its own.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # One-shot approval for the reviewed bodybuilding-coach integration.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 4fed830390c3d9bb936fce0b70cc4ca4bf5b40f5
+    operations.pocharlies.org/approval-id: bodybuilding-coach-4fed830
+    operations.pocharlies.org/approval-sequence: "20260726155006"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
