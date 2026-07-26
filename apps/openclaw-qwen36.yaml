@@ -6,9 +6,18 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Revision f31765e completed successfully. Argo is Synced and Healthy and
-    # the culturismo unrestricted-capability smoke test passed.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Approve revision a96e1e5: codex-auth plugin delivered by ConfigMap
+    # (configmap-codex-auth-plugin + seed-codex-auth-plugin initContainer), so
+    # /codex-login and /codex-login-status reach the gateway without an image
+    # rebuild. Manifest-only change; helm template renders clean and the repo
+    # delivery/tool contract tests plus the 22 plugin unit tests pass. The sync
+    # also converges the already-merged openclaw-config ConfigMap and the
+    # openclaw-lan IngressRoute. Prune stays false.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: a96e1e533428d1f823752d917196a7c6e3c9305d
+    operations.pocharlies.org/approval-id: codex-auth-plugin-a96e1e5-20260726230230
+    operations.pocharlies.org/approval-sequence: "20260726230230"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
