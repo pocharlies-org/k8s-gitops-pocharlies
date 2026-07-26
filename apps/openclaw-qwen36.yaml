@@ -6,14 +6,10 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # One-shot rollout of the reviewed Codex sandbox-root correction. Revision
-    # 80a0cde generates writable_roots from the same list as the sidecar's RW
-    # mounts, removing the invalid read-only /data parent. PR 230 CI passed.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 80a0cde272824876ff94356a793b1b77a18db4d6
-    operations.pocharlies.org/approval-id: codex-writable-roots-80a0cde
-    operations.pocharlies.org/approval-sequence: "20260726171135"
-    operations.pocharlies.org/approved-prune: "false"
+    # Revision 80a0cde completed successfully. Argo is Synced and Healthy, the
+    # Codex preflight reports PASS, and the replacement pod is Ready without
+    # restarts. Close the consumed one-shot approval.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
