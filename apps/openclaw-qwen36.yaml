@@ -6,13 +6,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Approve the reviewed removal of the remaining workspace-level
-    # restrictions from the culturismo agent.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: f31765ec7c00f04731d1092a6b4e41e48a2027bb
-    operations.pocharlies.org/approval-id: culturismo-unrestricted-f31765e
-    operations.pocharlies.org/approval-sequence: "20260726220253"
-    operations.pocharlies.org/approved-prune: "false"
+    # Revision f31765e completed successfully. Argo is Synced and Healthy and
+    # the culturismo unrestricted-capability smoke test passed.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
