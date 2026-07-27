@@ -6,9 +6,12 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Rollout c555287 completed Succeeded/Synced/Healthy and the
-    # mac-reminders skill became visible to the main agent.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Reviewed rollout for the default Telegram account history limit.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: f4f803ef93c933a8ccfd2b5313e32883a86c310c
+    operations.pocharlies.org/approval-id: history8-f4f803e-20260727
+    operations.pocharlies.org/approval-sequence: "20260727162040"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
