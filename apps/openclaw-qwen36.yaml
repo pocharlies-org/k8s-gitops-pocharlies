@@ -6,11 +6,15 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # The first Socialmedia v2 attempt stopped safely before workload activation:
-    # router ingress was still closed by the prior 996ba7f generation, so the new
-    # PreSync owner correctly received HTTP 409. The prior owner reopened ingress
-    # on the healthy legacy backend. Close this consumed approval before retrying.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Retry the reviewed Socialmedia v2 promotion after restoring the stale router
+    # gate left by the prior 996ba7f generation. Revision and immutable image digest
+    # are unchanged; this is a fresh one-shot approval with a newer sequence.
+    # Prune remains disabled.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: d705ab5acbf81401db5951adeeb9f8e4eacfd5d9
+    operations.pocharlies.org/approval-id: socialmedia-v2-retry-d705ab5-20260727024601
+    operations.pocharlies.org/approval-sequence: "20260727024601"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
