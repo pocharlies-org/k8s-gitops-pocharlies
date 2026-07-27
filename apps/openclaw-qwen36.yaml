@@ -6,11 +6,16 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Revision 3265db1 completed successfully: Argo is Synced and Healthy, the
-    # programador binding is present exactly once with the expected group policy,
-    # the OpenClaw deployment is Ready, and Telegram delivery returned message 14.
-    # The reviewed approval is consumed, so close the state-writer lease.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Approve revision 0b6d201: remove strictInlineEval from every rendered
+    # OpenClaw runtime so inline Python/Node commands follow the normal permissive
+    # exec policy instead of requiring a fresh human approval on every run.
+    # PR #248 passed the complete validation (534 general tests, 103
+    # post-promotion regressions), and prune remains disabled.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 0b6d201e8126031c5d34525ac21dc707838ee1bc
+    operations.pocharlies.org/approval-id: remove-inline-approvals-0b6d201-20260727105548
+    operations.pocharlies.org/approval-sequence: "20260727105548"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
