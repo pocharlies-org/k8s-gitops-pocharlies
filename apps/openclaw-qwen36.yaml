@@ -6,13 +6,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Reviewed rollout of the scanned mac-reminders v3 image promoted by
-    # pocharlies-org/k8s-openclaw-qwen36-pocharlies#257.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: cf6bdc1cc8fc0f4884b093880367c137d5d41345
-    operations.pocharlies.org/approval-id: mac-reminders-v3-cf6bdc1-20260727183542
-    operations.pocharlies.org/approval-sequence: "20260727183542"
-    operations.pocharlies.org/approved-prune: "false"
+    # Mac reminders v3 rollout cf6bdc1 completed Succeeded/Healthy. The
+    # main-agent read-only smoke listed 13 family reminders successfully.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
