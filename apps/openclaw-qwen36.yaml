@@ -6,10 +6,17 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Revision 553de34 completed successfully with the permanent Socialmedia v2
-    # runtime image sha256:52df0fc8.... All OpenClaw planes are Ready and router
-    # ingress reopened; consume the reviewed operation and close the lease.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Approve revision 3265db1: bind the existing Programador Telegram forum
+    # (-1004319922453) to agent programador through @oppocharliesllmbot. PR #247
+    # passed the complete chart/security validation (534 general tests and 103
+    # post-promotion regressions). The rendered route is exact and idempotent,
+    # Daniel 33285833 is the only allowed sender, requireMention stays false,
+    # and prune remains disabled.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 3265db1a2886da424cdd6350fcea68e81f507346
+    operations.pocharlies.org/approval-id: programador-telegram-3265db1-20260727081954
+    operations.pocharlies.org/approval-sequence: "20260727081954"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
