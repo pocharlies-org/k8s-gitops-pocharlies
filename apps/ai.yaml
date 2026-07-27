@@ -31,7 +31,7 @@ spec:
     # those Deployments on the next root sync, because this app selfHeals
     # /spec/replicas for every Deployment not listed in the ignoreDifferences patch
     # below — and none of them are.
-    targetRevision: 6a137f3166265a0ac15d6f3de4c47c2c740391e4
+    targetRevision: a24833d8ad5b94dda246d81353cfafc9658c737a
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
