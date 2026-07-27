@@ -6,21 +6,15 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Revision 996ba7f is live: the openclaw Deployment runs 2026.7.1-4
-    # (sha256:206627ef...), the pod is Ready and Healthy, and the skirmshop agent config
-    # carries synapse__product_creator_create_request without shopify-admin__product_create.
-    # The Argo operation itself ended Failed because the rollout crash-looped for ~55min
-    # before becoming Ready, which also fired the syncfail hook. Root cause was NOT this
-    # revision: on any image change the core runs post-core-update plugin repair, and
-    # `npm view <pkg> --json` under npm 12 returns a one-element ARRAY where core
-    # 2026.7.1 expects an object, so every npm-managed plugin fails with "npm view
-    # produced incomplete package metadata" (firecrawl and codex both did). Only
-    # firecrawl was fatal, via its fail-closed missing-package-dir smoke check. Recovered
-    # by installing @openclaw/firecrawl-plugin@2026.7.1 into the project dir the smoke
-    # check expects; the pod then came up clean. That npm-12 incompatibility is still
-    # latent and will bite the next image change until the core or NPM_VERSION is fixed.
-    # Approval consumed, so the lease returns to inactive.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Approve the reviewed Socialmedia v2 OpenClaw promotion. Revision d705ab5 pins
+    # the vulnerability-scanned socialmedia-v2-3144b177 image at immutable digest
+    # sha256:dd856067... after the 533-test plugin suite, 103 post-promotion checks,
+    # and exact 21-patcher release preflight passed. Prune remains disabled.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: d705ab5acbf81401db5951adeeb9f8e4eacfd5d9
+    operations.pocharlies.org/approval-id: socialmedia-v2-d705ab5-20260727023645
+    operations.pocharlies.org/approval-sequence: "20260727023645"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
