@@ -6,12 +6,22 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Revision 248b775 completed successfully: Argo is Synced and Healthy, the
-    # codex-auth plugin loads and /codex-login-status was verified end to end in
-    # Telegram. The verifier's soak flagged a regression only because the pod was
-    # restarted externally to apply the plugin; that rollback PR (#235) was closed
-    # as a false positive. Approval consumed, so the lease returns to inactive.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Approve revision 996ba7f: promotion of image 2026.7.1-4 (core openclaw@2026.7.1,
+    # digest sha256:206627ef...). It carries the release-gate fix that unblocked the
+    # pipeline (brace-expansion pinned to 5.0.8 for CVE-2026-14257, a fixable HIGH that
+    # had kept every promotion since 2026.7.1-2 red) plus the skirmshop Creator-create
+    # capability: the agent gets synapse__product_creator_create_request over the
+    # /synapse MCP route and loses shopify-admin__product_create, so CREATE goes through
+    # the Synapse product-creator pipeline while EDIT stays on Shopify Admin. 996ba7f is
+    # a descendant of the already-verified 248b775, so the codex-auth registration ships
+    # with it. Release run 30224040223 was green end to end: validate, Trivy gate with no
+    # fixable CRITICAL/HIGH left, immutable tag promotion and the post-promotion default
+    # regression suites. Prune stays false.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 996ba7f73563f82b26ed1bd3907ed6e9f5569fad
+    operations.pocharlies.org/approval-id: creator-create-996ba7f-20260727004500
+    operations.pocharlies.org/approval-sequence: "20260727004500"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
