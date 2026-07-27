@@ -6,14 +6,10 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Promote the permanent Socialmedia v2 OpenClaw runtime after the scanned
-    # image and PR validation passed. This is a one-shot full sync with prune
-    # disabled; close the lease immediately after the terminal verification.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 553de34f38305154808a9beb6bb137f8e273c543
-    operations.pocharlies.org/approval-id: socialmedia-v2-permanent-553de34-20260727035412
-    operations.pocharlies.org/approval-sequence: "20260727035412"
-    operations.pocharlies.org/approved-prune: "false"
+    # Revision 553de34 completed successfully with the permanent Socialmedia v2
+    # runtime image sha256:52df0fc8.... All OpenClaw planes are Ready and router
+    # ingress reopened; consume the reviewed operation and close the lease.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
