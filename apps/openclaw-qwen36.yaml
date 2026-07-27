@@ -6,13 +6,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Reviewed rollout of the scanned mac-reminders v2 image promoted by
-    # pocharlies-org/k8s-openclaw-qwen36-pocharlies#254.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 857ffd23d4fcfb9a0c7363a8c108325ba88f7e01
-    operations.pocharlies.org/approval-id: mac-reminders-v2-857ffd2-20260727172322
-    operations.pocharlies.org/approval-sequence: "20260727172322"
-    operations.pocharlies.org/approved-prune: "false"
+    # Rollout 857ffd2 completed Succeeded/Synced/Healthy. The native Mac
+    # node and skill loaded, while the agent smoke exposed a role mismatch.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
