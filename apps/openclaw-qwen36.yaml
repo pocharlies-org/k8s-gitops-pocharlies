@@ -6,16 +6,12 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Approve revision 248b775: registers the codex-auth plugin in the runtime
-    # config (plugins.load.paths + allow + entries) so the already-seeded
-    # /data/extensions/codex-auth actually loads and /codex-login-status works.
-    # Verified live that bundledDiscovery does not load undeclared extension
-    # dirs. Full repo suite passes (519 tests). Prune stays false.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 248b77551b3b56ae502d0b7246e41aabc5f2befc
-    operations.pocharlies.org/approval-id: codex-auth-register-248b775-20260726231202
-    operations.pocharlies.org/approval-sequence: "20260726231202"
-    operations.pocharlies.org/approved-prune: "false"
+    # Revision 248b775 completed successfully: Argo is Synced and Healthy, the
+    # codex-auth plugin loads and /codex-login-status was verified end to end in
+    # Telegram. The verifier's soak flagged a regression only because the pod was
+    # restarted externally to apply the plugin; that rollback PR (#235) was closed
+    # as a false positive. Approval consumed, so the lease returns to inactive.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
