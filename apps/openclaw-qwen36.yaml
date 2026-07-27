@@ -6,16 +6,8 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Approve revision 5005ddf: route the Programador Telegram forum
-    # (-1004319922453) to the operator backend that contains agent programador.
-    # PR #256 passed the full chart/security suite (534 general tests and 103
-    # post-promotion regressions). The change adds only the missing exact chat
-    # route, keeps the default social backend unchanged, and does not prune.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 5005ddf7b3ce06077481b68a3b1a3f38186f8df5
-    operations.pocharlies.org/approval-id: programador-router-5005ddf-20260727182638
-    operations.pocharlies.org/approval-sequence: "20260727182638"
-    operations.pocharlies.org/approved-prune: "false"
+    # Programador router rollout 5005ddf completed Succeeded/Healthy.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
