@@ -6,23 +6,20 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Approve revision e4ac15b: registers the openclaw-self-update plugin in the runtime
-    # config so /of-update, /of-update-preview and /of-update-info actually exist. The
-    # plugin was already baked into the image and seeded by the entrypoint
-    # (/data/extensions/openclaw-self-update is present live with index.js,
-    # openclaw.plugin.json and package.json) and its PAT was already wired, but it was
-    # declared in neither plugins.load.paths, allow nor entries, and bundledDiscovery
-    # "compat" does not load an undeclared extensions dir. Same three-list fix as the
-    # codex-auth registration (248b775), applied to the Helm runtime config and its
-    # byte-identical mirror; scripts/validate.sh passes (534 pytest + 103 post-promotion
-    # regression). Config-only delta on top of the already-live mac-reminders-v3 image:
-    # only the openclaw ConfigMap and the Deployment checksum are OutOfSync, so this does
-    # not re-trigger the post-core-update plugin repair. Prune stays false.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: e4ac15bd8d2bfe5f71c9aaff88ca69f010b18ac5
-    operations.pocharlies.org/approval-id: of-update-register-e4ac15b-20260727202100
-    operations.pocharlies.org/approval-sequence: "20260727202100"
-    operations.pocharlies.org/approved-prune: "false"
+    # Revision e4ac15b is live: Argo Synced/Healthy and the pod came up clean (5/5 in
+    # ~65s, no crash loop). The registration reached the gateway, which now loads 27
+    # plugins including openclaw-self-update (CLI: enabled, status loaded) and the
+    # Telegram menu grew from 53 to 57 commands, so /of-update exists.
+    # LEARNED: this ConfigMap only SEEDS the runtime config. openclaw OWNS its operating
+    # config on the PVC (/data/config/openclaw.json via OPENCLAW_RUNTIME_CONFIG_PATH) and
+    # the persisted copy wins after first boot, so a GitOps-only change does NOT reach a
+    # running gateway. The plugin also needed `openclaw-self-update` added to plugins.allow
+    # in the persisted config (`openclaw plugins enable` refused it: "blocked by
+    # allowlist"), then `openclaw plugins enable` plus a gateway restart. load.paths was
+    # deliberately NOT touched there: the plugin is discovered as a global plugin, and
+    # declaring it as a config plugin too would create the same cosmetic duplicate-id
+    # warning firecrawl has. Approval consumed, so the lease returns to inactive.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
