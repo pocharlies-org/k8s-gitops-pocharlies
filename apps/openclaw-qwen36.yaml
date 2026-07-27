@@ -6,12 +6,13 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Revision 0b6d201 completed successfully: Argo is Synced and Healthy,
-    # strictInlineEval is absent from the live operator config, and culturismo
-    # executed python3 -c without producing an approval request. The command
-    # reached Python and failed only because openpyxl is not installed.
-    # The reviewed approval is consumed, so close the state-writer lease.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Reviewed rollout of the scanned mac-reminders image promoted by
+    # pocharlies-org/k8s-openclaw-qwen36-pocharlies#251.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: c555287b767d3203cfab65935bd4f0c9ecf1f12a
+    operations.pocharlies.org/approval-id: mac-reminders-c555287-20260727115751
+    operations.pocharlies.org/approval-sequence: "20260727115751"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
