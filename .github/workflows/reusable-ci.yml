@@ -367,11 +367,73 @@ jobs:
               "$context"
           done < "$RUNNER_TEMP/images.tsv"
 
+  contracts:
+    name: Contract surface
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The push rules compare against the previous commit, so a shallow
+          # clone of depth 1 cannot see what actually changed.
+          fetch-depth: 0
+
+      # Repos that declare no contract surface skip everything below, so this job
+      # costs nothing for the callers that do not opt in.
+      - name: Detect CONTRACTS.yaml
+        id: detect
+        run: |
+          if [ -f CONTRACTS.yaml ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No CONTRACTS.yaml; this repo declares no contract surface."
+          fi
+
+      - name: Check out the contract checker
+        if: ${{ steps.detect.outputs.present == 'true' }}
+        id: checker
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: pocharlies-org/k8s-gitops-pocharlies
+          token: ${{ secrets.FRAMEWORK_REPO_TOKEN }}
+          path: .contracts-checker
+
+      - name: Enforce the contract rules
+        if: ${{ steps.detect.outputs.present == 'true' }}
+        run: |
+          set -uo pipefail
+          checker=.contracts-checker/scripts/check-contracts.py
+          if [ ! -f "$checker" ]; then
+            # A missing checker must be LOUD but must not fail the build: it means
+            # the caller did not pass FRAMEWORK_REPO_TOKEN, not that a contract
+            # broke. The pre-push hook still covers this repo locally.
+            echo "::warning::CONTRACTS.yaml is present but the checker could not be fetched (pass FRAMEWORK_REPO_TOKEN to the reusable workflow). Contract rules were NOT verified."
+            exit 0
+          fi
+          python3 -m pip install --quiet pyyaml >/dev/null 2>&1 || true
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            range="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          elif [ -n "${GITHUB_EVENT_BEFORE:-}" ] && [ "${GITHUB_EVENT_BEFORE}" != "0000000000000000000000000000000000000000" ]; then
+            range="${GITHUB_EVENT_BEFORE}..${GITHUB_SHA}"
+          else
+            range=""
+          fi
+          if [ -n "$range" ]; then
+            python3 "$checker" --repo . --range "$range"
+          else
+            # First push of a branch: validate the tree, skip the push rules.
+            python3 "$checker" --repo .
+          fi
+        env:
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+
   notify:
     name: Notify OpenClaw on failure
     runs-on: ${{ inputs.runner }}
-    needs: [app, manifests, docker]
-    if: ${{ always() && (needs.app.result == 'failure' || needs.app.result == 'cancelled' || needs.manifests.result == 'failure' || needs.manifests.result == 'cancelled' || needs.docker.result == 'failure' || needs.docker.result == 'cancelled') }}
+    needs: [app, manifests, docker, contracts]
+    if: ${{ always() && (needs.app.result == 'failure' || needs.app.result == 'cancelled' || needs.manifests.result == 'failure' || needs.manifests.result == 'cancelled' || needs.docker.result == 'failure' || needs.docker.result == 'cancelled' || needs.contracts.result == 'failure' || needs.contracts.result == 'cancelled') }}
     timeout-minutes: 10
     steps:
       - name: Send failure report
