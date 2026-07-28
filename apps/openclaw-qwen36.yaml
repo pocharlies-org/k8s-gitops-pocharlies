@@ -20,13 +20,20 @@ metadata:
     # workspace-social with empty dirs so the read boundary is preserved.
     # writable_roots is unchanged, so write confinement does not widen.
     # Deploy-only change: no PVC contents are touched, only the sidecar mount set and
-    # the codex ConfigMap. Full chart suite green (534 passed). Previous operation is
-    # terminal (Succeeded 2026-07-27T20:22:37Z, sequence 20260727202100) and the lease
-    # was returned to inactive, so this sequence is strictly newer.
+    # the codex ConfigMap. Full chart suite green (534 passed at the approved SHA).
+    # Approving branch head c939678 rather than the fix commit b7d6981: a parallel
+    # session landed 1405154 on top, and pinning b7d6981 would roll that back. The
+    # difference is confined to values-synapse.yaml, which belongs to the
+    # openclaw-synapse Application -- `helm template` of openclaw-qwen36 is byte
+    # identical at b7d6981 and c939678, so this operation ships exactly the sidecar
+    # mount fix for this Application.
+    # Previous operation is terminal (Succeeded 2026-07-27T20:22:37Z, sequence
+    # 20260727202100) and the lease was returned to inactive, so this sequence is
+    # strictly newer.
     operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: b7d6981ce6f2e777ac1d982f8358ab4a568956d4
-    operations.pocharlies.org/approval-id: codex-sidecar-data-parent-mount-b7d6981-20260728000014
-    operations.pocharlies.org/approval-sequence: "20260728000014"
+    operations.pocharlies.org/approved-revision: c9396781924db201b3cd91f718d4583097e0a1ce
+    operations.pocharlies.org/approval-id: codex-sidecar-data-parent-mount-c939678-20260728000455
+    operations.pocharlies.org/approval-sequence: "20260728000455"
     operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
