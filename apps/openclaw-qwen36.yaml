@@ -6,15 +6,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # APPROVAL OPEN for the reviewed Telegram room-history configuration at
-    # 667f88b. PR #261 and its CI passed; the change sets the operator channel
-    # historyLimit to 8 while preserving the account-specific bounds,
-    # allowlist_quote visibility and room_event prompt separation.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 667f88bd0d105e2f0476a1355f177884e7d24e8f
-    operations.pocharlies.org/approval-id: codex-telegram-history-667f88b-20260728142547
-    operations.pocharlies.org/approval-sequence: "20260728142547"
-    operations.pocharlies.org/approved-prune: "false"
+    # APPROVAL CLOSED after the verified rollout of 667f88b. Argo CD is
+    # Synced/Healthy and the active and persisted Telegram historyLimit are 8.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
