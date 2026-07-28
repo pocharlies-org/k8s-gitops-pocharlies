@@ -6,14 +6,15 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # APPROVAL CLOSED after verified rollout fd8922a (sequence 20260728131238).
-    # Argo completed Succeeded at the exact approved revision and is Synced/Healthy.
-    # Every deployment is ready with no unavailable replicas. The reconciler left
-    # exactly one enabled Correos fuel declaration, scheduled at 09:05
-    # Europe/Madrid with the reviewed Codex/Labels contract; its previous run is ok.
-    # Labels remains at 6.5% effective 2026-06-01 because no current-month primary
-    # evidence was found, so no commercial value was changed.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL OPEN for the reviewed Telegram room-history configuration at
+    # 667f88b. PR #261 and its CI passed; the change sets the operator channel
+    # historyLimit to 8 while preserving the account-specific bounds,
+    # allowlist_quote visibility and room_event prompt separation.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 667f88bd0d105e2f0476a1355f177884e7d24e8f
+    operations.pocharlies.org/approval-id: codex-telegram-history-667f88b-20260728142547
+    operations.pocharlies.org/approval-sequence: "20260728142547"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
