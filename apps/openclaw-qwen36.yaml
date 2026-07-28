@@ -6,24 +6,21 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # APPROVAL OPEN for eda322c, the reviewed deploy/prod merge of PR #259.
-    # The change declares the already-tested Correos matriz fuel automation in the
-    # chart. A postStart hook reconciles it through Gateway RPC by declarationKey, so
-    # retained or restored state converges without duplicate cron jobs. The desired
-    # contract keeps the 09:05 Europe/Madrid schedule, skirmshop agent, GPT-5.6 Sol,
-    # full inherited tools (including Gmail), no routine delivery, and one-day
-    # failure alerts to the etiquetas topic. The prompt rejects Correos Express and
-    # fiscal recargo de equivalencia, requires current-month primary evidence, edits
-    # only Labels GitOps through a Codex subagent, and verifies the live value before
-    # reporting. PR validation passed, including 539 repository tests and 103
-    # promotion-regression tests. The same merge also repairs the pre-existing
-    # four-entry dgx_video_list_engines mismatch between the canonical and Helm
-    # runtime configs. Previous operation is terminal (Succeeded, sequence
-    # 20260728000455), and the lease was inactive before opening this newer bundle.
+    # APPROVAL OPEN for fd8922a, the reviewed deploy/prod merge of PR #260.
+    # This is the bounded retry of the terminated eda322c operation (sequence
+    # 20260728122020). That rollout exposed that the in-container OpenClaw CLI
+    # rejects an explicit local URL unless separate credentials are also supplied.
+    # PR #260 removes only that override and lets the CLI use its configured local
+    # target. Live `cron status` and `cron get` calls then succeeded, while the
+    # declaration remains unchanged: one declarationKey, 09:05 Europe/Madrid,
+    # skirmshop agent, GPT-5.6 Sol, inherited tools including Gmail, no routine
+    # delivery, and one-day failure alerts to etiquetas. Validation passed with 539
+    # repository tests and 103 promotion-regression tests. The prior operation was
+    # terminated through the reviewed Argo-server exception and is terminal Failed.
     operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: eda322ced112f19eba4045655d6bd0b5d19db0b0
-    operations.pocharlies.org/approval-id: codex-correos-fuel-cron-eda322c-20260728122020
-    operations.pocharlies.org/approval-sequence: "20260728122020"
+    operations.pocharlies.org/approved-revision: fd8922a794cc8af7f5c4bebb1378063c7fc1522f
+    operations.pocharlies.org/approval-id: codex-correos-fuel-cron-fd8922a-20260728131238
+    operations.pocharlies.org/approval-sequence: "20260728131238"
     operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
