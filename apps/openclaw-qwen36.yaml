@@ -6,29 +6,25 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Revision c939678 is live: Argo Synced/Healthy, the new pod came up 5/5 in 85s with
-    # no restarts, all nine namespace Deployments ready, gateway loading 27 plugins.
-    # It carried b7d6981, which stops the codex-app-server sidecar from enumerating one
-    # subPath mount per agent workspace and mounts the /data parent instead. The
-    # enumeration had drifted because the agent list is runtime state the gateway owns
-    # on the PVC (/data/config/openclaw.json), so any agent created after the last chart
-    # change had no mount in the sidecar and every Codex exec in it died before running
-    # with "Failed to create unified exec process: No such file or directory (os error
-    # 2)" -- which blocked Project #22 on 2026-07-27.
-    # VERIFIED after the sync, per agent workspace in the live agent list, by spawning
-    # under the bundled bwrap with that cwd (the exact layer that failed): main,
-    # skirmshop, image-cloud, synapse-ops-analyst, local, culturismo and programador all
-    # spawn and write. Before the sync four of those seven did not exist in the sidecar.
-    # End-to-end confirmed too: a real `codex exec` session in the programador workspace
-    # ran `git status --short --branch` in 268ms and returned `## agent/project-22-rho`,
-    # the same command that failed six times at 21:39-21:40 UTC.
-    # The read boundary held: credentials, config, state, sessions, settings, devices,
-    # gitops and workspace-social are all present-and-empty in the sidecar, and
-    # writable_roots is unchanged, so write confinement did not widen.
-    # LEARNED: enumerating anything per-agent in this chart is a silent-drift trap,
-    # because the gateway owns the agent list at runtime and the chart only seeds it.
-    # Approval consumed, so the lease returns to inactive.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL OPEN for eda322c, the reviewed deploy/prod merge of PR #259.
+    # The change declares the already-tested Correos matriz fuel automation in the
+    # chart. A postStart hook reconciles it through Gateway RPC by declarationKey, so
+    # retained or restored state converges without duplicate cron jobs. The desired
+    # contract keeps the 09:05 Europe/Madrid schedule, skirmshop agent, GPT-5.6 Sol,
+    # full inherited tools (including Gmail), no routine delivery, and one-day
+    # failure alerts to the etiquetas topic. The prompt rejects Correos Express and
+    # fiscal recargo de equivalencia, requires current-month primary evidence, edits
+    # only Labels GitOps through a Codex subagent, and verifies the live value before
+    # reporting. PR validation passed, including 539 repository tests and 103
+    # promotion-regression tests. The same merge also repairs the pre-existing
+    # four-entry dgx_video_list_engines mismatch between the canonical and Helm
+    # runtime configs. Previous operation is terminal (Succeeded, sequence
+    # 20260728000455), and the lease was inactive before opening this newer bundle.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: eda322ced112f19eba4045655d6bd0b5d19db0b0
+    operations.pocharlies.org/approval-id: codex-correos-fuel-cron-eda322c-20260728122020
+    operations.pocharlies.org/approval-sequence: "20260728122020"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
