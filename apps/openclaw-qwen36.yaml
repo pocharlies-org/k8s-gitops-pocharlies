@@ -6,20 +6,28 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # Revision e4ac15b is live: Argo Synced/Healthy and the pod came up clean (5/5 in
-    # ~65s, no crash loop). The registration reached the gateway, which now loads 27
-    # plugins including openclaw-self-update (CLI: enabled, status loaded) and the
-    # Telegram menu grew from 53 to 57 commands, so /of-update exists.
-    # LEARNED: this ConfigMap only SEEDS the runtime config. openclaw OWNS its operating
-    # config on the PVC (/data/config/openclaw.json via OPENCLAW_RUNTIME_CONFIG_PATH) and
-    # the persisted copy wins after first boot, so a GitOps-only change does NOT reach a
-    # running gateway. The plugin also needed `openclaw-self-update` added to plugins.allow
-    # in the persisted config (`openclaw plugins enable` refused it: "blocked by
-    # allowlist"), then `openclaw plugins enable` plus a gateway restart. load.paths was
-    # deliberately NOT touched there: the plugin is discovered as a global plugin, and
-    # declaring it as a config plugin too would create the same cosmetic duplicate-id
-    # warning firecrawl has. Approval consumed, so the lease returns to inactive.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL OPEN for b7d6981: the codex-app-server sidecar enumerated one subPath
+    # mount per agent workspace, but the agent list is runtime state the gateway owns
+    # on the PVC (/data/config/openclaw.json). The enumeration therefore drifted and
+    # every Codex exec in an unmounted workspace died before running with
+    # "Failed to create unified exec process: No such file or directory (os error 2)".
+    # Four of the seven live agents were affected (programador, local, culturismo,
+    # image-cloud); it blocked Project #22 on 2026-07-27 while sandboxState=PASS and
+    # transportOk=true still reported green, because neither probe touches the session
+    # cwd. b7d6981 mounts the /data parent once so every agent the gateway creates from
+    # now on works with no chart change, and shadows the operator-state subtrees
+    # (credentials, config, state, sessions, settings, devices, gitops) plus
+    # workspace-social with empty dirs so the read boundary is preserved.
+    # writable_roots is unchanged, so write confinement does not widen.
+    # Deploy-only change: no PVC contents are touched, only the sidecar mount set and
+    # the codex ConfigMap. Full chart suite green (534 passed). Previous operation is
+    # terminal (Succeeded 2026-07-27T20:22:37Z, sequence 20260727202100) and the lease
+    # was returned to inactive, so this sequence is strictly newer.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: b7d6981ce6f2e777ac1d982f8358ab4a568956d4
+    operations.pocharlies.org/approval-id: codex-sidecar-data-parent-mount-b7d6981-20260728000014
+    operations.pocharlies.org/approval-sequence: "20260728000014"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
