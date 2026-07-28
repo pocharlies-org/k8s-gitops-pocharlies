@@ -6,35 +6,29 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # APPROVAL OPEN for b7d6981: the codex-app-server sidecar enumerated one subPath
-    # mount per agent workspace, but the agent list is runtime state the gateway owns
-    # on the PVC (/data/config/openclaw.json). The enumeration therefore drifted and
-    # every Codex exec in an unmounted workspace died before running with
-    # "Failed to create unified exec process: No such file or directory (os error 2)".
-    # Four of the seven live agents were affected (programador, local, culturismo,
-    # image-cloud); it blocked Project #22 on 2026-07-27 while sandboxState=PASS and
-    # transportOk=true still reported green, because neither probe touches the session
-    # cwd. b7d6981 mounts the /data parent once so every agent the gateway creates from
-    # now on works with no chart change, and shadows the operator-state subtrees
-    # (credentials, config, state, sessions, settings, devices, gitops) plus
-    # workspace-social with empty dirs so the read boundary is preserved.
-    # writable_roots is unchanged, so write confinement does not widen.
-    # Deploy-only change: no PVC contents are touched, only the sidecar mount set and
-    # the codex ConfigMap. Full chart suite green (534 passed at the approved SHA).
-    # Approving branch head c939678 rather than the fix commit b7d6981: a parallel
-    # session landed 1405154 on top, and pinning b7d6981 would roll that back. The
-    # difference is confined to values-synapse.yaml, which belongs to the
-    # openclaw-synapse Application -- `helm template` of openclaw-qwen36 is byte
-    # identical at b7d6981 and c939678, so this operation ships exactly the sidecar
-    # mount fix for this Application.
-    # Previous operation is terminal (Succeeded 2026-07-27T20:22:37Z, sequence
-    # 20260727202100) and the lease was returned to inactive, so this sequence is
-    # strictly newer.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: c9396781924db201b3cd91f718d4583097e0a1ce
-    operations.pocharlies.org/approval-id: codex-sidecar-data-parent-mount-c939678-20260728000455
-    operations.pocharlies.org/approval-sequence: "20260728000455"
-    operations.pocharlies.org/approved-prune: "false"
+    # Revision c939678 is live: Argo Synced/Healthy, the new pod came up 5/5 in 85s with
+    # no restarts, all nine namespace Deployments ready, gateway loading 27 plugins.
+    # It carried b7d6981, which stops the codex-app-server sidecar from enumerating one
+    # subPath mount per agent workspace and mounts the /data parent instead. The
+    # enumeration had drifted because the agent list is runtime state the gateway owns
+    # on the PVC (/data/config/openclaw.json), so any agent created after the last chart
+    # change had no mount in the sidecar and every Codex exec in it died before running
+    # with "Failed to create unified exec process: No such file or directory (os error
+    # 2)" -- which blocked Project #22 on 2026-07-27.
+    # VERIFIED after the sync, per agent workspace in the live agent list, by spawning
+    # under the bundled bwrap with that cwd (the exact layer that failed): main,
+    # skirmshop, image-cloud, synapse-ops-analyst, local, culturismo and programador all
+    # spawn and write. Before the sync four of those seven did not exist in the sidecar.
+    # End-to-end confirmed too: a real `codex exec` session in the programador workspace
+    # ran `git status --short --branch` in 268ms and returned `## agent/project-22-rho`,
+    # the same command that failed six times at 21:39-21:40 UTC.
+    # The read boundary held: credentials, config, state, sessions, settings, devices,
+    # gitops and workspace-social are all present-and-empty in the sidecar, and
+    # writable_roots is unchanged, so write confinement did not widen.
+    # LEARNED: enumerating anything per-agent in this chart is a silent-drift trap,
+    # because the gateway owns the agent list at runtime and the chart only seeds it.
+    # Approval consumed, so the lease returns to inactive.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
