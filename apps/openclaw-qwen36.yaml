@@ -6,13 +6,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # REVIEWED APPROVAL: retire the Telegram commerce pre-dispatch classifier
-    # and route competitor requests through the normal AgentGateway tool path.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 2a14dbf8967fe0bc51fcc7d664ac6e433e7721b7
-    operations.pocharlies.org/approval-id: codex-retire-telegram-fastpath-2a14dbf-20260730180050
-    operations.pocharlies.org/approval-sequence: "20260730180050"
-    operations.pocharlies.org/approved-prune: "false"
+    # APPROVAL CLOSED after the verified rollout of 2a14dbf. Main and social
+    # are Ready without the Telegram commerce fast-path environment variables.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
