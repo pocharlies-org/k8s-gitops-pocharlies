@@ -87,15 +87,17 @@ patches:
       kind: Application
       name: postgres-shared
     patch: |-
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value:
-          group: postgresql.cnpg.io
-          kind: Cluster
-          name: postgres-shared
-          namespace: databases
-          jsonPointers:
-            - /spec
+      # 2026-07-31: retirada la entrada que ignoraba el /spec ENTERO de
+      # Cluster/postgres-shared. Con ella ArgoCD reportaba Synced dijera lo que
+      # dijera el objeto vivo y selfHeal no restauraba nada: el `workload: core`
+      # que este repo declara desde b651d86 nunca llegó al cluster y el primario
+      # volvió solo al nodo de desarrollo `ubuntu`. La regla ancha era además
+      # redundante — la entrada `managedFieldsManagers: [manager]` de arriba ya
+      # cubre el defaulting del operador CNPG (verificado: los 42 campos que
+      # diferían eran todos defaults suyos — bootstrap, postgresUID, archive_mode,
+      # los log_*, connectionLimit=-1, inherit=true — sin un solo drift real, y
+      # ningún rol gestionado se crea ni se borra). keycloak-postgres corre con
+      # solo la regla estrecha y sincroniza bien.
       - op: add
         path: /spec/ignoreDifferences/-
         value:
