@@ -12,7 +12,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies/k8s-observability-pocharlies
-    targetRevision: deploy/prod
+    targetRevision: main
     path: .
   destination:
     server: https://kubernetes.default.svc

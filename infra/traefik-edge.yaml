@@ -32,7 +32,7 @@ spec:
         valueFiles:
           - $values/networking/traefik-edge/values.yaml
     - repoURL: https://github.com/pocharlies/k8s-infra-pocharlies
-      targetRevision: deploy/prod
+      targetRevision: main
       ref: values
   destination:
     server: https://kubernetes.default.svc

@@ -12,7 +12,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies/k8s-libreplay-pocharlies
-    targetRevision: deploy/prod
+    targetRevision: main
     path: k8s
   destination:
     server: https://kubernetes.default.svc

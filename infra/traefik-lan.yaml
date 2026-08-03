@@ -26,7 +26,7 @@ spec:
     # credential (`repo-k8s-infra-pocharlies`). GitHub redirects it to the
     # current organisation, but Argo matches credentials before that redirect.
     - repoURL: https://github.com/pocharlies/k8s-infra-pocharlies
-      targetRevision: deploy/prod
+      targetRevision: main
       ref: values
   destination:
     server: https://kubernetes.default.svc
