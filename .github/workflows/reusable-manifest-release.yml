@@ -52,16 +52,18 @@ on:
         required: false
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   publish:
     name: Publish manifest bundle and promote deploy branch
+    permissions:
+      contents: write
+      pull-requests: write
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
@@ -108,9 +110,18 @@ jobs:
           ORAS_VERSION: ${{ inputs.oras_version }}
         run: |
           set -euo pipefail
+          if [ "$ORAS_VERSION" != "1.2.3" ]; then
+            echo "oras_version must be the reviewed 1.2.3 release"
+            exit 1
+          fi
           mkdir -p "$RUNNER_TEMP/oras" "$RUNNER_TEMP/bin"
-          curl -sSL "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz" \
-            | tar xz -C "$RUNNER_TEMP/oras" oras
+          archive="$RUNNER_TEMP/oras_${ORAS_VERSION}_linux_amd64.tar.gz"
+          curl --retry 3 -fsSL \
+            "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz" \
+            -o "$archive"
+          echo "b4efc97a91f471f323f193ea4b4d63d8ff443ca3aab514151a30751330852827  $archive" \
+            | sha256sum --check --strict
+          tar xzf "$archive" -C "$RUNNER_TEMP/oras" oras
           install -m 0755 "$RUNNER_TEMP/oras/oras" "$RUNNER_TEMP/bin/oras"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
@@ -203,7 +214,7 @@ jobs:
 
       - name: Open production promotion pull request
         if: ${{ inputs.promotion_mode == 'pull-request' && env.PROMOTION_NOOP == 'false' }}
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           DEPLOY_BRANCH: ${{ inputs.deploy_branch }}
         with:
@@ -249,13 +260,15 @@ jobs:
 
   notify:
     name: Notify OpenClaw on manifest release failure
+    permissions:
+      contents: read
     runs-on: ${{ inputs.runner }}
     needs: [publish]
     if: ${{ always() && (needs.publish.result == 'failure' || needs.publish.result == 'cancelled') }}
     timeout-minutes: 10
     steps:
       - name: Send failure report
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           OPENCLAW_GITHUB_NOTIFY_URL: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_URL }}
           OPENCLAW_GITHUB_NOTIFY_TOKEN: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_TOKEN }}
