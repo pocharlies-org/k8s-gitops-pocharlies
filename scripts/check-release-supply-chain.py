@@ -25,8 +25,13 @@ required = [
     'digest_ref="${base}@${digest}"',
     'cosign sign --yes "$digest_ref"',
     "cosign attest --yes --type spdxjson",
+    "cosign attest --yes --type slsaprovenance1",
     "cosign verify \\",
     "cosign verify-attestation \\",
+    'buildType: "https://github.com/Attestations/GitHubActionsWorkflow@v1"',
+    'digest: { sha1: process.env.GITHUB_SHA }',
+    'id: "https://github.com/pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-release.yml"',
+    'attestations: ["https://spdx.dev/Document", "https://slsa.dev/provenance/v1"]',
     "pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-release\\\\.yml@",
     "https://token.actions.githubusercontent.com",
     "release-evidence.json",
@@ -40,9 +45,10 @@ scan = loop.index("trivy image")
 push = loop.index('push_image "$version_ref"')
 sign = loop.index('cosign sign --yes "$digest_ref"')
 attest = loop.index("cosign attest --yes --type spdxjson")
+provenance = loop.index("cosign attest --yes --type slsaprovenance1")
 verify = loop.index("cosign verify \\")
 evidence = loop.index("release-evidence.json")
-assert scan < push < sign < attest < verify < evidence
+assert scan < push < sign < attest < provenance < verify < evidence
 
 assert '--tag "$version_ref"' in loop
 assert '--tag "$sha_ref"' in loop

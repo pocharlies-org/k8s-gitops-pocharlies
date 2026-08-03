@@ -171,7 +171,7 @@ jobs:
           NODE
 
           evidence_dir="$RUNNER_TEMP/release-security-evidence"
-          mkdir -p "$evidence_dir/sbom"
+          mkdir -p "$evidence_dir/sbom" "$evidence_dir/provenance"
           : > "$evidence_dir/evidence.ndjson"
 
           push_image() {
@@ -193,6 +193,8 @@ jobs:
             sha_ref="${base}:${SHA_TAG}"
             safe_name="${name//\//-}"
             sbom="$evidence_dir/sbom/${safe_name}.spdx.json"
+            provenance="$evidence_dir/provenance/${safe_name}.slsa-v1.json"
+            build_started_on="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
             timeout "$DOCKER_BUILD_TIMEOUT" docker build \
               --progress=plain \
@@ -232,10 +234,55 @@ jobs:
             unset manifest
             digest_ref="${base}@${digest}"
 
+            build_finished_on="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            NAME="$name" CONTEXT="$context" DOCKERFILE="$dockerfile" \
+              VERSION_REF="$version_ref" SHA_REF="$sha_ref" \
+              BUILD_STARTED_ON="$build_started_on" BUILD_FINISHED_ON="$build_finished_on" \
+              PROVENANCE_FILE="$provenance" node <<'NODE'
+          const fs = require("fs");
+          const predicate = {
+            buildDefinition: {
+              buildType: "https://github.com/Attestations/GitHubActionsWorkflow@v1",
+              externalParameters: {
+                repository: process.env.GITHUB_REPOSITORY,
+                ref: process.env.GITHUB_REF,
+                workflow: process.env.GITHUB_WORKFLOW_REF,
+                image: {
+                  name: process.env.NAME,
+                  context: process.env.CONTEXT,
+                  dockerfile: process.env.DOCKERFILE,
+                  tags: [process.env.VERSION_REF, process.env.SHA_REF],
+                },
+              },
+              internalParameters: {
+                githubRunId: process.env.GITHUB_RUN_ID,
+                githubRunAttempt: process.env.GITHUB_RUN_ATTEMPT,
+              },
+              resolvedDependencies: [{
+                uri: `git+https://github.com/${process.env.GITHUB_REPOSITORY}.git@${process.env.GITHUB_REF}`,
+                digest: { sha1: process.env.GITHUB_SHA },
+              }],
+            },
+            runDetails: {
+              builder: {
+                id: "https://github.com/pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-release.yml",
+              },
+              metadata: {
+                invocationId: `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/attempts/${process.env.GITHUB_RUN_ATTEMPT}`,
+                startedOn: process.env.BUILD_STARTED_ON,
+                finishedOn: process.env.BUILD_FINISHED_ON,
+              },
+            },
+          };
+          fs.writeFileSync(process.env.PROVENANCE_FILE, `${JSON.stringify(predicate, null, 2)}\n`);
+          NODE
+
             # The OIDC signature is created only after the scan passes. Attach
-            # the SPDX SBOM as a signed in-toto attestation to the same digest.
+            # the SPDX SBOM and SLSA v1 build provenance as independently
+            # verifiable, signed in-toto attestations to the same digest.
             cosign sign --yes "$digest_ref"
             cosign attest --yes --type spdxjson --predicate "$sbom" "$digest_ref"
+            cosign attest --yes --type slsaprovenance1 --predicate "$provenance" "$digest_ref"
 
             # GitHub records the reusable workflow in Sigstore's
             # `job_workflow_ref` claim.  The caller repository remains in the
@@ -253,9 +300,15 @@ jobs:
               --certificate-identity-regexp "$certificate_identity" \
               --certificate-oidc-issuer "$certificate_issuer" \
               "$digest_ref" >/dev/null
+            cosign verify-attestation \
+              --type slsaprovenance1 \
+              --certificate-identity-regexp "$certificate_identity" \
+              --certificate-oidc-issuer "$certificate_issuer" \
+              "$digest_ref" >/dev/null
 
             NAME="$name" VERSION_REF="$version_ref" SHA_REF="$sha_ref" \
               DIGEST_REF="$digest_ref" SBOM_FILE="sbom/${safe_name}.spdx.json" \
+              PROVENANCE_FILE="provenance/${safe_name}.slsa-v1.json" \
               node <<'NODE' >> "$evidence_dir/evidence.ndjson"
           const record = {
             image: process.env.NAME,
@@ -264,8 +317,10 @@ jobs:
             digestRef: process.env.DIGEST_REF,
             sourceRevision: process.env.GITHUB_SHA,
             sbom: process.env.SBOM_FILE,
+            provenance: process.env.PROVENANCE_FILE,
             vulnerabilityGate: "fixable HIGH/CRITICAL and embedded secrets",
             signature: "sigstore-keyless",
+            attestations: ["https://spdx.dev/Document", "https://slsa.dev/provenance/v1"],
           };
           process.stdout.write(`${JSON.stringify(record)}\n`);
           NODE
@@ -278,7 +333,7 @@ jobs:
           const records = fs.readFileSync(path.join(dir, "evidence.ndjson"), "utf8")
             .split("\n").filter(Boolean).map(JSON.parse);
           fs.writeFileSync(path.join(dir, "release-evidence.json"), `${JSON.stringify(records, null, 2)}\n`);
-          const rows = records.map((r) => `| ${r.image} | \`${r.digestRef}\` | signed + SBOM attested |`).join("\n");
+          const rows = records.map((r) => `| ${r.image} | \`${r.digestRef}\` | signed + SBOM + SLSA v1 provenance attested |`).join("\n");
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
             `## Immutable release evidence\n\n| Image | Digest | Gates |\n|---|---|---|\n${rows}\n`);
           NODE
