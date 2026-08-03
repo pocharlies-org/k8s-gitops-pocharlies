@@ -12,7 +12,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies-org/k8s-skirmshop-drive-mirror-pocharlies
-    targetRevision: deploy/prod
+    targetRevision: main
     path: k8s
   destination:
     server: https://kubernetes.default.svc
