@@ -45,19 +45,21 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   release:
     name: Build and publish tagged images
+    permissions:
+      contents: read
+      id-token: write
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ inputs.node_version }}
 
@@ -84,7 +86,7 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "SHA_TAG=sha-${SHORT_SHA}" >> "$GITHUB_ENV"
 
-      - uses: docker/login-action@v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ${{ inputs.registry }}
           username: ${{ secrets.HARBOR_USER }}
@@ -348,13 +350,15 @@ jobs:
 
   notify:
     name: Notify OpenClaw on release failure
+    permissions:
+      contents: read
     runs-on: ${{ inputs.runner }}
     needs: [release]
     if: ${{ always() && (needs.release.result == 'failure' || needs.release.result == 'cancelled') }}
     timeout-minutes: 10
     steps:
       - name: Send failure report
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           OPENCLAW_GITHUB_NOTIFY_URL: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_URL }}
           OPENCLAW_GITHUB_NOTIFY_TOKEN: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_TOKEN }}

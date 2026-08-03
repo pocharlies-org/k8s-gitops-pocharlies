@@ -10,6 +10,10 @@ workflow = (ROOT / ".github/workflows/reusable-release.yml").read_text(encoding=
 
 required = [
     "id-token: write",
+    "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+    "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+    "docker/login-action@dbcb813823bdd20940b903addbd779551569679f",
+    "actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd",
     "aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567",
     "COSIGN_VERSION: v3.0.6",
     "https://github.com/sigstore/cosign/releases/download/",
@@ -50,10 +54,17 @@ verify = loop.index("cosign verify \\")
 evidence = loop.index("release-evidence.json")
 assert scan < push < sign < attest < provenance < verify < evidence
 
+slsa_verify = "cosign verify-attestation \\\n              --type slsaprovenance1"
+assert slsa_verify in loop, "SLSA provenance must be verified before evidence publication"
+assert loop.index(slsa_verify) < evidence
+
 assert '--tag "$version_ref"' in loop
 assert '--tag "$sha_ref"' in loop
 assert "--force" not in workflow
 assert "COSIGN_PASSWORD" not in workflow
+assert workflow.count("id-token: write") == 1
+notify = workflow.split("  notify:", 1)[1]
+assert "id-token: write" not in notify
 assert "${GITHUB_REPOSITORY}/.github/workflows/[^@]+" not in workflow
 
 identity_match = re.search(r'certificate_identity="([^"]+)"', workflow)
