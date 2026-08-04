@@ -52,11 +52,13 @@ on:
         required: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   deploy:
     name: Build, push, stamp staging
+    permissions:
+      contents: write
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 90
     steps:
@@ -121,8 +123,15 @@ jobs:
           mkdir -p "$RUNNER_TEMP/bin"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
           KUSTOMIZE_VERSION=v5.5.0
-          curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" \
-            | tar xz -C "$RUNNER_TEMP/bin" kustomize
+          KUSTOMIZE_TGZ="$RUNNER_TEMP/kustomize.tar.gz"
+          curl -fsSL \
+            --retry 3 \
+            --retry-all-errors \
+            -o "$KUSTOMIZE_TGZ" \
+            "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          echo "6703a3a70a0c47cf0b37694030b54f1175a9dfeb17b3818b623ed58b9dbc2a77  $KUSTOMIZE_TGZ" \
+            | sha256sum --check --strict
+          tar xzf "$KUSTOMIZE_TGZ" -C "$RUNNER_TEMP/bin" kustomize
 
       - name: Stamp staging overlay
         env:
@@ -174,6 +183,8 @@ jobs:
 
   notify:
     name: Notify OpenClaw on staging failure
+    permissions:
+      contents: read
     runs-on: ${{ inputs.runner }}
     needs: [deploy]
     if: ${{ always() && (needs.deploy.result == 'failure' || needs.deploy.result == 'cancelled') }}

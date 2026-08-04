@@ -11,7 +11,8 @@ USE = re.compile(r"^\s*(?:-\s*)?uses:\s*([^\s#]+)", re.MULTILINE)
 IMMUTABLE_REF = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
 violations: list[str] = []
-for workflow in sorted(WORKFLOWS.glob("*.yml")):
+workflows = sorted({*WORKFLOWS.glob("*.yml"), *WORKFLOWS.glob("*.yaml")})
+for workflow in workflows:
     text = workflow.read_text(encoding="utf-8")
     for match in USE.finditer(text):
         target = match.group(1)
@@ -22,4 +23,21 @@ for workflow in sorted(WORKFLOWS.glob("*.yml")):
             violations.append(f"{workflow.relative_to(ROOT)}:{line}: {target}")
 
 assert not violations, "mutable workflow dependencies:\n" + "\n".join(violations)
+
+ci_workflow = (WORKFLOWS / "reusable-ci.yml").read_text(encoding="utf-8")
+deploy_workflow = (WORKFLOWS / "reusable-deploy-stg.yml").read_text(encoding="utf-8")
+for digest in (
+    "6703a3a70a0c47cf0b37694030b54f1175a9dfeb17b3818b623ed58b9dbc2a77",
+    "95f14e87aa28c09d5941f11bd024c1d02fdc0303ccaa23f61cef67bc92619d73",
+):
+    assert digest in ci_workflow, f"missing CI tool checksum: {digest}"
+assert "sha256sum --check --strict" in ci_workflow
+assert "6703a3a70a0c47cf0b37694030b54f1175a9dfeb17b3818b623ed58b9dbc2a77" in deploy_workflow
+assert "sha256sum --check --strict" in deploy_workflow
+assert deploy_workflow.startswith("name: Reusable Deploy Staging")
+assert "permissions:\n  contents: read\n\njobs:" in deploy_workflow
+deploy_job = deploy_workflow.split("  deploy:", 1)[1].split("  notify:", 1)[0]
+notify_job = deploy_workflow.split("  notify:", 1)[1]
+assert "permissions:\n      contents: write" in deploy_job
+assert "permissions:\n      contents: read" in notify_job
 print("All third-party workflow dependencies are pinned to immutable commits")

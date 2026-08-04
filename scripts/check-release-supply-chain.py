@@ -56,7 +56,7 @@ assert scan < push < sign < attest < provenance < verify < evidence
 
 slsa_verify = "cosign verify-attestation \\\n              --type slsaprovenance1"
 assert slsa_verify in loop, "SLSA provenance must be verified before evidence publication"
-assert loop.index(slsa_verify) < evidence
+assert provenance < loop.index(slsa_verify) < evidence
 
 assert '--tag "$version_ref"' in loop
 assert '--tag "$sha_ref"' in loop

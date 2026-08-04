@@ -224,6 +224,8 @@ jobs:
           download_file \
             "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" \
             "$KUSTOMIZE_TGZ"
+          echo "6703a3a70a0c47cf0b37694030b54f1175a9dfeb17b3818b623ed58b9dbc2a77  $KUSTOMIZE_TGZ" \
+            | sha256sum --check --strict
           tar xzf "$KUSTOMIZE_TGZ" -C "$RUNNER_TEMP/bin" kustomize
 
           KUBECONFORM_VERSION=v0.6.7
@@ -231,6 +233,8 @@ jobs:
           download_file \
             "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
             "$KUBECONFORM_TGZ"
+          echo "95f14e87aa28c09d5941f11bd024c1d02fdc0303ccaa23f61cef67bc92619d73  $KUBECONFORM_TGZ" \
+            | sha256sum --check --strict
           tar xzf "$KUBECONFORM_TGZ" -C "$RUNNER_TEMP/bin" kubeconform
 
       - name: YAML lint
