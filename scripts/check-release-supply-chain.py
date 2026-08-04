@@ -79,6 +79,10 @@ required = [
     "ModifiedFindings",
     "trivyPolicySha256",
     "if: ${{ always() }}",
+    "value: ${{ jobs.release.outputs.release_images }}",
+    "release_images: ${{ steps.publish.outputs.release_images }}",
+    'echo "release_images<<RHO_RELEASE_IMAGES"',
+    "release evidence contains an invalid or duplicate image",
 ]
 for marker in required:
     require(marker in workflow, f"missing release supply-chain guard: {marker}")
@@ -116,6 +120,8 @@ require(workflow.count("?page=${page}&page_size=100") == 1, "Harbor nested tag l
 require(workflow.count("entry.name === process.env.EXPECTED_TAG") == 1, "Harbor reconciliation must match the exact tag name")
 reconcile = loop.rindex("verify_harbor_tag_on_digest \\")
 require(final_push < reconcile < evidence, "Harbor 409 reconciliation occurs outside final promotion")
+release_output = loop.index('echo "release_images<<RHO_RELEASE_IMAGES"')
+require(reconcile < evidence < release_output, "release image output is emitted before final verification/evidence")
 require("--force" not in workflow, "forced attestation replacement is forbidden")
 require("COSIGN_PASSWORD" not in workflow, "key-based Cosign material is forbidden")
 require(workflow.count("id-token: write") == 1, "OIDC permission must be isolated to release job")
@@ -129,7 +135,7 @@ require(workflow.count('--certificate-github-workflow-repository "$GITHUB_REPOSI
 require(workflow.count('--certificate-github-workflow-sha "$GITHUB_SHA"') == 3, "all Cosign evidence must bind caller revision")
 require("refs/(heads|tags)" not in workflow, "mutable certificate reference accepted")
 
-expected_workflow_digest = "bc78afd9aaed7bd1e0518487354cd1cf4458daacf30f3dead97ac5dbe0bb0c89"
+expected_workflow_digest = "f3e1ef0fffce37d657308f64308a580f6c5b48ecc4aceea39a1232fd97724cb0"
 workflow_digest = hashlib.sha256(workflow.encode()).hexdigest()
 require(
     workflow_digest == expected_workflow_digest,

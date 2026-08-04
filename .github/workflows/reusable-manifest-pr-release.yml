@@ -24,6 +24,14 @@ on:
         description: Artifact tag to publish. Empty means use the pushed Git tag.
         type: string
         default: ""
+      image_promotions:
+        description: Canonical release_images JSON output from reusable-release.yml.
+        type: string
+        required: true
+      image_targets:
+        description: Strict JSON array mapping every released image to one Kustomize or JSON Helm target.
+        type: string
+        required: true
       deploy_branch:
         description: Branch Argo CD tracks after a successful release.
         type: string
@@ -99,6 +107,250 @@ jobs:
             echo "VERSION=$VERSION"
             echo "SHA_TAG=sha-${SHORT_SHA}"
             echo "ARTIFACT_NAME=$ARTIFACT_NAME"
+          } >> "$GITHUB_ENV"
+
+      - name: Install verified manifest stamping tools
+        run: |
+          set -euo pipefail
+          case "$(uname -m)" in
+            x86_64|amd64) node_arch=x64; node_sha=f625d97cd707df4ff96254916fbc5ff014f09c09effe5a1e0ca8f6d41a8789d4 ;;
+            *) echo "Manifest release supports only the reviewed amd64 runner"; exit 1 ;;
+          esac
+          bin_dir="$RUNNER_TEMP/manifest-tools/bin"
+          mkdir -p "$bin_dir"
+
+          node_archive="$RUNNER_TEMP/node-v24.19.0-${node_arch}.tar.gz"
+          curl --retry 3 --retry-all-errors -fsSL \
+            "https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-${node_arch}.tar.gz" \
+            -o "$node_archive"
+          echo "${node_sha}  ${node_archive}" | sha256sum --check --strict
+          tar xzf "$node_archive" -C "$RUNNER_TEMP/manifest-tools"
+          ln -s "$RUNNER_TEMP/manifest-tools/node-v24.19.0-linux-${node_arch}/bin/node" "$bin_dir/node"
+
+          kustomize_archive="$RUNNER_TEMP/kustomize-v5.5.0.tar.gz"
+          curl --retry 3 --retry-all-errors -fsSL \
+            "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.5.0/kustomize_v5.5.0_linux_amd64.tar.gz" \
+            -o "$kustomize_archive"
+          echo "6703a3a70a0c47cf0b37694030b54f1175a9dfeb17b3818b623ed58b9dbc2a77  ${kustomize_archive}" \
+            | sha256sum --check --strict
+          tar xzf "$kustomize_archive" -C "$bin_dir" kustomize
+
+          helm_archive="$RUNNER_TEMP/helm-v3.16.4-linux-amd64.tar.gz"
+          curl --retry 3 --retry-all-errors -fsSL \
+            "https://get.helm.sh/helm-v3.16.4-linux-amd64.tar.gz" \
+            -o "$helm_archive"
+          echo "fc307327959aa38ed8f9f7e66d45492bb022a66c3e5da6063958254b9767d179  ${helm_archive}" \
+            | sha256sum --check --strict
+          tar xzf "$helm_archive" -C "$RUNNER_TEMP/manifest-tools" linux-amd64/helm
+          install -m 0755 "$RUNNER_TEMP/manifest-tools/linux-amd64/helm" "$bin_dir/helm"
+          echo "$bin_dir" >> "$GITHUB_PATH"
+
+      - name: Stamp and verify exact release image digests
+        env:
+          SOURCE_PATH: ${{ inputs.source_path }}
+          IMAGE_PROMOTIONS: ${{ inputs.image_promotions }}
+          IMAGE_TARGETS: ${{ inputs.image_targets }}
+          REGISTRY: ${{ inputs.registry }}
+          REGISTRY_PROJECT: ${{ inputs.registry_project }}
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Release checkout must be clean before image stamping"
+            exit 1
+          fi
+          if ! echo "$SOURCE_PATH" | grep -Eq '^(\.|[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*)$' || echo "$SOURCE_PATH" | grep -Eq '(^|/)\.\.(/|$)'; then
+            echo "source_path must be a safe repository-relative path"
+            exit 1
+          fi
+          if [ ! -d "$SOURCE_PATH" ]; then
+            echo "Source path does not exist: $SOURCE_PATH"
+            exit 1
+          fi
+
+          node <<'NODE'
+          const fs = require("fs");
+          const path = require("path");
+          const root = path.resolve(process.cwd());
+          const sourceRoot = path.resolve(root, process.env.SOURCE_PATH);
+          const promotions = JSON.parse(process.env.IMAGE_PROMOTIONS || "null");
+          const targets = JSON.parse(process.env.IMAGE_TARGETS || "null");
+          const version = process.env.VERSION;
+          const expectedRegistryPrefix = `${process.env.REGISTRY}/${process.env.REGISTRY_PROJECT}/`;
+          const safeName = /^[a-z0-9][a-z0-9._/-]{0,127}$/;
+          const safeRepository = /^[A-Za-z0-9.-]+\/[a-z0-9][a-z0-9._/-]{0,255}$/;
+          const safePath = /^(?:\.|[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*)$/;
+          const digestPattern = /^sha256:[a-f0-9]{64}$/;
+          const exactKeys = (value, keys, label) => {
+            const actual = Object.keys(value || {}).sort();
+            const expected = [...keys].sort();
+            if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+              throw new Error(`${label} has unexpected fields`);
+            }
+          };
+          const contained = (candidate, label, requireFile = false) => {
+            if (typeof candidate !== "string" || !safePath.test(candidate) || candidate.split("/").includes("..")) {
+              throw new Error(`${label} is not a safe relative path`);
+            }
+            const resolved = path.resolve(root, candidate);
+            if (resolved !== sourceRoot && !resolved.startsWith(`${sourceRoot}${path.sep}`)) {
+              throw new Error(`${label} escapes source_path`);
+            }
+            if (requireFile && !fs.statSync(resolved).isFile()) throw new Error(`${label} is not a file`);
+            return resolved;
+          };
+          const setExistingPath = (document, segments, value, label) => {
+            if (!Array.isArray(segments) || segments.length < 1 || segments.length > 8 ||
+                segments.some((segment) => typeof segment !== "string" || !/^[A-Za-z0-9_-]+$/.test(segment))) {
+              throw new Error(`${label} must be a bounded path array`);
+            }
+            let cursor = document;
+            for (const segment of segments.slice(0, -1)) {
+              if (!cursor || typeof cursor !== "object" || Array.isArray(cursor) || !(segment in cursor)) {
+                throw new Error(`${label} does not exist`);
+              }
+              cursor = cursor[segment];
+            }
+            const leaf = segments.at(-1);
+            if (!cursor || typeof cursor !== "object" || Array.isArray(cursor) || !(leaf in cursor)) {
+              throw new Error(`${label} does not exist`);
+            }
+            cursor[leaf] = value;
+          };
+
+          if (!Array.isArray(promotions) || !Array.isArray(targets) ||
+              (promotions.length === 0) !== (targets.length === 0)) {
+            throw new Error("image_promotions and image_targets must be arrays that are empty together");
+          }
+          const promotionMap = new Map();
+          for (const [index, promotion] of promotions.entries()) {
+            exactKeys(promotion, ["name", "repository", "versionRef", "shaRef", "digest", "ref"], `promotion[${index}]`);
+            if (!safeName.test(promotion.name || "") || promotionMap.has(promotion.name)) throw new Error("invalid or duplicate promotion name");
+            if (promotion.repository !== `${expectedRegistryPrefix}${promotion.name}` ||
+                promotion.versionRef !== `${promotion.repository}:${version}` ||
+                promotion.shaRef !== `${promotion.repository}:sha-${process.env.GITHUB_SHA.slice(0, 12)}` ||
+                !digestPattern.test(promotion.digest || "") ||
+                promotion.ref !== `${promotion.repository}@${promotion.digest}`) {
+              throw new Error(`promotion is not bound to this release: ${promotion.name}`);
+            }
+            promotionMap.set(promotion.name, promotion);
+          }
+
+          const targetMap = new Map();
+          const kustomizeRows = [];
+          const renderRows = [];
+          for (const [index, target] of targets.entries()) {
+            if (!target || typeof target !== "object" || targetMap.has(target.name) || !promotionMap.has(target.name)) {
+              throw new Error(`invalid, duplicate, or unknown target at index ${index}`);
+            }
+            if (!safeRepository.test(target.deployRepository || "") || !target.deployRepository.endsWith(`/${target.name}`)) {
+              throw new Error(`invalid deployRepository for ${target.name}`);
+            }
+            const promotion = promotionMap.get(target.name);
+            const expectedRef = `${target.deployRepository}:${version}@${promotion.digest}`;
+            if (target.kind === "kustomize") {
+              exactKeys(target, ["name", "kind", "path", "matchName", "deployRepository"], `target[${index}]`);
+              if (!safeRepository.test(target.matchName || "")) throw new Error(`invalid matchName for ${target.name}`);
+              const directory = contained(target.path, `target[${index}].path`);
+              if (!fs.statSync(directory).isDirectory() || !fs.existsSync(path.join(directory, "kustomization.yaml"))) {
+                throw new Error(`Kustomize target is not an overlay: ${target.name}`);
+              }
+              kustomizeRows.push([target.name, target.path, target.matchName, target.deployRepository, promotion.digest, version].join("\t"));
+              renderRows.push([target.name, "kustomize", target.path, "-", expectedRef, target.deployRepository, promotion.digest].join("\t"));
+            } else if (target.kind === "helm-json") {
+              exactKeys(target, ["name", "kind", "path", "chartPath", "deployRepository", "repositoryPath", "tagPath", "digestPath"], `target[${index}]`);
+              const file = contained(target.path, `target[${index}].path`, true);
+              const chart = contained(target.chartPath, `target[${index}].chartPath`);
+              if (!fs.statSync(chart).isDirectory() || !fs.existsSync(path.join(chart, "Chart.yaml"))) {
+                throw new Error(`Helm target is not a chart: ${target.name}`);
+              }
+              const document = JSON.parse(fs.readFileSync(file, "utf8"));
+              setExistingPath(document, target.repositoryPath, target.deployRepository, "repositoryPath");
+              setExistingPath(document, target.tagPath, version, "tagPath");
+              setExistingPath(document, target.digestPath, promotion.digest, "digestPath");
+              fs.writeFileSync(file, `${JSON.stringify(document, null, 2)}\n`);
+              renderRows.push([target.name, "helm-json", `${target.chartPath}\t${target.path}`, expectedRef, target.deployRepository, promotion.digest].join("\t"));
+            } else {
+              throw new Error(`unsupported image target kind for ${target.name}`);
+            }
+            targetMap.set(target.name, target);
+          }
+          if (promotionMap.size !== targetMap.size || [...promotionMap.keys()].some((name) => !targetMap.has(name))) {
+            throw new Error("image target names must exactly match released image names");
+          }
+
+          const pins = [...promotionMap.values()].map((promotion) => {
+            const target = targetMap.get(promotion.name);
+            return {
+              name: promotion.name,
+              sourceRef: promotion.ref,
+              deployRef: `${target.deployRepository}:${version}@${promotion.digest}`,
+              digest: promotion.digest,
+            };
+          }).sort((left, right) => left.name.localeCompare(right.name));
+          fs.writeFileSync(process.env.RUNNER_TEMP + "/release-image-pins.json", `${JSON.stringify(pins)}\n`);
+          fs.writeFileSync(process.env.RUNNER_TEMP + "/kustomize-targets.tsv", `${kustomizeRows.join("\n")}\n`);
+          fs.writeFileSync(process.env.RUNNER_TEMP + "/render-targets.tsv", `${renderRows.join("\n")}\n`);
+          NODE
+
+          while IFS=$'\t' read -r name directory match_name deploy_repository digest release_version; do
+            [ -n "$name" ] || continue
+            (
+              cd "$directory"
+              kustomize edit set image "${match_name}=${deploy_repository}:${release_version}@${digest}"
+            )
+          done < "$RUNNER_TEMP/kustomize-targets.tsv"
+
+          while IFS=$'\t' read -r name kind render_path values_path expected_ref deploy_repository digest; do
+            [ -n "$name" ] || continue
+            rendered="$RUNNER_TEMP/rendered-${name//\//-}.yaml"
+            case "$kind" in
+              kustomize) kustomize build "$render_path" > "$rendered" ;;
+              helm-json) helm template rho-release "$render_path" --values "$values_path" > "$rendered" ;;
+              *) echo "Unsupported render kind: $kind"; exit 1 ;;
+            esac
+            RENDERED="$rendered" EXPECTED_REF="$expected_ref" DEPLOY_REPOSITORY="$deploy_repository" node <<'NODE'
+          const fs = require("fs");
+          const lines = fs.readFileSync(process.env.RENDERED, "utf8").split(/\r?\n/);
+          const refs = lines.map((line) => line.match(/^\s*image:\s*["']?([^"'\s]+)["']?\s*$/)?.[1]).filter(Boolean)
+            .filter((ref) => ref.startsWith(process.env.DEPLOY_REPOSITORY));
+          if (refs.length === 0 || refs.some((ref) => ref !== process.env.EXPECTED_REF)) {
+            throw new Error(`rendered image linkage mismatch for ${process.env.DEPLOY_REPOSITORY}`);
+          }
+          NODE
+          done < "$RUNNER_TEMP/render-targets.tsv"
+
+          digest_set_sha="$(sha256sum "$RUNNER_TEMP/release-image-pins.json" | cut -d' ' -f1)"
+          PINS_FILE="$RUNNER_TEMP/release-image-pins.json" DIGEST_SET_SHA="$digest_set_sha" node <<'NODE'
+          const fs = require("fs");
+          const path = require("path");
+          const document = {
+            contractVersion: "rho-release-linkage.v1",
+            sourceRevision: process.env.GITHUB_SHA,
+            version: process.env.VERSION,
+            imageDigestSetSha256: process.env.DIGEST_SET_SHA,
+            images: JSON.parse(fs.readFileSync(process.env.PINS_FILE, "utf8")),
+          };
+          fs.writeFileSync(path.join(process.env.SOURCE_PATH, ".rho-release.json"), `${JSON.stringify(document, null, 2)}\n`);
+          NODE
+
+          git add -- "$SOURCE_PATH"
+          SOURCE_PATH="$SOURCE_PATH" node <<'NODE'
+          const { execFileSync } = require("child_process");
+          const path = require("path");
+          const root = path.resolve(process.cwd());
+          const source = path.resolve(root, process.env.SOURCE_PATH);
+          const changed = execFileSync("git", ["diff", "--cached", "--name-only", "-z"]).toString().split("\0").filter(Boolean);
+          if (changed.length === 0 || changed.some((file) => {
+            const resolved = path.resolve(root, file);
+            return resolved !== source && !resolved.startsWith(`${source}${path.sep}`);
+          })) {
+            throw new Error("image stamping changed files outside source_path or changed nothing");
+          }
+          NODE
+          patched_tree_sha="$(git write-tree)"
+          {
+            echo "IMAGE_DIGEST_SET_SHA=$digest_set_sha"
+            echo "PATCHED_TREE_SHA=$patched_tree_sha"
           } >> "$GITHUB_ENV"
 
       - name: Install ORAS
@@ -193,6 +445,8 @@ jobs:
               --annotation "org.opencontainers.image.version=${VERSION}" \
               --annotation "org.opencontainers.image.revision=${GITHUB_SHA}" \
               --annotation "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+              --annotation "rho.skirmshop.es/patched-tree=${PATCHED_TREE_SHA}" \
+              --annotation "rho.skirmshop.es/image-digest-set-sha256=${IMAGE_DIGEST_SET_SHA}" \
               "$CANDIDATE_REF" "manifest-bundle.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip"
           )
 
@@ -204,9 +458,13 @@ jobs:
           candidate_manifest="$RUNNER_TEMP/manifest-candidate.json"
           oras manifest fetch "$CANDIDATE_REF" > "$candidate_manifest"
           jq -e --arg revision "$GITHUB_SHA" \
-            '.annotations["org.opencontainers.image.revision"] == $revision' \
+            --arg patched_tree "$PATCHED_TREE_SHA" \
+            --arg digest_set "$IMAGE_DIGEST_SET_SHA" \
+            '.annotations["org.opencontainers.image.revision"] == $revision and
+             .annotations["rho.skirmshop.es/patched-tree"] == $patched_tree and
+             .annotations["rho.skirmshop.es/image-digest-set-sha256"] == $digest_set' \
             "$candidate_manifest" >/dev/null || {
-              echo "Candidate manifest is not bound to the full source revision"
+              echo "Candidate manifest is not bound to the source, patched tree, and image digest set"
               exit 1
             }
 
@@ -278,9 +536,13 @@ jobs:
             fi
             oras manifest fetch "$tag_ref" > "$candidate_manifest"
             jq -e --arg revision "$GITHUB_SHA" \
-              '.annotations["org.opencontainers.image.revision"] == $revision' \
+              --arg patched_tree "$PATCHED_TREE_SHA" \
+              --arg digest_set "$IMAGE_DIGEST_SET_SHA" \
+              '.annotations["org.opencontainers.image.revision"] == $revision and
+               .annotations["rho.skirmshop.es/patched-tree"] == $patched_tree and
+               .annotations["rho.skirmshop.es/image-digest-set-sha256"] == $digest_set' \
               "$candidate_manifest" >/dev/null || {
-                echo "Immutable manifest tag revision mismatch for $tag_ref"
+                echo "Immutable manifest tag linkage mismatch for $tag_ref"
                 exit 1
               }
           done
@@ -304,8 +566,9 @@ jobs:
           SOURCE_DATE="$(git show -s --format=%cI "$SOURCE_SHA")"
 
           git fetch origin "$DEPLOY_BRANCH"
-          git checkout -B "$PROMOTION_BRANCH" "origin/$DEPLOY_BRANCH"
           git read-tree --reset -u "$SOURCE_SHA"
+          git checkout -B "$PROMOTION_BRANCH" "origin/$DEPLOY_BRANCH"
+          git read-tree --reset -u "$PATCHED_TREE_SHA"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 

@@ -43,6 +43,10 @@ on:
         required: false
       OPENCLAW_TELEGRAM_THREAD_ID:
         required: false
+    outputs:
+      release_images:
+        description: Canonical JSON array of registry-verified image digests.
+        value: ${{ jobs.release.outputs.release_images }}
 
 permissions:
   contents: read
@@ -54,6 +58,8 @@ concurrency:
 jobs:
   release:
     name: Build and publish tagged images
+    outputs:
+      release_images: ${{ steps.publish.outputs.release_images }}
     permissions:
       contents: read
       id-token: write
@@ -217,6 +223,7 @@ jobs:
           "$install_dir/cosign" version
 
       - name: Build and push release images
+        id: publish
         env:
           IMAGES: ${{ inputs.images }}
           REGISTRY: ${{ inputs.registry }}
@@ -640,6 +647,43 @@ jobs:
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
             `## Immutable release evidence\n\n| Image | Digest | Gates |\n|---|---|---|\n${rows}\n`);
           NODE
+
+          RELEASE_EVIDENCE="$evidence_dir/release-evidence.json" node <<'NODE' > "$RUNNER_TEMP/release-images.json"
+          const fs = require("fs");
+          const records = JSON.parse(fs.readFileSync(process.env.RELEASE_EVIDENCE, "utf8"));
+          if (!Array.isArray(records) || records.length === 0) {
+            throw new Error("verified release evidence is empty");
+          }
+          const seen = new Set();
+          const output = records.map((record) => {
+            if (!record || typeof record.image !== "string" || seen.has(record.image)) {
+              throw new Error("release evidence contains an invalid or duplicate image");
+            }
+            seen.add(record.image);
+            const digest = String(record.digestRef || "").split("@")[1] || "";
+            const repository = String(record.digestRef || "").split("@")[0] || "";
+            if (!/^sha256:[a-f0-9]{64}$/.test(digest)) {
+              throw new Error(`invalid verified digest for ${record.image}`);
+            }
+            if (!repository.endsWith(`/${record.image}`)) {
+              throw new Error(`verified repository/name mismatch for ${record.image}`);
+            }
+            return {
+              name: record.image,
+              repository,
+              versionRef: record.versionRef,
+              shaRef: record.shaRef,
+              digest,
+              ref: `${repository}@${digest}`,
+            };
+          }).sort((left, right) => left.name.localeCompare(right.name));
+          process.stdout.write(`${JSON.stringify(output)}\n`);
+          NODE
+          {
+            echo "release_images<<RHO_RELEASE_IMAGES"
+            cat "$RUNNER_TEMP/release-images.json"
+            echo "RHO_RELEASE_IMAGES"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Upload release security evidence
         if: ${{ always() }}

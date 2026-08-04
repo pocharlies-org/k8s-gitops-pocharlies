@@ -63,4 +63,6 @@ jobs:
       - run: python3 scripts/check-workflow-pins.py
       - run: python3 scripts/check-manifest-promotion.py
       - run: python3 scripts/check-release-supply-chain.py
+      - run: python3 scripts/check-release-image-linkage.py
+      - run: python3 -m unittest tests/test_release_image_linkage_runtime.py
       - run: python3 -m unittest tests/test_synapse_sre_foundation_app.py
