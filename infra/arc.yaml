@@ -72,6 +72,14 @@ spec:
         template:
           spec:
             affinity:
+              nodeAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    preference:
+                      matchExpressions:
+                        - key: node-pool
+                          operator: In
+                          values: [ks5-nvme]
               podAntiAffinity:
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
@@ -83,12 +91,15 @@ spec:
                       topologyKey: kubernetes.io/hostname
             nodeSelector:
               kubernetes.io/arch: amd64
-              node-pool: ks5-nvme
             tolerations:
               - effect: PreferNoSchedule
                 key: pool
                 operator: Equal
                 value: dev
+              - effect: NoSchedule
+                key: role
+                operator: Equal
+                value: edge
             containers:
               - name: runner
                 image: ghcr.io/actions/actions-runner:2.335.1@sha256:08c30b0a7105f64bddfc485d2487a22aa03932a791402393352fdf674bda2c29
@@ -144,6 +155,14 @@ spec:
         template:
           spec:
             affinity:
+              nodeAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    preference:
+                      matchExpressions:
+                        - key: node-pool
+                          operator: In
+                          values: [ks5-nvme]
               podAntiAffinity:
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
@@ -155,15 +174,17 @@ spec:
                       topologyKey: kubernetes.io/hostname
             nodeSelector:
               kubernetes.io/arch: amd64
-              # CI must remain available if the home-lab Ubuntu node is down.
-              # This hard selector confines every new ephemeral runner to the
-              # three OVH KS5 nodes; existing runners finish in place.
-              node-pool: ks5-nvme
             tolerations:
               - effect: PreferNoSchedule
                 key: pool
                 operator: Equal
                 value: dev
+              # Emergency fallback when the KS5 pool lacks a schedulable node.
+              # KS5 remains the weight-100 node-affinity preference above.
+              - effect: NoSchedule
+                key: role
+                operator: Equal
+                value: edge
             # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
             # container. containerMode must stay unset when that sidecar is
             # customized, otherwise Helm silently discards its resources.

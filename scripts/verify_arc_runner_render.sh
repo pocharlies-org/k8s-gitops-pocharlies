@@ -67,7 +67,7 @@ if not __debug__:
 root = Path(sys.argv[1])
 runner_image = "ghcr.io/actions/actions-runner:2.335.1@sha256:08c30b0a7105f64bddfc485d2487a22aa03932a791402393352fdf674bda2c29"
 dind_image = "docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c"
-expected_selector = {"kubernetes.io/arch": "amd64", "node-pool": "ks5-nvme"}
+expected_selector = {"kubernetes.io/arch": "amd64"}
 expected_antiaffinity_labels = {
     "app.kubernetes.io/component": "runner",
     "app.kubernetes.io/part-of": "gha-runner-scale-set",
@@ -93,6 +93,26 @@ def validate_common(release: str, expected_max: int) -> tuple[dict, dict]:
     pod_spec = runner_set["spec"]["template"]["spec"]
     assert pod_spec["nodeSelector"] == expected_selector
     assert "kubernetes.io/hostname" not in pod_spec["nodeSelector"]
+
+    node_preferences = pod_spec["affinity"]["nodeAffinity"][
+        "preferredDuringSchedulingIgnoredDuringExecution"
+    ]
+    assert node_preferences == [
+        {
+            "weight": 100,
+            "preference": {
+                "matchExpressions": [
+                    {"key": "node-pool", "operator": "In", "values": ["ks5-nvme"]}
+                ]
+            },
+        }
+    ]
+    assert {
+        "effect": "NoSchedule",
+        "key": "role",
+        "operator": "Equal",
+        "value": "edge",
+    } in pod_spec["tolerations"]
 
     pod_anti_affinity = pod_spec["affinity"]["podAntiAffinity"]
     assert "requiredDuringSchedulingIgnoredDuringExecution" not in pod_anti_affinity
