@@ -20,7 +20,9 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertIn("key: node-pool", runner_values)
         self.assertIn("kubernetes.io/arch: amd64", runner_values)
         self.assertIn("preferredDuringSchedulingIgnoredDuringExecution:", runner_values)
+        self.assertIn("requiredDuringSchedulingIgnoredDuringExecution:", runner_values)
         self.assertIn("values: [ks5-nvme]", runner_values)
+        self.assertIn("values: [edge]", runner_values)
         self.assertNotIn("kubernetes.io/hostname:", runner_values)
         self.assertNotIn("workload: cpu", runner_values)
 
@@ -84,11 +86,22 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
 
     def test_runner_pods_prefer_spread_but_tolerate_a_node_outage(self) -> None:
         for values in (self.openclaw_values, self.shared_values):
-            self.assertIn("preferredDuringSchedulingIgnoredDuringExecution:", values)
-            self.assertIn("weight: 100", values)
-            self.assertNotIn("requiredDuringSchedulingIgnoredDuringExecution:", values)
-            self.assertIn("app.kubernetes.io/part-of: gha-runner-scale-set", values)
-            self.assertIn("topologyKey: kubernetes.io/hostname", values)
+            pod_anti_affinity = values.split("podAntiAffinity:", 1)[1].split(
+                "nodeSelector:", 1
+            )[0]
+            self.assertIn(
+                "preferredDuringSchedulingIgnoredDuringExecution:", pod_anti_affinity
+            )
+            self.assertIn("weight: 100", pod_anti_affinity)
+            self.assertNotIn(
+                "requiredDuringSchedulingIgnoredDuringExecution:", pod_anti_affinity
+            )
+            self.assertIn(
+                "app.kubernetes.io/part-of: gha-runner-scale-set", pod_anti_affinity
+            )
+            self.assertIn(
+                "topologyKey: kubernetes.io/hostname", pod_anti_affinity
+            )
 
     def test_real_render_gate_is_part_of_ci(self) -> None:
         workflow = (ROOT / ".github/workflows/reusable-ci.yml").read_text()
