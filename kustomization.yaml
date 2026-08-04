@@ -196,6 +196,21 @@ patches:
           namespace: llm
           jsonPointers:
             - /spec/replicas
+      # Co-residente de DGX2 para agentes (qwen3-coder / coder en LiteLLM). Se
+      # declara a replicas 0 en git y se levanta A MANO cuando se va a usar, igual
+      # que el resto de residentes de DGX2. Sin este ignore, selfHeal lo devolveria
+      # a 0 a los pocos minutos de levantarlo.
+      # OJO: los deployments de DGX1 NO llevan este ignore a proposito -- alli las
+      # replicas SON el interruptor del residente de tooling y las manda git.
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: vllm-qwen3coder-30b-a3b-nvfp4-dgx2
+          namespace: llm
+          jsonPointers:
+            - /spec/replicas
       # gpu_arbiter pauses these BGE-dgx2 ScaledObjects (autoscaling.keda.sh/paused-replicas=0)
       # to evict the preemptible embedder/reranker off the GB10 while ComfyUI/Trellis run,
       # and removes the annotation on release. selfHeal must NOT revert it mid-job.
