@@ -5,8 +5,8 @@ metadata:
   namespace: argocd
   annotations:
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-ai-pocharlies
-    e-dani.com/rho-pin-purpose: ornith mm-limit + DGX2 dense/vision co-residency caps
-    e-dani.com/rho-rollback-revision: f847542d0549017c54c584d2707ce6ea759c6fd7
+    e-dani.com/rho-pin-purpose: nvidia/Qwen3.6-35B-A3B-NVFP4 como residente permanente de DGX1; ornith a replicas 0, recuperable
+    e-dani.com/rho-rollback-revision: b9346002c32d0ec18a764a0dcee82cd7850b7634
     e-dani.com/rho-restore-target-revision: deploy/prod
   labels:
     e-dani.com/tier: app
@@ -31,7 +31,7 @@ spec:
     # those Deployments on the next root sync, because this app selfHeals
     # /spec/replicas for every Deployment not listed in the ignoreDifferences patch
     # below — and none of them are.
-    targetRevision: b9346002c32d0ec18a764a0dcee82cd7850b7634
+    targetRevision: 6647f34fe1da0365baf8a711f2dc4c7905b1272b
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
