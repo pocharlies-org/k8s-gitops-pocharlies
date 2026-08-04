@@ -135,7 +135,7 @@ spec:
         # Keep KS5 headroom for production maxSurge rollouts while allowing
         # OpenClaw infra pipelines to make progress when other repos occupy
         # the shared organization runner pool.
-        maxRunners: 2
+        maxRunners: 3
         minRunners: 0
         runnerScaleSetName: arc-k8s
         template:
