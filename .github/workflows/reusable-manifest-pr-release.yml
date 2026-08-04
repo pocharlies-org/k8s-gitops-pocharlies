@@ -170,8 +170,10 @@ jobs:
           node <<'NODE'
           const fs = require("fs");
           const path = require("path");
+          const { execFileSync } = require("child_process");
           const root = path.resolve(process.cwd());
           const sourceRoot = path.resolve(root, process.env.SOURCE_PATH);
+          const sourceRootReal = fs.realpathSync(sourceRoot);
           const promotions = JSON.parse(process.env.IMAGE_PROMOTIONS || "null");
           const targets = JSON.parse(process.env.IMAGE_TARGETS || "null");
           const version = process.env.VERSION;
@@ -187,6 +189,24 @@ jobs:
               throw new Error(`${label} has unexpected fields`);
             }
           };
+          const trackedEntries = execFileSync(
+            "git",
+            ["ls-files", "-s", "-z", "--", process.env.SOURCE_PATH],
+          ).toString().split("\0").filter(Boolean);
+          if (trackedEntries.some((entry) => entry.startsWith("120000 "))) {
+            throw new Error("source_path must not contain tracked symlinks");
+          }
+          const assertNoSymlinkComponents = (resolved, label) => {
+            const relative = path.relative(root, resolved);
+            let cursor = root;
+            for (const segment of relative.split(path.sep).filter(Boolean)) {
+              cursor = path.join(cursor, segment);
+              if (fs.lstatSync(cursor).isSymbolicLink()) {
+                throw new Error(`${label} must not contain symlink components`);
+              }
+            }
+          };
+          assertNoSymlinkComponents(sourceRoot, "source_path");
           const contained = (candidate, label, requireFile = false) => {
             if (typeof candidate !== "string" || !safePath.test(candidate) || candidate.split("/").includes("..")) {
               throw new Error(`${label} is not a safe relative path`);
@@ -195,23 +215,32 @@ jobs:
             if (resolved !== sourceRoot && !resolved.startsWith(`${sourceRoot}${path.sep}`)) {
               throw new Error(`${label} escapes source_path`);
             }
-            if (requireFile && !fs.statSync(resolved).isFile()) throw new Error(`${label} is not a file`);
+            assertNoSymlinkComponents(resolved, label);
+            const real = fs.realpathSync(resolved);
+            if (real !== sourceRootReal && !real.startsWith(`${sourceRootReal}${path.sep}`)) {
+              throw new Error(`${label} escapes source_path through a symlink`);
+            }
+            if (requireFile && !fs.lstatSync(resolved).isFile()) throw new Error(`${label} is not a file`);
             return resolved;
           };
           const setExistingPath = (document, segments, value, label) => {
+            const forbiddenSegments = new Set(["__proto__", "prototype", "constructor"]);
             if (!Array.isArray(segments) || segments.length < 1 || segments.length > 8 ||
-                segments.some((segment) => typeof segment !== "string" || !/^[A-Za-z0-9_-]+$/.test(segment))) {
+                segments.some((segment) => typeof segment !== "string" ||
+                  !/^[A-Za-z0-9_-]+$/.test(segment) || forbiddenSegments.has(segment))) {
               throw new Error(`${label} must be a bounded path array`);
             }
             let cursor = document;
             for (const segment of segments.slice(0, -1)) {
-              if (!cursor || typeof cursor !== "object" || Array.isArray(cursor) || !(segment in cursor)) {
+              if (!cursor || typeof cursor !== "object" || Array.isArray(cursor) ||
+                  !Object.hasOwn(cursor, segment)) {
                 throw new Error(`${label} does not exist`);
               }
               cursor = cursor[segment];
             }
             const leaf = segments.at(-1);
-            if (!cursor || typeof cursor !== "object" || Array.isArray(cursor) || !(leaf in cursor)) {
+            if (!cursor || typeof cursor !== "object" || Array.isArray(cursor) ||
+                !Object.hasOwn(cursor, leaf)) {
               throw new Error(`${label} does not exist`);
             }
             cursor[leaf] = value;
@@ -424,17 +453,16 @@ jobs:
           source_epoch="$(git show -s --format=%ct "$GITHUB_SHA")"
           mkdir -p "$bundle_dir"
 
-          tar \
-            --sort=name \
+          source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}:${SOURCE_PATH}")"
+          if [ "$(git cat-file -t "$source_tree_sha")" != "tree" ]; then
+            echo "Patched source_path is not a Git tree"
+            exit 1
+          fi
+          git archive \
+            --format=tar \
             --mtime="@${source_epoch}" \
-            --owner=0 \
-            --group=0 \
-            --numeric-owner \
-            --exclude='.git' \
-            --exclude='node_modules' \
-            --exclude='.pnpm-store' \
-            -cf "$bundle_tar" \
-            -C "$SOURCE_PATH" .
+            --output="$bundle_tar" \
+            "$source_tree_sha"
           gzip -n -9 "$bundle_tar"
 
           (

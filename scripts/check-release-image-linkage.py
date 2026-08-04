@@ -44,10 +44,14 @@ def validate(release: str, manifest: str) -> None:
         "bounded path array",
         "Kustomize target is not an overlay",
         "Helm target is not a chart",
+        "source_path must not contain tracked symlinks",
+        "must not contain symlink components",
         "rendered image linkage mismatch",
         "rho-release-linkage.v1",
         "imageDigestSetSha256",
         'patched_tree_sha="$(git write-tree)"',
+        'source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}:${SOURCE_PATH}")"',
+        'git archive \\\n',
         "rho.skirmshop.es/patched-tree",
         "rho.skirmshop.es/image-digest-set-sha256",
         'git read-tree --reset -u "$PATCHED_TREE_SHA"',
@@ -57,10 +61,13 @@ def validate(release: str, manifest: str) -> None:
 
     stamp = manifest.index("Stamp and verify exact release image digests")
     publish = manifest.index("Publish Argo CD OCI manifest bundle")
-    tar = manifest.index("          tar \\")
+    archive = manifest.index("          git archive \\")
     reset_source = manifest.index('git read-tree --reset -u "$SOURCE_SHA"')
     reset_patched = manifest.index('git read-tree --reset -u "$PATCHED_TREE_SHA"')
-    require(stamp < publish < tar < reset_source < reset_patched, "patched-tree release order is invalid")
+    require(
+        stamp < publish < archive < reset_source < reset_patched,
+        "patched-tree release order is invalid",
+    )
     require(
         manifest.count('git read-tree --reset -u "$PATCHED_TREE_SHA"') == 1,
         "promotion must consume exactly one patched tree",
@@ -73,6 +80,10 @@ def validate(release: str, manifest: str) -> None:
     require("setExistingPath" in manifest, "Helm updates must use bounded path arrays")
     require("kustomize edit set image" in manifest, "Kustomize digest stamping is absent")
     require("helm template rho-release" in manifest, "Helm digest rendering is not verified")
+    require(
+        'git archive \\\n            --format=tar' in manifest,
+        "manifest bundle must be archived from the patched Git tree",
+    )
 
 
 release = RELEASE_PATH.read_text(encoding="utf-8")
@@ -98,6 +109,20 @@ for label, mutated_release, mutated_manifest in [
         release.replace('verify_harbor_tag_on_digest \\\n', 'true # verification removed\n', 1),
         manifest,
     ),
+    (
+        "symlink guard removed",
+        release,
+        manifest.replace("source_path must not contain tracked symlinks", "symlinks allowed", 1),
+    ),
+    (
+        "source tree archive",
+        release,
+        manifest.replace(
+            'source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}:${SOURCE_PATH}")"',
+            'source_tree_sha="$(git rev-parse "${SOURCE_SHA}:${SOURCE_PATH}")"',
+            1,
+        ),
+    ),
 ]:
     try:
         validate(mutated_release, mutated_manifest)
@@ -106,7 +131,7 @@ for label, mutated_release, mutated_manifest in [
     raise SystemExit(f"linkage mutation self-test unexpectedly passed: {label}")
 
 expected_release_sha256 = "f3e1ef0fffce37d657308f64308a580f6c5b48ecc4aceea39a1232fd97724cb0"
-expected_manifest_sha256 = "3d8315cbfbb8e005bd8f931261a4f6db42831058481b8acbfc0cc073d31eb2fc"
+expected_manifest_sha256 = "74c27987b98ed79cb535e11e924e20de3c4389ef5ce58bc50ebd04665cde5b4b"
 release_sha256 = hashlib.sha256(release.encode()).hexdigest()
 manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()
 require(release_sha256 == expected_release_sha256, f"release linkage workflow changed: {release_sha256}")

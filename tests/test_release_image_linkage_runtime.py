@@ -200,16 +200,25 @@ class ReleaseImageLinkageRuntimeTest(unittest.TestCase):
     def tearDownClass(cls) -> None:
         shutil.rmtree(cls.tools_root)
 
-    def execute(self, mutate=None) -> tuple[subprocess.CompletedProcess[str], Path]:
+    def execute(
+        self, mutate=None, fixture_mutate=None
+    ) -> tuple[subprocess.CompletedProcess[str], Path, Path]:
         fixture = Path(tempfile.mkdtemp(prefix="rho-linkage-fixture-"))
         self.addCleanup(shutil.rmtree, fixture)
-        source_sha = create_fixture(fixture)
+        create_fixture(fixture)
+        if fixture_mutate:
+            fixture_mutate(fixture)
+            subprocess.run(["git", "add", "."], cwd=fixture, check=True)
+            subprocess.run(["git", "commit", "-qm", "hostile fixture"], cwd=fixture, check=True)
+        source_sha = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=fixture, text=True
+        ).strip()
         promotion_doc = promotions(source_sha)
         target_doc = targets()
         if mutate:
             promotion_doc, target_doc = mutate(promotion_doc, target_doc)
-        runner_temp = fixture / ".runner"
-        runner_temp.mkdir()
+        runner_temp = Path(tempfile.mkdtemp(prefix="rho-linkage-runner-"))
+        self.addCleanup(shutil.rmtree, runner_temp)
         script = runner_temp / "step.sh"
         script.write_text(self.step, encoding="utf-8")
         environment = {
@@ -228,15 +237,15 @@ class ReleaseImageLinkageRuntimeTest(unittest.TestCase):
         result = subprocess.run(
             ["bash", str(script)], cwd=fixture, env=environment, text=True, capture_output=True
         )
-        return result, fixture
+        return result, fixture, runner_temp
 
     def test_exact_kustomize_and_helm_pins_share_one_patched_tree(self) -> None:
-        result, fixture = self.execute()
+        result, fixture, runner_temp = self.execute()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         evidence = json.loads((fixture / "deploy/.rho-release.json").read_text())
         self.assertEqual(evidence["contractVersion"], "rho-release-linkage.v1")
         self.assertEqual({item["digest"] for item in evidence["images"]}, {DIGEST_A, DIGEST_B})
-        environment = (fixture / ".runner/github-env").read_text()
+        environment = (runner_temp / "github-env").read_text()
         self.assertIn("PATCHED_TREE_SHA=", environment)
         self.assertIn("IMAGE_DIGEST_SET_SHA=", environment)
         cached = subprocess.check_output(
@@ -244,11 +253,11 @@ class ReleaseImageLinkageRuntimeTest(unittest.TestCase):
         ).splitlines()
         self.assertTrue(cached)
         self.assertTrue(all(path.startswith("deploy/") for path in cached))
-        self.assertIn(f"rho-test@{DIGEST_A}", (fixture / ".runner/rendered-app.yaml").read_text())
-        self.assertIn(f"rho-test@{DIGEST_B}", (fixture / ".runner/rendered-worker.yaml").read_text())
+        self.assertIn(f"rho-test@{DIGEST_A}", (runner_temp / "rendered-app.yaml").read_text())
+        self.assertIn(f"rho-test@{DIGEST_B}", (runner_temp / "rendered-worker.yaml").read_text())
 
     def test_missing_target_fails_closed(self) -> None:
-        result, _ = self.execute(lambda p, t: (p, t[:-1]))
+        result, _, _ = self.execute(lambda p, t: (p, t[:-1]))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("exactly match", result.stderr)
 
@@ -257,7 +266,7 @@ class ReleaseImageLinkageRuntimeTest(unittest.TestCase):
             p[0]["ref"] = p[0]["repository"] + "@" + DIGEST_B
             return p, t
 
-        result, _ = self.execute(mutate)
+        result, _, _ = self.execute(mutate)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("not bound", result.stderr)
 
@@ -266,9 +275,33 @@ class ReleaseImageLinkageRuntimeTest(unittest.TestCase):
             t[0]["path"] = "../outside"
             return p, t
 
-        result, _ = self.execute(mutate)
+        result, _, _ = self.execute(mutate)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("safe relative path", result.stderr)
+
+    def test_prototype_path_fails_closed(self) -> None:
+        def mutate(p, t):
+            t[1]["repositoryPath"] = ["constructor", "prototype", "polluted"]
+            return p, t
+
+        result, _, _ = self.execute(mutate)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("bounded path array", result.stderr)
+
+    def test_tracked_symlink_target_fails_closed(self) -> None:
+        def fixture_mutate(fixture: Path) -> None:
+            values = fixture / "deploy/chart/values.yaml"
+            descriptor, outside_name = tempfile.mkstemp(prefix="rho-linkage-outside-", suffix=".json")
+            os.close(descriptor)
+            outside = Path(outside_name)
+            self.addCleanup(outside.unlink, missing_ok=True)
+            outside.write_text(values.read_text(), encoding="utf-8")
+            values.unlink()
+            values.symlink_to(outside)
+
+        result, _, _ = self.execute(fixture_mutate=fixture_mutate)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("tracked symlinks", result.stderr)
 
 
 if __name__ == "__main__":
