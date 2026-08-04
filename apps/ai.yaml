@@ -4,7 +4,7 @@ metadata:
   name: ai
   namespace: argocd
   annotations:
-    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-ai-pocharlies
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-ai-pocharlies
     e-dani.com/rho-pin-purpose: ornith mm-limit + DGX2 dense/vision co-residency caps
     e-dani.com/rho-rollback-revision: f847542d0549017c54c584d2707ce6ea759c6fd7
     e-dani.com/rho-restore-target-revision: deploy/prod
@@ -15,7 +15,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/pocharlies/k8s-ai-pocharlies
+    repoURL: https://github.com/pocharlies-org/k8s-ai-pocharlies
     # RHO pin: Ornith MTP graft profile. Same audited image and weights; the
     # overlay serves a locally grafted checkpoint (base-model BF16 mtp.* head,
     # fail-closed SHA verify in the init container) and turns speculative
