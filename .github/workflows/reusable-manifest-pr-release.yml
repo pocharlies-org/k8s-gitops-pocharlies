@@ -185,6 +185,11 @@ jobs:
             echo "Release checkout must be clean before image stamping"
             exit 1
           fi
+          info_attributes="$(git rev-parse --git-path info/attributes)"
+          if [ -s "$info_attributes" ]; then
+            echo "Runner-local Git info attributes are forbidden for manifest releases"
+            exit 1
+          fi
           if ! echo "$SOURCE_PATH" | grep -Eq '^(\.|[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*)$' || echo "$SOURCE_PATH" | grep -Eq '(^|/)\.\.(/|$)'; then
             echo "source_path must be a safe repository-relative path"
             exit 1
@@ -249,8 +254,8 @@ jobs:
           const attributeInput = Buffer.from(`${[...attributeCandidates].join("\0")}\0`);
           const attributeFields = execFileSync(
             "git",
-            ["check-attr", "--cached", "-z", "export-ignore", "export-subst", "--stdin"],
-            { input: attributeInput },
+            ["-c", "core.attributesFile=/dev/null", "check-attr", "--cached", "-z", "export-ignore", "export-subst", "--stdin"],
+            { input: attributeInput, env: { ...process.env, GIT_ATTR_NOSYSTEM: "1" } },
           ).toString().split("\0");
           for (let index = 0; index + 2 < attributeFields.length; index += 3) {
             const [file, attribute, value] = attributeFields.slice(index, index + 3);
@@ -518,48 +523,63 @@ jobs:
             fi
           done < "$RUNNER_TEMP/deploy-digest-aliases.tsv"
 
-      - name: Publish Argo CD OCI manifest bundle
+      - name: Build exact patched manifest bundle
         env:
           SOURCE_PATH: ${{ inputs.source_path }}
+        run: |
+          set -euo pipefail
+          bundle_dir="$RUNNER_TEMP/manifest-bundle"
+          bundle_tar="$bundle_dir/manifest-bundle.tar"
+          source_archive="$bundle_dir/source-tree.tar"
+          source_stage="$RUNNER_TEMP/manifest-source-stage"
+          BUNDLE="$bundle_tar.gz"
+          source_epoch="$(git show -s --format=%ct "$GITHUB_SHA")"
+          mkdir -p "$bundle_dir" "$source_stage"
+
+          if [ "$SOURCE_PATH" = "." ]; then
+            GIT_ATTR_NOSYSTEM=1 git -c core.attributesFile=/dev/null archive \
+              --format=tar \
+              --mtime="@${source_epoch}" \
+              --output="$source_archive" \
+              "$PATCHED_TREE_SHA"
+            staged_source="$source_stage"
+          else
+            GIT_ATTR_NOSYSTEM=1 git -c core.attributesFile=/dev/null archive \
+              --format=tar \
+              --mtime="@${source_epoch}" \
+              --output="$source_archive" \
+              "$PATCHED_TREE_SHA" \
+              -- "$SOURCE_PATH"
+            staged_source="$source_stage/$SOURCE_PATH"
+          fi
+          tar -xf "$source_archive" -C "$source_stage"
+          if [ ! -d "$staged_source" ]; then
+            echo "Patched source_path is absent from the archived Git tree"
+            exit 1
+          fi
+          tar \
+            --sort=name \
+            --mtime="@${source_epoch}" \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            -cf "$bundle_tar" \
+            -C "$staged_source" .
+          gzip -n -9 "$bundle_tar"
+          echo "BUNDLE=$BUNDLE" >> "$GITHUB_ENV"
+
+      - name: Publish Argo CD OCI manifest bundle
+        env:
           REGISTRY: ${{ inputs.registry }}
           REGISTRY_PROJECT: ${{ inputs.registry_project }}
           HARBOR_USER: ${{ secrets.HARBOR_USER }}
           HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
         run: |
           set -euo pipefail
-          if ! echo "$SOURCE_PATH" | grep -Eq '^(\.|[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*)$' || echo "$SOURCE_PATH" | grep -Eq '(^|/)\.\.(/|$)'; then
-            echo "source_path must be a safe repository-relative path"
-            exit 1
-          fi
-          if [ ! -d "$SOURCE_PATH" ]; then
-            echo "Source path does not exist: $SOURCE_PATH"
-            exit 1
-          fi
-
           REF="${REGISTRY}/${REGISTRY_PROJECT}/${ARTIFACT_NAME}:${VERSION}"
           SHA_REF="${REGISTRY}/${REGISTRY_PROJECT}/${ARTIFACT_NAME}:${SHA_TAG}"
           CANDIDATE_REF="${REGISTRY}/${REGISTRY_PROJECT}/${ARTIFACT_NAME}:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          bundle_dir="$RUNNER_TEMP/manifest-bundle"
-          bundle_tar="$bundle_dir/manifest-bundle.tar"
-          BUNDLE="$bundle_tar.gz"
-          source_epoch="$(git show -s --format=%ct "$GITHUB_SHA")"
-          mkdir -p "$bundle_dir"
-
-          if [ "$SOURCE_PATH" = "." ]; then
-            source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}^{tree}")"
-          else
-            source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}:${SOURCE_PATH}")"
-          fi
-          if [ "$(git cat-file -t "$source_tree_sha")" != "tree" ]; then
-            echo "Patched source_path is not a Git tree"
-            exit 1
-          fi
-          git archive \
-            --format=tar \
-            --mtime="@${source_epoch}" \
-            --output="$bundle_tar" \
-            "$source_tree_sha"
-          gzip -n -9 "$bundle_tar"
+          bundle_dir="$(dirname "$BUNDLE")"
 
           (
             cd "$bundle_dir"

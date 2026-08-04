@@ -28,13 +28,16 @@ required = [
     "Reusable manifest workflow must be called by immutable commit SHA",
     "JOB_WORKFLOW_REF: ${{ job.workflow_ref }}",
     "JOB_WORKFLOW_SHA: ${{ job.workflow_sha }}",
-    'source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}:${SOURCE_PATH}")"',
-    'source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}^{tree}")"',
-    "git archive \\",
-    '"$source_tree_sha"',
+    "GIT_ATTR_NOSYSTEM=1 git -c core.attributesFile=/dev/null archive \\",
+    "Build exact patched manifest bundle",
+    '"$PATCHED_TREE_SHA" \\\n              -- "$SOURCE_PATH"',
+    '-C "$staged_source" .',
+    "--sort=name",
+    "--numeric-owner",
     '--mtime="@${source_epoch}"',
     "source_path must not contain tracked symlinks",
     "source_path must not contain gitlinks or submodules",
+    "Runner-local Git info attributes are forbidden for manifest releases",
     "export-ignore",
     "export-subst",
     'gzip -n -9 "$bundle_tar"',
@@ -91,10 +94,14 @@ manifest_resolve = workflow.index('resolved="$(oras resolve "$tag_ref")"')
 require(manifest_case < manifest_reconcile < manifest_resolve, "manifest reconciliation is out of promotion order")
 require(workflow.index('for tag in "$SHA_TAG" "$VERSION"; do') < workflow.index('ARTIFACT_REF=$REF'), "immutable manifest tags are published too late")
 stamp = workflow.index("Stamp and verify exact release image digests")
+build = workflow.index("Build exact patched manifest bundle")
 publish = workflow.index("Publish Argo CD OCI manifest bundle")
 reset_source = workflow.index('git read-tree --reset -u "$SOURCE_SHA"')
 reset_patched = workflow.index('git read-tree --reset -u "$PATCHED_TREE_SHA"')
-require(stamp < publish < reset_source < reset_patched, "manifest promotion does not preserve the stamped tree")
+require(
+    stamp < build < publish < reset_source < reset_patched,
+    "manifest promotion does not preserve the stamped tree",
+)
 require(workflow.count('git read-tree --reset -u "$PATCHED_TREE_SHA"') == 1, "patched tree must be promoted exactly once")
 notify = workflow.split("  notify:", 1)[1]
 require("contents: write" not in notify, "notify job must not write contents")

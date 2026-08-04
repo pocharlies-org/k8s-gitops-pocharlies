@@ -48,6 +48,8 @@ def validate(release: str, manifest: str) -> None:
         "Helm target is not a chart",
         "source_path must not contain tracked symlinks",
         "source_path must not contain gitlinks or submodules",
+        "Runner-local Git info attributes are forbidden for manifest releases",
+        'GIT_ATTR_NOSYSTEM=1 git -c core.attributesFile=/dev/null archive \\\n',
         "is forbidden for archived source file",
         "must not contain symlink components",
         "image releases require non-empty promotions and exact targets",
@@ -59,9 +61,8 @@ def validate(release: str, manifest: str) -> None:
         "rho-release-linkage.v1",
         "imageDigestSetSha256",
         'patched_tree_sha="$(git write-tree)"',
-        'source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}:${SOURCE_PATH}")"',
-        'source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}^{tree}")"',
-        'git archive \\\n',
+        '"$PATCHED_TREE_SHA" \\\n              -- "$SOURCE_PATH"',
+        '-C "$staged_source" .',
         "rho.skirmshop.es/patched-tree",
         "rho.skirmshop.es/image-digest-set-sha256",
         'git read-tree --reset -u "$PATCHED_TREE_SHA"',
@@ -70,12 +71,15 @@ def validate(release: str, manifest: str) -> None:
         require(marker in manifest, f"missing manifest/image linkage guard: {marker}")
 
     stamp = manifest.index("Stamp and verify exact release image digests")
+    build = manifest.index("Build exact patched manifest bundle")
     publish = manifest.index("Publish Argo CD OCI manifest bundle")
-    archive = manifest.index("          git archive \\")
+    archive = manifest.index(
+        "          GIT_ATTR_NOSYSTEM=1 git -c core.attributesFile=/dev/null archive \\",
+    )
     reset_source = manifest.index('git read-tree --reset -u "$SOURCE_SHA"')
     reset_patched = manifest.index('git read-tree --reset -u "$PATCHED_TREE_SHA"')
     require(
-        stamp < publish < archive < reset_source < reset_patched,
+        stamp < build < archive < publish < reset_source < reset_patched,
         "patched-tree release order is invalid",
     )
     require(
@@ -91,7 +95,9 @@ def validate(release: str, manifest: str) -> None:
     require("kustomize edit set image" in manifest, "Kustomize digest stamping is absent")
     require("helm template rho-release" in manifest, "Helm digest rendering is not verified")
     require(
-        'git archive \\\n            --format=tar' in manifest,
+        'GIT_ATTR_NOSYSTEM=1 git -c core.attributesFile=/dev/null archive \\\n              --format=tar'
+        in manifest
+        and '"$PATCHED_TREE_SHA" \\\n              -- "$SOURCE_PATH"' in manifest,
         "manifest bundle must be archived from the patched Git tree",
     )
 
@@ -127,20 +133,7 @@ for label, mutated_release, mutated_manifest in [
     (
         "source tree archive",
         release,
-        manifest.replace(
-            'source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}:${SOURCE_PATH}")"',
-            'source_tree_sha="$(git rev-parse "${SOURCE_SHA}:${SOURCE_PATH}")"',
-            1,
-        ),
-    ),
-    (
-        "root source tree archive",
-        release,
-        manifest.replace(
-            'source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}^{tree}")"',
-            'source_tree_sha="$(git rev-parse "${SOURCE_SHA}^{tree}")"',
-            1,
-        ),
+        manifest.replace('"$PATCHED_TREE_SHA" \\\n              -- "$SOURCE_PATH"', '"$SOURCE_SHA" \\\n              -- "$SOURCE_PATH"', 1),
     ),
     (
         "empty image bypass",
@@ -156,6 +149,15 @@ for label, mutated_release, mutated_manifest in [
         release,
         manifest.replace(r"(?:-\s*)?image:", r"image:", 1),
     ),
+    (
+        "runner-local archive attributes",
+        release,
+        manifest.replace(
+            "Runner-local Git info attributes are forbidden for manifest releases",
+            "runner-local attributes accepted",
+            1,
+        ),
+    ),
 ]:
     try:
         validate(mutated_release, mutated_manifest)
@@ -164,7 +166,7 @@ for label, mutated_release, mutated_manifest in [
     raise SystemExit(f"linkage mutation self-test unexpectedly passed: {label}")
 
 expected_release_sha256 = "f3e1ef0fffce37d657308f64308a580f6c5b48ecc4aceea39a1232fd97724cb0"
-expected_manifest_sha256 = "b686b3222fe2882019deede58c73ab504564cd2e322c5c1ee30f5c0be38e8946"
+expected_manifest_sha256 = "339ed4cddfa541d6f5cd3db2c3912cb6d4e7f8c468695dc5ece47f3422034af2"
 release_sha256 = hashlib.sha256(release.encode()).hexdigest()
 manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()
 require(release_sha256 == expected_release_sha256, f"release linkage workflow changed: {release_sha256}")

@@ -79,6 +79,15 @@ def linkage_step() -> str:
     )
 
 
+def archive_step() -> str:
+    workflow = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    return next(
+        step["run"]
+        for step in workflow["jobs"]["publish"]["steps"]
+        if step.get("name") == "Build exact patched manifest bundle"
+    )
+
+
 def create_fixture(root: Path) -> str:
     overlay = root / "deploy/kustomize"
     overlay.mkdir(parents=True)
@@ -195,6 +204,7 @@ class ReleaseImageLinkageRuntimeTest(unittest.TestCase):
         cls.tools_root = Path(tempfile.mkdtemp(prefix="rho-linkage-tools-"))
         cls.bin_dir = install_tools(cls.tools_root)
         cls.step = linkage_step()
+        cls.archive_step = archive_step()
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -213,8 +223,13 @@ class ReleaseImageLinkageRuntimeTest(unittest.TestCase):
         create_fixture(fixture)
         if fixture_mutate:
             fixture_mutate(fixture)
-            subprocess.run(["git", "add", "."], cwd=fixture, check=True)
-            subprocess.run(["git", "commit", "-qm", "hostile fixture"], cwd=fixture, check=True)
+            if subprocess.check_output(
+                ["git", "status", "--porcelain"], cwd=fixture, text=True
+            ).strip():
+                subprocess.run(["git", "add", "."], cwd=fixture, check=True)
+                subprocess.run(
+                    ["git", "commit", "-qm", "hostile fixture"], cwd=fixture, check=True
+                )
         source_sha = subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=fixture, text=True
         ).strip()
@@ -246,6 +261,65 @@ class ReleaseImageLinkageRuntimeTest(unittest.TestCase):
         )
         return result, fixture, runner_temp
 
+    def build_bundle(
+        self, fixture: Path, runner_temp: Path, source_path: str
+    ) -> subprocess.CompletedProcess[str]:
+        environment_lines = (runner_temp / "github-env").read_text().splitlines()
+        patched_tree = next(
+            line.split("=", 1)[1]
+            for line in environment_lines
+            if line.startswith("PATCHED_TREE_SHA=")
+        )
+        script = runner_temp / "archive-step.sh"
+        script.write_text(self.archive_step, encoding="utf-8")
+        environment = {
+            **os.environ,
+            "SOURCE_PATH": source_path,
+            "PATCHED_TREE_SHA": patched_tree,
+            "GITHUB_SHA": subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=fixture, text=True
+            ).strip(),
+            "RUNNER_TEMP": str(runner_temp),
+            "GITHUB_ENV": str(runner_temp / "github-env"),
+        }
+        return subprocess.run(
+            ["bash", str(script)],
+            cwd=fixture,
+            env=environment,
+            text=True,
+            capture_output=True,
+        )
+
+    def assert_bundle_matches_tree(
+        self, fixture: Path, runner_temp: Path, source_path: str
+    ) -> None:
+        environment_lines = (runner_temp / "github-env").read_text().splitlines()
+        patched_tree = next(
+            line.split("=", 1)[1]
+            for line in environment_lines
+            if line.startswith("PATCHED_TREE_SHA=")
+        )
+        treeish = patched_tree if source_path == "." else f"{patched_tree}:{source_path}"
+        expected = subprocess.check_output(
+            ["git", "ls-tree", "-r", "--name-only", "-z", treeish], cwd=fixture
+        ).split(b"\0")
+        expected_names = {name.decode() for name in expected if name}
+        with tarfile.open(runner_temp / "manifest-bundle/manifest-bundle.tar.gz") as archive:
+            members = {
+                member.name[2:] if member.name.startswith("./") else member.name: member
+                for member in archive.getmembers()
+                if member.isfile()
+            }
+            self.assertEqual(set(members), expected_names)
+            for name, member in members.items():
+                archived = archive.extractfile(member)
+                self.assertIsNotNone(archived)
+                blob_path = name if source_path == "." else f"{source_path}/{name}"
+                expected_bytes = subprocess.check_output(
+                    ["git", "show", f"{patched_tree}:{blob_path}"], cwd=fixture
+                )
+                self.assertEqual(archived.read(), expected_bytes)
+
     def test_exact_kustomize_and_helm_pins_share_one_patched_tree(self) -> None:
         result, fixture, runner_temp = self.execute()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -262,6 +336,11 @@ class ReleaseImageLinkageRuntimeTest(unittest.TestCase):
         self.assertTrue(all(path.startswith("deploy/") for path in cached))
         self.assertIn(f"rho-test@{DIGEST_A}", (runner_temp / "rendered-app.yaml").read_text())
         self.assertIn(f"rho-test@{DIGEST_B}", (runner_temp / "rendered-worker.yaml").read_text())
+        archive_result = self.build_bundle(fixture, runner_temp, "deploy")
+        self.assertEqual(
+            archive_result.returncode, 0, archive_result.stdout + archive_result.stderr
+        )
+        self.assert_bundle_matches_tree(fixture, runner_temp, "deploy")
 
     def test_repository_root_source_path_is_supported(self) -> None:
         result, fixture, runner_temp = self.execute(source_path=".")
@@ -273,6 +352,11 @@ class ReleaseImageLinkageRuntimeTest(unittest.TestCase):
             ["git", "rev-parse", f"{patched_tree}^{{tree}}"], cwd=fixture, text=True
         ).strip()
         self.assertEqual(source_tree, patched_tree)
+        archive_result = self.build_bundle(fixture, runner_temp, ".")
+        self.assertEqual(
+            archive_result.returncode, 0, archive_result.stdout + archive_result.stderr
+        )
+        self.assert_bundle_matches_tree(fixture, runner_temp, ".")
 
     def test_missing_target_fails_closed(self) -> None:
         result, _, _ = self.execute(lambda p, t: (p, t[:-1]))
@@ -331,6 +415,39 @@ class ReleaseImageLinkageRuntimeTest(unittest.TestCase):
         result, _, _ = self.execute(fixture_mutate=fixture_mutate)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("export-ignore is forbidden", result.stderr)
+
+    def test_subtree_attribute_macro_cannot_change_archive_contents(self) -> None:
+        def fixture_mutate(fixture: Path) -> None:
+            (fixture / "deploy/.gitattributes").write_text(
+                "[attr]rhoomit export-ignore\n/kustomize rhoomit\n", encoding="utf-8"
+            )
+
+        result, fixture, runner_temp = self.execute(fixture_mutate=fixture_mutate)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        archive_result = self.build_bundle(fixture, runner_temp, "deploy")
+        self.assertEqual(
+            archive_result.returncode, 0, archive_result.stdout + archive_result.stderr
+        )
+        self.assert_bundle_matches_tree(fixture, runner_temp, "deploy")
+        with tarfile.open(runner_temp / "manifest-bundle/manifest-bundle.tar.gz") as archive:
+            names = {member.name.removeprefix("./") for member in archive.getmembers()}
+        self.assertIn("kustomize/deployment.yaml", names)
+
+    def test_runner_local_archive_attributes_fail_closed(self) -> None:
+        def fixture_mutate(fixture: Path) -> None:
+            info_attributes = subprocess.check_output(
+                ["git", "rev-parse", "--git-path", "info/attributes"],
+                cwd=fixture,
+                text=True,
+            ).strip()
+            info_path = Path(info_attributes)
+            if not info_path.is_absolute():
+                info_path = fixture / info_path
+            info_path.write_text("/kustomize export-ignore\n", encoding="utf-8")
+
+        result, _, _ = self.execute(fixture_mutate=fixture_mutate)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Runner-local Git info attributes are forbidden", result.stdout)
 
     def test_empty_image_linkage_requires_restricted_manifest_only_mode(self) -> None:
         def empty(_p, _t):
