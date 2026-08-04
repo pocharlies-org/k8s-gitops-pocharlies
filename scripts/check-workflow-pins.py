@@ -129,6 +129,16 @@ for digest in (
     require(ci_workflow.count(digest) == 2, f"CI Node checksum is not pinned: {digest}")
 require("6703a3a70a0c47cf0b37694030b54f1175a9dfeb17b3818b623ed58b9dbc2a77" in deploy_workflow, "deploy kustomize checksum missing")
 require("sha256sum --check --strict" in deploy_workflow, "deploy downloads are not checksum verified")
+require("working-directory: ${{ inputs." not in deploy_workflow, "unvalidated workflow input used as working-directory")
+require("id: validate-overlay" in deploy_workflow, "deploy overlay path lacks a validation boundary")
+require(
+    "working-directory: ${{ steps.validate-overlay.outputs.overlay_path }}" in deploy_workflow,
+    "deploy stamp does not consume the validated overlay path",
+)
+require(
+    "OVERLAY_PATH: ${{ steps.validate-overlay.outputs.overlay_path }}" in deploy_workflow,
+    "deploy commit does not consume the validated overlay path",
+)
 for buildx_marker in (
     "BUILDX_VERSION: v0.36.0",
     "BUILDKIT_IMAGE: moby/buildkit@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec",

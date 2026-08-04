@@ -212,6 +212,22 @@ jobs:
             | sha256sum --check --strict
           tar xzf "$KUSTOMIZE_TGZ" -C "$RUNNER_TEMP/bin" kustomize
 
+      - name: Validate staging overlay path
+        id: validate-overlay
+        env:
+          OVERLAY_PATH: ${{ inputs.overlay_path }}
+        run: |
+          set -euo pipefail
+          if ! echo "$OVERLAY_PATH" | grep -Eq '^[A-Za-z0-9._/-]+$' || echo "$OVERLAY_PATH" | grep -Eq '(^|/)\.\.(/|$)|^/'; then
+            echo "overlay_path must be a safe repository-relative path"
+            exit 1
+          fi
+          if [ ! -d "$OVERLAY_PATH" ] || [ ! -f "$OVERLAY_PATH/kustomization.yaml" ]; then
+            echo "overlay_path must contain kustomization.yaml"
+            exit 1
+          fi
+          echo "overlay_path=$OVERLAY_PATH" >> "$GITHUB_OUTPUT"
+
       - name: Stamp staging overlay
         env:
           IMAGES: ${{ inputs.images }}
@@ -229,17 +245,13 @@ jobs:
             kustomize edit set image \
               "${REGISTRY}/${REGISTRY_PROJECT}/${name}=${REGISTRY}/${REGISTRY_PROJECT}/${name}:${IMAGE_TAG}"
           done < "$RUNNER_TEMP/image-names.txt"
-        working-directory: ${{ inputs.overlay_path }}
+        working-directory: ${{ steps.validate-overlay.outputs.overlay_path }}
 
       - name: Commit staging image stamp
         env:
-          OVERLAY_PATH: ${{ inputs.overlay_path }}
+          OVERLAY_PATH: ${{ steps.validate-overlay.outputs.overlay_path }}
         run: |
           set -euo pipefail
-          if ! echo "$OVERLAY_PATH" | grep -Eq '^[A-Za-z0-9._/-]+$' || echo "$OVERLAY_PATH" | grep -Eq '(^|/)\.\.(/|$)|^/'; then
-            echo "overlay_path must be a safe repository-relative path"
-            exit 1
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add "$OVERLAY_PATH/kustomization.yaml"
