@@ -31,11 +31,10 @@ jobs:
 
   release:
     needs: [ci]
-    uses: ./.github/workflows/reusable-manifest-release.yml
+    uses: ./.github/workflows/reusable-manifest-pr-release.yml
     with:
       runner: arc-k8s
       source_path: "."
       artifact_name: k8s-gitops-pocharlies
       version: ${{ github.event.inputs.image_tag || github.ref_name }}
-      promotion_mode: pull-request
     secrets: inherit

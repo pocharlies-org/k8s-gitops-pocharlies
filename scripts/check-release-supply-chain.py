@@ -17,8 +17,11 @@ required = [
     "id-token: write",
     "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "version=v24.19.0",
-    "14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647",
-    "01443c1e1a29e531ccad5a46fefa6df490d2189c49f7955904aecdbb0fe86fdc",
+    "version=v22.23.2",
+    "b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a",
+    "013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30",
+    "f625d97cd707df4ff96254916fbc5ff014f09c09effe5a1e0ca8f6d41a8789d4",
+    "d28c8a5bf0a808f0ed434a1dce8c54ae98f0371c0bd86ac58abc613f73e6643f",
     "docker/login-action@dbcb813823bdd20940b903addbd779551569679f",
     "actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd",
     "TRIVY_VERSION: v0.70.0",
@@ -35,7 +38,10 @@ required = [
     "--ignore-unfixed",
     "--format spdx-json",
     "docker buildx imagetools inspect",
-    "--prefer-index=false",
+    "/api/v2.0/projects/${project_encoded}/repositories/${repository_encoded}/artifacts/${digest_encoded}/tags",
+    "Atomically created immutable release tag",
+    "Release tag already exists; verifying digest",
+    'for promoted_ref in "$sha_ref" "$version_ref"; do',
     "BUILDX_VERSION: v0.36.0",
     "BUILDKIT_IMAGE: moby/buildkit@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec",
     "07823fdfcd82a41be90155a8b16876c1a780a6462de805a9f3f63b3119ccfb99",
@@ -63,6 +69,13 @@ required = [
     '--certificate-github-workflow-sha "$GITHUB_SHA"',
     "release-evidence.json",
     "retention-days: 90",
+    "Legacy .trivyignore is forbidden",
+    "trivy-policy.trivyignore.yaml",
+    "--ignorefile \"$policy_file\"",
+    "--show-suppressed",
+    "ModifiedFindings",
+    "trivyPolicySha256",
+    "if: ${{ always() }}",
 ]
 for marker in required:
     require(marker in workflow, f"missing release supply-chain guard: {marker}")
@@ -70,7 +83,7 @@ for marker in required:
 loop = workflow.split("while IFS=$'\\t' read -r name context dockerfile; do", 1)[1]
 scan = loop.index("trivy image")
 candidate_push = loop.index('push_image "$candidate_ref"')
-final_push = loop.index("docker buildx imagetools create \\")
+final_push = loop.index('status="$(curl --silent --show-error')
 sign = loop.index('cosign sign --yes "$digest_ref"')
 attest = loop.index("cosign attest --yes --type spdxjson")
 provenance = loop.index("cosign attest --yes --type slsaprovenance1")
@@ -93,8 +106,9 @@ require('push_image "$version_ref"' not in workflow, "final version tag must be 
 require('push_image "$sha_ref"' not in workflow, "final SHA tag must be promoted from verified digest")
 require("docker/setup-buildx-action@" not in workflow, "Buildx action download is not content-verified")
 require("aquasecurity/setup-trivy@" not in workflow, "Trivy action download is not content-verified")
-require(workflow.count("--prefer-index=false") == 1, "single-manifest promotion must preserve verified digest")
-require("Immutable release tag already points at a different digest" in workflow, "release tags are not immutable")
+require("docker buildx imagetools create" not in workflow, "release tags must use Harbor atomic CreateTag")
+require("case \"$status\" in" in workflow and "201)" in workflow and "409)" in workflow, "Harbor CreateTag status handling is incomplete")
+require("--netrc-file \"$harbor_netrc\"" in workflow, "Harbor CreateTag is not authenticated")
 require("--force" not in workflow, "forced attestation replacement is forbidden")
 require("COSIGN_PASSWORD" not in workflow, "key-based Cosign material is forbidden")
 require(workflow.count("id-token: write") == 1, "OIDC permission must be isolated to release job")
@@ -108,7 +122,7 @@ require(workflow.count('--certificate-github-workflow-repository "$GITHUB_REPOSI
 require(workflow.count('--certificate-github-workflow-sha "$GITHUB_SHA"') == 3, "all Cosign evidence must bind caller revision")
 require("refs/(heads|tags)" not in workflow, "mutable certificate reference accepted")
 
-expected_workflow_digest = "75b458c887725c15683ab7315b5a89ae4e79df06c4c3501b655fbffd8f0e32af"
+expected_workflow_digest = "ad619faebb3631837ec7efe8d674a6258243ee2a92ed7e4c82828f4c287a94cf"
 workflow_digest = hashlib.sha256(workflow.encode()).hexdigest()
 require(
     workflow_digest == expected_workflow_digest,

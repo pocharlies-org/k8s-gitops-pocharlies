@@ -30,6 +30,18 @@ def action_uses(value, path=""):
         for index, nested in enumerate(value):
             yield from action_uses(nested, f"{path}[{index}]")
 
+
+def run_blocks(value, path=""):
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            current = f"{path}.{key}" if path else str(key)
+            if key == "run" and isinstance(nested, str):
+                yield current, nested
+            yield from run_blocks(nested, current)
+    elif isinstance(value, list):
+        for index, nested in enumerate(value):
+            yield from run_blocks(nested, f"{path}[{index}]")
+
 # Guard the parser itself: inline YAML maps were the regression that a
 # line-oriented scanner missed.
 inline_mutants = (
@@ -53,11 +65,17 @@ for workflow in workflows:
             continue
         if not IMMUTABLE_REF.fullmatch(target):
             violations.append(f"{workflow.relative_to(ROOT)}:{path}: {target}")
+    for path, script in run_blocks(document):
+        require(
+            "${{ inputs." not in script,
+            f"workflow input interpolated directly into shell at {workflow.relative_to(ROOT)}:{path}",
+        )
 
 require(not violations, "mutable workflow dependencies:\n" + "\n".join(violations))
 
 ci_workflow = (WORKFLOWS / "reusable-ci.yml").read_text(encoding="utf-8")
 deploy_workflow = (WORKFLOWS / "reusable-deploy-stg.yml").read_text(encoding="utf-8")
+central_ci_workflow = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
 for digest in (
     "6703a3a70a0c47cf0b37694030b54f1175a9dfeb17b3818b623ed58b9dbc2a77",
     "95f14e87aa28c09d5941f11bd024c1d02fdc0303ccaa23f61cef67bc92619d73",
@@ -70,21 +88,43 @@ checker_checkout = ci_workflow.split("      - name: Check out the contract check
     "      - name: Enforce the contract rules", 1
 )[0]
 require("persist-credentials: false" in checker_checkout, "contract checker checkout persists credentials")
-require(ci_workflow.count("actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c") == 2, "CI Python runtime is not pinned")
-require(ci_workflow.count("python-version: \"3.11.14\"") == 2, "CI Python version is not exact")
-require(ci_workflow.count("--require-hashes") == 2, "CI Python dependencies are not hash-locked")
+require("continue-on-error" not in checker_checkout, "contract checker checkout is fail-open")
+require("exit 1" in ci_workflow.split("if [ ! -f \"$checker\" ]", 1)[1].split("fi", 1)[0], "missing contract checker is not fatal")
+require("actions/setup-python@" not in ci_workflow + central_ci_workflow, "setup-python executes mutable bootstrap tooling")
+require("pip install" not in ci_workflow + central_ci_workflow, "CI must not execute mutable pip installs")
+require(ci_workflow.count("python3 -m zipfile -e") == 2, "CI hash-locked wheels are not extracted without pip")
+require(ci_workflow.count("3.12|3.12.13) version=3.12.13") == 3, "CI Python runtime is not exact")
+require(ci_workflow.count("5854aa6ec71cad00334d5065633c210b2e7feb40956767a59a91791cadcf0b79") == 3, "CI x86_64 Python runtime is not hash-locked")
+require(ci_workflow.count("f226576b91491ffa5739aa85726521e9031f4d87f80627d64ed348ac77cb31e9") == 3, "CI arm64 Python runtime is not hash-locked")
+require("corepack prepare" not in ci_workflow, "CI pnpm must not use a mutable Corepack download")
+require('PNPM_VERSION: ${{ inputs.pnpm_version }}' in ci_workflow, "pnpm input is interpolated into shell code")
+for digest in (
+    "ea45517d5285d123eac02c3793505fa1fd6da90a2fc60d1e8d9e0c1e9292886ecfaff513f062b9d1cc8021bb8615033b1ac5bea3b2ee3fc165a6d7034bbe6b03",
+    "cca3cea332ad254bb84145f966d19f4879615210346fc92c79a047f23a0d7b3cca3c3792f0076ba1f1831d277efbcf0a9119b31a9a60eca7fb3d6231f331ef72",
+):
+    require(digest in ci_workflow, f"CI pnpm tarball is not SHA-512 locked: {digest}")
 for digest in (
     "b8bb0864c5a28024fac8a632c443c87c5aa6f215c0b126c449ae1a150412f31d",
     "a0d503e138a4c123b27490a4f7beda6a01c6f288df0e4a8b79c7eb0dc7b4cc08",
     "364f0d79e81409f591e323725e6a9f4504c8699ddf2d7263d8d2b539cd66a583",
 ):
     require(digest in ci_workflow, f"missing CI Python dependency checksum: {digest}")
-require("pip install --quiet --upgrade pip" not in ci_workflow, "mutable pip upgrade is forbidden")
-require("pip install --quiet pyyaml" not in ci_workflow, "mutable PyYAML install is forbidden")
-require(ci_workflow.count("version=v24.19.0") == 2, "CI Node runtime is not exact")
+require("b8bb0864c5a28024fac8a632c443c87c5aa6f215c0b126c449ae1a150412f31d" in central_ci_workflow, "central release gate PyYAML wheel is not hash-locked")
+require("python3 -m zipfile -e" in central_ci_workflow, "central release gate does not extract its hash-locked wheel")
 for digest in (
-    "14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647",
-    "01443c1e1a29e531ccad5a46fefa6df490d2189c49f7955904aecdbb0fe86fdc",
+    "5854aa6ec71cad00334d5065633c210b2e7feb40956767a59a91791cadcf0b79",
+    "f226576b91491ffa5739aa85726521e9031f4d87f80627d64ed348ac77cb31e9",
+):
+    require(digest in central_ci_workflow, f"central Python runtime is not hash-locked: {digest}")
+require("npm', ['install'" not in ci_workflow and "npm install -g" not in ci_workflow, "notify executes mutable npm packages")
+require("contracts: '${{ needs.contracts.result }}'" in ci_workflow, "contract failure is omitted from notification")
+require(ci_workflow.count("22|22.23.2) version=v22.23.2") == 2, "CI Node 22 runtime is not exact")
+require(ci_workflow.count("24|24.19.0) version=v24.19.0") == 2, "CI Node 24 runtime is not exact")
+for digest in (
+    "b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a",
+    "013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30",
+    "f625d97cd707df4ff96254916fbc5ff014f09c09effe5a1e0ca8f6d41a8789d4",
+    "d28c8a5bf0a808f0ed434a1dce8c54ae98f0371c0bd86ac58abc613f73e6643f",
 ):
     require(ci_workflow.count(digest) == 2, f"CI Node checksum is not pinned: {digest}")
 require("6703a3a70a0c47cf0b37694030b54f1175a9dfeb17b3818b623ed58b9dbc2a77" in deploy_workflow, "deploy kustomize checksum missing")
@@ -97,10 +137,13 @@ for buildx_marker in (
 ):
     require(buildx_marker in deploy_workflow, f"deploy Buildx toolchain is not pinned: {buildx_marker}")
 require("docker/setup-buildx-action@" not in deploy_workflow, "deploy Buildx action download is not content-verified")
-require(deploy_workflow.count("version=v24.19.0") == 1, "deploy Node runtime is not exact")
+require(deploy_workflow.count("22|22.23.2) version=v22.23.2") == 1, "deploy Node 22 runtime is not exact")
+require(deploy_workflow.count("24|24.19.0) version=v24.19.0") == 1, "deploy Node 24 runtime is not exact")
 for digest in (
-    "14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647",
-    "01443c1e1a29e531ccad5a46fefa6df490d2189c49f7955904aecdbb0fe86fdc",
+    "b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a",
+    "013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30",
+    "f625d97cd707df4ff96254916fbc5ff014f09c09effe5a1e0ca8f6d41a8789d4",
+    "d28c8a5bf0a808f0ed434a1dce8c54ae98f0371c0bd86ac58abc613f73e6643f",
 ):
     require(deploy_workflow.count(digest) == 1, f"deploy Node checksum is not pinned: {digest}")
 require(deploy_workflow.startswith("name: Reusable Deploy Staging"), "unexpected deploy workflow")
