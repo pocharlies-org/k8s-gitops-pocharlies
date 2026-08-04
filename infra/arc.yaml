@@ -63,8 +63,9 @@ spec:
         # and can be saturated by unrelated repos; beta deploys need deterministic
         # access to the in-cluster BuildKit/Harbor network.
         # Two repo-scoped runners let a beta deploy progress when a PR
-        # validation job is already running. Required pod anti-affinity below
-        # prevents both runners from landing on the same KS5 host.
+        # validation job is already running. Preferred pod anti-affinity below
+        # spreads runners across healthy KS5 hosts without deadlocking the pool
+        # when one control-plane node is unavailable.
         maxRunners: 2
         minRunners: 0
         runnerScaleSetName: arc-openclaw
@@ -72,12 +73,14 @@ spec:
           spec:
             affinity:
               podAntiAffinity:
-                requiredDuringSchedulingIgnoredDuringExecution:
-                  - labelSelector:
-                      matchLabels:
-                        app.kubernetes.io/component: runner
-                        app.kubernetes.io/part-of: gha-runner-scale-set
-                    topologyKey: kubernetes.io/hostname
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
             nodeSelector:
               kubernetes.io/arch: amd64
               node-pool: ks5-nvme
@@ -142,12 +145,14 @@ spec:
           spec:
             affinity:
               podAntiAffinity:
-                requiredDuringSchedulingIgnoredDuringExecution:
-                  - labelSelector:
-                      matchLabels:
-                        app.kubernetes.io/component: runner
-                        app.kubernetes.io/part-of: gha-runner-scale-set
-                    topologyKey: kubernetes.io/hostname
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
             nodeSelector:
               kubernetes.io/arch: amd64
               # CI must remain available if the home-lab Ubuntu node is down.

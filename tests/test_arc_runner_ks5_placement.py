@@ -22,8 +22,8 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertNotIn("kubernetes.io/hostname:", runner_values)
         self.assertNotIn("workload: cpu", runner_values)
 
-    def test_runner_pool_reserves_rollout_headroom(self) -> None:
-        self.assertIn("maxRunners: 2", self.shared_values)
+    def test_runner_pool_caps_backlog_drain_at_three(self) -> None:
+        self.assertIn("maxRunners: 3", self.shared_values)
         self.assertNotIn("maxRunners: 4", self.manifest)
 
     def test_openclaw_has_dedicated_runner_pool(self) -> None:
@@ -63,7 +63,7 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertIn('cpu: "50m"', self.shared_values)
         self.assertIn('memory: "512Mi"', self.shared_values)
 
-    def test_shared_runner_cpu_reservations_fit_two_anti_affine_pods(self) -> None:
+    def test_shared_runner_cpu_reservations_remain_bounded(self) -> None:
         externals = self.shared_values.split("name: init-dind-externals", 1)[1]
         externals = externals.split("name: dind", 1)[0]
         dind = self.shared_values.split("name: dind", 1)[1]
@@ -75,9 +75,11 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertIn('cpu: "100m"', runner)
         self.assertNotIn('cpu: "500m"', runner)
 
-    def test_runner_pods_cannot_co_locate_on_one_ks5_host(self) -> None:
+    def test_runner_pods_prefer_spread_but_tolerate_a_node_outage(self) -> None:
         for values in (self.openclaw_values, self.shared_values):
-            self.assertIn("requiredDuringSchedulingIgnoredDuringExecution:", values)
+            self.assertIn("preferredDuringSchedulingIgnoredDuringExecution:", values)
+            self.assertIn("weight: 100", values)
+            self.assertNotIn("requiredDuringSchedulingIgnoredDuringExecution:", values)
             self.assertIn("app.kubernetes.io/part-of: gha-runner-scale-set", values)
             self.assertIn("topologyKey: kubernetes.io/hostname", values)
 

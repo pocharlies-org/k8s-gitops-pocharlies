@@ -94,12 +94,14 @@ def validate_common(release: str, expected_max: int) -> tuple[dict, dict]:
     assert pod_spec["nodeSelector"] == expected_selector
     assert "kubernetes.io/hostname" not in pod_spec["nodeSelector"]
 
-    terms = pod_spec["affinity"]["podAntiAffinity"][
-        "requiredDuringSchedulingIgnoredDuringExecution"
-    ]
+    pod_anti_affinity = pod_spec["affinity"]["podAntiAffinity"]
+    assert "requiredDuringSchedulingIgnoredDuringExecution" not in pod_anti_affinity
+    terms = pod_anti_affinity["preferredDuringSchedulingIgnoredDuringExecution"]
     assert len(terms) == 1
-    assert terms[0]["topologyKey"] == "kubernetes.io/hostname"
-    assert terms[0]["labelSelector"]["matchLabels"] == expected_antiaffinity_labels
+    assert terms[0]["weight"] == 100
+    pod_affinity_term = terms[0]["podAffinityTerm"]
+    assert pod_affinity_term["topologyKey"] == "kubernetes.io/hostname"
+    assert pod_affinity_term["labelSelector"]["matchLabels"] == expected_antiaffinity_labels
     return runner_set, pod_spec
 
 
@@ -113,7 +115,7 @@ assert openclaw_runner["imagePullPolicy"] == "IfNotPresent"
 assert not openclaw_runner.get("securityContext", {}).get("privileged", False)
 assert "DOCKER_HOST" not in {item["name"] for item in openclaw_runner.get("env", [])}
 
-_, shared_spec = validate_common("arc-k8s", 2)
+_, shared_spec = validate_common("arc-k8s", 3)
 assert [container["name"] for container in shared_spec["containers"]] == ["runner"]
 assert [container["name"] for container in shared_spec["initContainers"]] == [
     "init-dind-externals",
