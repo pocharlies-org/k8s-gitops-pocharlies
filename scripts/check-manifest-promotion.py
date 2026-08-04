@@ -24,11 +24,19 @@ required = [
     'if [ "$REGISTRY" != "harbor.lan.e-dani.com" ]',
     'CANDIDATE_REF="${REGISTRY}/${REGISTRY_PROJECT}/${ARTIFACT_NAME}:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
     'ARTIFACT_DIGEST="$(oras resolve "$CANDIDATE_REF")"',
+    "Validate immutable reusable workflow identity",
+    "Reusable manifest workflow must be called by immutable commit SHA",
+    "JOB_WORKFLOW_REF: ${{ job.workflow_ref }}",
+    "JOB_WORKFLOW_SHA: ${{ job.workflow_sha }}",
     'source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}:${SOURCE_PATH}")"',
+    'source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}^{tree}")"',
     "git archive \\",
     '"$source_tree_sha"',
     '--mtime="@${source_epoch}"',
     "source_path must not contain tracked symlinks",
+    "source_path must not contain gitlinks or submodules",
+    "export-ignore",
+    "export-subst",
     'gzip -n -9 "$bundle_tar"',
     '"manifest-bundle.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip"',
     'for tag in "$SHA_TAG" "$VERSION"; do',
@@ -49,6 +57,10 @@ required = [
     "image_targets:",
     "image target names must exactly match released image names",
     "rendered image linkage mismatch",
+    "manifest_only is restricted to the central source-bound self-release",
+    "image releases require non-empty promotions and exact targets",
+    "Verify deployment registry digest aliases",
+    'oras resolve "${repository}@${digest}"',
     "rho.skirmshop.es/patched-tree",
     "rho.skirmshop.es/image-digest-set-sha256",
     "6703a3a70a0c47cf0b37694030b54f1175a9dfeb17b3818b623ed58b9dbc2a77",
@@ -89,6 +101,7 @@ require("contents: write" not in notify, "notify job must not write contents")
 require("pull-requests: write" not in notify, "notify job must not write PRs")
 require("pull-requests: write" in self_release, "self release lacks PR permission")
 require("./.github/workflows/reusable-manifest-pr-release.yml" in self_release, "self release must use PR workflow")
+require("manifest_only: true" in self_release, "self release must explicitly declare manifest-only mode")
 
 legacy_required = [
     "Reusable Manifest OCI Legacy Release",

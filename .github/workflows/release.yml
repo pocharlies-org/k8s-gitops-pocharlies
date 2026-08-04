@@ -41,6 +41,7 @@ jobs:
       version: ${{ inputs.image_tag || (github.ref_type == 'tag' && github.ref_name) || format('gitops-{0}', github.sha) }}
       image_promotions: "[]"
       image_targets: "[]"
+      manifest_only: true
     secrets:
       HARBOR_USER: ${{ secrets.HARBOR_USER }}
       HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}

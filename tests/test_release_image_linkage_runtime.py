@@ -201,7 +201,12 @@ class ReleaseImageLinkageRuntimeTest(unittest.TestCase):
         shutil.rmtree(cls.tools_root)
 
     def execute(
-        self, mutate=None, fixture_mutate=None
+        self,
+        mutate=None,
+        fixture_mutate=None,
+        source_path: str = "deploy",
+        manifest_only: bool = False,
+        repository: str = "example/caller",
     ) -> tuple[subprocess.CompletedProcess[str], Path, Path]:
         fixture = Path(tempfile.mkdtemp(prefix="rho-linkage-fixture-"))
         self.addCleanup(shutil.rmtree, fixture)
@@ -224,9 +229,11 @@ class ReleaseImageLinkageRuntimeTest(unittest.TestCase):
         environment = {
             **os.environ,
             "PATH": f"{self.bin_dir}:{os.environ['PATH']}",
-            "SOURCE_PATH": "deploy",
+            "SOURCE_PATH": source_path,
             "IMAGE_PROMOTIONS": json.dumps(promotion_doc, separators=(",", ":")),
             "IMAGE_TARGETS": json.dumps(target_doc, separators=(",", ":")),
+            "MANIFEST_ONLY": "true" if manifest_only else "false",
+            "GITHUB_REPOSITORY": repository,
             "REGISTRY": "harbor.lan.e-dani.com",
             "REGISTRY_PROJECT": "homelab",
             "VERSION": VERSION,
@@ -255,6 +262,17 @@ class ReleaseImageLinkageRuntimeTest(unittest.TestCase):
         self.assertTrue(all(path.startswith("deploy/") for path in cached))
         self.assertIn(f"rho-test@{DIGEST_A}", (runner_temp / "rendered-app.yaml").read_text())
         self.assertIn(f"rho-test@{DIGEST_B}", (runner_temp / "rendered-worker.yaml").read_text())
+
+    def test_repository_root_source_path_is_supported(self) -> None:
+        result, fixture, runner_temp = self.execute(source_path=".")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue((fixture / ".rho-release.json").is_file())
+        environment = (runner_temp / "github-env").read_text().splitlines()
+        patched_tree = next(line.split("=", 1)[1] for line in environment if line.startswith("PATCHED_TREE_SHA="))
+        source_tree = subprocess.check_output(
+            ["git", "rev-parse", f"{patched_tree}^{{tree}}"], cwd=fixture, text=True
+        ).strip()
+        self.assertEqual(source_tree, patched_tree)
 
     def test_missing_target_fails_closed(self) -> None:
         result, _, _ = self.execute(lambda p, t: (p, t[:-1]))
@@ -287,6 +305,49 @@ class ReleaseImageLinkageRuntimeTest(unittest.TestCase):
         result, _, _ = self.execute(mutate)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("bounded path array", result.stderr)
+
+    def test_duplicate_and_stale_promotions_fail_closed(self) -> None:
+        def duplicate(p, t):
+            return [p[0], p[0], p[1]], t
+
+        duplicate_result, _, _ = self.execute(duplicate)
+        self.assertNotEqual(duplicate_result.returncode, 0)
+        self.assertIn("duplicate promotion", duplicate_result.stderr)
+
+        def stale(p, t):
+            p[0]["shaRef"] = p[0]["repository"] + ":sha-000000000000"
+            return p, t
+
+        stale_result, _, _ = self.execute(stale)
+        self.assertNotEqual(stale_result.returncode, 0)
+        self.assertIn("not bound", stale_result.stderr)
+
+    def test_export_archive_attributes_fail_closed(self) -> None:
+        def fixture_mutate(fixture: Path) -> None:
+            (fixture / "deploy/.gitattributes").write_text(
+                "kustomize export-ignore\n", encoding="utf-8"
+            )
+
+        result, _, _ = self.execute(fixture_mutate=fixture_mutate)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("export-ignore is forbidden", result.stderr)
+
+    def test_empty_image_linkage_requires_restricted_manifest_only_mode(self) -> None:
+        def empty(_p, _t):
+            return [], []
+
+        result, _, _ = self.execute(empty)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("require non-empty", result.stderr)
+
+        self_result, fixture, _ = self.execute(
+            empty,
+            source_path=".",
+            manifest_only=True,
+            repository="pocharlies-org/k8s-gitops-pocharlies",
+        )
+        self.assertEqual(self_result.returncode, 0, self_result.stdout + self_result.stderr)
+        self.assertTrue((fixture / ".rho-release.json").is_file())
 
     def test_tracked_symlink_target_fails_closed(self) -> None:
         def fixture_mutate(fixture: Path) -> None:

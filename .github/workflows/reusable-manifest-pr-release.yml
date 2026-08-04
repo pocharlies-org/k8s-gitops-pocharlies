@@ -32,6 +32,10 @@ on:
         description: Strict JSON array mapping every released image to one Kustomize or JSON Helm target.
         type: string
         required: true
+      manifest_only:
+        description: Explicit manifest-only mode, restricted to this repository's self-release.
+        type: boolean
+        default: false
       deploy_branch:
         description: Branch Argo CD tracks after a successful release.
         type: string
@@ -70,6 +74,28 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+
+      - name: Validate immutable reusable workflow identity
+        env:
+          JOB_WORKFLOW_REF: ${{ job.workflow_ref }}
+          JOB_WORKFLOW_SHA: ${{ job.workflow_sha }}
+        run: |
+          set -euo pipefail
+          exact_pattern='^pocharlies-org/k8s-gitops-pocharlies/\.github/workflows/reusable-manifest-pr-release\.yml@[0-9a-f]{40}$'
+          self_pattern='^pocharlies-org/k8s-gitops-pocharlies/\.github/workflows/reusable-manifest-pr-release\.yml@refs/(heads|tags)/'
+          if echo "$JOB_WORKFLOW_REF" | grep -Eq "$exact_pattern"; then
+            if [ "${JOB_WORKFLOW_REF##*@}" != "$JOB_WORKFLOW_SHA" ]; then
+              echo "Reusable manifest workflow identity does not match its resolved SHA"
+              exit 1
+            fi
+          elif [ "$GITHUB_REPOSITORY" = "pocharlies-org/k8s-gitops-pocharlies" ] && \
+               echo "$JOB_WORKFLOW_REF" | grep -Eq "$self_pattern" && \
+               [ "$JOB_WORKFLOW_SHA" = "$GITHUB_SHA" ]; then
+            echo "Using source-bound local self-release workflow"
+          else
+            echo "Reusable manifest workflow must be called by immutable commit SHA"
+            exit 1
+          fi
 
       - name: Determine release metadata
         env:
@@ -150,6 +176,7 @@ jobs:
           SOURCE_PATH: ${{ inputs.source_path }}
           IMAGE_PROMOTIONS: ${{ inputs.image_promotions }}
           IMAGE_TARGETS: ${{ inputs.image_targets }}
+          MANIFEST_ONLY: ${{ inputs.manifest_only }}
           REGISTRY: ${{ inputs.registry }}
           REGISTRY_PROJECT: ${{ inputs.registry_project }}
         run: |
@@ -176,8 +203,10 @@ jobs:
           const sourceRootReal = fs.realpathSync(sourceRoot);
           const promotions = JSON.parse(process.env.IMAGE_PROMOTIONS || "null");
           const targets = JSON.parse(process.env.IMAGE_TARGETS || "null");
+          const manifestOnly = process.env.MANIFEST_ONLY === "true";
           const version = process.env.VERSION;
           const expectedRegistryPrefix = `${process.env.REGISTRY}/${process.env.REGISTRY_PROJECT}/`;
+          const expectedDeployRegistryPrefix = `harbor.e-dani.com/${process.env.REGISTRY_PROJECT}/`;
           const safeName = /^[a-z0-9][a-z0-9._/-]{0,127}$/;
           const safeRepository = /^[A-Za-z0-9.-]+\/[a-z0-9][a-z0-9._/-]{0,255}$/;
           const safePath = /^(?:\.|[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*)$/;
@@ -189,12 +218,45 @@ jobs:
               throw new Error(`${label} has unexpected fields`);
             }
           };
-          const trackedEntries = execFileSync(
+          const trackedOutput = execFileSync(
             "git",
             ["ls-files", "-s", "-z", "--", process.env.SOURCE_PATH],
-          ).toString().split("\0").filter(Boolean);
+          );
+          const trackedEntries = trackedOutput.toString().split("\0").filter(Boolean);
           if (trackedEntries.some((entry) => entry.startsWith("120000 "))) {
             throw new Error("source_path must not contain tracked symlinks");
+          }
+          if (trackedEntries.some((entry) => entry.startsWith("160000 "))) {
+            throw new Error("source_path must not contain gitlinks or submodules");
+          }
+          const trackedPaths = execFileSync(
+            "git",
+            ["ls-files", "-z", "--", process.env.SOURCE_PATH],
+          );
+          const trackedPathText = trackedPaths.toString("utf8");
+          if (trackedPathText.includes("\uFFFD")) {
+            throw new Error("source_path contains a filename that is not valid UTF-8");
+          }
+          const attributeCandidates = new Set();
+          for (const file of trackedPathText.split("\0").filter(Boolean)) {
+            attributeCandidates.add(file);
+            let parent = path.posix.dirname(file);
+            while (parent !== ".") {
+              attributeCandidates.add(parent);
+              parent = path.posix.dirname(parent);
+            }
+          }
+          const attributeInput = Buffer.from(`${[...attributeCandidates].join("\0")}\0`);
+          const attributeFields = execFileSync(
+            "git",
+            ["check-attr", "--cached", "-z", "export-ignore", "export-subst", "--stdin"],
+            { input: attributeInput },
+          ).toString().split("\0");
+          for (let index = 0; index + 2 < attributeFields.length; index += 3) {
+            const [file, attribute, value] = attributeFields.slice(index, index + 3);
+            if (value !== "unspecified" && value !== "unset") {
+              throw new Error(`${attribute} is forbidden for archived source file ${file}`);
+            }
           }
           const assertNoSymlinkComponents = (resolved, label) => {
             const relative = path.relative(root, resolved);
@@ -246,9 +308,16 @@ jobs:
             cursor[leaf] = value;
           };
 
-          if (!Array.isArray(promotions) || !Array.isArray(targets) ||
-              (promotions.length === 0) !== (targets.length === 0)) {
-            throw new Error("image_promotions and image_targets must be arrays that are empty together");
+          if (!Array.isArray(promotions) || !Array.isArray(targets)) {
+            throw new Error("image_promotions and image_targets must be arrays");
+          }
+          if (manifestOnly) {
+            if (process.env.GITHUB_REPOSITORY !== "pocharlies-org/k8s-gitops-pocharlies" ||
+                process.env.SOURCE_PATH !== "." || promotions.length !== 0 || targets.length !== 0) {
+              throw new Error("manifest_only is restricted to the central source-bound self-release");
+            }
+          } else if (promotions.length === 0 || targets.length === 0) {
+            throw new Error("image releases require non-empty promotions and exact targets");
           }
           const promotionMap = new Map();
           for (const [index, promotion] of promotions.entries()) {
@@ -271,11 +340,11 @@ jobs:
             if (!target || typeof target !== "object" || targetMap.has(target.name) || !promotionMap.has(target.name)) {
               throw new Error(`invalid, duplicate, or unknown target at index ${index}`);
             }
-            if (!safeRepository.test(target.deployRepository || "") || !target.deployRepository.endsWith(`/${target.name}`)) {
+            if (!safeRepository.test(target.deployRepository || "") ||
+                target.deployRepository !== `${expectedDeployRegistryPrefix}${target.name}`) {
               throw new Error(`invalid deployRepository for ${target.name}`);
             }
             const promotion = promotionMap.get(target.name);
-            const expectedRef = `${target.deployRepository}:${version}@${promotion.digest}`;
             if (target.kind === "kustomize") {
               exactKeys(target, ["name", "kind", "path", "matchName", "deployRepository"], `target[${index}]`);
               if (!safeRepository.test(target.matchName || "")) throw new Error(`invalid matchName for ${target.name}`);
@@ -283,6 +352,7 @@ jobs:
               if (!fs.statSync(directory).isDirectory() || !fs.existsSync(path.join(directory, "kustomization.yaml"))) {
                 throw new Error(`Kustomize target is not an overlay: ${target.name}`);
               }
+              const expectedRef = `${target.deployRepository}:${version}@${promotion.digest}`;
               kustomizeRows.push([target.name, target.path, target.matchName, target.deployRepository, promotion.digest, version].join("\t"));
               renderRows.push([target.name, "kustomize", target.path, "-", expectedRef, target.deployRepository, promotion.digest].join("\t"));
             } else if (target.kind === "helm-json") {
@@ -297,6 +367,7 @@ jobs:
               setExistingPath(document, target.tagPath, version, "tagPath");
               setExistingPath(document, target.digestPath, promotion.digest, "digestPath");
               fs.writeFileSync(file, `${JSON.stringify(document, null, 2)}\n`);
+              const expectedRef = `${target.deployRepository}:${version}@${promotion.digest}`;
               renderRows.push([target.name, "helm-json", `${target.chartPath}\t${target.path}`, expectedRef, target.deployRepository, promotion.digest].join("\t"));
             } else {
               throw new Error(`unsupported image target kind for ${target.name}`);
@@ -312,6 +383,7 @@ jobs:
             return {
               name: promotion.name,
               sourceRef: promotion.ref,
+              deployRepository: target.deployRepository,
               deployRef: `${target.deployRepository}:${version}@${promotion.digest}`,
               digest: promotion.digest,
             };
@@ -340,7 +412,7 @@ jobs:
             RENDERED="$rendered" EXPECTED_REF="$expected_ref" DEPLOY_REPOSITORY="$deploy_repository" node <<'NODE'
           const fs = require("fs");
           const lines = fs.readFileSync(process.env.RENDERED, "utf8").split(/\r?\n/);
-          const refs = lines.map((line) => line.match(/^\s*image:\s*["']?([^"'\s]+)["']?\s*$/)?.[1]).filter(Boolean)
+          const refs = lines.map((line) => line.match(/^\s*(?:-\s*)?image:\s*["']?([^"'\s]+)["']?\s*$/)?.[1]).filter(Boolean)
             .filter((ref) => ref.startsWith(process.env.DEPLOY_REPOSITORY));
           if (refs.length === 0 || refs.some((ref) => ref !== process.env.EXPECTED_REF)) {
             throw new Error(`rendered image linkage mismatch for ${process.env.DEPLOY_REPOSITORY}`);
@@ -425,6 +497,26 @@ jobs:
         run: |
           set -euo pipefail
           oras login "$REGISTRY" --username "$HARBOR_USER" --password-stdin <<< "$HARBOR_PASSWORD"
+          oras login "harbor.e-dani.com" --username "$HARBOR_USER" --password-stdin <<< "$HARBOR_PASSWORD"
+
+      - name: Verify deployment registry digest aliases
+        run: |
+          set -euo pipefail
+          PINS_FILE="$RUNNER_TEMP/release-image-pins.json" node <<'NODE' > "$RUNNER_TEMP/deploy-digest-aliases.tsv"
+          const fs = require("fs");
+          const pins = JSON.parse(fs.readFileSync(process.env.PINS_FILE, "utf8"));
+          for (const pin of pins) {
+            process.stdout.write(`${pin.name}\t${pin.deployRepository}\t${pin.digest}\n`);
+          }
+          NODE
+          while IFS=$'\t' read -r name repository digest; do
+            [ -n "$name" ] || continue
+            resolved="$(oras resolve "${repository}@${digest}")"
+            if [ "$resolved" != "$digest" ]; then
+              echo "Deployment registry digest alias is unavailable for ${name}"
+              exit 1
+            fi
+          done < "$RUNNER_TEMP/deploy-digest-aliases.tsv"
 
       - name: Publish Argo CD OCI manifest bundle
         env:
@@ -453,7 +545,11 @@ jobs:
           source_epoch="$(git show -s --format=%ct "$GITHUB_SHA")"
           mkdir -p "$bundle_dir"
 
-          source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}:${SOURCE_PATH}")"
+          if [ "$SOURCE_PATH" = "." ]; then
+            source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}^{tree}")"
+          else
+            source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}:${SOURCE_PATH}")"
+          fi
           if [ "$(git cat-file -t "$source_tree_sha")" != "tree" ]; then
             echo "Patched source_path is not a Git tree"
             exit 1

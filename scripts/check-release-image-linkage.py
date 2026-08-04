@@ -38,6 +38,8 @@ def validate(release: str, manifest: str) -> None:
         "image_promotions:",
         "image_targets:",
         "required: true",
+        "manifest_only:",
+        "Reusable manifest workflow must be called by immutable commit SHA",
         "Stamp and verify exact release image digests",
         "image target names must exactly match released image names",
         "promotion is not bound to this release",
@@ -45,12 +47,20 @@ def validate(release: str, manifest: str) -> None:
         "Kustomize target is not an overlay",
         "Helm target is not a chart",
         "source_path must not contain tracked symlinks",
+        "source_path must not contain gitlinks or submodules",
+        "is forbidden for archived source file",
         "must not contain symlink components",
+        "image releases require non-empty promotions and exact targets",
+        "manifest_only is restricted to the central source-bound self-release",
+        "Verify deployment registry digest aliases",
+        'oras resolve "${repository}@${digest}"',
         "rendered image linkage mismatch",
+        r"line.match(/^\s*(?:-\s*)?image:",
         "rho-release-linkage.v1",
         "imageDigestSetSha256",
         'patched_tree_sha="$(git write-tree)"',
         'source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}:${SOURCE_PATH}")"',
+        'source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}^{tree}")"',
         'git archive \\\n',
         "rho.skirmshop.es/patched-tree",
         "rho.skirmshop.es/image-digest-set-sha256",
@@ -123,6 +133,29 @@ for label, mutated_release, mutated_manifest in [
             1,
         ),
     ),
+    (
+        "root source tree archive",
+        release,
+        manifest.replace(
+            'source_tree_sha="$(git rev-parse "${PATCHED_TREE_SHA}^{tree}")"',
+            'source_tree_sha="$(git rev-parse "${SOURCE_SHA}^{tree}")"',
+            1,
+        ),
+    ),
+    (
+        "empty image bypass",
+        release,
+        manifest.replace(
+            "image releases require non-empty promotions and exact targets",
+            "empty image linkage accepted",
+            1,
+        ),
+    ),
+    (
+        "kustomize list image parser",
+        release,
+        manifest.replace(r"(?:-\s*)?image:", r"image:", 1),
+    ),
 ]:
     try:
         validate(mutated_release, mutated_manifest)
@@ -131,7 +164,7 @@ for label, mutated_release, mutated_manifest in [
     raise SystemExit(f"linkage mutation self-test unexpectedly passed: {label}")
 
 expected_release_sha256 = "f3e1ef0fffce37d657308f64308a580f6c5b48ecc4aceea39a1232fd97724cb0"
-expected_manifest_sha256 = "74c27987b98ed79cb535e11e924e20de3c4389ef5ce58bc50ebd04665cde5b4b"
+expected_manifest_sha256 = "b686b3222fe2882019deede58c73ab504564cd2e322c5c1ee30f5c0be38e8946"
 release_sha256 = hashlib.sha256(release.encode()).hexdigest()
 manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()
 require(release_sha256 == expected_release_sha256, f"release linkage workflow changed: {release_sha256}")
