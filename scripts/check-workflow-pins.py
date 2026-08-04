@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Reject mutable third-party actions in every shared workflow."""
 
+import hashlib
 import re
 from pathlib import Path
 
@@ -138,6 +139,15 @@ require(
 require(
     "OVERLAY_PATH: ${{ steps.validate-overlay.outputs.overlay_path }}" in deploy_workflow,
     "deploy commit does not consume the validated overlay path",
+)
+validate_overlay = deploy_workflow.index("      - name: Validate staging overlay path")
+stamp_overlay = deploy_workflow.index("      - name: Stamp staging overlay")
+commit_overlay = deploy_workflow.index("      - name: Commit staging image stamp")
+require(validate_overlay < stamp_overlay < commit_overlay, "deploy overlay validation occurs after path use")
+expected_deploy_digest = "e34c68f3aebc685248e7630c7d215a42d518e67e34a1b270532cd3a1dc59d5a0"
+require(
+    hashlib.sha256(deploy_workflow.encode()).hexdigest() == expected_deploy_digest,
+    "deploy workflow changed without reviewing input boundaries",
 )
 for buildx_marker in (
     "BUILDX_VERSION: v0.36.0",

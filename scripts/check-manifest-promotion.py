@@ -61,6 +61,11 @@ require(workflow.count("pull-requests: write") == 1, "PR write permission must b
 require("oras copy" not in workflow, "manifest release must use atomic Harbor CreateTag")
 require(workflow.count("?page=${page}&page_size=100") == 1, "manifest Harbor nested tag lookup must be paginated exactly once")
 require(workflow.count('any(.[]; .name == $expected_tag)') == 1, "manifest reconciliation must match the exact tag name")
+require(workflow.count('verify_harbor_tag_on_digest "$tag"') == 1, "manifest reconciliation function must be invoked exactly once")
+manifest_case = workflow.index('case "$http_code" in')
+manifest_reconcile = workflow.index('verify_harbor_tag_on_digest "$tag"')
+manifest_resolve = workflow.index('resolved="$(oras resolve "$tag_ref")"')
+require(manifest_case < manifest_reconcile < manifest_resolve, "manifest reconciliation is out of promotion order")
 require(workflow.index('for tag in "$SHA_TAG" "$VERSION"; do') < workflow.index('ARTIFACT_REF=$REF'), "immutable manifest tags are published too late")
 notify = workflow.split("  notify:", 1)[1]
 require("contents: write" not in notify, "notify job must not write contents")
@@ -86,5 +91,10 @@ require("promotion_mode:" not in legacy and "promotion_mode:" not in workflow, "
 require("oras copy" not in legacy, "legacy manifest release must use atomic Harbor CreateTag")
 require(legacy.count("?page=${page}&page_size=100") == 1, "legacy Harbor nested tag lookup must be paginated exactly once")
 require(legacy.count('any(.[]; .name == $expected_tag)') == 1, "legacy reconciliation must match the exact tag name")
+require(legacy.count('verify_harbor_tag_on_digest "$tag"') == 1, "legacy reconciliation function must be invoked exactly once")
+legacy_case = legacy.index('case "$http_code" in')
+legacy_reconcile = legacy.index('verify_harbor_tag_on_digest "$tag"')
+legacy_resolve = legacy.index('resolved="$(oras resolve "$tag_ref")"')
+require(legacy_case < legacy_reconcile < legacy_resolve, "legacy reconciliation is out of promotion order")
 
 print("GitOps manifest PR-promotion contract passed")
