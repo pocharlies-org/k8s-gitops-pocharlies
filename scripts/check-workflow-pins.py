@@ -4,23 +4,44 @@
 import re
 from pathlib import Path
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
-USE = re.compile(r"^\s*(?:-\s*)?uses:\s*([^\s#]+)", re.MULTILINE)
 IMMUTABLE_REF = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
 violations: list[str] = []
+
+def action_uses(value, path=""):
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            current = f"{path}.{key}" if path else str(key)
+            if key == "uses" and isinstance(nested, str):
+                yield current, nested
+            yield from action_uses(nested, current)
+    elif isinstance(value, list):
+        for index, nested in enumerate(value):
+            yield from action_uses(nested, f"{path}[{index}]")
+
+# Guard the parser itself: inline YAML maps were the regression that a
+# line-oriented scanner missed.
+inline_mutant = yaml.safe_load(
+    "jobs:\n  test:\n    steps:\n      - {uses: actions/checkout@v7}\n"
+)
+assert list(action_uses(inline_mutant)) == [
+    ("jobs.test.steps[0].uses", "actions/checkout@v7")
+]
+
 workflows = sorted({*WORKFLOWS.glob("*.yml"), *WORKFLOWS.glob("*.yaml")})
 for workflow in workflows:
     text = workflow.read_text(encoding="utf-8")
-    for match in USE.finditer(text):
-        target = match.group(1)
+    document = yaml.safe_load(text)
+    for path, target in action_uses(document):
         if target.startswith("./"):
             continue
         if not IMMUTABLE_REF.fullmatch(target):
-            line = text.count("\n", 0, match.start()) + 1
-            violations.append(f"{workflow.relative_to(ROOT)}:{line}: {target}")
+            violations.append(f"{workflow.relative_to(ROOT)}:{path}: {target}")
 
 assert not violations, "mutable workflow dependencies:\n" + "\n".join(violations)
 

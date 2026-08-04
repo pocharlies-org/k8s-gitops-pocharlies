@@ -185,6 +185,7 @@ jobs:
           evidence_dir="$RUNNER_TEMP/release-security-evidence"
           mkdir -p "$evidence_dir/sbom" "$evidence_dir/provenance"
           : > "$evidence_dir/evidence.ndjson"
+          : > "$evidence_dir/promotions.tsv"
 
           push_image() {
             ref="$1"
@@ -203,6 +204,7 @@ jobs:
             base="${REGISTRY}/${REGISTRY_PROJECT}/${name}"
             version_ref="${base}:${VERSION}"
             sha_ref="${base}:${SHA_TAG}"
+            candidate_ref="${base}:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
             safe_name="${name//\//-}"
             sbom="$evidence_dir/sbom/${safe_name}.spdx.json"
             provenance="$evidence_dir/provenance/${safe_name}.slsa-v1.json"
@@ -212,8 +214,7 @@ jobs:
               --progress=plain \
               --network=host \
               --file "$dockerfile" \
-              --tag "$version_ref" \
-              --tag "$sha_ref" \
+              --tag "$candidate_ref" \
               --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
               --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
               "$context"
@@ -226,18 +227,19 @@ jobs:
               --ignore-unfixed \
               --exit-code 1 \
               --timeout 15m \
-              "$version_ref"
+              "$candidate_ref"
             trivy image \
               --scanners vuln \
               --format spdx-json \
               --output "$sbom" \
               --timeout 15m \
-              "$version_ref"
+              "$candidate_ref"
 
-            push_image "$version_ref"
-            push_image "$sha_ref"
+            # Publish only an explicitly non-release candidate until every
+            # image has passed scan, signature, attestation and verification.
+            push_image "$candidate_ref"
 
-            manifest="$(docker buildx imagetools inspect "$version_ref" --format '{{json .Manifest}}')"
+            manifest="$(docker buildx imagetools inspect "$candidate_ref" --format '{{json .Manifest}}')"
             digest="$(MANIFEST="$manifest" node -e '
               const manifest = JSON.parse(process.env.MANIFEST);
               if (!/^sha256:[a-f0-9]{64}$/.test(manifest.digest || "")) process.exit(1);
@@ -335,7 +337,34 @@ jobs:
           };
           process.stdout.write(`${JSON.stringify(record)}\n`);
           NODE
+            printf '%s\t%s\t%s\t%s\n' \
+              "$candidate_ref" "$digest_ref" "$version_ref" "$sha_ref" \
+              >> "$evidence_dir/promotions.tsv"
           done < "$RUNNER_TEMP/images.tsv"
+
+          # All candidates are now verified by digest. Only at this point may
+          # release/SHA tags become visible. A later promotion failure can
+          # leave a partial release, but never an unsigned or unattested final
+          # reference.
+          while IFS=$'\t' read -r candidate_ref digest_ref version_ref sha_ref; do
+            [ -n "$candidate_ref" ] || continue
+            docker tag "$candidate_ref" "$version_ref"
+            docker tag "$candidate_ref" "$sha_ref"
+            push_image "$version_ref"
+            push_image "$sha_ref"
+            for promoted_ref in "$version_ref" "$sha_ref"; do
+              promoted_manifest="$(docker buildx imagetools inspect "$promoted_ref" --format '{{json .Manifest}}')"
+              promoted_digest="$(MANIFEST="$promoted_manifest" node -e '
+                const manifest = JSON.parse(process.env.MANIFEST);
+                if (!/^sha256:[a-f0-9]{64}$/.test(manifest.digest || "")) process.exit(1);
+                process.stdout.write(manifest.digest);
+              ')"
+              if [ "$promoted_digest" != "${digest_ref##*@}" ]; then
+                echo "Promoted digest mismatch for $promoted_ref"
+                exit 1
+              fi
+            done
+          done < "$evidence_dir/promotions.tsv"
 
           EVIDENCE_DIR="$evidence_dir" node <<'NODE'
           const fs = require("fs");

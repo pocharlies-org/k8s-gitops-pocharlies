@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Static fail-closed contract for immutable image release evidence."""
 
-import re
+import hashlib
+import json
 from pathlib import Path
+
+import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +35,9 @@ required = [
     "cosign attest --yes --type slsaprovenance1",
     "cosign verify \\",
     "cosign verify-attestation \\",
+    'candidate_ref="${base}:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
+    'push_image "$candidate_ref"',
+    'done < "$evidence_dir/promotions.tsv"',
     'buildType: "https://github.com/Attestations/GitHubActionsWorkflow@v1"',
     'digest: { sha1: process.env.GITHUB_SHA }',
     'id: `https://github.com/${process.env.JOB_WORKFLOW_REF}`',
@@ -50,20 +56,23 @@ for marker in required:
 
 loop = workflow.split("while IFS=$'\\t' read -r name context dockerfile; do", 1)[1]
 scan = loop.index("trivy image")
-push = loop.index('push_image "$version_ref"')
+candidate_push = loop.index('push_image "$candidate_ref"')
+final_push = loop.index('push_image "$version_ref"')
 sign = loop.index('cosign sign --yes "$digest_ref"')
 attest = loop.index("cosign attest --yes --type spdxjson")
 provenance = loop.index("cosign attest --yes --type slsaprovenance1")
 verify = loop.index("cosign verify \\")
 evidence = loop.index("release-evidence.json")
-assert scan < push < sign < attest < provenance < verify < evidence
+assert scan < candidate_push < sign < attest < provenance < verify < final_push < evidence
 
 slsa_verify = "cosign verify-attestation \\\n              --type slsaprovenance1"
 assert slsa_verify in loop, "SLSA provenance must be verified before evidence publication"
-assert provenance < loop.index(slsa_verify) < evidence
+assert provenance < loop.index(slsa_verify) < final_push < evidence
 
-assert '--tag "$version_ref"' in loop
-assert '--tag "$sha_ref"' in loop
+build_block = loop.split("# Fail before publication", 1)[0]
+assert '--tag "$candidate_ref"' in build_block
+assert '--tag "$version_ref"' not in build_block
+assert '--tag "$sha_ref"' not in build_block
 assert "--force" not in workflow
 assert "COSIGN_PASSWORD" not in workflow
 assert workflow.count("id-token: write") == 1
@@ -74,5 +83,20 @@ assert "${GITHUB_REPOSITORY}/.github/workflows/[^@]+" not in workflow
 assert "--certificate-identity-regexp" not in workflow
 assert workflow.count('--certificate-identity "$certificate_identity"') == 3
 assert "refs/(heads|tags)" not in workflow
+
+document = yaml.safe_load(workflow)
+release_job = document["jobs"]["release"]
+expected_release_job_digest = "98fd8c86ce753bced367a3be8b655947c3de5ec21a141f39fc209b10c20c8bb5"
+release_job_digest = hashlib.sha256(
+    json.dumps(release_job, sort_keys=True, separators=(",", ":")).encode()
+).hexdigest()
+assert release_job_digest == expected_release_job_digest, (
+    f"release job changed without contract review: {release_job_digest}"
+)
+mutant = json.loads(json.dumps(release_job))
+mutant["if"] = "${{ false }}"
+assert hashlib.sha256(
+    json.dumps(mutant, sort_keys=True, separators=(",", ":")).encode()
+).hexdigest() != expected_release_job_digest
 
 print("Immutable image release supply-chain contract passed")
