@@ -173,7 +173,10 @@ jobs:
             -o "$archive"
           echo "${expected}  ${archive}" | sha512sum --check --strict
           tar xzf "$archive" -C "$install_dir"
-          ln -s "$install_dir/package/bin/pnpm.cjs" "$RUNNER_TEMP/bin/pnpm"
+          pnpm_cli="$install_dir/package/bin/pnpm.cjs"
+          test -f "$pnpm_cli"
+          chmod 0755 "$pnpm_cli"
+          ln -s "$pnpm_cli" "$RUNNER_TEMP/bin/pnpm"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/bin/pnpm" --version
           [ "$("$RUNNER_TEMP/bin/pnpm" --version)" = "$PNPM_VERSION" ]
