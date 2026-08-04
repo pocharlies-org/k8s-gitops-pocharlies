@@ -24,6 +24,8 @@ import sys
 
 import yaml
 
+if not __debug__:
+    raise SystemExit("ARC render validation requires Python assertions enabled")
 
 manifest = Path(sys.argv[1])
 output = Path(sys.argv[2])
@@ -59,8 +61,12 @@ import sys
 
 import yaml
 
+if not __debug__:
+    raise SystemExit("ARC render validation requires Python assertions enabled")
 
 root = Path(sys.argv[1])
+runner_image = "ghcr.io/actions/actions-runner:2.335.1@sha256:08c30b0a7105f64bddfc485d2487a22aa03932a791402393352fdf674bda2c29"
+dind_image = "docker.io/library/docker:29.6.2-dind@sha256:bfec1f5159c63a81ca6fdedbd81404d2c0e16378ed0feec3bb3fbf3998847659"
 expected_selector = {"kubernetes.io/arch": "amd64", "node-pool": "ks5-nvme"}
 expected_antiaffinity_labels = {
     "app.kubernetes.io/component": "runner",
@@ -102,6 +108,8 @@ assert [container["name"] for container in openclaw_spec["containers"]] == ["run
 assert openclaw_spec.get("initContainers", []) == []
 assert openclaw_spec.get("volumes", []) == []
 openclaw_runner = openclaw_spec["containers"][0]
+assert openclaw_runner["image"] == runner_image
+assert openclaw_runner["imagePullPolicy"] == "IfNotPresent"
 assert not openclaw_runner.get("securityContext", {}).get("privileged", False)
 assert "DOCKER_HOST" not in {item["name"] for item in openclaw_runner.get("env", [])}
 
@@ -112,6 +120,8 @@ assert [container["name"] for container in shared_spec["initContainers"]] == [
     "dind",
 ]
 externals_init = shared_spec["initContainers"][0]
+assert externals_init["image"] == runner_image
+assert externals_init["imagePullPolicy"] == "IfNotPresent"
 assert externals_init["command"] == ["cp"]
 assert externals_init["args"] == [
     "-r",
@@ -124,6 +134,8 @@ assert externals_init["resources"] == {
 }
 
 shared_runner = shared_spec["containers"][0]
+assert shared_runner["image"] == runner_image
+assert shared_runner["imagePullPolicy"] == "IfNotPresent"
 runner_env = {item["name"]: item.get("value") for item in shared_runner["env"]}
 assert runner_env["DOCKER_HOST"] == "unix:///var/run/docker.sock"
 assert shared_runner["resources"] == {
@@ -132,6 +144,8 @@ assert shared_runner["resources"] == {
 }
 
 dind = shared_spec["initContainers"][1]
+assert dind["image"] == dind_image
+assert dind["imagePullPolicy"] == "IfNotPresent"
 assert dind["restartPolicy"] == "Always"
 assert dind["securityContext"]["privileged"] is True
 assert dind["resources"] == {
