@@ -3,6 +3,8 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+RUNNER_IMAGE = "ghcr.io/actions/actions-runner:2.335.1@sha256:08c30b0a7105f64bddfc485d2487a22aa03932a791402393352fdf674bda2c29"
+DIND_IMAGE = "docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c"
 
 
 class ArcRunnerKs5PlacementTest(unittest.TestCase):
@@ -34,6 +36,15 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertNotIn("containerMode:", self.openclaw_values)
         self.assertNotIn("name: dind", self.openclaw_values)
         self.assertNotIn("privileged: true", self.openclaw_values)
+        self.assertIn(f"image: {RUNNER_IMAGE}", self.openclaw_values)
+        self.assertIn("imagePullPolicy: IfNotPresent", self.openclaw_values)
+
+    def test_all_runner_and_dind_images_are_digest_pinned(self) -> None:
+        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 3)
+        self.assertEqual(self.manifest.count(f"image: {DIND_IMAGE}"), 1)
+        self.assertEqual(self.manifest.count("imagePullPolicy: IfNotPresent"), 4)
+        self.assertNotIn("image: docker:dind", self.manifest)
+        self.assertNotIn("image: ghcr.io/actions/actions-runner:2.335.1\n", self.manifest)
 
     def test_shared_dind_is_a_resource_bounded_restartable_init_container(self) -> None:
         self.assertNotIn("containerMode:", self.shared_values)

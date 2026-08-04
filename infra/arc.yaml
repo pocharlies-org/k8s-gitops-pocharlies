@@ -88,7 +88,8 @@ spec:
                 value: dev
             containers:
               - name: runner
-                image: ghcr.io/actions/actions-runner:2.335.1
+                image: ghcr.io/actions/actions-runner:2.335.1@sha256:08c30b0a7105f64bddfc485d2487a22aa03932a791402393352fdf674bda2c29
+                imagePullPolicy: IfNotPresent
                 command: ["/home/runner/run.sh"]
                 resources:
                   requests:
@@ -163,7 +164,8 @@ spec:
             # customized, otherwise Helm silently discards its resources.
             initContainers:
               - name: init-dind-externals
-                image: ghcr.io/actions/actions-runner:2.335.1
+                image: ghcr.io/actions/actions-runner:2.335.1@sha256:08c30b0a7105f64bddfc485d2487a22aa03932a791402393352fdf674bda2c29
+                imagePullPolicy: IfNotPresent
                 # Keep command and args explicit.  The pre-GitOps Helm manager
                 # still owns the args field in the live ARS; a full command
                 # plus those retained args executes cp twice and recursively
@@ -183,7 +185,8 @@ spec:
                   - name: dind-externals
                     mountPath: /home/runner/tmpDir
               - name: dind
-                image: docker:dind
+                image: docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c
+                imagePullPolicy: IfNotPresent
                 args:
                   - dockerd
                   - --host=unix:///var/run/docker.sock
@@ -218,7 +221,8 @@ spec:
                     mountPath: /home/runner/externals
             containers:
               - name: runner
-                image: ghcr.io/actions/actions-runner:2.335.1
+                image: ghcr.io/actions/actions-runner:2.335.1@sha256:08c30b0a7105f64bddfc485d2487a22aa03932a791402393352fdf674bda2c29
+                imagePullPolicy: IfNotPresent
                 command: ["/home/runner/run.sh"]
                 env:
                   - name: DOCKER_HOST
