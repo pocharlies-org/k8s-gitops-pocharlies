@@ -94,7 +94,22 @@ def validate_common(release: str, expected_max: int) -> tuple[dict, dict]:
     assert pod_spec["nodeSelector"] == expected_selector
     assert "kubernetes.io/hostname" not in pod_spec["nodeSelector"]
 
-    node_preferences = pod_spec["affinity"]["nodeAffinity"][
+    node_affinity = pod_spec["affinity"]["nodeAffinity"]
+    assert node_affinity["requiredDuringSchedulingIgnoredDuringExecution"] == {
+        "nodeSelectorTerms": [
+            {
+                "matchExpressions": [
+                    {"key": "node-pool", "operator": "In", "values": ["ks5-nvme"]}
+                ]
+            },
+            {
+                "matchExpressions": [
+                    {"key": "role", "operator": "In", "values": ["edge"]}
+                ]
+            },
+        ]
+    }
+    node_preferences = node_affinity[
         "preferredDuringSchedulingIgnoredDuringExecution"
     ]
     assert node_preferences == [
@@ -125,6 +140,22 @@ def validate_common(release: str, expected_max: int) -> tuple[dict, dict]:
     return runner_set, pod_spec
 
 
+def scheduler_eligible(pod_spec: dict, labels: dict[str, str]) -> bool:
+    if any(labels.get(key) != value for key, value in pod_spec["nodeSelector"].items()):
+        return False
+    terms = pod_spec["affinity"]["nodeAffinity"][
+        "requiredDuringSchedulingIgnoredDuringExecution"
+    ]["nodeSelectorTerms"]
+    return any(
+        all(
+            expression["operator"] == "In"
+            and labels.get(expression["key"]) in expression["values"]
+            for expression in term["matchExpressions"]
+        )
+        for term in terms
+    )
+
+
 _, openclaw_spec = validate_common("arc-openclaw", 2)
 assert [container["name"] for container in openclaw_spec["containers"]] == ["runner"]
 assert openclaw_spec.get("initContainers", []) == []
@@ -136,6 +167,27 @@ assert not openclaw_runner.get("securityContext", {}).get("privileged", False)
 assert "DOCKER_HOST" not in {item["name"] for item in openclaw_runner.get("env", [])}
 
 _, shared_spec = validate_common("arc-k8s", 3)
+
+eligibility_matrix = {
+    "ks5": ({"kubernetes.io/arch": "amd64", "node-pool": "ks5-nvme"}, True),
+    "sauvage": ({"kubernetes.io/arch": "amd64", "role": "edge"}, True),
+    "ubuntu-gpu": (
+        {
+            "kubernetes.io/arch": "amd64",
+            "pool": "dev",
+            "nvidia.com/gpu.present": "true",
+        },
+        False,
+    ),
+    "arm-gpu": (
+        {"kubernetes.io/arch": "arm64", "role": "edge", "nvidia.com/gpu.present": "true"},
+        False,
+    ),
+}
+for runner_spec in (openclaw_spec, shared_spec):
+    for case, (labels, expected) in eligibility_matrix.items():
+        assert scheduler_eligible(runner_spec, labels) is expected, case
+
 assert [container["name"] for container in shared_spec["containers"]] == ["runner"]
 assert [container["name"] for container in shared_spec["initContainers"]] == [
     "init-dind-externals",

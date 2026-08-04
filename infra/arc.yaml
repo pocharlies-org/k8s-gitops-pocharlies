@@ -73,6 +73,16 @@ spec:
           spec:
             affinity:
               nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: node-pool
+                          operator: In
+                          values: [ks5-nvme]
+                    - matchExpressions:
+                        - key: role
+                          operator: In
+                          values: [edge]
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
                     preference:
@@ -156,6 +166,16 @@ spec:
           spec:
             affinity:
               nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: node-pool
+                          operator: In
+                          values: [ks5-nvme]
+                    - matchExpressions:
+                        - key: role
+                          operator: In
+                          values: [edge]
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
                     preference:
