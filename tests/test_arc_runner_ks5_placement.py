@@ -13,14 +13,21 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.openclaw_values = self.manifest.split("name: arc-openclaw", 1)[1].split("---", 1)[0]
         self.shared_values = self.manifest.split("name: arc-k8s", 1)[1]
 
-    def test_runner_selector_matches_the_ks5_pool(self) -> None:
+    def test_runner_prefers_ks5_with_an_amd64_fallback(self) -> None:
         runner_values = self.shared_values.split("runnerScaleSetName: arc-k8s", 1)[1]
         runner_values = runner_values.split("tolerations:", 1)[0]
 
-        self.assertIn("node-pool: ks5-nvme", runner_values)
+        self.assertIn("key: node-pool", runner_values)
         self.assertIn("kubernetes.io/arch: amd64", runner_values)
+        self.assertIn("preferredDuringSchedulingIgnoredDuringExecution:", runner_values)
+        self.assertIn("values: [ks5-nvme]", runner_values)
         self.assertNotIn("kubernetes.io/hostname:", runner_values)
         self.assertNotIn("workload: cpu", runner_values)
+
+    def test_edge_fallback_toleration_is_explicit(self) -> None:
+        for values in (self.openclaw_values, self.shared_values):
+            self.assertIn("key: role", values)
+            self.assertIn("value: edge", values)
 
     def test_runner_pool_caps_backlog_drain_at_three(self) -> None:
         self.assertIn("maxRunners: 3", self.shared_values)
@@ -30,7 +37,7 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertIn("https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies", self.openclaw_values)
         self.assertIn("maxRunners: 2", self.openclaw_values)
         self.assertIn("runnerScaleSetName: arc-openclaw", self.openclaw_values)
-        self.assertIn("node-pool: ks5-nvme", self.openclaw_values)
+        self.assertIn("key: node-pool", self.openclaw_values)
 
     def test_openclaw_runner_is_unprivileged_and_dind_free(self) -> None:
         self.assertNotIn("containerMode:", self.openclaw_values)
