@@ -2,22 +2,28 @@
 """Static fail-closed contract for immutable image release evidence."""
 
 import hashlib
-import json
 from pathlib import Path
-
-import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
 workflow = (ROOT / ".github/workflows/reusable-release.yml").read_text(encoding="utf-8")
 
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise SystemExit(message)
+
 required = [
     "id-token: write",
     "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-    "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+    "version=v24.19.0",
+    "14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647",
+    "01443c1e1a29e531ccad5a46fefa6df490d2189c49f7955904aecdbb0fe86fdc",
     "docker/login-action@dbcb813823bdd20940b903addbd779551569679f",
     "actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd",
-    "aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567",
+    "TRIVY_VERSION: v0.70.0",
+    "8b4376d5d6befe5c24d503f10ff136d9e0c49f9127a4279fd110b727929a5aa9",
+    "2f6bb988b553a1bbac6bdd1ce890f5e412439564e17522b88a4541b4f364fc8d",
     "COSIGN_VERSION: v3.0.6",
     "https://github.com/sigstore/cosign/releases/download/",
     "c956e5dfcac53d52bcf058360d579472f0c1d2d9b69f55209e256fe7783f4c74",
@@ -29,6 +35,11 @@ required = [
     "--ignore-unfixed",
     "--format spdx-json",
     "docker buildx imagetools inspect",
+    "--prefer-index=false",
+    "BUILDX_VERSION: v0.36.0",
+    "BUILDKIT_IMAGE: moby/buildkit@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec",
+    "07823fdfcd82a41be90155a8b16876c1a780a6462de805a9f3f63b3119ccfb99",
+    "70382de03915c07c488ae4ddc4f7e169ee978f953e754ecfce110ba017e0132b",
     'digest_ref="${base}@${digest}"',
     'cosign sign --yes "$digest_ref"',
     "cosign attest --yes --type spdxjson",
@@ -48,55 +59,70 @@ required = [
     'attestations: ["https://spdx.dev/Document", "https://slsa.dev/provenance/v1"]',
     "pocharlies-org/k8s-gitops-pocharlies/\\.github/workflows/reusable-release\\.yml@[0-9a-f]{40}",
     "https://token.actions.githubusercontent.com",
+    '--certificate-github-workflow-repository "$GITHUB_REPOSITORY"',
+    '--certificate-github-workflow-sha "$GITHUB_SHA"',
     "release-evidence.json",
     "retention-days: 90",
 ]
 for marker in required:
-    assert marker in workflow, f"missing release supply-chain guard: {marker}"
+    require(marker in workflow, f"missing release supply-chain guard: {marker}")
 
 loop = workflow.split("while IFS=$'\\t' read -r name context dockerfile; do", 1)[1]
 scan = loop.index("trivy image")
 candidate_push = loop.index('push_image "$candidate_ref"')
-final_push = loop.index('push_image "$version_ref"')
+final_push = loop.index("docker buildx imagetools create \\")
 sign = loop.index('cosign sign --yes "$digest_ref"')
 attest = loop.index("cosign attest --yes --type spdxjson")
 provenance = loop.index("cosign attest --yes --type slsaprovenance1")
 verify = loop.index("cosign verify \\")
 evidence = loop.index("release-evidence.json")
-assert scan < candidate_push < sign < attest < provenance < verify < final_push < evidence
+require(scan < candidate_push < sign < attest < provenance < verify < final_push < evidence, "release gates are out of order")
 
 slsa_verify = "cosign verify-attestation \\\n              --type slsaprovenance1"
-assert slsa_verify in loop, "SLSA provenance must be verified before evidence publication"
-assert provenance < loop.index(slsa_verify) < final_push < evidence
+require(slsa_verify in loop, "SLSA provenance must be verified before evidence publication")
+require(provenance < loop.index(slsa_verify) < final_push < evidence, "SLSA verification occurs too late")
 
 build_block = loop.split("# Fail before publication", 1)[0]
-assert '--tag "$candidate_ref"' in build_block
-assert '--tag "$version_ref"' not in build_block
-assert '--tag "$sha_ref"' not in build_block
-assert "--force" not in workflow
-assert "COSIGN_PASSWORD" not in workflow
-assert workflow.count("id-token: write") == 1
+require('--tag "$candidate_ref"' in build_block, "build does not target candidate tag")
+require("docker buildx build \\" in build_block, "release does not use the pinned Buildx builder")
+require("--load \\" in build_block, "candidate image is not loaded for local scanning")
+require("--network=host" not in workflow, "host networking is forbidden for release builds")
+require('--tag "$version_ref"' not in build_block, "version tag is built before verification")
+require('--tag "$sha_ref"' not in build_block, "SHA tag is built before verification")
+require('push_image "$version_ref"' not in workflow, "final version tag must be promoted from verified digest")
+require('push_image "$sha_ref"' not in workflow, "final SHA tag must be promoted from verified digest")
+require("docker/setup-buildx-action@" not in workflow, "Buildx action download is not content-verified")
+require("aquasecurity/setup-trivy@" not in workflow, "Trivy action download is not content-verified")
+require(workflow.count("--prefer-index=false") == 1, "single-manifest promotion must preserve verified digest")
+require("Immutable release tag already points at a different digest" in workflow, "release tags are not immutable")
+require("--force" not in workflow, "forced attestation replacement is forbidden")
+require("COSIGN_PASSWORD" not in workflow, "key-based Cosign material is forbidden")
+require(workflow.count("id-token: write") == 1, "OIDC permission must be isolated to release job")
 notify = workflow.split("  notify:", 1)[1]
-assert "id-token: write" not in notify
-assert "${GITHUB_REPOSITORY}/.github/workflows/[^@]+" not in workflow
+require("id-token: write" not in notify, "notify job must not receive OIDC permission")
+require("${GITHUB_REPOSITORY}/.github/workflows/[^@]+" not in workflow, "mutable certificate identity accepted")
 
-assert "--certificate-identity-regexp" not in workflow
-assert workflow.count('--certificate-identity "$certificate_identity"') == 3
-assert "refs/(heads|tags)" not in workflow
+require("--certificate-identity-regexp" not in workflow, "certificate regex identity is forbidden")
+require(workflow.count('--certificate-identity "$certificate_identity"') == 3, "all Cosign evidence must verify exact identity")
+require(workflow.count('--certificate-github-workflow-repository "$GITHUB_REPOSITORY"') == 3, "all Cosign evidence must bind caller repository")
+require(workflow.count('--certificate-github-workflow-sha "$GITHUB_SHA"') == 3, "all Cosign evidence must bind caller revision")
+require("refs/(heads|tags)" not in workflow, "mutable certificate reference accepted")
 
-document = yaml.safe_load(workflow)
-release_job = document["jobs"]["release"]
-expected_release_job_digest = "98fd8c86ce753bced367a3be8b655947c3de5ec21a141f39fc209b10c20c8bb5"
-release_job_digest = hashlib.sha256(
-    json.dumps(release_job, sort_keys=True, separators=(",", ":")).encode()
-).hexdigest()
-assert release_job_digest == expected_release_job_digest, (
-    f"release job changed without contract review: {release_job_digest}"
+expected_workflow_digest = "75b458c887725c15683ab7315b5a89ae4e79df06c4c3501b655fbffd8f0e32af"
+workflow_digest = hashlib.sha256(workflow.encode()).hexdigest()
+require(
+    workflow_digest == expected_workflow_digest,
+    f"release workflow changed without review: {workflow_digest}",
 )
-mutant = json.loads(json.dumps(release_job))
-mutant["if"] = "${{ false }}"
-assert hashlib.sha256(
-    json.dumps(mutant, sort_keys=True, separators=(",", ":")).encode()
-).hexdigest() != expected_release_job_digest
+require(
+    hashlib.sha256((workflow + "\nenv:\n  MALICIOUS: true\n").encode()).hexdigest()
+    != expected_workflow_digest,
+    "release job mutation self-test failed",
+)
+require(
+    hashlib.sha256(workflow.replace("harbor.lan.e-dani.com", "evil.invalid").encode()).hexdigest()
+    != expected_workflow_digest,
+    "workflow-call input mutation self-test failed",
+)
 
 print("Immutable image release supply-chain contract passed")

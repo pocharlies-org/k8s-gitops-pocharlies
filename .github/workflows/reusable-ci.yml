@@ -10,9 +10,6 @@ on:
         description: Container registry to authenticate against for base-image pulls.
         type: string
         default: harbor.lan.e-dani.com
-      node_version:
-        type: string
-        default: "20"
       python_version:
         type: string
         default: "3.12"
@@ -92,10 +89,23 @@ jobs:
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - name: Install verified Node.js
         if: ${{ steps.package.outputs.present == 'true' }}
-        with:
-          node-version: ${{ inputs.node_version }}
+        run: |
+          set -euo pipefail
+          version=v24.19.0
+          case "$(uname -m)" in
+            x86_64|amd64) arch=x64; expected=14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647 ;;
+            aarch64|arm64) arch=arm64; expected=01443c1e1a29e531ccad5a46fefa6df490d2189c49f7955904aecdbb0fe86fdc ;;
+            *) echo "Unsupported Node runner architecture: $(uname -m)"; exit 1 ;;
+          esac
+          archive="$RUNNER_TEMP/node-${version}-${arch}.tar.xz"
+          curl --retry 3 --retry-all-errors -fsSL \
+            "https://nodejs.org/dist/${version}/node-${version}-linux-${arch}.tar.xz" \
+            -o "$archive"
+          echo "${expected}  ${archive}" | sha256sum --check --strict
+          tar -xJf "$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/node-${version}-linux-${arch}/bin" >> "$GITHUB_PATH"
 
       - name: Enable pnpm
         if: ${{ steps.package.outputs.present == 'true' }}
@@ -165,6 +175,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: "3.11.14"
+          architecture: x64
+
       - name: Install YAML and Kubernetes tools
         run: |
           set -euo pipefail
@@ -183,17 +198,19 @@ jobs:
             fi
           }
 
-          if ! command -v python3 >/dev/null 2>&1; then
-            apt_install python3 python3-venv python3-pip
-          fi
-
           YAMLLINT_VENV="$RUNNER_TEMP/yamllint-venv"
           if ! python3 -m venv "$YAMLLINT_VENV" >/dev/null 2>&1; then
             apt_install python3-venv python3-pip
             python3 -m venv "$YAMLLINT_VENV"
           fi
-          "$YAMLLINT_VENV/bin/python" -m pip install --quiet --upgrade pip
-          "$YAMLLINT_VENV/bin/python" -m pip install --quiet yamllint
+          printf '%s\n' \
+            'PyYAML==6.0.3 --hash=sha256:b8bb0864c5a28024fac8a632c443c87c5aa6f215c0b126c449ae1a150412f31d' \
+            'pathspec==0.12.1 --hash=sha256:a0d503e138a4c123b27490a4f7beda6a01c6f288df0e4a8b79c7eb0dc7b4cc08' \
+            'yamllint==1.37.1 --hash=sha256:364f0d79e81409f591e323725e6a9f4504c8699ddf2d7263d8d2b539cd66a583' \
+            > "$RUNNER_TEMP/yamllint-requirements.txt"
+          "$YAMLLINT_VENV/bin/python" -m pip install \
+            --quiet --disable-pip-version-check --no-deps --only-binary=:all: \
+            --require-hashes -r "$RUNNER_TEMP/yamllint-requirements.txt"
 
           mkdir -p "$RUNNER_TEMP/bin"
           echo "$YAMLLINT_VENV/bin" >> "$GITHUB_PATH"
@@ -329,9 +346,22 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: ${{ inputs.node_version }}
+      - name: Install verified Node.js
+        run: |
+          set -euo pipefail
+          version=v24.19.0
+          case "$(uname -m)" in
+            x86_64|amd64) arch=x64; expected=14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647 ;;
+            aarch64|arm64) arch=arm64; expected=01443c1e1a29e531ccad5a46fefa6df490d2189c49f7955904aecdbb0fe86fdc ;;
+            *) echo "Unsupported Node runner architecture: $(uname -m)"; exit 1 ;;
+          esac
+          archive="$RUNNER_TEMP/node-${version}-${arch}.tar.xz"
+          curl --retry 3 --retry-all-errors -fsSL \
+            "https://nodejs.org/dist/${version}/node-${version}-linux-${arch}.tar.xz" \
+            -o "$archive"
+          echo "${expected}  ${archive}" | sha256sum --check --strict
+          tar -xJf "$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/node-${version}-linux-${arch}/bin" >> "$GITHUB_PATH"
 
       # Dockerfiles pull base images through the Harbor docker-hub proxy-cache
       # project (harbor.lan/cache/...), which requires authentication. This job
@@ -365,7 +395,6 @@ jobs:
             [ -n "$name" ] || continue
             timeout "$DOCKER_BUILD_TIMEOUT" docker build \
               --progress=plain \
-              --network=host \
               --file "$dockerfile" \
               --tag "ci-local/${name}:${GITHUB_SHA}" \
               "$context"
@@ -381,6 +410,11 @@ jobs:
           # The push rules compare against the previous commit, so a shallow
           # clone of depth 1 cannot see what actually changed.
           fetch-depth: 0
+
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: "3.11.14"
+          architecture: x64
 
       # Repos that declare no contract surface skip everything below, so this job
       # costs nothing for the callers that do not opt in.
@@ -409,7 +443,7 @@ jobs:
       - name: Enforce the contract rules
         if: ${{ steps.detect.outputs.present == 'true' }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
           checker=.contracts-checker/scripts/check-contracts.py
           if [ ! -f "$checker" ]; then
             # A missing checker must be LOUD but must not fail the build: it means
@@ -418,7 +452,14 @@ jobs:
             echo "::warning::CONTRACTS.yaml is present but the checker could not be fetched (pass FRAMEWORK_REPO_TOKEN to the reusable workflow). Contract rules were NOT verified."
             exit 0
           fi
-          python3 -m pip install --quiet pyyaml >/dev/null 2>&1 || true
+          CONTRACT_VENV="$RUNNER_TEMP/contracts-venv"
+          python3 -m venv "$CONTRACT_VENV"
+          printf '%s\n' \
+            'PyYAML==6.0.3 --hash=sha256:b8bb0864c5a28024fac8a632c443c87c5aa6f215c0b126c449ae1a150412f31d' \
+            > "$RUNNER_TEMP/contracts-requirements.txt"
+          "$CONTRACT_VENV/bin/python" -m pip install \
+            --quiet --disable-pip-version-check --no-deps --only-binary=:all: \
+            --require-hashes -r "$RUNNER_TEMP/contracts-requirements.txt"
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
             range="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
           elif [ -n "${GITHUB_EVENT_BEFORE:-}" ] && [ "${GITHUB_EVENT_BEFORE}" != "0000000000000000000000000000000000000000" ]; then
@@ -427,10 +468,10 @@ jobs:
             range=""
           fi
           if [ -n "$range" ]; then
-            python3 "$checker" --repo . --range "$range"
+            "$CONTRACT_VENV/bin/python" "$checker" --repo . --range "$range"
           else
             # First push of a branch: validate the tree, skip the push rules.
-            python3 "$checker" --repo .
+            "$CONTRACT_VENV/bin/python" "$checker" --repo .
           fi
         env:
           GITHUB_EVENT_BEFORE: ${{ github.event.before }}
