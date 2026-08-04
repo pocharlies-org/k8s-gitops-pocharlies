@@ -217,6 +217,35 @@ jobs:
           project_encoded="$REGISTRY_PROJECT"
           digest_encoded="sha256%3A${ARTIFACT_DIGEST#sha256:}"
 
+          verify_harbor_tag_on_digest() {
+            local expected_tag="$1"
+            local page=1 tags_file tags_status tag_count
+            while [ "$page" -le 1000 ]; do
+              tags_file="$RUNNER_TEMP/harbor-manifest-tags-page-${page}.json"
+              tags_status="$(curl --silent --show-error \
+                --netrc-file "$harbor_netrc" \
+                --output "$tags_file" \
+                --write-out '%{http_code}' \
+                "https://${REGISTRY}/api/v2.0/projects/${project_encoded}/repositories/${repository_encoded}/artifacts/${digest_encoded}/tags?page=${page}&page_size=100")"
+              if [ "$tags_status" != "200" ]; then
+                echo "Harbor nested manifest tag lookup failed: HTTP $tags_status"
+                head -c 1000 "$tags_file" || true
+                return 1
+              fi
+              tag_count="$(jq -er 'if type == "array" then length else error("tag response is not an array") end' "$tags_file")"
+              if jq -e --arg expected_tag "$expected_tag" \
+                'any(.[]; .name == $expected_tag)' "$tags_file" >/dev/null; then
+                return 0
+              fi
+              if [ "$tag_count" -lt 100 ]; then
+                break
+              fi
+              page="$((page + 1))"
+            done
+            echo "Harbor immutable manifest tag collision: ${expected_tag} is not attached to ${ARTIFACT_DIGEST}"
+            return 1
+          }
+
           # Create the immutable SHA tag first and VERSION last. Harbor's
           # CreateTag endpoint is the atomic create-if-absent boundary; a 409
           # is accepted only when the existing tag resolves to this digest.
@@ -241,6 +270,7 @@ jobs:
                 exit 1
                 ;;
             esac
+            verify_harbor_tag_on_digest "$tag"
             resolved="$(oras resolve "$tag_ref")"
             if [ "$resolved" != "$ARTIFACT_DIGEST" ]; then
               echo "Immutable manifest tag collision for $tag_ref"

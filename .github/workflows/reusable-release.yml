@@ -540,6 +540,45 @@ jobs:
           # release/SHA tags become visible. A later promotion failure can
           # leave a partial release, but never an unsigned or unattested final
           # reference.
+          verify_harbor_tag_on_digest() {
+            local expected_tag="$1"
+            local repository_path="$2"
+            local digest_path="$3"
+            local response_prefix="$4"
+            local page=1 tags_file tags_status tag_page tag_state tag_count
+            while [ "$page" -le 1000 ]; do
+              tags_file="${response_prefix}-page-${page}.json"
+              tags_status="$(curl --silent --show-error \
+                --netrc-file "$harbor_netrc" \
+                --output "$tags_file" \
+                --write-out '%{http_code}' \
+                "https://${REGISTRY}/api/v2.0/projects/${project_encoded}/repositories/${repository_path}/artifacts/${digest_path}/tags?page=${page}&page_size=100")"
+              if [ "$tags_status" != "200" ]; then
+                echo "Harbor nested tag lookup failed: HTTP $tags_status"
+                head -c 1000 "$tags_file" || true
+                return 1
+              fi
+              tag_page="$(EXPECTED_TAG="$expected_tag" TAGS_FILE="$tags_file" node -e '
+                const fs = require("fs");
+                const tags = JSON.parse(fs.readFileSync(process.env.TAGS_FILE, "utf8"));
+                if (!Array.isArray(tags)) process.exit(1);
+                const found = tags.some((entry) => entry && entry.name === process.env.EXPECTED_TAG);
+                process.stdout.write(`${found ? "found" : "missing"}\t${tags.length}`);
+              ')"
+              tag_state="${tag_page%%$'\t'*}"
+              tag_count="${tag_page##*$'\t'}"
+              if [ "$tag_state" = "found" ]; then
+                return 0
+              fi
+              if [ "$tag_count" -lt 100 ]; then
+                break
+              fi
+              page="$((page + 1))"
+            done
+            echo "Harbor immutable tag collision: ${expected_tag} is not attached to ${digest}"
+            return 1
+          }
+
           while IFS=$'\t' read -r name candidate_ref digest_ref version_ref sha_ref; do
             [ -n "$candidate_ref" ] || continue
             safe_name="$(printf '%s' "$name" | sha256sum | cut -c1-32)"
@@ -574,6 +613,9 @@ jobs:
                   exit 1
                   ;;
               esac
+              verify_harbor_tag_on_digest \
+                "$tag" "$repository_encoded" "$digest_encoded" \
+                "$RUNNER_TEMP/harbor-tags-${safe_name}-${tag}"
               promoted_manifest="$(docker buildx imagetools inspect "$promoted_ref" --format '{{json .Manifest}}')"
               promoted_digest="$(MANIFEST="$promoted_manifest" node -e '
                 const manifest = JSON.parse(process.env.MANIFEST);

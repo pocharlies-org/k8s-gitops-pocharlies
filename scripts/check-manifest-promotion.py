@@ -33,6 +33,9 @@ required = [
     "/api/v2.0/projects/${project_encoded}/repositories/${repository_encoded}/artifacts/${digest_encoded}/tags",
     "Atomically created immutable manifest tag",
     "Manifest tag already exists; verifying digest",
+    "verify_harbor_tag_on_digest()",
+    "?page=${page}&page_size=100",
+    'any(.[]; .name == $expected_tag)',
     'case "$http_code" in',
     "201)",
     "409)",
@@ -56,6 +59,8 @@ require("gh pr" not in pr_section, "manifest promotion must use scoped GitHub AP
 require("github.rest.pulls.merge" not in workflow, "manifest promotion must not auto-merge")
 require(workflow.count("pull-requests: write") == 1, "PR write permission must be isolated")
 require("oras copy" not in workflow, "manifest release must use atomic Harbor CreateTag")
+require(workflow.count("?page=${page}&page_size=100") == 1, "manifest Harbor nested tag lookup must be paginated exactly once")
+require(workflow.count('any(.[]; .name == $expected_tag)') == 1, "manifest reconciliation must match the exact tag name")
 require(workflow.index('for tag in "$SHA_TAG" "$VERSION"; do') < workflow.index('ARTIFACT_REF=$REF'), "immutable manifest tags are published too late")
 notify = workflow.split("  notify:", 1)[1]
 require("contents: write" not in notify, "notify job must not write contents")
@@ -69,6 +74,9 @@ legacy_required = [
     'git push origin "HEAD:refs/heads/${DEPLOY_BRANCH}" --force-with-lease',
     'for tag in "$SHA_TAG" "$VERSION"; do',
     "Atomically created immutable manifest tag",
+    "verify_harbor_tag_on_digest()",
+    "?page=${page}&page_size=100",
+    'any(.[]; .name == $expected_tag)',
 ]
 for marker in legacy_required:
     require(marker in legacy, f"missing legacy manifest compatibility guard: {marker}")
@@ -76,5 +84,7 @@ require("pull-requests: write" not in legacy, "legacy workflow must not request 
 require("github.rest.pulls." not in legacy, "legacy workflow must not contain PR mutation code")
 require("promotion_mode:" not in legacy and "promotion_mode:" not in workflow, "split workflows must not retain conditional permission mode")
 require("oras copy" not in legacy, "legacy manifest release must use atomic Harbor CreateTag")
+require(legacy.count("?page=${page}&page_size=100") == 1, "legacy Harbor nested tag lookup must be paginated exactly once")
+require(legacy.count('any(.[]; .name == $expected_tag)') == 1, "legacy reconciliation must match the exact tag name")
 
 print("GitOps manifest PR-promotion contract passed")

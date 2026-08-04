@@ -41,6 +41,9 @@ required = [
     "/api/v2.0/projects/${project_encoded}/repositories/${repository_encoded}/artifacts/${digest_encoded}/tags",
     "Atomically created immutable release tag",
     "Release tag already exists; verifying digest",
+    "verify_harbor_tag_on_digest()",
+    "?page=${page}&page_size=100",
+    "entry.name === process.env.EXPECTED_TAG",
     'for promoted_ref in "$sha_ref" "$version_ref"; do',
     "BUILDX_VERSION: v0.36.0",
     "BUILDKIT_IMAGE: moby/buildkit@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec",
@@ -109,6 +112,10 @@ require("aquasecurity/setup-trivy@" not in workflow, "Trivy action download is n
 require("docker buildx imagetools create" not in workflow, "release tags must use Harbor atomic CreateTag")
 require("case \"$status\" in" in workflow and "201)" in workflow and "409)" in workflow, "Harbor CreateTag status handling is incomplete")
 require("--netrc-file \"$harbor_netrc\"" in workflow, "Harbor CreateTag is not authenticated")
+require(workflow.count("?page=${page}&page_size=100") == 1, "Harbor nested tag lookup must be paginated exactly once")
+require(workflow.count("entry.name === process.env.EXPECTED_TAG") == 1, "Harbor reconciliation must match the exact tag name")
+reconcile = loop.rindex("verify_harbor_tag_on_digest \\")
+require(final_push < reconcile < evidence, "Harbor 409 reconciliation occurs outside final promotion")
 require("--force" not in workflow, "forced attestation replacement is forbidden")
 require("COSIGN_PASSWORD" not in workflow, "key-based Cosign material is forbidden")
 require(workflow.count("id-token: write") == 1, "OIDC permission must be isolated to release job")
@@ -122,7 +129,7 @@ require(workflow.count('--certificate-github-workflow-repository "$GITHUB_REPOSI
 require(workflow.count('--certificate-github-workflow-sha "$GITHUB_SHA"') == 3, "all Cosign evidence must bind caller revision")
 require("refs/(heads|tags)" not in workflow, "mutable certificate reference accepted")
 
-expected_workflow_digest = "ad619faebb3631837ec7efe8d674a6258243ee2a92ed7e4c82828f4c287a94cf"
+expected_workflow_digest = "bc78afd9aaed7bd1e0518487354cd1cf4458daacf30f3dead97ac5dbe0bb0c89"
 workflow_digest = hashlib.sha256(workflow.encode()).hexdigest()
 require(
     workflow_digest == expected_workflow_digest,
