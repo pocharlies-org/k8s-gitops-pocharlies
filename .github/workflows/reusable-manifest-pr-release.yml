@@ -528,6 +528,7 @@ jobs:
           SOURCE_PATH: ${{ inputs.source_path }}
         run: |
           set -euo pipefail
+          umask 022
           bundle_dir="$RUNNER_TEMP/manifest-bundle"
           bundle_tar="$bundle_dir/manifest-bundle.tar"
           source_archive="$bundle_dir/source-tree.tar"
@@ -537,14 +538,14 @@ jobs:
           mkdir -p "$bundle_dir" "$source_stage"
 
           if [ "$SOURCE_PATH" = "." ]; then
-            GIT_ATTR_NOSYSTEM=1 git -c core.attributesFile=/dev/null archive \
+            GIT_ATTR_NOSYSTEM=1 git -c core.attributesFile=/dev/null -c tar.umask=0022 archive \
               --format=tar \
               --mtime="@${source_epoch}" \
               --output="$source_archive" \
               "$PATCHED_TREE_SHA"
             staged_source="$source_stage"
           else
-            GIT_ATTR_NOSYSTEM=1 git -c core.attributesFile=/dev/null archive \
+            GIT_ATTR_NOSYSTEM=1 git -c core.attributesFile=/dev/null -c tar.umask=0022 archive \
               --format=tar \
               --mtime="@${source_epoch}" \
               --output="$source_archive" \
@@ -552,7 +553,7 @@ jobs:
               -- "$SOURCE_PATH"
             staged_source="$source_stage/$SOURCE_PATH"
           fi
-          tar -xf "$source_archive" -C "$source_stage"
+          tar --extract --same-permissions --file "$source_archive" --directory "$source_stage"
           if [ ! -d "$staged_source" ]; then
             echo "Patched source_path is absent from the archived Git tree"
             exit 1

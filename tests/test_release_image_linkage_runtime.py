@@ -117,6 +117,9 @@ images:
 """,
         encoding="utf-8",
     )
+    executable = root / "deploy/healthcheck.sh"
+    executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    executable.chmod(0o755)
 
     chart = root / "deploy/chart"
     (chart / "templates").mkdir(parents=True)
@@ -300,10 +303,17 @@ class ReleaseImageLinkageRuntimeTest(unittest.TestCase):
             if line.startswith("PATCHED_TREE_SHA=")
         )
         treeish = patched_tree if source_path == "." else f"{patched_tree}:{source_path}"
-        expected = subprocess.check_output(
-            ["git", "ls-tree", "-r", "--name-only", "-z", treeish], cwd=fixture
+        expected_rows = subprocess.check_output(
+            ["git", "ls-tree", "-r", "-z", treeish], cwd=fixture
         ).split(b"\0")
-        expected_names = {name.decode() for name in expected if name}
+        expected_modes: dict[str, int] = {}
+        for row in expected_rows:
+            if not row:
+                continue
+            metadata, raw_name = row.split(b"\t", 1)
+            mode = metadata.split(b" ", 1)[0]
+            expected_modes[raw_name.decode()] = int(mode[-3:], 8)
+        expected_names = set(expected_modes)
         with tarfile.open(runner_temp / "manifest-bundle/manifest-bundle.tar.gz") as archive:
             members = {
                 member.name[2:] if member.name.startswith("./") else member.name: member
@@ -312,6 +322,7 @@ class ReleaseImageLinkageRuntimeTest(unittest.TestCase):
             }
             self.assertEqual(set(members), expected_names)
             for name, member in members.items():
+                self.assertEqual(member.mode & 0o777, expected_modes[name])
                 archived = archive.extractfile(member)
                 self.assertIsNotNone(archived)
                 blob_path = name if source_path == "." else f"{source_path}/{name}"
