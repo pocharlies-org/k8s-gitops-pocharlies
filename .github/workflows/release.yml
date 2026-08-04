@@ -27,15 +27,23 @@ jobs:
       run_node: false
       run_docker_build: false
       kustomize_paths: "."
-    secrets: inherit
+    secrets:
+      OPENCLAW_GITHUB_NOTIFY_URL: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_URL }}
+      OPENCLAW_GITHUB_NOTIFY_TOKEN: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_TOKEN }}
 
   release:
     needs: [ci]
-    uses: ./.github/workflows/reusable-manifest-release.yml
+    uses: ./.github/workflows/reusable-manifest-pr-release.yml
     with:
       runner: arc-k8s
       source_path: "."
       artifact_name: k8s-gitops-pocharlies
-      version: ${{ github.event.inputs.image_tag || github.ref_name }}
-      promotion_mode: pull-request
-    secrets: inherit
+      version: ${{ inputs.image_tag || (github.ref_type == 'tag' && github.ref_name) || format('gitops-{0}', github.sha) }}
+      image_promotions: "[]"
+      image_targets: "[]"
+      manifest_only: true
+    secrets:
+      HARBOR_USER: ${{ secrets.HARBOR_USER }}
+      HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+      OPENCLAW_GITHUB_NOTIFY_URL: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_URL }}
+      OPENCLAW_GITHUB_NOTIFY_TOKEN: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_TOKEN }}

@@ -6,13 +6,14 @@ on:
       runner:
         type: string
         default: arc-k8s
+      node_version:
+        description: "Reviewed Node line: 22 or 24 (mapped to an exact checksummed patch)."
+        type: string
+        default: "24"
       registry:
         description: Container registry to authenticate against for base-image pulls.
         type: string
         default: harbor.lan.e-dani.com
-      node_version:
-        type: string
-        default: "20"
       python_version:
         type: string
         default: "3.12"
@@ -81,28 +82,101 @@ jobs:
     if: ${{ inputs.run_node }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Detect package.json
         id: package
+        env:
+          APP_PATH: ${{ inputs.app_path }}
         run: |
-          if [ -f "${{ inputs.app_path }}/package.json" ]; then
+          set -euo pipefail
+          if ! echo "$APP_PATH" | grep -Eq '^(\.|[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*)$' || echo "$APP_PATH" | grep -Eq '(^|/)\.\.(/|$)'; then
+            echo "app_path must be a safe repository-relative path"
+            exit 1
+          fi
+          if [ -f "$APP_PATH/package.json" ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/setup-node@v6
+      - name: Install verified Python
         if: ${{ steps.package.outputs.present == 'true' }}
-        with:
-          node-version: ${{ inputs.node_version }}
+        env:
+          PYTHON_VERSION: ${{ inputs.python_version }}
+        run: |
+          set -euo pipefail
+          case "$PYTHON_VERSION" in
+            3.12|3.12.13) version=3.12.13 ;;
+            *) echo "python_version must be the reviewed 3.12 line"; exit 1 ;;
+          esac
+          case "$(uname -m)" in
+            x86_64|amd64) arch=x86_64; expected=5854aa6ec71cad00334d5065633c210b2e7feb40956767a59a91791cadcf0b79 ;;
+            aarch64|arm64) arch=aarch64; expected=f226576b91491ffa5739aa85726521e9031f4d87f80627d64ed348ac77cb31e9 ;;
+            *) echo "Unsupported Python runner architecture: $(uname -m)"; exit 1 ;;
+          esac
+          archive="$RUNNER_TEMP/cpython-${version}-${arch}.tar.gz"
+          curl --retry 3 --retry-all-errors -fsSL \
+            "https://github.com/astral-sh/python-build-standalone/releases/download/20260718/cpython-${version}%2B20260718-${arch}-unknown-linux-gnu-install_only_stripped.tar.gz" \
+            -o "$archive"
+          echo "${expected}  ${archive}" | sha256sum --check --strict
+          tar xzf "$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/python/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/python/bin/python3" --version
+
+      - name: Install verified Node.js
+        if: ${{ steps.package.outputs.present == 'true' }}
+        env:
+          NODE_VERSION: ${{ inputs.node_version }}
+        run: |
+          set -euo pipefail
+          case "$NODE_VERSION" in
+            22|22.23.2) version=v22.23.2 ;;
+            24|24.19.0) version=v24.19.0 ;;
+            *) echo "node_version must be reviewed line 22 or 24"; exit 1 ;;
+          esac
+          case "${version}:$(uname -m)" in
+            v22.23.2:x86_64|v22.23.2:amd64) arch=x64; expected=b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a ;;
+            v22.23.2:aarch64|v22.23.2:arm64) arch=arm64; expected=013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30 ;;
+            v24.19.0:x86_64|v24.19.0:amd64) arch=x64; expected=f625d97cd707df4ff96254916fbc5ff014f09c09effe5a1e0ca8f6d41a8789d4 ;;
+            v24.19.0:aarch64|v24.19.0:arm64) arch=arm64; expected=d28c8a5bf0a808f0ed434a1dce8c54ae98f0371c0bd86ac58abc613f73e6643f ;;
+            *) echo "Unsupported Node runner architecture: $(uname -m)"; exit 1 ;;
+          esac
+          archive="$RUNNER_TEMP/node-${version}-${arch}.tar.gz"
+          curl --retry 3 --retry-all-errors -fsSL \
+            "https://nodejs.org/dist/${version}/node-${version}-linux-${arch}.tar.gz" \
+            -o "$archive"
+          echo "${expected}  ${archive}" | sha256sum --check --strict
+          tar xzf "$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/node-${version}-linux-${arch}/bin" >> "$GITHUB_PATH"
 
       - name: Enable pnpm
         if: ${{ steps.package.outputs.present == 'true' }}
+        env:
+          PNPM_VERSION: ${{ inputs.pnpm_version }}
         run: |
-          corepack enable
-          corepack prepare pnpm@${{ inputs.pnpm_version }} --activate
-          pnpm --version
+          set -euo pipefail
+          case "$PNPM_VERSION" in
+            8.15.0)
+              expected=ea45517d5285d123eac02c3793505fa1fd6da90a2fc60d1e8d9e0c1e9292886ecfaff513f062b9d1cc8021bb8615033b1ac5bea3b2ee3fc165a6d7034bbe6b03
+              ;;
+            11.17.0)
+              expected=cca3cea332ad254bb84145f966d19f4879615210346fc92c79a047f23a0d7b3cca3c3792f0076ba1f1831d277efbcf0a9119b31a9a60eca7fb3d6231f331ef72
+              ;;
+            *) echo "pnpm_version must be reviewed 8.15.0 or 11.17.0"; exit 1 ;;
+          esac
+          archive="$RUNNER_TEMP/pnpm-${PNPM_VERSION}.tgz"
+          install_dir="$RUNNER_TEMP/pnpm-${PNPM_VERSION}"
+          mkdir -p "$install_dir" "$RUNNER_TEMP/bin"
+          curl --retry 3 --retry-all-errors -fsSL \
+            "https://registry.npmjs.org/pnpm/-/pnpm-${PNPM_VERSION}.tgz" \
+            -o "$archive"
+          echo "${expected}  ${archive}" | sha512sum --check --strict
+          tar xzf "$archive" -C "$install_dir"
+          ln -s "$install_dir/package/bin/pnpm.cjs" "$RUNNER_TEMP/bin/pnpm"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/pnpm" --version
+          [ "$("$RUNNER_TEMP/bin/pnpm" --version)" = "$PNPM_VERSION" ]
 
       - name: Install native Node build tools
         if: ${{ steps.package.outputs.present == 'true' }}
@@ -111,10 +185,10 @@ jobs:
           if command -v apt-get >/dev/null 2>&1; then
             if command -v sudo >/dev/null 2>&1; then
               sudo apt-get update
-              sudo apt-get install -y --no-install-recommends python3 python3-setuptools make g++
+              sudo apt-get install -y --no-install-recommends make g++
             else
               apt-get update
-              apt-get install -y --no-install-recommends python3 python3-setuptools make g++
+              apt-get install -y --no-install-recommends make g++
             fi
           else
             echo "apt-get not available; assuming native build tools are already present"
@@ -163,40 +237,36 @@ jobs:
     if: ${{ inputs.run_kustomize }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install verified Python
+        env:
+          PYTHON_VERSION: ${{ inputs.python_version }}
+        run: |
+          set -euo pipefail
+          case "$PYTHON_VERSION" in
+            3.12|3.12.13) version=3.12.13 ;;
+            *) echo "python_version must be the reviewed 3.12 line"; exit 1 ;;
+          esac
+          case "$(uname -m)" in
+            x86_64|amd64) arch=x86_64; expected=5854aa6ec71cad00334d5065633c210b2e7feb40956767a59a91791cadcf0b79 ;;
+            aarch64|arm64) arch=aarch64; expected=f226576b91491ffa5739aa85726521e9031f4d87f80627d64ed348ac77cb31e9 ;;
+            *) echo "Unsupported Python runner architecture: $(uname -m)"; exit 1 ;;
+          esac
+          archive="$RUNNER_TEMP/cpython-${version}-${arch}.tar.gz"
+          curl --retry 3 --retry-all-errors -fsSL \
+            "https://github.com/astral-sh/python-build-standalone/releases/download/20260718/cpython-${version}%2B20260718-${arch}-unknown-linux-gnu-install_only_stripped.tar.gz" \
+            -o "$archive"
+          echo "${expected}  ${archive}" | sha256sum --check --strict
+          tar xzf "$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/python/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/python/bin/python3" --version
 
       - name: Install YAML and Kubernetes tools
         run: |
           set -euo pipefail
 
-          apt_install() {
-            if ! command -v apt-get >/dev/null 2>&1; then
-              echo "apt-get not available and required tooling is missing"
-              return 1
-            fi
-            if command -v sudo >/dev/null 2>&1; then
-              sudo apt-get update
-              sudo apt-get install -y --no-install-recommends "$@"
-            else
-              apt-get update
-              apt-get install -y --no-install-recommends "$@"
-            fi
-          }
-
-          if ! command -v python3 >/dev/null 2>&1; then
-            apt_install python3 python3-venv python3-pip
-          fi
-
-          YAMLLINT_VENV="$RUNNER_TEMP/yamllint-venv"
-          if ! python3 -m venv "$YAMLLINT_VENV" >/dev/null 2>&1; then
-            apt_install python3-venv python3-pip
-            python3 -m venv "$YAMLLINT_VENV"
-          fi
-          "$YAMLLINT_VENV/bin/python" -m pip install --quiet --upgrade pip
-          "$YAMLLINT_VENV/bin/python" -m pip install --quiet yamllint
-
           mkdir -p "$RUNNER_TEMP/bin"
-          echo "$YAMLLINT_VENV/bin" >> "$GITHUB_PATH"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
           download_file() {
@@ -219,11 +289,32 @@ jobs:
             return 1
           }
 
+          yaml_lib="$RUNNER_TEMP/yamllint-libs"
+          mkdir -p "$yaml_lib"
+          download_file \
+            "https://files.pythonhosted.org/packages/71/60/917329f640924b18ff085ab889a11c763e0b573da888e8404ff486657602/pyyaml-6.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl" \
+            "$RUNNER_TEMP/pyyaml.whl"
+          echo "b8bb0864c5a28024fac8a632c443c87c5aa6f215c0b126c449ae1a150412f31d  $RUNNER_TEMP/pyyaml.whl" | sha256sum --check --strict
+          download_file \
+            "https://files.pythonhosted.org/packages/cc/20/ff623b09d963f88bfde16306a54e12ee5ea43e9b597108672ff3a408aad6/pathspec-0.12.1-py3-none-any.whl" \
+            "$RUNNER_TEMP/pathspec.whl"
+          echo "a0d503e138a4c123b27490a4f7beda6a01c6f288df0e4a8b79c7eb0dc7b4cc08  $RUNNER_TEMP/pathspec.whl" | sha256sum --check --strict
+          download_file \
+            "https://files.pythonhosted.org/packages/dd/b9/be7a4cfdf47e03785f657f94daea8123e838d817be76c684298305bd789f/yamllint-1.37.1-py3-none-any.whl" \
+            "$RUNNER_TEMP/yamllint.whl"
+          echo "364f0d79e81409f591e323725e6a9f4504c8699ddf2d7263d8d2b539cd66a583  $RUNNER_TEMP/yamllint.whl" | sha256sum --check --strict
+          for wheel in "$RUNNER_TEMP/pyyaml.whl" "$RUNNER_TEMP/pathspec.whl" "$RUNNER_TEMP/yamllint.whl"; do
+            python3 -m zipfile -e "$wheel" "$yaml_lib"
+          done
+          echo "PYTHONPATH=$yaml_lib" >> "$GITHUB_ENV"
+
           KUSTOMIZE_VERSION=v5.5.0
           KUSTOMIZE_TGZ="$RUNNER_TEMP/kustomize.tar.gz"
           download_file \
             "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" \
             "$KUSTOMIZE_TGZ"
+          echo "6703a3a70a0c47cf0b37694030b54f1175a9dfeb17b3818b623ed58b9dbc2a77  $KUSTOMIZE_TGZ" \
+            | sha256sum --check --strict
           tar xzf "$KUSTOMIZE_TGZ" -C "$RUNNER_TEMP/bin" kustomize
 
           KUBECONFORM_VERSION=v0.6.7
@@ -231,6 +322,8 @@ jobs:
           download_file \
             "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
             "$KUBECONFORM_TGZ"
+          echo "95f14e87aa28c09d5941f11bd024c1d02fdc0303ccaa23f61cef67bc92619d73  $KUBECONFORM_TGZ" \
+            | sha256sum --check --strict
           tar xzf "$KUBECONFORM_TGZ" -C "$RUNNER_TEMP/bin" kubeconform
 
       - name: YAML lint
@@ -249,7 +342,7 @@ jobs:
             exit 0
           fi
 
-          yamllint -d '{extends: relaxed, rules: {line-length: {max: 220}}}' "${yaml_files[@]}"
+          python3 -m yamllint -d '{extends: relaxed, rules: {line-length: {max: 220}}}' "${yaml_files[@]}"
 
       - name: kubeconform raw manifests
         run: |
@@ -294,9 +387,15 @@ jobs:
           fi
 
       - name: Render kustomize overlays
+        env:
+          KUSTOMIZE_PATHS: ${{ inputs.kustomize_paths }}
         run: |
           set -euo pipefail
-          for path in ${{ inputs.kustomize_paths }}; do
+          if ! echo "$KUSTOMIZE_PATHS" | grep -Eq '^[A-Za-z0-9_./ -]+$' || echo "$KUSTOMIZE_PATHS" | grep -Eq '(^|[ /])\.\.([ /]|$)'; then
+            echo "kustomize_paths contains an unsafe path"
+            exit 1
+          fi
+          for path in $KUSTOMIZE_PATHS; do
             if [ ! -f "$path/kustomization.yaml" ] && [ ! -f "$path/kustomization.yml" ]; then
               echo "Skipping missing kustomization: $path"
               continue
@@ -323,18 +422,49 @@ jobs:
     env:
       HARBOR_USER: ${{ secrets.HARBOR_USER }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: ${{ inputs.node_version }}
+      - name: Install verified Node.js
+        env:
+          NODE_VERSION: ${{ inputs.node_version }}
+        run: |
+          set -euo pipefail
+          case "$NODE_VERSION" in
+            22|22.23.2) version=v22.23.2 ;;
+            24|24.19.0) version=v24.19.0 ;;
+            *) echo "node_version must be reviewed line 22 or 24"; exit 1 ;;
+          esac
+          case "${version}:$(uname -m)" in
+            v22.23.2:x86_64|v22.23.2:amd64) arch=x64; expected=b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a ;;
+            v22.23.2:aarch64|v22.23.2:arm64) arch=arm64; expected=013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30 ;;
+            v24.19.0:x86_64|v24.19.0:amd64) arch=x64; expected=f625d97cd707df4ff96254916fbc5ff014f09c09effe5a1e0ca8f6d41a8789d4 ;;
+            v24.19.0:aarch64|v24.19.0:arm64) arch=arm64; expected=d28c8a5bf0a808f0ed434a1dce8c54ae98f0371c0bd86ac58abc613f73e6643f ;;
+            *) echo "Unsupported Node runner architecture: $(uname -m)"; exit 1 ;;
+          esac
+          archive="$RUNNER_TEMP/node-${version}-${arch}.tar.gz"
+          curl --retry 3 --retry-all-errors -fsSL \
+            "https://nodejs.org/dist/${version}/node-${version}-linux-${arch}.tar.gz" \
+            -o "$archive"
+          echo "${expected}  ${archive}" | sha256sum --check --strict
+          tar xzf "$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/node-${version}-linux-${arch}/bin" >> "$GITHUB_PATH"
+
+      - name: Validate fixed CI registry
+        env:
+          REGISTRY: ${{ inputs.registry }}
+        run: |
+          set -euo pipefail
+          if [ "$REGISTRY" != "harbor.lan.e-dani.com" ]; then
+            echo "CI registry is not allowlisted: $REGISTRY"
+            exit 1
+          fi
 
       # Dockerfiles pull base images through the Harbor docker-hub proxy-cache
       # project (harbor.lan/cache/...), which requires authentication. This job
       # does not push, but it must log in to pull those base layers (else 401).
       - name: Log in to Harbor (base-image cache proxy)
         if: ${{ env.HARBOR_USER != '' }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ${{ inputs.registry }}
           username: ${{ secrets.HARBOR_USER }}
@@ -346,13 +476,33 @@ jobs:
           DOCKER_BUILD_TIMEOUT: ${{ inputs.docker_build_timeout }}
         run: |
           set -euo pipefail
+          if ! echo "$DOCKER_BUILD_TIMEOUT" | grep -Eq '^[1-9][0-9]*[smh]$'; then
+            echo "docker_build_timeout must be a positive duration ending in s, m or h"
+            exit 1
+          fi
           node <<'NODE' > "$RUNNER_TEMP/images.tsv"
           const images = JSON.parse(process.env.IMAGES || "[]");
+          if (!Array.isArray(images) || images.length === 0) throw new Error("images must be a non-empty JSON array");
+          const segment = /^[a-z0-9][a-z0-9._-]*$/;
+          const safePath = /^(?:\.|[A-Za-z0-9_][A-Za-z0-9._/-]*)$/;
+          const names = new Set();
           for (const image of images) {
+            if (!image || typeof image !== "object" || typeof image.name !== "string" ||
+                image.name.length > 128 || image.name.split("/").some((value) => !segment.test(value))) {
+              throw new Error("each image name must be a registry-safe relative path");
+            }
+            if (names.has(image.name)) throw new Error(`duplicate image name: ${image.name}`);
+            names.add(image.name);
+            const context = image.context || ".";
+            const dockerfile = image.dockerfile || "Dockerfile";
+            if (!safePath.test(context) || !safePath.test(dockerfile) ||
+                context.split("/").includes("..") || dockerfile.split("/").includes("..")) {
+              throw new Error(`unsafe path for ${image.name}`);
+            }
             console.log([
               image.name,
-              image.context || ".",
-              image.dockerfile || "Dockerfile",
+              context,
+              dockerfile,
             ].join("\t"));
           }
           NODE
@@ -361,7 +511,6 @@ jobs:
             [ -n "$name" ] || continue
             timeout "$DOCKER_BUILD_TIMEOUT" docker build \
               --progress=plain \
-              --network=host \
               --file "$dockerfile" \
               --tag "ci-local/${name}:${GITHUB_SHA}" \
               "$context"
@@ -372,7 +521,7 @@ jobs:
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # The push rules compare against the previous commit, so a shallow
           # clone of depth 1 cannot see what actually changed.
@@ -390,44 +539,79 @@ jobs:
             echo "No CONTRACTS.yaml; this repo declares no contract surface."
           fi
 
+      - name: Install verified Python
+        if: ${{ steps.detect.outputs.present == 'true' }}
+        env:
+          PYTHON_VERSION: ${{ inputs.python_version }}
+        run: |
+          set -euo pipefail
+          case "$PYTHON_VERSION" in
+            3.12|3.12.13) version=3.12.13 ;;
+            *) echo "python_version must be the reviewed 3.12 line"; exit 1 ;;
+          esac
+          case "$(uname -m)" in
+            x86_64|amd64) arch=x86_64; expected=5854aa6ec71cad00334d5065633c210b2e7feb40956767a59a91791cadcf0b79 ;;
+            aarch64|arm64) arch=aarch64; expected=f226576b91491ffa5739aa85726521e9031f4d87f80627d64ed348ac77cb31e9 ;;
+            *) echo "Unsupported Python runner architecture: $(uname -m)"; exit 1 ;;
+          esac
+          archive="$RUNNER_TEMP/cpython-${version}-${arch}.tar.gz"
+          curl --retry 3 --retry-all-errors -fsSL \
+            "https://github.com/astral-sh/python-build-standalone/releases/download/20260718/cpython-${version}%2B20260718-${arch}-unknown-linux-gnu-install_only_stripped.tar.gz" \
+            -o "$archive"
+          echo "${expected}  ${archive}" | sha256sum --check --strict
+          tar xzf "$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/python/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/python/bin/python3" --version
+
       - name: Check out the contract checker
         if: ${{ steps.detect.outputs.present == 'true' }}
         id: checker
-        continue-on-error: true
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          repository: pocharlies-org/k8s-gitops-pocharlies
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
           token: ${{ secrets.FRAMEWORK_REPO_TOKEN }}
+          persist-credentials: false
           path: .contracts-checker
 
       - name: Enforce the contract rules
         if: ${{ steps.detect.outputs.present == 'true' }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
           checker=.contracts-checker/scripts/check-contracts.py
           if [ ! -f "$checker" ]; then
-            # A missing checker must be LOUD but must not fail the build: it means
-            # the caller did not pass FRAMEWORK_REPO_TOKEN, not that a contract
-            # broke. The pre-push hook still covers this repo locally.
-            echo "::warning::CONTRACTS.yaml is present but the checker could not be fetched (pass FRAMEWORK_REPO_TOKEN to the reusable workflow). Contract rules were NOT verified."
-            exit 0
+            echo "CONTRACTS.yaml is present but the pinned checker could not be fetched"
+            exit 1
           fi
-          python3 -m pip install --quiet pyyaml >/dev/null 2>&1 || true
+          wheel="$RUNNER_TEMP/pyyaml-6.0.3.whl"
+          yaml_lib="$RUNNER_TEMP/contracts-yaml"
+          curl --retry 3 --retry-all-errors -fsSL \
+            "https://files.pythonhosted.org/packages/71/60/917329f640924b18ff085ab889a11c763e0b573da888e8404ff486657602/pyyaml-6.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl" \
+            -o "$wheel"
+          echo "b8bb0864c5a28024fac8a632c443c87c5aa6f215c0b126c449ae1a150412f31d  $wheel" | sha256sum --check --strict
+          mkdir -p "$yaml_lib"
+          python3 -m zipfile -e "$wheel" "$yaml_lib"
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
-            range="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+            if ! echo "$PR_BASE_SHA" | grep -Eq '^[0-9a-f]{40}$' || ! echo "$PR_HEAD_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+              echo "Pull request range does not contain full Git commit SHAs"
+              exit 1
+            fi
+            range="${PR_BASE_SHA}..${PR_HEAD_SHA}"
           elif [ -n "${GITHUB_EVENT_BEFORE:-}" ] && [ "${GITHUB_EVENT_BEFORE}" != "0000000000000000000000000000000000000000" ]; then
             range="${GITHUB_EVENT_BEFORE}..${GITHUB_SHA}"
           else
             range=""
           fi
           if [ -n "$range" ]; then
-            python3 "$checker" --repo . --range "$range"
+            PYTHONPATH="$yaml_lib" python3 "$checker" --repo . --range "$range"
           else
             # First push of a branch: validate the tree, skip the push rules.
-            python3 "$checker" --repo .
+            PYTHONPATH="$yaml_lib" python3 "$checker" --repo .
           fi
         env:
           GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
 
   notify:
     name: Notify OpenClaw on failure
@@ -437,7 +621,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Send failure report
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           OPENCLAW_GITHUB_NOTIFY_URL: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_URL }}
           OPENCLAW_GITHUB_NOTIFY_TOKEN: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_TOKEN }}
@@ -458,11 +642,6 @@ jobs:
           # actions:read, handled by the script's try/catch).
           github-token: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_TOKEN || github.token }}
           script: |
-            const { execFileSync } = require('node:child_process');
-            const fs = require('node:fs');
-            const os = require('node:os');
-            const path = require('node:path');
-
             const FAILURE_CONCLUSIONS = new Set(['failure', 'cancelled', 'timed_out', 'action_required']);
 
             function failureExcerpt(text, maxLines = 220, maxChars = 16000) {
@@ -604,6 +783,7 @@ jobs:
               app: '${{ needs.app.result }}',
               manifests: '${{ needs.manifests.result }}',
               docker: '${{ needs.docker.result }}',
+              contracts: '${{ needs.contracts.result }}',
             };
             const failed = Object.entries(failedJobs)
               .filter(([, result]) => ['failure', 'cancelled'].includes(result))
@@ -649,59 +829,20 @@ jobs:
               if (process.env.OPENCLAW_GITHUB_NOTIFY_TOKEN) {
                 headers.authorization = `Bearer ${process.env.OPENCLAW_GITHUB_NOTIFY_TOKEN}`;
               }
-              const response = await fetch(url, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(payload),
-              });
-              if (!response.ok) {
-                core.warning(`OpenClaw webhook returned HTTP ${response.status}`);
-                return false;
-              }
-              return true;
-            }
-
-            function sendOpenClawCli() {
-              if (!process.env.OPENCLAW_IDENTITY_B64) return false;
-              if (!process.env.OPENCLAW_TELEGRAM_TARGET || !process.env.OPENCLAW_TELEGRAM_THREAD_ID) {
-                core.warning('OPENCLAW_IDENTITY_B64 is set, but Telegram target/thread secrets are missing');
-                return false;
-              }
-
-              const home = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-'));
               try {
-                const identityDir = path.join(home, '.openclaw', 'identity');
-                fs.mkdirSync(identityDir, { recursive: true, mode: 0o700 });
-                execFileSync('tar', ['xzf', '-', '-C', identityDir], {
-                  input: Buffer.from(process.env.OPENCLAW_IDENTITY_B64, 'base64'),
-                  stdio: ['pipe', 'ignore', 'pipe'],
+                const response = await fetch(url, {
+                  method: 'POST',
+                  headers,
+                  body: JSON.stringify(payload),
                 });
-
-                execFileSync('npm', ['install', '--global', 'openclaw@2026.5.20'], { stdio: 'pipe' });
-                const env = { ...process.env, HOME: home };
-                if (process.env.OPENCLAW_GATEWAY_URL) env.OPENCLAW_GATEWAY_URL = process.env.OPENCLAW_GATEWAY_URL;
-                if (process.env.OPENCLAW_GATEWAY_TOKEN) env.OPENCLAW_GATEWAY_TOKEN = process.env.OPENCLAW_GATEWAY_TOKEN;
-                if (process.env.OPENCLAW_ALLOW_INSECURE_PRIVATE_WS) {
-                  env.OPENCLAW_ALLOW_INSECURE_PRIVATE_WS = process.env.OPENCLAW_ALLOW_INSECURE_PRIVATE_WS;
+                if (!response.ok) {
+                  core.warning(`OpenClaw webhook returned HTTP ${response.status}`);
+                  return false;
                 }
-
-                const args = [
-                  'message', 'send',
-                  '--channel', 'telegram',
-                  '--target', process.env.OPENCLAW_TELEGRAM_TARGET,
-                  '--thread-id', process.env.OPENCLAW_TELEGRAM_THREAD_ID,
-                  '--message', text,
-                ];
-                if (process.env.OPENCLAW_TELEGRAM_ACCOUNT) {
-                  args.splice(2, 0, '--account', process.env.OPENCLAW_TELEGRAM_ACCOUNT);
-                }
-                execFileSync('openclaw', args, { env, stdio: 'pipe' });
                 return true;
               } catch (error) {
-                core.warning(`OpenClaw CLI notification failed: ${error.message}`);
+                core.warning(`OpenClaw webhook failed: ${error.message}`);
                 return false;
-              } finally {
-                fs.rmSync(home, { recursive: true, force: true });
               }
             }
 
@@ -718,24 +859,28 @@ jobs:
                 text,
                 disable_web_page_preview: true,
               };
-              const response = await fetch(
-                `https://api.telegram.org/bot${process.env.OPENCLAW_TELEGRAM_BOT_TOKEN}/sendMessage`,
-                {
-                  method: 'POST',
-                  headers: { 'content-type': 'application/json' },
-                  body: JSON.stringify(body),
-                },
-              );
-              if (!response.ok) {
-                core.warning(`Telegram fallback returned HTTP ${response.status}`);
+              try {
+                const response = await fetch(
+                  `https://api.telegram.org/bot${process.env.OPENCLAW_TELEGRAM_BOT_TOKEN}/sendMessage`,
+                  {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify(body),
+                  },
+                );
+                if (!response.ok) {
+                  core.warning(`Telegram fallback returned HTTP ${response.status}`);
+                  return false;
+                }
+                return true;
+              } catch (error) {
+                core.warning(`Telegram fallback failed: ${error.message}`);
                 return false;
               }
-              return true;
             }
 
             const webhookSent = await postWebhook();
-            const cliSent = webhookSent ? false : sendOpenClawCli();
-            const telegramSent = webhookSent || cliSent ? false : await sendTelegramBotFallback();
-            if (!webhookSent && !cliSent && !telegramSent) {
-              core.warning('OpenClaw notification skipped: configure OPENCLAW_GITHUB_NOTIFY_URL, OPENCLAW_IDENTITY_B64, or OPENCLAW_TELEGRAM_BOT_TOKEN secrets');
+            const telegramSent = webhookSent ? false : await sendTelegramBotFallback();
+            if (!webhookSent && !telegramSent) {
+              core.warning('OpenClaw notification skipped: configure OPENCLAW_GITHUB_NOTIFY_URL or OPENCLAW_TELEGRAM_BOT_TOKEN secrets');
             }

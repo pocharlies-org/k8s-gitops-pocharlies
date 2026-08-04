@@ -1,4 +1,4 @@
-name: Reusable Manifest OCI Release
+name: Reusable Manifest OCI Legacy Release
 
 on:
   workflow_call:
@@ -28,10 +28,6 @@ on:
         description: Branch Argo CD tracks after a successful release.
         type: string
         default: deploy/prod
-      promotion_mode:
-        description: "pull-request (recommended) or legacy-direct for callers not migrated yet."
-        type: string
-        default: legacy-direct
       oras_version:
         type: string
         default: "1.2.3"
@@ -52,16 +48,17 @@ on:
         required: false
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   publish:
     name: Publish manifest bundle and promote deploy branch
+    permissions:
+      contents: write
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
@@ -85,15 +82,15 @@ jobs:
             exit 1
           fi
 
-          case "${{ inputs.promotion_mode }}" in
-            pull-request|legacy-direct) ;;
-            *) echo "promotion_mode must be pull-request or legacy-direct"; exit 1 ;;
-          esac
-
           if [ -n "$REQUESTED_ARTIFACT" ]; then
             ARTIFACT_NAME="$REQUESTED_ARTIFACT"
           else
             ARTIFACT_NAME="${GITHUB_REPOSITORY#*/}"
+          fi
+
+          if ! echo "$ARTIFACT_NAME" | grep -Eq '^[a-z0-9]+([._-]+[a-z0-9]+)*(\/[a-z0-9]+([._-]+[a-z0-9]+)*)*$'; then
+            echo "Invalid Harbor artifact name: $ARTIFACT_NAME"
+            exit 1
           fi
 
           SHORT_SHA="${GITHUB_SHA::12}"
@@ -108,11 +105,35 @@ jobs:
           ORAS_VERSION: ${{ inputs.oras_version }}
         run: |
           set -euo pipefail
+          if [ "$ORAS_VERSION" != "1.2.3" ]; then
+            echo "oras_version must be the reviewed 1.2.3 release"
+            exit 1
+          fi
           mkdir -p "$RUNNER_TEMP/oras" "$RUNNER_TEMP/bin"
-          curl -sSL "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz" \
-            | tar xz -C "$RUNNER_TEMP/oras" oras
+          archive="$RUNNER_TEMP/oras_${ORAS_VERSION}_linux_amd64.tar.gz"
+          curl --retry 3 -fsSL \
+            "https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz" \
+            -o "$archive"
+          echo "b4efc97a91f471f323f193ea4b4d63d8ff443ca3aab514151a30751330852827  $archive" \
+            | sha256sum --check --strict
+          tar xzf "$archive" -C "$RUNNER_TEMP/oras" oras
           install -m 0755 "$RUNNER_TEMP/oras/oras" "$RUNNER_TEMP/bin/oras"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Validate fixed release registry
+        env:
+          REGISTRY: ${{ inputs.registry }}
+          REGISTRY_PROJECT: ${{ inputs.registry_project }}
+        run: |
+          set -euo pipefail
+          if [ "$REGISTRY" != "harbor.lan.e-dani.com" ]; then
+            echo "Manifest release registry is not allowlisted: $REGISTRY"
+            exit 1
+          fi
+          if ! echo "$REGISTRY_PROJECT" | grep -Eq '^[a-z0-9][a-z0-9._-]{0,62}$'; then
+            echo "Invalid registry project: $REGISTRY_PROJECT"
+            exit 1
+          fi
 
       - name: Login to Harbor
         env:
@@ -128,8 +149,14 @@ jobs:
           SOURCE_PATH: ${{ inputs.source_path }}
           REGISTRY: ${{ inputs.registry }}
           REGISTRY_PROJECT: ${{ inputs.registry_project }}
+          HARBOR_USER: ${{ secrets.HARBOR_USER }}
+          HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
         run: |
           set -euo pipefail
+          if ! echo "$SOURCE_PATH" | grep -Eq '^(\.|[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*)$' || echo "$SOURCE_PATH" | grep -Eq '(^|/)\.\.(/|$)'; then
+            echo "source_path must be a safe repository-relative path"
+            exit 1
+          fi
           if [ ! -d "$SOURCE_PATH" ]; then
             echo "Source path does not exist: $SOURCE_PATH"
             exit 1
@@ -137,125 +164,155 @@ jobs:
 
           REF="${REGISTRY}/${REGISTRY_PROJECT}/${ARTIFACT_NAME}:${VERSION}"
           SHA_REF="${REGISTRY}/${REGISTRY_PROJECT}/${ARTIFACT_NAME}:${SHA_TAG}"
-          BUNDLE="$RUNNER_TEMP/${ARTIFACT_NAME}.tar.gz"
+          CANDIDATE_REF="${REGISTRY}/${REGISTRY_PROJECT}/${ARTIFACT_NAME}:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          bundle_dir="$RUNNER_TEMP/manifest-bundle"
+          bundle_tar="$bundle_dir/manifest-bundle.tar"
+          BUNDLE="$bundle_tar.gz"
+          source_epoch="$(git show -s --format=%ct "$GITHUB_SHA")"
+          mkdir -p "$bundle_dir"
 
           tar \
+            --sort=name \
+            --mtime="@${source_epoch}" \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
             --exclude='.git' \
             --exclude='node_modules' \
             --exclude='.pnpm-store' \
-            -czf "$BUNDLE" \
+            -cf "$bundle_tar" \
             -C "$SOURCE_PATH" .
+          gzip -n -9 "$bundle_tar"
 
-          oras push \
-            --disable-path-validation \
-            --annotation "org.opencontainers.image.title=${ARTIFACT_NAME}" \
-            --annotation "org.opencontainers.image.version=${VERSION}" \
-            --annotation "org.opencontainers.image.revision=${GITHUB_SHA}" \
-            --annotation "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
-            "$REF" "$BUNDLE:application/vnd.oci.image.layer.v1.tar+gzip"
-          oras copy "$REF" "$SHA_REF"
+          (
+            cd "$bundle_dir"
+            oras push \
+              --disable-path-validation \
+              --annotation "org.opencontainers.image.title=${ARTIFACT_NAME}" \
+              --annotation "org.opencontainers.image.version=${VERSION}" \
+              --annotation "org.opencontainers.image.revision=${GITHUB_SHA}" \
+              --annotation "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+              "$CANDIDATE_REF" "manifest-bundle.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip"
+          )
 
-          ARTIFACT_DIGEST="$(oras resolve "$REF")"
+          ARTIFACT_DIGEST="$(oras resolve "$CANDIDATE_REF")"
+          if ! echo "$ARTIFACT_DIGEST" | grep -Eq '^sha256:[a-f0-9]{64}$'; then
+            echo "Candidate did not resolve to a canonical sha256 digest"
+            exit 1
+          fi
+          candidate_manifest="$RUNNER_TEMP/manifest-candidate.json"
+          oras manifest fetch "$CANDIDATE_REF" > "$candidate_manifest"
+          jq -e --arg revision "$GITHUB_SHA" \
+            '.annotations["org.opencontainers.image.revision"] == $revision' \
+            "$candidate_manifest" >/dev/null || {
+              echo "Candidate manifest is not bound to the full source revision"
+              exit 1
+            }
+
+          harbor_netrc="$RUNNER_TEMP/harbor-manifest-release.netrc"
+          printf 'machine %s login %s password %s\n' "$REGISTRY" "$HARBOR_USER" "$HARBOR_PASSWORD" > "$harbor_netrc"
+          chmod 0600 "$harbor_netrc"
+          repository_encoded="$(printf '%s' "$ARTIFACT_NAME" | sed 's#/#%252F#g')"
+          project_encoded="$REGISTRY_PROJECT"
+          digest_encoded="sha256%3A${ARTIFACT_DIGEST#sha256:}"
+
+          verify_harbor_tag_on_digest() {
+            local expected_tag="$1"
+            local page=1 tags_file tags_status tag_count
+            while [ "$page" -le 1000 ]; do
+              tags_file="$RUNNER_TEMP/harbor-manifest-tags-page-${page}.json"
+              tags_status="$(curl --silent --show-error \
+                --netrc-file "$harbor_netrc" \
+                --output "$tags_file" \
+                --write-out '%{http_code}' \
+                "https://${REGISTRY}/api/v2.0/projects/${project_encoded}/repositories/${repository_encoded}/artifacts/${digest_encoded}/tags?page=${page}&page_size=100")"
+              if [ "$tags_status" != "200" ]; then
+                echo "Harbor nested manifest tag lookup failed: HTTP $tags_status"
+                head -c 1000 "$tags_file" || true
+                return 1
+              fi
+              tag_count="$(jq -er 'if type == "array" then length else error("tag response is not an array") end' "$tags_file")"
+              if jq -e --arg expected_tag "$expected_tag" \
+                'any(.[]; .name == $expected_tag)' "$tags_file" >/dev/null; then
+                return 0
+              fi
+              if [ "$tag_count" -lt 100 ]; then
+                break
+              fi
+              page="$((page + 1))"
+            done
+            echo "Harbor immutable manifest tag collision: ${expected_tag} is not attached to ${ARTIFACT_DIGEST}"
+            return 1
+          }
+
+          # Create the immutable SHA tag first and VERSION last. Harbor's
+          # CreateTag endpoint is the atomic create-if-absent boundary; a 409
+          # is accepted only when the existing tag resolves to this digest.
+          for tag in "$SHA_TAG" "$VERSION"; do
+            tag_ref="${REGISTRY}/${REGISTRY_PROJECT}/${ARTIFACT_NAME}:${tag}"
+            response_file="$RUNNER_TEMP/harbor-manifest-create-tag.json"
+            payload="$(printf '{\"name\":\"%s\"}' "$tag")"
+            http_code="$(curl --silent --show-error \
+              --netrc-file "$harbor_netrc" \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
+              --header 'content-type: application/json' \
+              --request POST \
+              --data "$payload" \
+              "https://${REGISTRY}/api/v2.0/projects/${project_encoded}/repositories/${repository_encoded}/artifacts/${digest_encoded}/tags")"
+            case "$http_code" in
+              201) echo "Atomically created immutable manifest tag: $tag_ref" ;;
+              409) echo "Manifest tag already exists; verifying digest: $tag_ref" ;;
+              *)
+                echo "Harbor atomic manifest tag creation failed for $tag_ref: HTTP $http_code"
+                head -c 1000 "$response_file" || true
+                exit 1
+                ;;
+            esac
+            verify_harbor_tag_on_digest "$tag"
+            resolved="$(oras resolve "$tag_ref")"
+            if [ "$resolved" != "$ARTIFACT_DIGEST" ]; then
+              echo "Immutable manifest tag collision for $tag_ref"
+              exit 1
+            fi
+            oras manifest fetch "$tag_ref" > "$candidate_manifest"
+            jq -e --arg revision "$GITHUB_SHA" \
+              '.annotations["org.opencontainers.image.revision"] == $revision' \
+              "$candidate_manifest" >/dev/null || {
+                echo "Immutable manifest tag revision mismatch for $tag_ref"
+                exit 1
+              }
+          done
+
           {
             echo "ARTIFACT_REF=$REF"
             echo "ARTIFACT_DIGEST=$ARTIFACT_DIGEST"
           } >> "$GITHUB_ENV"
 
-      - name: Promote deploy branch directly (deprecated compatibility mode)
-        if: ${{ inputs.promotion_mode == 'legacy-direct' }}
+      - name: Promote deploy branch directly (legacy compatibility)
         env:
           DEPLOY_BRANCH: ${{ inputs.deploy_branch }}
         run: |
           set -euo pipefail
+          if ! echo "$DEPLOY_BRANCH" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$' || echo "$DEPLOY_BRANCH" | grep -Eq '(^|/)\.\.(/|$)|//|@\{|[/.]$'; then
+            echo "deploy_branch is not a safe Git ref"
+            exit 1
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git push origin "HEAD:refs/heads/${DEPLOY_BRANCH}" --force-with-lease
 
-      - name: Prepare promotion commit on latest Argo branch
-        if: ${{ inputs.promotion_mode == 'pull-request' }}
-        env:
-          DEPLOY_BRANCH: ${{ inputs.deploy_branch }}
-        run: |
-          set -euo pipefail
-          SOURCE_SHA="$GITHUB_SHA"
-          PROMOTION_BRANCH="promotion/manifest-${VERSION}-${GITHUB_RUN_ID}"
-          SOURCE_DATE="$(git show -s --format=%cI "$SOURCE_SHA")"
-
-          git fetch origin "$DEPLOY_BRANCH"
-          git checkout -B "$PROMOTION_BRANCH" "origin/$DEPLOY_BRANCH"
-          git read-tree --reset -u "$SOURCE_SHA"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          if git diff --cached --quiet; then
-            echo "PROMOTION_NOOP=true" >> "$GITHUB_ENV"
-            echo "Production tree already matches $SOURCE_SHA" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          GIT_AUTHOR_DATE="$SOURCE_DATE" GIT_COMMITTER_DATE="$SOURCE_DATE" \
-            git commit -m "chore(prod): promote ${VERSION}"
-          git push origin "HEAD:refs/heads/${PROMOTION_BRANCH}"
-          {
-            echo "PROMOTION_BRANCH=$PROMOTION_BRANCH"
-            echo "PROMOTION_NOOP=false"
-          } >> "$GITHUB_ENV"
-
-      - name: Open production promotion pull request
-        if: ${{ inputs.promotion_mode == 'pull-request' && env.PROMOTION_NOOP == 'false' }}
-        uses: actions/github-script@v8
-        env:
-          DEPLOY_BRANCH: ${{ inputs.deploy_branch }}
-        with:
-          script: |
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const head = `${owner}:${process.env.PROMOTION_BRANCH}`;
-            const existing = await github.rest.pulls.list({
-              owner,
-              repo,
-              head,
-              base: process.env.DEPLOY_BRANCH,
-              state: 'open',
-              per_page: 1,
-            });
-
-            let url;
-            if (existing.data.length > 0) {
-              url = existing.data[0].html_url;
-            } else {
-              const body = [
-                `Automated GitOps promotion for \`${process.env.VERSION}\`.`,
-                '',
-                `- source commit: \`${context.sha}\``,
-                `- manifest artifact: \`${process.env.ARTIFACT_REF}@${process.env.ARTIFACT_DIGEST}\``,
-                `- target branch: \`${process.env.DEPLOY_BRANCH}\``,
-                '',
-                `This branch was created from the latest \`${process.env.DEPLOY_BRANCH}\`; Argo CD must`,
-                'reconcile only after this PR passes required checks and is reviewed/merged.',
-                'No workflow will auto-merge this PR.',
-              ].join('\n');
-              const created = await github.rest.pulls.create({
-                owner,
-                repo,
-                head: process.env.PROMOTION_BRANCH,
-                base: process.env.DEPLOY_BRANCH,
-                title: `chore(prod): promote ${process.env.VERSION}`,
-                body,
-              });
-              url = created.data.html_url;
-            }
-            await core.summary.addRaw(`Promotion PR: ${url}\n`).write();
-
   notify:
     name: Notify OpenClaw on manifest release failure
+    permissions:
+      contents: read
     runs-on: ${{ inputs.runner }}
     needs: [publish]
     if: ${{ always() && (needs.publish.result == 'failure' || needs.publish.result == 'cancelled') }}
     timeout-minutes: 10
     steps:
       - name: Send failure report
-        uses: actions/github-script@v8
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           OPENCLAW_GITHUB_NOTIFY_URL: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_URL }}
           OPENCLAW_GITHUB_NOTIFY_TOKEN: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_TOKEN }}
@@ -280,46 +337,56 @@ jobs:
               if (process.env.OPENCLAW_GITHUB_NOTIFY_TOKEN) {
                 headers.authorization = `Bearer ${process.env.OPENCLAW_GITHUB_NOTIFY_TOKEN}`;
               }
-              const response = await fetch(url, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({
-                  source: 'github-actions',
-                  destination: { group: 'synaspte', topic: 'github' },
-                  event: 'manifest_release_failed',
-                  repo: `${context.repo.owner}/${context.repo.repo}`,
-                  workflow: context.workflow,
-                  runId: context.runId,
-                  runNumber: context.runNumber,
-                  ref: context.ref,
-                  sha: context.sha,
-                  actor: context.actor,
-                  runUrl,
-                  text,
-                }),
-              });
-              if (!response.ok) core.warning(`OpenClaw webhook returned HTTP ${response.status}`);
-              return true;
+              try {
+                const response = await fetch(url, {
+                  method: 'POST',
+                  headers,
+                  body: JSON.stringify({
+                    source: 'github-actions',
+                    destination: { group: 'synapse', topic: 'github' },
+                    event: 'manifest_release_failed',
+                    repo: `${context.repo.owner}/${context.repo.repo}`,
+                    workflow: context.workflow,
+                    runId: context.runId,
+                    runNumber: context.runNumber,
+                    ref: context.ref,
+                    sha: context.sha,
+                    actor: context.actor,
+                    runUrl,
+                    text,
+                  }),
+                });
+                if (!response.ok) core.warning(`OpenClaw webhook returned HTTP ${response.status}`);
+                return response.ok;
+              } catch (error) {
+                core.warning(`OpenClaw webhook failed: ${error.message}`);
+                return false;
+              }
             }
 
             async function sendTelegramBotFallback() {
               if (!process.env.OPENCLAW_TELEGRAM_BOT_TOKEN) return false;
               if (!process.env.OPENCLAW_TELEGRAM_TARGET || !process.env.OPENCLAW_TELEGRAM_THREAD_ID) return false;
-              const response = await fetch(
-                `https://api.telegram.org/bot${process.env.OPENCLAW_TELEGRAM_BOT_TOKEN}/sendMessage`,
-                {
-                  method: 'POST',
-                  headers: { 'content-type': 'application/json' },
-                  body: JSON.stringify({
-                    chat_id: process.env.OPENCLAW_TELEGRAM_TARGET,
-                    message_thread_id: Number(process.env.OPENCLAW_TELEGRAM_THREAD_ID),
-                    text,
-                    disable_web_page_preview: true,
-                  }),
-                },
-              );
-              if (!response.ok) core.warning(`Telegram fallback returned HTTP ${response.status}`);
-              return response.ok;
+              try {
+                const response = await fetch(
+                  `https://api.telegram.org/bot${process.env.OPENCLAW_TELEGRAM_BOT_TOKEN}/sendMessage`,
+                  {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify({
+                      chat_id: process.env.OPENCLAW_TELEGRAM_TARGET,
+                      message_thread_id: Number(process.env.OPENCLAW_TELEGRAM_THREAD_ID),
+                      text,
+                      disable_web_page_preview: true,
+                    }),
+                  },
+                );
+                if (!response.ok) core.warning(`Telegram fallback returned HTTP ${response.status}`);
+                return response.ok;
+              } catch (error) {
+                core.warning(`Telegram fallback failed: ${error.message}`);
+                return false;
+              }
             }
 
             const webhookSent = await postWebhook();
