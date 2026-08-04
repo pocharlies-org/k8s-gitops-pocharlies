@@ -7,7 +7,7 @@ metadata:
   name: traefik-lan
   namespace: argocd
   annotations:
-    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-infra-pocharlies
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-infra-pocharlies
   labels:
     e-dani.com/tier: infra
   finalizers:
@@ -25,7 +25,7 @@ spec:
     # Keep this exact URL aligned with Argo's registered private-repository
     # credential (`repo-k8s-infra-pocharlies`). GitHub redirects it to the
     # current organisation, but Argo matches credentials before that redirect.
-    - repoURL: https://github.com/pocharlies/k8s-infra-pocharlies
+    - repoURL: https://github.com/pocharlies-org/k8s-infra-pocharlies
       targetRevision: main
       ref: values
   destination:

@@ -4,14 +4,14 @@ metadata:
   name: socialmedia
   namespace: argocd
   annotations:
-    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-socialmedia-pocharlies
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-socialmedia-pocharlies
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
 spec:
   project: default
   source:
-    repoURL: https://github.com/pocharlies/k8s-socialmedia-pocharlies
+    repoURL: https://github.com/pocharlies-org/k8s-socialmedia-pocharlies
     targetRevision: deploy/prod
     path: k8s/overlays/prod
   destination:

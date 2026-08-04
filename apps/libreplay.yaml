@@ -4,14 +4,14 @@ metadata:
   name: libreplay
   namespace: argocd
   annotations:
-    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-libreplay-pocharlies
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-libreplay-pocharlies
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
 spec:
   project: default
   source:
-    repoURL: https://github.com/pocharlies/k8s-libreplay-pocharlies
+    repoURL: https://github.com/pocharlies-org/k8s-libreplay-pocharlies
     targetRevision: main
     path: k8s
   destination:

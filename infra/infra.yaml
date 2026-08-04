@@ -4,14 +4,14 @@ metadata:
   name: k8s-infra
   namespace: argocd
   annotations:
-    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-infra-pocharlies
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-infra-pocharlies
   labels:
     e-dani.com/tier: infra
   finalizers: [resources-finalizer.argocd.argoproj.io]
 spec:
   project: default
   source:
-    repoURL: https://github.com/pocharlies/k8s-infra-pocharlies
+    repoURL: https://github.com/pocharlies-org/k8s-infra-pocharlies
     targetRevision: main
     path: .
   destination:

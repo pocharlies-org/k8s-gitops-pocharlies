@@ -4,7 +4,7 @@ metadata:
   name: teslamate
   namespace: argocd
   annotations:
-    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-teslamate-pocharlies
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-teslamate-pocharlies
   labels:
     e-dani.com/portfolio: personal
     e-dani.com/tier: app
@@ -12,7 +12,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/pocharlies/k8s-teslamate-pocharlies
+    repoURL: https://github.com/pocharlies-org/k8s-teslamate-pocharlies
     targetRevision: main
     path: k8s
   destination:

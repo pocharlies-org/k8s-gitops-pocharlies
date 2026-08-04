@@ -131,7 +131,7 @@ type: Opaque
 stringData:
   type: git
   name: k8s-adguard-pocharlies
-  url: https://github.com/pocharlies/k8s-adguard-pocharlies
+  url: https://github.com/pocharlies-org/k8s-adguard-pocharlies
 ---
 apiVersion: v1
 kind: Secret
@@ -157,7 +157,7 @@ type: Opaque
 stringData:
   type: git
   name: k8s-firecrawl-pocharlies
-  url: https://github.com/pocharlies/k8s-firecrawl-pocharlies
+  url: https://github.com/pocharlies-org/k8s-firecrawl-pocharlies
 ---
 apiVersion: v1
 kind: Secret
@@ -170,7 +170,7 @@ type: Opaque
 stringData:
   type: git
   name: k8s-infra-pocharlies
-  url: https://github.com/pocharlies/k8s-infra-pocharlies
+  url: https://github.com/pocharlies-org/k8s-infra-pocharlies
 ---
 apiVersion: v1
 kind: Secret
@@ -183,7 +183,7 @@ type: Opaque
 stringData:
   type: git
   name: k8s-libreplay-pocharlies
-  url: https://github.com/pocharlies/k8s-libreplay-pocharlies
+  url: https://github.com/pocharlies-org/k8s-libreplay-pocharlies
 ---
 apiVersion: v1
 kind: Secret
@@ -196,7 +196,7 @@ type: Opaque
 stringData:
   type: git
   name: k8s-n8n-pocharlies
-  url: https://github.com/pocharlies/k8s-n8n-pocharlies
+  url: https://github.com/pocharlies-org/k8s-n8n-pocharlies
 ---
 apiVersion: v1
 kind: Secret
@@ -209,7 +209,7 @@ type: Opaque
 stringData:
   type: git
   name: k8s-observability-pocharlies
-  url: https://github.com/pocharlies/k8s-observability-pocharlies
+  url: https://github.com/pocharlies-org/k8s-observability-pocharlies
 ---
 apiVersion: v1
 kind: Secret
@@ -222,7 +222,7 @@ type: Opaque
 stringData:
   type: git
   name: k8s-shopify-bundles-pocharlies
-  url: https://github.com/pocharlies/k8s-shopify-bundles-pocharlies
+  url: https://github.com/pocharlies-org/k8s-shopify-bundles-pocharlies
 ---
 apiVersion: v1
 kind: Secret
@@ -235,7 +235,7 @@ type: Opaque
 stringData:
   type: git
   name: k8s-shopify-label-pocharlies
-  url: https://github.com/pocharlies/k8s-shopify-label-pocharlies
+  url: https://github.com/pocharlies-org/k8s-shopify-label-pocharlies
 ---
 apiVersion: v1
 kind: Secret
@@ -261,7 +261,7 @@ type: Opaque
 stringData:
   type: git
   name: k8s-shopify-sii-pocharlies
-  url: https://github.com/pocharlies/k8s-shopify-sii-pocharlies
+  url: https://github.com/pocharlies-org/k8s-shopify-sii-pocharlies
 ---
 apiVersion: v1
 kind: Secret
@@ -274,7 +274,7 @@ type: Opaque
 stringData:
   type: git
   name: k8s-shopify-translations-pocharlies
-  url: https://github.com/pocharlies/k8s-shopify-translations-pocharlies
+  url: https://github.com/pocharlies-org/k8s-shopify-translations-pocharlies
 ---
 apiVersion: v1
 kind: Secret
@@ -287,7 +287,7 @@ type: Opaque
 stringData:
   type: git
   name: k8s-socialmedia-pocharlies
-  url: https://github.com/pocharlies/k8s-socialmedia-pocharlies
+  url: https://github.com/pocharlies-org/k8s-socialmedia-pocharlies
 ---
 apiVersion: v1
 kind: Secret
@@ -300,7 +300,7 @@ type: Opaque
 stringData:
   type: git
   name: k8s-teslamate-pocharlies
-  url: https://github.com/pocharlies/k8s-teslamate-pocharlies
+  url: https://github.com/pocharlies-org/k8s-teslamate-pocharlies
 ---
 apiVersion: v1
 kind: Secret

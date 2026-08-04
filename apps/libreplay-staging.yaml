@@ -5,7 +5,7 @@ metadata:
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "10"
-    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-libreplay-pocharlies
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-libreplay-pocharlies
   labels:
     e-dani.com/tier: app
     libreplay.e-dani.com/environment: staging
@@ -13,7 +13,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/pocharlies/k8s-libreplay-pocharlies
+    repoURL: https://github.com/pocharlies-org/k8s-libreplay-pocharlies
     targetRevision: main
     path: staging
   destination:

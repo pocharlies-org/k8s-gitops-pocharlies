@@ -30,7 +30,7 @@ class TraefikLanApplicationTest(unittest.TestCase):
         )
         self.assertEqual(
             sources[1]["repoURL"],
-            "https://github.com/pocharlies/k8s-infra-pocharlies",
+            "https://github.com/pocharlies-org/k8s-infra-pocharlies",
         )
         self.assertEqual(sources[1]["targetRevision"], "main")
         self.assertEqual(sources[1]["ref"], "values")
