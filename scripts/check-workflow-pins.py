@@ -99,6 +99,15 @@ require(ci_workflow.count("5854aa6ec71cad00334d5065633c210b2e7feb40956767a59a917
 require(ci_workflow.count("f226576b91491ffa5739aa85726521e9031f4d87f80627d64ed348ac77cb31e9") == 3, "CI arm64 Python runtime is not hash-locked")
 require("corepack prepare" not in ci_workflow, "CI pnpm must not use a mutable Corepack download")
 require('PNPM_VERSION: ${{ inputs.pnpm_version }}' in ci_workflow, "pnpm input is interpolated into shell code")
+pnpm_bootstrap = ci_workflow.split("      - name: Enable pnpm", 1)[1].split(
+    "      - name: Install native Node build tools", 1
+)[0]
+require('test -f "$pnpm_cli"' in pnpm_bootstrap, "CI does not fail closed when pnpm CLI is absent")
+require('chmod 0755 "$pnpm_cli"' in pnpm_bootstrap, "CI pnpm launcher is not executable")
+require(
+    pnpm_bootstrap.index('chmod 0755 "$pnpm_cli"') < pnpm_bootstrap.index('ln -s "$pnpm_cli"'),
+    "CI exposes pnpm before making the verified launcher executable",
+)
 for digest in (
     "ea45517d5285d123eac02c3793505fa1fd6da90a2fc60d1e8d9e0c1e9292886ecfaff513f062b9d1cc8021bb8615033b1ac5bea3b2ee3fc165a6d7034bbe6b03",
     "cca3cea332ad254bb84145f966d19f4879615210346fc92c79a047f23a0d7b3cca3c3792f0076ba1f1831d277efbcf0a9119b31a9a60eca7fb3d6231f331ef72",
