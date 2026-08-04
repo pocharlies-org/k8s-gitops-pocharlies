@@ -34,9 +34,13 @@ required = [
     "cosign verify-attestation \\",
     'buildType: "https://github.com/Attestations/GitHubActionsWorkflow@v1"',
     'digest: { sha1: process.env.GITHUB_SHA }',
-    'id: "https://github.com/pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-release.yml"',
+    'id: `https://github.com/${process.env.JOB_WORKFLOW_REF}`',
+    "JOB_WORKFLOW_REF: ${{ job.workflow_ref }}",
+    "JOB_WORKFLOW_SHA: ${{ job.workflow_sha }}",
+    "Reusable release workflow must be called by immutable commit SHA",
+    'certificate_identity="https://github.com/${JOB_WORKFLOW_REF}"',
     'attestations: ["https://spdx.dev/Document", "https://slsa.dev/provenance/v1"]',
-    "pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-release\\\\.yml@",
+    "pocharlies-org/k8s-gitops-pocharlies/\\.github/workflows/reusable-release\\.yml@[0-9a-f]{40}",
     "https://token.actions.githubusercontent.com",
     "release-evidence.json",
     "retention-days: 90",
@@ -67,24 +71,8 @@ notify = workflow.split("  notify:", 1)[1]
 assert "id-token: write" not in notify
 assert "${GITHUB_REPOSITORY}/.github/workflows/[^@]+" not in workflow
 
-identity_match = re.search(r'certificate_identity="([^"]+)"', workflow)
-assert identity_match is not None, "missing certificate identity"
-# Shell double quotes collapse the YAML literal `\\` to `\` before Cosign
-# compiles the regular expression.
-certificate_identity = identity_match.group(1).replace("\\\\", "\\")
-assert re.fullmatch(
-    certificate_identity,
-    "https://github.com/pocharlies-org/k8s-gitops-pocharlies/"
-    ".github/workflows/reusable-release.yml@refs/heads/main",
-)
-assert re.fullmatch(
-    certificate_identity,
-    "https://github.com/pocharlies-org/k8s-gitops-pocharlies/"
-    ".github/workflows/reusable-release.yml@152bb87a41aae94c1dd9dcd659807bd807426807",
-)
-assert not re.fullmatch(
-    certificate_identity,
-    "https://github.com/pocharlies-org/synapse/.github/workflows/release.yml@refs/heads/main",
-)
+assert "--certificate-identity-regexp" not in workflow
+assert workflow.count('--certificate-identity "$certificate_identity"') == 3
+assert "refs/(heads|tags)" not in workflow
 
 print("Immutable image release supply-chain contract passed")

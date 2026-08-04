@@ -141,10 +141,20 @@ jobs:
           REGISTRY: ${{ inputs.registry }}
           REGISTRY_PROJECT: ${{ inputs.registry_project }}
           DOCKER_BUILD_TIMEOUT: ${{ inputs.docker_build_timeout }}
+          JOB_WORKFLOW_REF: ${{ job.workflow_ref }}
+          JOB_WORKFLOW_SHA: ${{ job.workflow_sha }}
         run: |
           set -euo pipefail
           if ! echo "$DOCKER_BUILD_TIMEOUT" | grep -Eq '^[1-9][0-9]*[smh]$'; then
             echo "docker_build_timeout must be a positive duration ending in s, m or h"
+            exit 1
+          fi
+          if ! echo "$JOB_WORKFLOW_REF" | grep -Eq '^pocharlies-org/k8s-gitops-pocharlies/\.github/workflows/reusable-release\.yml@[0-9a-f]{40}$'; then
+            echo "Reusable release workflow must be called by immutable commit SHA"
+            exit 1
+          fi
+          if [ "${JOB_WORKFLOW_REF##*@}" != "$JOB_WORKFLOW_SHA" ]; then
+            echo "Reusable release workflow ref/SHA mismatch"
             exit 1
           fi
 
@@ -259,6 +269,7 @@ jobs:
               internalParameters: {
                 githubRunId: process.env.GITHUB_RUN_ID,
                 githubRunAttempt: process.env.GITHUB_RUN_ATTEMPT,
+                jobWorkflowSha: process.env.JOB_WORKFLOW_SHA,
               },
               resolvedDependencies: [{
                 uri: `git+https://github.com/${process.env.GITHUB_REPOSITORY}.git@${process.env.GITHUB_REF}`,
@@ -267,7 +278,7 @@ jobs:
             },
             runDetails: {
               builder: {
-                id: "https://github.com/pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-release.yml",
+                id: `https://github.com/${process.env.JOB_WORKFLOW_REF}`,
               },
               metadata: {
                 invocationId: `https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/attempts/${process.env.GITHUB_RUN_ATTEMPT}`,
@@ -286,25 +297,23 @@ jobs:
             cosign attest --yes --type spdxjson --predicate "$sbom" "$digest_ref"
             cosign attest --yes --type slsaprovenance1 --predicate "$provenance" "$digest_ref"
 
-            # GitHub records the reusable workflow in Sigstore's
-            # `job_workflow_ref` claim.  The caller repository remains in the
-            # image provenance labels, but it is not the certificate SAN.
-            # Trust only this centrally reviewed release workflow, whether a
-            # caller pins it by branch/tag or by an immutable commit SHA.
-            certificate_identity="^https://github.com/pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-release\\.yml@(refs/(heads|tags)/.+|[0-9a-f]{40})$"
+            # GitHub records the exact called workflow in Sigstore's
+            # `job_workflow_ref` claim. It was validated above as a commit
+            # SHA; verify that one identity, never a mutable branch or tag.
+            certificate_identity="https://github.com/${JOB_WORKFLOW_REF}"
             certificate_issuer="https://token.actions.githubusercontent.com"
             cosign verify \
-              --certificate-identity-regexp "$certificate_identity" \
+              --certificate-identity "$certificate_identity" \
               --certificate-oidc-issuer "$certificate_issuer" \
               "$digest_ref" >/dev/null
             cosign verify-attestation \
               --type spdxjson \
-              --certificate-identity-regexp "$certificate_identity" \
+              --certificate-identity "$certificate_identity" \
               --certificate-oidc-issuer "$certificate_issuer" \
               "$digest_ref" >/dev/null
             cosign verify-attestation \
               --type slsaprovenance1 \
-              --certificate-identity-regexp "$certificate_identity" \
+              --certificate-identity "$certificate_identity" \
               --certificate-oidc-issuer "$certificate_issuer" \
               "$digest_ref" >/dev/null
 

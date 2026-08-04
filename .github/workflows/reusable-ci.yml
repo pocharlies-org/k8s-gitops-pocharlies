@@ -400,8 +400,10 @@ jobs:
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          repository: pocharlies-org/k8s-gitops-pocharlies
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
           token: ${{ secrets.FRAMEWORK_REPO_TOKEN }}
+          persist-credentials: false
           path: .contracts-checker
 
       - name: Enforce the contract rules

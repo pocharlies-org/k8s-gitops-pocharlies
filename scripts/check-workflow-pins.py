@@ -32,6 +32,12 @@ for digest in (
 ):
     assert digest in ci_workflow, f"missing CI tool checksum: {digest}"
 assert "sha256sum --check --strict" in ci_workflow
+assert "repository: ${{ job.workflow_repository }}" in ci_workflow
+assert "ref: ${{ job.workflow_sha }}" in ci_workflow
+checker_checkout = ci_workflow.split("      - name: Check out the contract checker", 1)[1].split(
+    "      - name: Enforce the contract rules", 1
+)[0]
+assert "persist-credentials: false" in checker_checkout
 assert "6703a3a70a0c47cf0b37694030b54f1175a9dfeb17b3818b623ed58b9dbc2a77" in deploy_workflow
 assert "sha256sum --check --strict" in deploy_workflow
 assert deploy_workflow.startswith("name: Reusable Deploy Staging")
