@@ -345,7 +345,24 @@ jobs:
               }
             }
           }
-          fs.writeFileSync(process.env.POLICY_OUTPUT, `${JSON.stringify(policy, null, 2)}\n`);
+          // Authors write `expired_at` as a bare calendar date (enforced above),
+          // which is what the Trivy docs show — but their examples are real YAML,
+          // where the parser coerces an unquoted date to a timestamp natively.
+          // This file is emitted as JSON, so the date arrives QUOTED and Trivy's
+          // Go decoder, which maps the field onto time.Time with an RFC3339
+          // layout, dies with:
+          //   parse error: yaml decode error: parsing time "2026-09-14" as
+          //   "2006-01-02T15:04:05Z07:00": cannot parse "" as "T"
+          // Reproduced against trivy v0.70.0, the version this workflow pins.
+          // Normalise to midnight UTC on the way out: same instant, same
+          // human-friendly input contract, and a layout Trivy can decode.
+          const serialisable = Object.fromEntries(
+            Object.entries(policy).map(([section, entries]) => [
+              section,
+              entries.map((entry) => ({ ...entry, expired_at: `${entry.expired_at}T00:00:00Z` })),
+            ]),
+          );
+          fs.writeFileSync(process.env.POLICY_OUTPUT, `${JSON.stringify(serialisable, null, 2)}\n`);
           NODE
           policy_file="$evidence_dir/trivy-policy.trivyignore.yaml"
           policy_sha="$(sha256sum "$policy_file" | cut -d' ' -f1)"

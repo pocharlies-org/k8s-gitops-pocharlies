@@ -135,7 +135,7 @@ require(workflow.count('--certificate-github-workflow-repository "$GITHUB_REPOSI
 require(workflow.count('--certificate-github-workflow-sha "$GITHUB_SHA"') == 3, "all Cosign evidence must bind caller revision")
 require("refs/(heads|tags)" not in workflow, "mutable certificate reference accepted")
 
-expected_workflow_digest = "f3e1ef0fffce37d657308f64308a580f6c5b48ecc4aceea39a1232fd97724cb0"
+expected_workflow_digest = "c7427fb27df517e7a9182a261572b8f02fe22d69e9cc95d4a9f4a41b0db05cd5"
 workflow_digest = hashlib.sha256(workflow.encode()).hexdigest()
 require(
     workflow_digest == expected_workflow_digest,
