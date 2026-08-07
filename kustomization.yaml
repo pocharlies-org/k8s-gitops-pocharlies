@@ -46,7 +46,6 @@ resources:
   - apps/cv.yaml
   - apps/stt-mcp.yaml
   - apps/teslamate-mcp.yaml
-  - apps/video-mcp.yaml
   - apps/dgx-synapse-mcp.yaml
   - apps/serpientetool.yaml
   - apps/agentgateway-mcp.yaml
