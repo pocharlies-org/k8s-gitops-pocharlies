@@ -45,7 +45,7 @@ spec:
     # NO sirve parchear la Application con kubectl: el app raiz tiene
     # automated.selfHeal y revierte el drift (paso el 2026-08-09 a las 12:39Z,
     # ~2h despues de un patch a mano).
-    targetRevision: ac1e9197de46633fb0b6d23e4c2e338488fd7bcb
+    targetRevision: 08b4fa30d7e4cde6520b98ba476a587556f168a5
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
