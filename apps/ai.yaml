@@ -31,7 +31,18 @@ spec:
     # those Deployments on the next root sync, because this app selfHeals
     # /spec/replicas for every Deployment not listed in the ignoreDifferences patch
     # below — and none of them are.
-    targetRevision: b5c0a4ef5a741916b69bef8795999fe098a76229
+    # 2026-08-09: DeepSeek-V4-Flash-0731 en TP=2 sobre los DOS Sparks. Este pin
+    # baja a 0 los cinco residentes de nvidia-dgx (35B, bge-m3, bge-reranker,
+    # stt-turbo, omnivoice) y levanta los dos ranks del modelo. El 27B denso de
+    # gx10-ec3d NO lo controla este pin: tiene /spec/replicas en el
+    # ignoreDifferences de abajo, asi que va con `kubectl scale` aparte.
+    #
+    # ROLLBACK: devolver este campo a b5c0a4ef5a741916b69bef8795999fe098a76229 y
+    # `kubectl -n llm scale deploy/vllm-qwen36-27b-uncensored-dgx2 --replicas=1`.
+    # NO sirve parchear la Application con kubectl: el app raiz tiene
+    # automated.selfHeal y revierte el drift (paso el 2026-08-09 a las 12:39Z,
+    # ~2h despues de un patch a mano).
+    targetRevision: cf940c0d6589cc7d2c6c8fad74cfea9b303ec077
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
