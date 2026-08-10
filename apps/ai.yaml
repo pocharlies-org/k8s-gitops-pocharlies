@@ -73,6 +73,9 @@ spec:
       - CreateNamespace=true
       - ServerSideApply=true
       - RespectIgnoreDifferences=true
+      # Avoid re-applying otherwise in-sync profile workloads during an unrelated
+      # AI sync; replica ownership remains exclusively with compute-mode.
+      - ApplyOutOfSyncOnly=true
   ignoreDifferences:
     # Pre-existing: ignore apiserver-defaulted ESO/cnpg fields (kept to avoid regressing
     # the ai app's sync — these match the live state applied previously).
