@@ -45,7 +45,10 @@ spec:
     # NO sirve parchear la Application con kubectl: el app raiz tiene
     # automated.selfHeal y revierte el drift (paso el 2026-08-09 a las 12:39Z,
     # ~2h despues de un patch a mano).
-    targetRevision: 0a1b67a5d366c8ff3dfcbb83ad7784e8d2d73fbe
+    # 2026-08-10: c7376db retira Qwen3-Coder-30B del cluster entero (Deployment y
+    # Service, via prune). Su predecesor 0a1b67a5 es el mismo perfil DeepSeek con los
+    # dos ajustes medidos encima (batched-tokens 8192, MTP k=5).
+    targetRevision: c7376db49f7335f456e4c1b53cf3576f72b8a220
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
