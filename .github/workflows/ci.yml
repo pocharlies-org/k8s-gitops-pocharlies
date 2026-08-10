@@ -28,8 +28,8 @@ jobs:
       run_docker_build: false
       kustomize_paths: "."
     secrets: inherit
-  synapse-sre-foundation-contract:
-    name: Synapse SRE foundation Application contract
+  application-contracts:
+    name: Application contracts
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
