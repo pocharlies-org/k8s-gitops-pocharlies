@@ -60,7 +60,7 @@ spec:
     # 2026-08-10: 0c99bb3 integra los workloads y selectors del perfil global
     # encima de 3269a9f, revision propiedad de la sesion DeepSeek. El selector
     # solo controla replicas y no modifica su checkpoint, launch ni recursos.
-    targetRevision: f2c8d69b2bc5b2d1f3b591d9f45d3aa20baa833d
+    targetRevision: 41b842772418c73d5d046a8dd23d6043eb3943e6
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
