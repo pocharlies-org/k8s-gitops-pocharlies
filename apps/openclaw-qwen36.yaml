@@ -63,7 +63,23 @@ metadata:
     # pertenencia, asi que ampliar el allowlist los rompe.
     #
     # prune false: no se borra nada, cambian ConfigMaps de runtime y un env var.
-    operations.pocharlies.org/state-writer-lease: inactive
+    #
+    # APPROVAL OPEN para 6109f05: el agente `programador` conserva OpenClaw
+    # nativo, cambia de `full` al perfil recomendado `coding` y expone solo
+    # Sol, Terra, Luna y LiteLLM Tooling. Sol sigue siendo el primary; la cadena
+    # de fallback pasa a Terra -> Luna -> Tooling. No se crean APIs, plugins,
+    # controladores ni almacenamiento adicional.
+    #
+    # Verificado antes de abrir: OpenClaw 2026.7.1-2 valida el JSON dentro del
+    # pod, los 20 contratos afectados pasan y `helm lint`/`helm template` pasan.
+    # La suite completa conserva fallos previos ajenos en RWOP/PDB y dos modelos
+    # Qwen globales ausentes; ninguno pertenece a este cambio de Programador.
+    # prune false: no se borra ningun recurso.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 6109f0581fa8c7883afbffa2efdd0523f10976d3
+    operations.pocharlies.org/approval-id: programador-models-6109f05
+    operations.pocharlies.org/approval-sequence: "20260810170741"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
