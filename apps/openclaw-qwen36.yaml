@@ -44,7 +44,12 @@ metadata:
     # edad previa y el hook de SyncFail corrio.
     #
     # prune false: no se borra nada, solo cambian ConfigMaps y un env var.
-    # APPROVAL OPEN para b607abc: se retira el sufijo -ha. `tooling-ha` era un
+    # APPROVAL CERRADO tras el rollout verificado de b607abc: Succeeded / Synced /
+    # Healthy, OPENCLAW_MODEL=tooling vivo, cero `tooling-ha` en los ConfigMaps del
+    # namespace, y una llamada desde dentro del pod devuelve 'vivo'. La app hermana
+    # `openclaw-synapse` se sincronizo a la misma revision y tambien contesta.
+    #
+    # (historico) APPROVAL OPEN para b607abc: se retira el sufijo -ha. `tooling-ha` era un
     # nombre de mas -- todo el que pedia `tooling` queria "vivo", y el fallback esta
     # ahora dentro del propio `tooling` (cadena tooling -> dense en el hook del
     # LiteLLM central). Cero perdida funcional, un nombre menos.
@@ -58,11 +63,7 @@ metadata:
     # pertenencia, asi que ampliar el allowlist los rompe.
     #
     # prune false: no se borra nada, cambian ConfigMaps de runtime y un env var.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: b607abcbbb90bd8dd03de8f95af0dfe4a050b1e7
-    operations.pocharlies.org/approval-id: retirar-sufijo-ha
-    operations.pocharlies.org/approval-sequence: "20260810120837"
-    operations.pocharlies.org/approved-prune: "false"
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
