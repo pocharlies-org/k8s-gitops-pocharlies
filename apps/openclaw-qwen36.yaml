@@ -44,7 +44,25 @@ metadata:
     # edad previa y el hook de SyncFail corrio.
     #
     # prune false: no se borra nada, solo cambian ConfigMaps y un env var.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL OPEN para b607abc: se retira el sufijo -ha. `tooling-ha` era un
+    # nombre de mas -- todo el que pedia `tooling` queria "vivo", y el fallback esta
+    # ahora dentro del propio `tooling` (cadena tooling -> dense en el hook del
+    # LiteLLM central). Cero perdida funcional, un nombre menos.
+    #
+    # Verificado antes de abrir: `helm template` OK para las DOS apps del chart,
+    # cero `tooling-ha` en los manifiestos, tests 459 passed (los 16 rojos son de
+    # test_rwop_state_migration.py y ya fallaban antes), y las dos keys con gate de
+    # igualdad EXACTA puestas en lo que asertan -- openclaw-codex-app-server en
+    # ["tooling"] y openclaw-operator-readonly en ["dense","tooling"]. Esa es la
+    # leccion del intento fallido de esta manana: esos gates comparan igualdad, no
+    # pertenencia, asi que ampliar el allowlist los rompe.
+    #
+    # prune false: no se borra nada, cambian ConfigMaps de runtime y un env var.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: b607abcbbb90bd8dd03de8f95af0dfe4a050b1e7
+    operations.pocharlies.org/approval-id: retirar-sufijo-ha
+    operations.pocharlies.org/approval-sequence: "20260810120837"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
