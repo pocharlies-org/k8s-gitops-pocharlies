@@ -6,9 +6,28 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-    # APPROVAL CLOSED after the verified rollout of 2a14dbf. Main and social
-    # are Ready without the Telegram commerce fast-path environment variables.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL OPEN para d35e198: OpenClaw deja de pedir `qwen36-35b-tooling` y
+    # pide `tooling-ha`. Ese alias es uno de los nueve del RESIDENTE de tooling en
+    # el LiteLLM central, asi que lo servia DeepSeek-V4-Flash mientras el nombre
+    # decia Qwen3.6 35B. `tooling-ha` nombra la CAPACIDAD, no el modelo, y lo
+    # resuelve el hook del central contra el model_list vivo.
+    #
+    # Riesgo acotado a proposito: NO se toca ningun `primary: litellm/dense`, solo
+    # el fallback, asi que el modelo que atiende es el mismo en los dos perfiles
+    # de residente. Es una migracion de nombres.
+    #
+    # Verificado antes de abrir: `tooling-ha` responde con la key real de
+    # openclaw-qwen36 (el allowlist de las 7 keys se amplio primero, porque el
+    # chequeo de la key corre antes del hook y si no da 403), `helm template` OK
+    # para las dos apps que renderizan el chart, y CERO `qwen36-35b` en los
+    # manifiestos resultantes.
+    #
+    # prune false: no se borra nada, solo cambian ConfigMaps y un env var.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: d35e1984c8d3546632a4f0242f92c6383a658a98
+    operations.pocharlies.org/approval-id: tooling-ha-alias-migration
+    operations.pocharlies.org/approval-sequence: "20260810093542"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
