@@ -22,6 +22,15 @@ metadata:
     # para las dos apps que renderizan el chart, y CERO `qwen36-35b` en los
     # manifiestos resultantes.
     #
+    # APPROVAL CERRADO tras el rollout verificado de d35e198 (r2, 09:47Z):
+    # Succeeded / Synced / Healthy, los cinco contenedores del pod principal Ready,
+    # OPENCLAW_MODEL=tooling-ha vivo y CERO `qwen36-35b*` en los ConfigMaps del
+    # namespace. Probado de verdad desde dentro del pod: contesta 'vivo'.
+    #
+    # HIZO FALTA ADEMAS abrir el allowlist del EQUIPO `openclaw` en LiteLLM, no solo
+    # el de las keys: hay dos gates encadenados y el de equipo daba 403 con los pods
+    # ya Healthy. Un semaforo verde no prueba que el modelo conteste.
+    #
     # REINTENTO r2. El primer intento (09:37Z) fallo en el hook de Sync
     # `codex-provider-gate`, y el fallo fue MIO: amplie el allowlist de las keys de
     # forma aditiva pensando que anadir modelos no podia romper nada, y ese gate
@@ -35,11 +44,7 @@ metadata:
     # edad previa y el hook de SyncFail corrio.
     #
     # prune false: no se borra nada, solo cambian ConfigMaps y un env var.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: d35e1984c8d3546632a4f0242f92c6383a658a98
-    operations.pocharlies.org/approval-id: tooling-ha-alias-migration-r2
-    operations.pocharlies.org/approval-sequence: "20260810094319"
-    operations.pocharlies.org/approved-prune: "false"
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
