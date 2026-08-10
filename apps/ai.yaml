@@ -60,7 +60,7 @@ spec:
     # 2026-08-10: misma linea DeepSeek actualmente desplegada, añadiendo solo
     # workloads y selectors del perfil global. No incorpora el checkpoint
     # abliterated posterior que esta Application evita expresamente.
-    targetRevision: 00f767190fba467faa9cf3b66047e3ce7efbda60
+    targetRevision: 828b4f1685a3b6531ee36f4774641ba0e06402c7
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
