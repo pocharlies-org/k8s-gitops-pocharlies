@@ -57,10 +57,10 @@ spec:
     # abliterated de DeepSeek), que NO se despliega aqui — reiniciar DeepSeek TP=2
     # deja head y worker en deadlock mudo.
     # ROLLBACK de este cambio: devolver a c7376db49f7335f456e4c1b53cf3576f72b8a220.
-    # 2026-08-10: 41b8427 integra los workloads y selectors del perfil global
+    # 2026-08-10: b33abde integra los workloads y selectors del perfil global
     # encima de f2c8d69, revision oficial propiedad de la sesion DeepSeek. El
     # selector solo controla replicas y no modifica su checkpoint ni su launch.
-    targetRevision: 41b842772418c73d5d046a8dd23d6043eb3943e6
+    targetRevision: b33abdec0792273999521eda492f783cf53a2003
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
