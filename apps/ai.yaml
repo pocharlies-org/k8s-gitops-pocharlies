@@ -6,8 +6,8 @@ metadata:
   annotations:
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-ai-pocharlies
     e-dani.com/rho-pin-purpose: perfiles globales LLM TP / Creative sobre la linea DeepSeek desplegada
-    e-dani.com/rho-rollback-revision: 7ab2dcbfe80142f07e9dd7e92f793f82629484ce
-    e-dani.com/rho-restore-target-revision: deploy/prod
+    e-dani.com/rho-rollback-revision: 00f767190fba467faa9cf3b66047e3ce7efbda60
+    e-dani.com/rho-restore-target-revision: codex/compute-mode-ai-pin-20260810
   labels:
     e-dani.com/tier: app
   finalizers:
@@ -60,7 +60,7 @@ spec:
     # 2026-08-10: misma linea DeepSeek actualmente desplegada, añadiendo solo
     # workloads y selectors del perfil global. No incorpora el checkpoint
     # abliterated posterior que esta Application evita expresamente.
-    targetRevision: 828b4f1685a3b6531ee36f4774641ba0e06402c7
+    targetRevision: 1b07dbf6c98bc993f8ab10e2f917f741a4221a3a
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
