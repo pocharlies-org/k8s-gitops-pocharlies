@@ -216,6 +216,12 @@ patches:
         value: { <<: *compute-replicas, name: vllm-vision-deep-dgx1 }
       - op: add
         path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: bge-m3-embedding }
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: bge-reranker }
+      - op: add
+        path: /spec/ignoreDifferences/-
         value: { <<: *compute-replicas, name: omnivoice-tts-dgx2 }
       - op: add
         path: /spec/ignoreDifferences/-
