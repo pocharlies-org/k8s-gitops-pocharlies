@@ -57,7 +57,7 @@ spec:
     # abliterated de DeepSeek), que NO se despliega aqui — reiniciar DeepSeek TP=2
     # deja head y worker en deadlock mudo.
     # ROLLBACK de este cambio: devolver a c7376db49f7335f456e4c1b53cf3576f72b8a220.
-    targetRevision: 7ab2dcbfe80142f07e9dd7e92f793f82629484ce
+    targetRevision: 5184717136a0ee8a8389ff1509c6c3e0c0a5c959
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
