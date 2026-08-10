@@ -195,6 +195,37 @@ patches:
           namespace: llm
           jsonPointers:
             - /spec/replicas
+      # Global compute-mode controller owns ONLY replica counts for this closed
+      # profile set. Images, commands, resources and model identities stay GitOps-owned.
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: &compute-replicas
+          group: apps
+          kind: Deployment
+          name: deepseek-v4-flash-0731-head
+          namespace: llm
+          jsonPointers: [/spec/replicas]
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: deepseek-v4-flash-0731-worker }
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: vllm-qwen36-27b-uncensored-dgx1 }
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: vllm-vision-deep-dgx1 }
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: omnivoice-tts-dgx2 }
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: bge-m3-embedding-rtx }
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: bge-reranker-rtx }
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: omnivoice-tts-rtx }
       # Co-residente de DGX2 para agentes (qwen3-coder / coder en LiteLLM). Se
       # declara a replicas 0 en git y se levanta A MANO cuando se va a usar, igual
       # que el resto de residentes de DGX2. Sin este ignore, selfHeal lo devolveria
