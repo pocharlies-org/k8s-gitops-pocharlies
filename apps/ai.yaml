@@ -60,7 +60,7 @@ spec:
     # 2026-08-10: b33abde integra los workloads y selectors del perfil global
     # encima de f2c8d69, revision oficial propiedad de la sesion DeepSeek. El
     # selector solo controla replicas y no modifica su checkpoint ni su launch.
-    targetRevision: b33abdec0792273999521eda492f783cf53a2003
+    targetRevision: 749178db3f95f424712c5db74059718600da980e
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
