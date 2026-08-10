@@ -48,7 +48,16 @@ spec:
     # 2026-08-10: c7376db retira Qwen3-Coder-30B del cluster entero (Deployment y
     # Service, via prune). Su predecesor 0a1b67a5 es el mismo perfil DeepSeek con los
     # dos ajustes medidos encima (batched-tokens 8192, MTP k=5).
-    targetRevision: c7376db49f7335f456e4c1b53cf3576f72b8a220
+    # 2026-08-10: fc99a00 = c7376db + SOLO los 6 ficheros bge. El pool de labels pasa
+    # a ser agnostico del dispositivo (bge-pool=embedding/reranker en vez de *-gpu) y
+    # los deployments CPU entran en el. Con los GPU a 0 replicas, los Services
+    # bge-m3-embedding y bge-reranker se habian quedado sin endpoints y el RAG del
+    # brain devolvia 200 con cero fuentes. Va sobre la rama deploy/bge-pool-on-pin
+    # a proposito: el HEAD de deepseek-v4-flash trae ademas e3ce384 (checkpoint
+    # abliterated de DeepSeek), que NO se despliega aqui — reiniciar DeepSeek TP=2
+    # deja head y worker en deadlock mudo.
+    # ROLLBACK de este cambio: devolver a c7376db49f7335f456e4c1b53cf3576f72b8a220.
+    targetRevision: fc99a00a85c74f0b50afd083acf2c35cd2bd1b8b
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
