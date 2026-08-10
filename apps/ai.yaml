@@ -7,7 +7,7 @@ metadata:
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-ai-pocharlies
     e-dani.com/rho-pin-purpose: perfiles globales LLM TP / Creative sobre la linea DeepSeek desplegada
     e-dani.com/rho-rollback-revision: 3269a9f7984f9571443455bbc72c2c2a77eb6980
-    e-dani.com/rho-restore-target-revision: codex/compute-mode-ai-integrated-20260810
+    e-dani.com/rho-restore-target-revision: codex/creative-batch-ai-20260811
   labels:
     e-dani.com/tier: app
   finalizers:
@@ -57,10 +57,11 @@ spec:
     # abliterated de DeepSeek), que NO se despliega aqui — reiniciar DeepSeek TP=2
     # deja head y worker en deadlock mudo.
     # ROLLBACK de este cambio: devolver a c7376db49f7335f456e4c1b53cf3576f72b8a220.
-    # 2026-08-10: b33abde integra los workloads y selectors del perfil global
-    # encima de f2c8d69, revision oficial propiedad de la sesion DeepSeek. El
-    # selector solo controla replicas y no modifica su checkpoint ni su launch.
-    targetRevision: 749178db3f95f424712c5db74059718600da980e
+    # 2026-08-11: 0621af7 restaura los workloads y selectors del perfil global
+    # encima de 749178db, revision propiedad de la sesion DeepSeek. No modifica
+    # el manifiesto, checkpoint ni launch de DeepSeek; solo recupera los recursos
+    # auxiliares que el prune de la resincronizacion habia retirado.
+    targetRevision: 0621af7bf86c7c9a708d94e4318f8190d7c84a10
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
