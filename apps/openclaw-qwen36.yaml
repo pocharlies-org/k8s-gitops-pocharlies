@@ -22,11 +22,23 @@ metadata:
     # para las dos apps que renderizan el chart, y CERO `qwen36-35b` en los
     # manifiestos resultantes.
     #
+    # REINTENTO r2. El primer intento (09:37Z) fallo en el hook de Sync
+    # `codex-provider-gate`, y el fallo fue MIO: amplie el allowlist de las keys de
+    # forma aditiva pensando que anadir modelos no podia romper nada, y ese gate
+    # exige `.info.models == [$model]` -- exactamente UN modelo, por minimo
+    # privilegio. Corregido: openclaw-codex-app-server queda en ["tooling-ha"] y
+    # openclaw-operator-readonly en ["dense","tooling-ha"], que es justo lo que
+    # asertan sus gates. De paso se cae `dense-uncensored`, que el readonly plane
+    # no usa (0 referencias en su runtime-config) y sobraba en esa key.
+    #
+    # El fallo fue seguro: hook de Sync, nada rodo, todos los pods siguieron con su
+    # edad previa y el hook de SyncFail corrio.
+    #
     # prune false: no se borra nada, solo cambian ConfigMaps y un env var.
     operations.pocharlies.org/state-writer-lease: active
     operations.pocharlies.org/approved-revision: d35e1984c8d3546632a4f0242f92c6383a658a98
-    operations.pocharlies.org/approval-id: tooling-ha-alias-migration
-    operations.pocharlies.org/approval-sequence: "20260810093542"
+    operations.pocharlies.org/approval-id: tooling-ha-alias-migration-r2
+    operations.pocharlies.org/approval-sequence: "20260810094319"
     operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
