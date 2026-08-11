@@ -94,16 +94,15 @@ metadata:
     # pod 5/5, cuatro pins historicos migrados y segunda ejecucion idempotente.
     # `tooling` hizo una tool-call real y `agent` respondio desde Synapse; ambos
     # HTTP 200. La operacion uso prune=false y no elimino ningun recurso.
-    # APPROVAL OPEN: alinea OpenClaw con la ventana viva de LiteLLM. Mantiene el
+    # APPROVAL CERRADO: OpenClaw quedo alineado con la ventana viva de LiteLLM. Mantiene el
     # picker en los cinco aliases estables, declara 65K como fallback seguro,
     # selecciona 256K/384K mediante el catalogo vivo y reduce la reserva de
     # compactacion de 60K a 20K. La migracion v2 del PVC es selectiva, atomica y
-    # conserva toda configuracion no gestionada. prune=false.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: cc59fa71699a7b621e30e7422855df33f5f12ab2
-    operations.pocharlies.org/approval-id: openclaw-context-384k-20260811
-    operations.pocharlies.org/approval-sequence: "20260811121801"
-    operations.pocharlies.org/approved-prune: "false"
+    # conserva toda configuracion no gestionada. Operacion verificada en
+    # cc59fa7: Succeeded/Synced/Healthy, pod principal Ready sin reinicios,
+    # migracion v2 y backup 0600 presentes, plugin cargado y `agent` resuelto
+    # en vivo a `litellm-384k`. Se ejecuto con prune=false.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
