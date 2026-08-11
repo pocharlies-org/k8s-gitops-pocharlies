@@ -61,7 +61,9 @@ spec:
     # encima de 749178db, revision propiedad de la sesion DeepSeek. No modifica
     # el manifiesto, checkpoint ni launch de DeepSeek; solo recupera los recursos
     # auxiliares que el prune de la resincronizacion habia retirado.
-    targetRevision: 0621af7bf86c7c9a708d94e4318f8190d7c84a10
+    # 2026-08-11: 1af4deb añade el fallback transaccional del préstamo RTX:
+    # OmniVoice CPU en x86 y BGE CPU en Sauvage, todos normalmente a cero.
+    targetRevision: 1af4debedbc0aa2fa2ab5bcd1704de742351b9a2
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
@@ -128,6 +130,11 @@ spec:
     - group: apps
       kind: Deployment
       name: bge-reranker-cpu
+      namespace: llm
+      jsonPointers: ["/spec/replicas"]
+    - group: apps
+      kind: Deployment
+      name: omnivoice-tts-cpu-x86
       namespace: llm
       jsonPointers: ["/spec/replicas"]
     # vLLM resident on the GB10 (dgx2): the gpu_arbiter scales it 0<->1 to free the
