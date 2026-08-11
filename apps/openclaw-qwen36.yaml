@@ -77,13 +77,15 @@ metadata:
     # prune false: no se borra ningun recurso.
     # Despliegue Succeeded/Synced/Healthy y configuracion activa validada tras
     # recrear el pod para materializar el estado persistente de OpenClaw.
-    # APPROVAL OPEN para 6916414: aliases de capacidad estables, sampling
+    # REINTENTO APROBADO para e8d80f0: aliases de capacidad estables, sampling
     # centralizado en LiteLLM y migracion selectiva/atomica del PVC y de pins de
-    # sesion. Backup Longhorn verificado; prune=false y sin APIs nuevas.
+    # sesion. El primer intento 6916414 fallo de forma segura en el gate Codex;
+    # las keys Codex/Synapse y readonly ya se migraron in-place y se verificaron
+    # en LiteLLM + Vault. Backup Longhorn verificado; prune=false y sin APIs nuevas.
     operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 6916414f58f52da621eb6bd36f9b5e8fa01149d6
-    operations.pocharlies.org/approval-id: stable-litellm-profiles-20260811-r1
-    operations.pocharlies.org/approval-sequence: "20260811074518"
+    operations.pocharlies.org/approved-revision: e8d80f0cc4676b6bb4c5fcd4ca616ed3c3d492d7
+    operations.pocharlies.org/approval-id: stable-litellm-profiles-20260811-r2
+    operations.pocharlies.org/approval-sequence: "20260811084950"
     operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
