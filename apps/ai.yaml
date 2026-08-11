@@ -82,8 +82,11 @@ spec:
     # crea la cabeza BF16 y el tensor empaquetado ni carga. El checkpoint nuevo
     # vive en models--pocharlies--DeepSeek-V4-Flash-0731-lmheadfp4 (hardlinks:
     # ~1 GB real) y esta en LOS DOS nodos, identico bit a bit.
+    # 2026-08-12: el head de DeepSeek deja de tener copia local de los pesos y
+    # los lee por NFS desde nvidia-dgx (PV hf-cache-nvidia-dgx-ro). Habia 313G
+    # duplicados en gx10-ec3d. Los workers no se tocan.
     # ROLLBACK: devolver este campo a 791c8b6607b1d0da963500211e23b9b21d593212.
-    targetRevision: 791c8b6607b1d0da963500211e23b9b21d593212
+    targetRevision: bc2d9a96e424e164c32f58a939635ae44ad83964
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
