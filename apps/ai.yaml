@@ -72,7 +72,7 @@ spec:
     # 2026-08-11: 0d48a3f eleva MAX_MODEL_LEN de ambos ranks DeepSeek a 393216
     # (384K) sobre ese mismo perfil y registra el KV medido del arranque; no
     # cambia pesos, topologia ni ownership.
-    targetRevision: cb157cfd7485a5f6d312389f8b998630f79ebae6
+    targetRevision: 8f82bec0a51536a7c7308d2dfd275d3de337d345
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
