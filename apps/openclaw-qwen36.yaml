@@ -85,10 +85,15 @@ metadata:
     # FOLLOW-UP APROBADO para d1abbac: conecta el normalizador idempotente de
     # pins de sesion al init que ya migra el PVC. No cambia modelos, permisos,
     # red ni almacenamiento y conserva backup 0600 antes de cada escritura.
+    # FOLLOW-UP r4 APROBADO para 6435d56: monta ese normalizador desde un
+    # ConfigMap versionado por checksum, porque la imagen viva aun contenia la
+    # variante historica limitada a Telegram. El contenido renderizado es
+    # byte-identico al fuente y ahora cubre Telegram, WhatsApp, cron y webhook.
+    # Solo escribe pins obsoletos, es idempotente y conserva backup 0600.
     operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: d1abbac16e679a154da929bfcc9dce403fcef8e1
-    operations.pocharlies.org/approval-id: stable-litellm-profiles-20260811-r3
-    operations.pocharlies.org/approval-sequence: "20260811090020"
+    operations.pocharlies.org/approved-revision: 6435d561cee60fa731fc34f56a46c7ca017b62b8
+    operations.pocharlies.org/approval-id: stable-litellm-profiles-20260811-r4
+    operations.pocharlies.org/approval-sequence: "20260811091538"
     operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
