@@ -83,7 +83,7 @@ spec:
     # vive en models--pocharlies--DeepSeek-V4-Flash-0731-lmheadfp4 (hardlinks:
     # ~1 GB real) y esta en LOS DOS nodos, identico bit a bit.
     # ROLLBACK: devolver este campo a 791c8b6607b1d0da963500211e23b9b21d593212.
-    targetRevision: 76727b4
+    targetRevision: 791c8b6607b1d0da963500211e23b9b21d593212
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
