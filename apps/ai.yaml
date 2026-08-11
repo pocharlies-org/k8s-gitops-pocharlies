@@ -63,7 +63,7 @@ spec:
     # auxiliares que el prune de la resincronizacion habia retirado.
     # 2026-08-11: 1af4deb añade el fallback transaccional del préstamo RTX:
     # OmniVoice CPU en x86 y BGE CPU en Sauvage, todos normalmente a cero.
-    targetRevision: 1af4debedbc0aa2fa2ab5bcd1704de742351b9a2
+    targetRevision: 27600ae0c130356d0e51a2af0952af828fb15eaa
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
