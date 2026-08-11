@@ -90,11 +90,11 @@ metadata:
     # variante historica limitada a Telegram. El contenido renderizado es
     # byte-identico al fuente y ahora cubre Telegram, WhatsApp, cron y webhook.
     # Solo escribe pins obsoletos, es idempotente y conserva backup 0600.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 6435d561cee60fa731fc34f56a46c7ca017b62b8
-    operations.pocharlies.org/approval-id: stable-litellm-profiles-20260811-r4
-    operations.pocharlies.org/approval-sequence: "20260811091538"
-    operations.pocharlies.org/approved-prune: "false"
+    # APPROVAL CERRADO tras el rollout de 6435d56: Succeeded/Synced/Healthy,
+    # pod 5/5, cuatro pins historicos migrados y segunda ejecucion idempotente.
+    # `tooling` hizo una tool-call real y `agent` respondio desde Synapse; ambos
+    # HTTP 200. La operacion uso prune=false y no elimino ningun recurso.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
