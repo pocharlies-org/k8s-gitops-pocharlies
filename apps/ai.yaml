@@ -75,7 +75,15 @@ spec:
     # 2026-08-11: 791c8b6 conserva exactamente el DeepSeek oficial y los dos
     # deployments uncensored frios de 8f82bec, y repone encima los cinco
     # residentes declarativos que exige el selector global llm-tp/creative.
-    targetRevision: 791c8b6607b1d0da963500211e23b9b21d593212
+    # 2026-08-11: 4a2e532 = candidato A del harness RHO sobre 791c8b6. Cuantiza
+    # head.weight a NVFP4 (0,986 -> 0,277 GiB, cos=0,995472) y activa
+    # DS4_LMHEAD_NVFP4, que parchea en arranque las DOS construcciones de
+    # ParallelLMHead para pasarles un ModelOptNvFp4Config; sin ese parche vLLM
+    # crea la cabeza BF16 y el tensor empaquetado ni carga. El checkpoint nuevo
+    # vive en models--pocharlies--DeepSeek-V4-Flash-0731-lmheadfp4 (hardlinks:
+    # ~1 GB real) y esta en LOS DOS nodos, identico bit a bit.
+    # ROLLBACK: devolver este campo a 791c8b6607b1d0da963500211e23b9b21d593212.
+    targetRevision: 4a2e532
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
