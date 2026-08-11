@@ -232,6 +232,19 @@ patches:
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *compute-replicas, name: omnivoice-tts-rtx }
+      # CPU/Sauvage fallbacks are raised transactionally while ComfyUI borrows
+      # the RTX in LLM TP. The root kustomization replaces each Application's
+      # ignoreDifferences list, so these entries must live here as well as in
+      # apps/ai.yaml or ArgoCD self-heal immediately scales them back to zero.
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: bge-m3-embedding-cpu }
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: bge-reranker-cpu }
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: omnivoice-tts-cpu-x86 }
       # Co-residente de DGX2 para agentes (qwen3-coder / coder en LiteLLM). Se
       # declara a replicas 0 en git y se levanta A MANO cuando se va a usar, igual
       # que el resto de residentes de DGX2. Sin este ignore, selfHeal lo devolveria
