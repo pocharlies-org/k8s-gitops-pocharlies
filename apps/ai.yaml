@@ -86,7 +86,7 @@ spec:
     # los lee por NFS desde nvidia-dgx (PV hf-cache-nvidia-dgx-ro). Habia 313G
     # duplicados en gx10-ec3d. Los workers no se tocan.
     # ROLLBACK: devolver este campo a 791c8b6607b1d0da963500211e23b9b21d593212.
-    targetRevision: bc2d9a96e424e164c32f58a939635ae44ad83964
+    targetRevision: cef718fa9e8357f1a2bd8f31b4978479f8552bce
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
