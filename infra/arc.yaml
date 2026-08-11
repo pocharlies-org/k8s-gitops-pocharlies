@@ -156,9 +156,9 @@ spec:
           namespace: arc-systems
         githubConfigSecret: arc-github-app
         githubConfigUrl: https://github.com/pocharlies-org
-        # Keep KS5 headroom for production maxSurge rollouts while allowing
-        # OpenClaw infra pipelines to make progress when other repos occupy
-        # the shared organization runner pool.
+        # Build runners stay on KS5 NVMe. Scheduling them on sauvage makes
+        # Docker builds contend with Harbor's single-node MinIO on md3 and can
+        # cause otherwise healthy registry uploads to time out.
         maxRunners: 3
         minRunners: 0
         runnerScaleSetName: arc-k8s
@@ -169,17 +169,6 @@ spec:
                 requiredDuringSchedulingIgnoredDuringExecution:
                   nodeSelectorTerms:
                     - matchExpressions:
-                        - key: node-pool
-                          operator: In
-                          values: [ks5-nvme]
-                    - matchExpressions:
-                        - key: role
-                          operator: In
-                          values: [edge]
-                preferredDuringSchedulingIgnoredDuringExecution:
-                  - weight: 100
-                    preference:
-                      matchExpressions:
                         - key: node-pool
                           operator: In
                           values: [ks5-nvme]
@@ -199,12 +188,6 @@ spec:
                 key: pool
                 operator: Equal
                 value: dev
-              # Emergency fallback when the KS5 pool lacks a schedulable node.
-              # KS5 remains the weight-100 node-affinity preference above.
-              - effect: NoSchedule
-                key: role
-                operator: Equal
-                value: edge
             # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
             # container. containerMode must stay unset when that sidecar is
             # customized, otherwise Helm silently discards its resources.
@@ -237,6 +220,9 @@ spec:
                   - dockerd
                   - --host=unix:///var/run/docker.sock
                   - --group=$(DOCKER_GROUP_GID)
+                  # Harbor uses MinIO on HDD-backed md3. Keep registry writes
+                  # sequential so slow multipart setup does not multiply I/O.
+                  - --max-concurrent-uploads=1
                 env:
                   - name: DOCKER_GROUP_GID
                     value: "123"
