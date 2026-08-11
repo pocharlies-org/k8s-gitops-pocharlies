@@ -66,7 +66,7 @@ spec:
     # 2026-08-11: 8c0626a reconstruye esas cuatro capas sobre 27600ae, que es
     # la revision oficial de DeepSeek (sin el checkpoint abliterated). Evita que
     # el prune de Argo retire los componentes obligatorios de creative/llm-tp.
-    targetRevision: 8c0626a09b7a151ccb5828d1bfd9e99c9cd4bbc0
+    targetRevision: 19e48f748fda2af37815a6dc40bb9eb5571401f3
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
