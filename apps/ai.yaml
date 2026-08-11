@@ -6,8 +6,8 @@ metadata:
   annotations:
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-ai-pocharlies
     e-dani.com/rho-pin-purpose: perfiles globales LLM TP / Creative sobre la linea DeepSeek desplegada
-    e-dani.com/rho-rollback-revision: 3269a9f7984f9571443455bbc72c2c2a77eb6980
-    e-dani.com/rho-restore-target-revision: codex/creative-batch-ai-20260811
+    e-dani.com/rho-rollback-revision: 27600ae0c130356d0e51a2af0952af828fb15eaa
+    e-dani.com/rho-restore-target-revision: codex/integrate-global-compute-profile-20260811
   labels:
     e-dani.com/tier: app
   finalizers:
@@ -63,7 +63,10 @@ spec:
     # auxiliares que el prune de la resincronizacion habia retirado.
     # 2026-08-11: 1af4deb añade el fallback transaccional del préstamo RTX:
     # OmniVoice CPU en x86 y BGE CPU en Sauvage, todos normalmente a cero.
-    targetRevision: 27600ae0c130356d0e51a2af0952af828fb15eaa
+    # 2026-08-11: 8c0626a reconstruye esas cuatro capas sobre 27600ae, que es
+    # la revision oficial de DeepSeek (sin el checkpoint abliterated). Evita que
+    # el prune de Argo retire los componentes obligatorios de creative/llm-tp.
+    targetRevision: 8c0626a09b7a151ccb5828d1bfd9e99c9cd4bbc0
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
