@@ -105,7 +105,13 @@ spec:
     # 931.649/393.216 = 2,37 peticiones de contexto COMPLETO. El fallo historico
     # fue a 1048576, que pedia 7,54 GiB con 6,79 disponibles.
     # ROLLBACK: devolver este campo a a9cea5db786dfe64f16cb967bea95c463c6fb68e.
-    targetRevision: df14bbe85b410c692c27b01fc297a0ca0ab6fd06
+    # 2026-08-13: f6759f2 activa la vision (plugin FlyCockpit dsv4_vision_vllm
+    # sobre la imagen rank1f-vision). Sirve /cache/huggingface/dsv4-0731-vision,
+    # que son los MISMOS 48 shards por symlink con architectures cambiado.
+    # Apagable quitando las tres DSV4_VISION_* del deployment, sin rebuild.
+    # ROLLBACK: devolver este campo a df14bbe85b410c692c27b01fc297a0ca0ab6fd06
+    # (384K sin vision; acceptance medido 0.5731, mean accept len 3.866).
+    targetRevision: f6759f20cf6e2428425876c1dc72332ae21bedda
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
