@@ -102,14 +102,10 @@ metadata:
     # cc59fa7: Succeeded/Synced/Healthy, pod principal Ready sin reinicios,
     # migracion v2 y backup 0600 presentes, plugin cargado y `agent` resuelto
     # en vivo a `litellm-384k`. Se ejecuto con prune=false.
-    # APPROVAL ABIERTA: despliegue del runtime OpenClaw escaneado que publica
-    # Cosmos3-Nano mediante el plugin DGX Studio tipado. Revision de destino
-    # validada por CI 31596173684; prune=false y sin cambios de almacenamiento.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 57bf3e15a9ab1e1f251fa72aab1f47a7e02648e6
-    operations.pocharlies.org/approval-id: cosmos3-video-openclaw-20260812
-    operations.pocharlies.org/approval-sequence: "20260812131341"
-    operations.pocharlies.org/approved-prune: "false"
+    # APPROVAL CERRADO para 57bf3e1: Succeeded/Synced/Healthy, prune=false,
+    # pods al digest be1f58a con 0 reinicios, OpenClaw 2026.7.1-2 y plugin
+    # dgx-video 1.7.0 cargado entre los plugins activos.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
