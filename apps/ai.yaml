@@ -97,7 +97,15 @@ spec:
     # Arranca en lambda=0, bit-exacto al base. Mismos 48 shards @9e165c30.
     # ROLLBACK: devolver este campo a f9b063c3709e9330926269ad982884895f680750
     # (imagen base de ghcr, sin hook).
-    targetRevision: a9cea5db786dfe64f16cb967bea95c463c6fb68e
+    # 2026-08-13: df14bbe sube la ventana de contexto de 262144 a 393216 (384K)
+    # en los DOS ranks. Cherry-pick de d2a6cd4 + 0d48a3f desde
+    # codex/deepseek-384k-context-20260811 — SOLO esos dos commits: los otros 4 de
+    # esa rama (RTX image borrow, OmniVoice, compute profile) son trabajo ajeno.
+    # Cabe: el arranque a 262144 midio 15.06 GiB de KV = 931.649 tokens, y
+    # 931.649/393.216 = 2,37 peticiones de contexto COMPLETO. El fallo historico
+    # fue a 1048576, que pedia 7,54 GiB con 6,79 disponibles.
+    # ROLLBACK: devolver este campo a a9cea5db786dfe64f16cb967bea95c463c6fb68e.
+    targetRevision: df14bbe85b410c692c27b01fc297a0ca0ab6fd06
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
