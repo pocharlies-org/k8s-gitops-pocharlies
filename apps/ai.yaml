@@ -88,7 +88,7 @@ spec:
     # los lee por NFS desde nvidia-dgx (PV hf-cache-nvidia-dgx-ro). Habia 313G
     # duplicados en gx10-ec3d. Los workers no se tocan.
     # ROLLBACK: devolver este campo a 791c8b6607b1d0da963500211e23b9b21d593212.
-    # 2026-08-12: 81bb6a6 pone por Git la imagen rank1 (proyeccion ortogonal en
+    # 2026-08-12: 64f69e4 pone por Git la imagen rank1 (proyeccion ortogonal en
     # runtime) sobre f9b063c, con el fix de device: r_hat nacia en CPU y vLLM no
     # llama a .to() sobre el modelo, asi que el forward petaba en arranque con
     # "Expected all tensors to be on the same device". Lo que corria antes era
@@ -97,7 +97,7 @@ spec:
     # Arranca en lambda=0, bit-exacto al base. Mismos 48 shards @9e165c30.
     # ROLLBACK: devolver este campo a f9b063c3709e9330926269ad982884895f680750
     # (imagen base de ghcr, sin hook).
-    targetRevision: 81bb6a6fcb943713fc2e230e0d9a05f9e689fb62
+    targetRevision: 64f69e42d0ab2d388a13ef7f6721652c538e73a7
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
