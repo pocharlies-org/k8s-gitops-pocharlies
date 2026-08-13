@@ -243,7 +243,14 @@ spec:
     # desde DENTRO del pod contra 127.0.0.1 tampoco volvia en 120 s (busy-wait de
     # OpenMP: aparenta carga y no sirve). Tumbo el RAG del brain, whatsapp-mcp y el
     # panel. Sin tope el mismo pod sirve a 270 ms.
-    targetRevision: 82bf13da8385e5a63beaf354fbbbcd3a31b23b5f
+    # 2026-08-13: f2b4e25 = 82bf13d + baja el readiness del ASR x86 de 240 s a 15.
+    # Medido en su primer arranque: "Model loaded" a los 7 s y warm-up a los 8, que
+    # el PVC del cache es NFS servido por el propio nodo. Con 240 el pod se quedaba
+    # 4 min fuera del Service en CADA reinicio con el proceso ya sirviendo — o sea
+    # STT caido para gateway, Telegram y dashboard sin motivo. Solo toca las probes:
+    # render comparado contra 82bf13d, el delta son esas cuatro lineas.
+    # ROLLBACK de SOLO esto: 82bf13da8385e5a63beaf354fbbbcd3a31b23b5f
+    targetRevision: f2b4e25473a72c67bc08cb73f17142404809d8e8
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
