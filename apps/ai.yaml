@@ -190,7 +190,17 @@ spec:
     # no vale: topology=remote en OVH-FR mete la WAN en cada llamada de RAG.
     # Pareja obligatoria ya desplegada: ~/dgx-infra@acf1d3e1 (COMPONENTS). Los
     # nombres de Deployment no cambian, asi que el orden entre las dos da igual.
-    targetRevision: 193f99fed91a36ac3ebd8dcf023d1d0d1ddefbed
+    # 2026-08-13: 747a53a = 193f99f + UNA linea: omnivoice-audio de 0 a 1 replica.
+    # El brazo greedy del A/B y el embedder/reranker en x86 quedan INTACTOS —
+    # verificado renderizando los dos overlays: el diff es esa linea y nada mas.
+    # Es el unico servicio que sirve /audio/tts y /audio/transcribe (el modelo
+    # crudo solo habla /v1/audio/speech y da 404 en /audio/*), asi que con el a 0
+    # OpenClaw y los adapters de Synapse estaban MUDOS, y fallando en silencio.
+    # No compite con DeepSeek: es un proxy de 105Mi medidos (pide 192Mi), no toca
+    # la memoria unificada. stt-turbo sigue a 0 — el ASR se va al x86 aparte.
+    # Se apila sobre la rama del A/B a proposito, para no competir por el pin.
+    # ROLLBACK de SOLO esta linea: 193f99fed91a36ac3ebd8dcf023d1d0d1ddefbed
+    targetRevision: 747a53ae687d94da6d8a5d364a14c1d753817451
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
