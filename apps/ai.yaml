@@ -237,7 +237,13 @@ spec:
     # No toca DeepSeek ni el perfil: render comparado contra 0f9c58a, el delta son
     # solo el Deployment nuevo y la label del pool.
     # ROLLBACK de SOLO esto: 0f9c58af39fd6f94f0df708022b90f0427f05b31
-    targetRevision: 1e3b23d57340e30c44d335f36b209ce2ed61458d
+    # 2026-08-13: 82bf13d = 1e3b23d (ASR intacto) MENOS el tope OMP_NUM_THREADS=6
+    # de los dos bge de CPU. Ese tope no ralentizaba: ENCALLABA. Cinco minutos
+    # quemando 5,3 cores con CERO peticiones completadas, y una peticion minima
+    # desde DENTRO del pod contra 127.0.0.1 tampoco volvia en 120 s (busy-wait de
+    # OpenMP: aparenta carga y no sirve). Tumbo el RAG del brain, whatsapp-mcp y el
+    # panel. Sin tope el mismo pod sirve a 270 ms.
+    targetRevision: 82bf13da8385e5a63beaf354fbbbcd3a31b23b5f
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
