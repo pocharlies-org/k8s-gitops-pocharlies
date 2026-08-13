@@ -317,7 +317,15 @@ spec:
     # pero Argo dejo la app ENTERA en ComparisonError (groupVersion shouldn't be
     # empty) con health=Missing y sin reconciliar nada. Verificados los 46
     # documentos del render: ninguno sin apiVersion ni kind.
-    targetRevision: 44b4264eeafe48c835d314a454930128680c3233
+    # 2026-08-13 F1-EXPAND de la regla nueva (el Deployment dice QUE, no DONDE):
+    # ce87075 = 44b4264 + altas omnivoice-tts-{nvfp4,fp16,cpu} y
+    # vllm-vision-deep (copias exactas, mismas labels de pool: Services intactos,
+    # LiteLLM ni se entera), + stt-turbo FUSIONADO en sitio (absorbe al clon
+    # stt-turbo-x86, que queda a 0 — dos whisper no caben en la RTX). Los nombres
+    # viejos SIGUEN VIVOS hasta que el dashboard apunte a los nuevos (F1.2) y
+    # llegue el commit de contract (F1.4). Render: 52 docs verificados.
+    # ROLLBACK de SOLO esto: 44b4264eeafe48c835d314a454930128680c3233
+    targetRevision: ce87075c589a295fbdcede0cb63e2e6522589f4d
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
