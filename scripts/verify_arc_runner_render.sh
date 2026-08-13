@@ -87,47 +87,50 @@ def rendered_runner_set(release: str) -> dict:
     return matches[0]
 
 
-def validate_common(release: str, expected_max: int) -> tuple[dict, dict]:
+def validate_common(
+    release: str, expected_max: int, *, edge_fallback: bool
+) -> tuple[dict, dict]:
     runner_set = rendered_runner_set(release)
     assert runner_set["spec"]["maxRunners"] == expected_max
     pod_spec = runner_set["spec"]["template"]["spec"]
     assert pod_spec["nodeSelector"] == expected_selector
     assert "kubernetes.io/hostname" not in pod_spec["nodeSelector"]
 
+    # El fallback a edge (sauvage) es solo de arc-openclaw. arc-k8s se queda en
+    # KS5 a proposito: sus builds contienden con el MinIO de un solo nodo de
+    # Harbor sobre md3 y hacen expirar subidas al registry sanas.
     node_affinity = pod_spec["affinity"]["nodeAffinity"]
-    assert node_affinity["requiredDuringSchedulingIgnoredDuringExecution"] == {
-        "nodeSelectorTerms": [
-            {
-                "matchExpressions": [
-                    {"key": "node-pool", "operator": "In", "values": ["ks5-nvme"]}
-                ]
-            },
-            {
-                "matchExpressions": [
-                    {"key": "role", "operator": "In", "values": ["edge"]}
-                ]
-            },
+    ks5_term = {
+        "matchExpressions": [
+            {"key": "node-pool", "operator": "In", "values": ["ks5-nvme"]}
         ]
     }
-    node_preferences = node_affinity[
-        "preferredDuringSchedulingIgnoredDuringExecution"
-    ]
-    assert node_preferences == [
-        {
-            "weight": 100,
-            "preference": {
-                "matchExpressions": [
-                    {"key": "node-pool", "operator": "In", "values": ["ks5-nvme"]}
-                ]
-            },
-        }
-    ]
-    assert {
-        "effect": "NoSchedule",
-        "key": "role",
-        "operator": "Equal",
-        "value": "edge",
-    } in pod_spec["tolerations"]
+    edge_term = {
+        "matchExpressions": [{"key": "role", "operator": "In", "values": ["edge"]}]
+    }
+    assert node_affinity["requiredDuringSchedulingIgnoredDuringExecution"] == {
+        "nodeSelectorTerms": [ks5_term, edge_term] if edge_fallback else [ks5_term]
+    }
+    if edge_fallback:
+        node_preferences = node_affinity[
+            "preferredDuringSchedulingIgnoredDuringExecution"
+        ]
+        assert node_preferences == [{"weight": 100, "preference": ks5_term}]
+        assert {
+            "effect": "NoSchedule",
+            "key": "role",
+            "operator": "Equal",
+            "value": "edge",
+        } in pod_spec["tolerations"]
+    else:
+        # Sin fallback no hay nada que preferir: el required ya fija KS5, y
+        # tolerar role=edge solo serviria para acabar donde no queremos.
+        assert (
+            "preferredDuringSchedulingIgnoredDuringExecution" not in node_affinity
+        )
+        assert all(
+            toleration["key"] != "role" for toleration in pod_spec["tolerations"]
+        )
 
     pod_anti_affinity = pod_spec["affinity"]["podAntiAffinity"]
     assert "requiredDuringSchedulingIgnoredDuringExecution" not in pod_anti_affinity
@@ -156,7 +159,7 @@ def scheduler_eligible(pod_spec: dict, labels: dict[str, str]) -> bool:
     )
 
 
-_, openclaw_spec = validate_common("arc-openclaw", 2)
+_, openclaw_spec = validate_common("arc-openclaw", 2, edge_fallback=True)
 assert [container["name"] for container in openclaw_spec["containers"]] == ["runner"]
 assert openclaw_spec.get("initContainers", []) == []
 assert openclaw_spec.get("volumes", []) == []
@@ -166,27 +169,45 @@ assert openclaw_runner["imagePullPolicy"] == "IfNotPresent"
 assert not openclaw_runner.get("securityContext", {}).get("privileged", False)
 assert "DOCKER_HOST" not in {item["name"] for item in openclaw_runner.get("env", [])}
 
-_, shared_spec = validate_common("arc-k8s", 3)
+_, shared_spec = validate_common("arc-k8s", 3, edge_fallback=False)
 
 eligibility_matrix = {
-    "ks5": ({"kubernetes.io/arch": "amd64", "node-pool": "ks5-nvme"}, True),
-    "sauvage": ({"kubernetes.io/arch": "amd64", "role": "edge"}, True),
-    "ubuntu-gpu": (
-        {
-            "kubernetes.io/arch": "amd64",
-            "pool": "dev",
-            "nvidia.com/gpu.present": "true",
-        },
-        False,
-    ),
-    "arm-gpu": (
-        {"kubernetes.io/arch": "arm64", "role": "edge", "nvidia.com/gpu.present": "true"},
-        False,
-    ),
+    "ks5": {"kubernetes.io/arch": "amd64", "node-pool": "ks5-nvme"},
+    "sauvage": {"kubernetes.io/arch": "amd64", "role": "edge"},
+    "ubuntu-gpu": {
+        "kubernetes.io/arch": "amd64",
+        "pool": "dev",
+        "nvidia.com/gpu.present": "true",
+    },
+    "arm-gpu": {
+        "kubernetes.io/arch": "arm64",
+        "role": "edge",
+        "nvidia.com/gpu.present": "true",
+    },
 }
-for runner_spec in (openclaw_spec, shared_spec):
-    for case, (labels, expected) in eligibility_matrix.items():
-        assert scheduler_eligible(runner_spec, labels) is expected, case
+# sauvage solo admite a arc-openclaw; arc-k8s se queda en KS5 (ver validate_common).
+expected_eligibility = {
+    "arc-openclaw": {
+        "ks5": True,
+        "sauvage": True,
+        "ubuntu-gpu": False,
+        "arm-gpu": False,
+    },
+    "arc-k8s": {
+        "ks5": True,
+        "sauvage": False,
+        "ubuntu-gpu": False,
+        "arm-gpu": False,
+    },
+}
+for release, runner_spec in (
+    ("arc-openclaw", openclaw_spec),
+    ("arc-k8s", shared_spec),
+):
+    for case, labels in eligibility_matrix.items():
+        assert scheduler_eligible(runner_spec, labels) is expected_eligibility[
+            release
+        ][case], (release, case)
 
 assert [container["name"] for container in shared_spec["containers"]] == ["runner"]
 assert [container["name"] for container in shared_spec["initContainers"]] == [

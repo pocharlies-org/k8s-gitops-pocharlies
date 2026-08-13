@@ -13,7 +13,16 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.openclaw_values = self.manifest.split("name: arc-openclaw", 1)[1].split("---", 1)[0]
         self.shared_values = self.manifest.split("name: arc-k8s", 1)[1]
 
-    def test_runner_prefers_ks5_with_an_amd64_fallback(self) -> None:
+    def test_shared_runner_is_pinned_to_ks5_with_no_edge_fallback(self) -> None:
+        """arc-k8s se queda en KS5 a proposito, sin caer a sauvage.
+
+        Reescrito 2026-08-13. Este test exigia `values: [edge]` como fallback,
+        pero el manifiesto lo habia quitado deliberadamente y nadie actualizo el
+        test: los builds en sauvage compiten con el MinIO de un solo nodo de
+        Harbor sobre md3 y hacen expirar subidas al registry que por lo demas
+        estan sanas. La asimetria es intencionada — arc-openclaw si conserva el
+        fallback — y la fija el test de abajo.
+        """
         runner_values = self.shared_values.split("runnerScaleSetName: arc-k8s", 1)[1]
         runner_values = runner_values.split("tolerations:", 1)[0]
 
@@ -22,14 +31,18 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertIn("preferredDuringSchedulingIgnoredDuringExecution:", runner_values)
         self.assertIn("requiredDuringSchedulingIgnoredDuringExecution:", runner_values)
         self.assertIn("values: [ks5-nvme]", runner_values)
-        self.assertIn("values: [edge]", runner_values)
+        self.assertNotIn("values: [edge]", runner_values)
         self.assertNotIn("kubernetes.io/hostname:", runner_values)
         self.assertNotIn("workload: cpu", runner_values)
 
-    def test_edge_fallback_toleration_is_explicit(self) -> None:
-        for values in (self.openclaw_values, self.shared_values):
-            self.assertIn("key: role", values)
-            self.assertIn("value: edge", values)
+    def test_edge_fallback_belongs_to_openclaw_only(self) -> None:
+        """Solo arc-openclaw tolera y admite el nodo edge."""
+        self.assertIn("key: role", self.openclaw_values)
+        self.assertIn("value: edge", self.openclaw_values)
+        self.assertIn("values: [edge]", self.openclaw_values)
+
+        self.assertNotIn("key: role", self.shared_values)
+        self.assertNotIn("value: edge", self.shared_values)
 
     def test_runner_pool_caps_backlog_drain_at_three(self) -> None:
         self.assertIn("maxRunners: 3", self.shared_values)
