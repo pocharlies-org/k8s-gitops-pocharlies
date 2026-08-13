@@ -200,7 +200,12 @@ spec:
     # la memoria unificada. stt-turbo sigue a 0 — el ASR se va al x86 aparte.
     # Se apila sobre la rama del A/B a proposito, para no competir por el pin.
     # ROLLBACK de SOLO esta linea: 193f99fed91a36ac3ebd8dcf023d1d0d1ddefbed
-    targetRevision: 747a53ae687d94da6d8a5d364a14c1d753817451
+    # 2026-08-13: 2c2ab32 = 747a53a (gateway omnivoice-audio a 1, intacto) + quitar
+    # el tope de hilos de los dos bge de CPU. OMP_NUM_THREADS=4 dejaba al embedder
+    # clavado en 3 cores con el nodo al 33%, y con EMBEDDING_CONCURRENCY=1 el
+    # trafico del brain se ponia en cola (p50 4661 ms, picos de 35 s; aislado
+    # contesta en 270 ms).
+    targetRevision: 2c2ab32b6b6e9bfc4a3c6cb1523a734c32651ebc
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
