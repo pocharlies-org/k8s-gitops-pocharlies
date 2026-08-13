@@ -325,7 +325,12 @@ spec:
     # viejos SIGUEN VIVOS hasta que el dashboard apunte a los nuevos (F1.2) y
     # llegue el commit de contract (F1.4). Render: 52 docs verificados.
     # ROLLBACK de SOLO esto: 44b4264eeafe48c835d314a454930128680c3233
-    targetRevision: ce87075c589a295fbdcede0cb63e2e6522589f4d
+    # 2026-08-14 F1-CONTRACT: 121273b retira las identidades por nodo de la voz
+    # (omnivoice-tts-dgx2/-rtx/-cpu-x86 y el clon stt-turbo-x86), ya sustituidas
+    # por las de variante. Tumbas en los manifiestos. Services deprecados y el
+    # par vision-deep viejo siguen vivos hasta F2/F4.
+    # ROLLBACK de SOLO esto: ce87075c589a295fbdcede0cb63e2e6522589f4d
+    targetRevision: 121273bc48bd5586288ddf4b724951f10053eb64
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
