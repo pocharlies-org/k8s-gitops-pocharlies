@@ -165,7 +165,24 @@ spec:
     # Coste medido: embed p50 498 ms (RTX 123) y rerank p50 730 ms (RTX 77).
     # ROLLBACK: caffbd7e825dd010295d2956f4ca50b2676ee47c — y revertir tambien el
     # COMPONENTS del dashboard, o los -rtx que vuelvan no los gobernara nadie.
-    targetRevision: bd570d00b3bd4b7bca7233d80653e4a9102367ff
+    # ── A/B TEMPORAL · brazo B de draft_sample_method (2026-08-13) ────────────
+    # fb279923 = bd570d00 + UN delta: DRAFT_SAMPLE_METHOD probabilistic -> greedy
+    # en el head y el worker de DeepSeek. Nada mas. Se rebaso sobre bd570d00 a
+    # proposito para que la config sea EXACTAMENTE la del brazo A ya medido
+    # (max_num_seqs=3, util 0.85); si no, no se compara nada.
+    #
+    # NO ES UNA MEJORA PROPUESTA. Es la mitad de una medida, y la hipotesis es que
+    # PIERDA: a temperature 1.0 / top_p 0.95 (lo que impone FAMILY_SAMPLING de
+    # LiteLLM para deepseek-v4) la aceptacion es el test de ratio p/q con la
+    # softmax del draft, y `greedy` no la tiene — entra como one-hot.
+    #
+    # ROLLBACK, y hay que hacerlo en cuanto termine la medida:
+    #   targetRevision: bd570d00b3bd4b7bca7233d80653e4a9102367ff
+    # Vive en rama propia (ab-draft-sample-greedy-20260813) justo para que nadie
+    # se lo lleve por delante rodando su rama hacia delante.
+    #
+    # Medida y contexto: k8s/analysis/deepseek-v4-flash-2xspark/bench/ab-draft-sample/
+    targetRevision: fb279923475e7da9099c860228f654969491d4fc
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
