@@ -271,7 +271,16 @@ spec:
     # en CPU, que ahi cumple. PAREJA OBLIGATORIA Y EN ESTE ORDEN: este pin PRIMERO
     # y despues el COMPONENTS de ~/dgx-infra — al reves, _structural_conflicts()
     # devuelve 409 y bloquea todo cambio de perfil.
-    targetRevision: cd31c0f87b4f7cc660f675601a156714d7dafed5
+    # 2026-08-13: 3fc5a82 = cd31c0f + omnivoice-audio se va de DGX1 a `ubuntu`.
+    # Mismo criterio que el 22-07 (pegado al TTS y al STT que proxya), distinto
+    # destino: DeepSeek TP=2 ocupa los dos Sparks (MemAvailable REAL 6.2 y 3.3 GiB),
+    # el TTS lo sirve omnivoice-tts-rtx en `ubuntu` y el ASR es stt-turbo-x86, ahi
+    # tambien. El gateway se habia quedado solo proxyando a otro nodo.
+    # Imagen MULTI-ARCH (dgx-infra@846d1e1c) y se pinea el digest del INDEX, asi que
+    # el mismo pin vale en amd64 y arm64: volver a los Sparks sera cambiar el
+    # nodeSelector y ya. Se quita el failover blando a gx10-ec3d a proposito.
+    # ROLLBACK de SOLO esto: cd31c0f87b4f7cc660f675601a156714d7dafed5
+    targetRevision: 3fc5a8237818eec361f3c6f3db7feb8a298b4d30
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
