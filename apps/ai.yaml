@@ -177,12 +177,20 @@ spec:
     # softmax del draft, y `greedy` no la tiene — entra como one-hot.
     #
     # ROLLBACK, y hay que hacerlo en cuanto termine la medida:
-    #   targetRevision: bd570d00b3bd4b7bca7233d80653e4a9102367ff
+    #   targetRevision: 193f99fed91a36ac3ebd8dcf023d1d0d1ddefbed
+    # (era bd570d0; actualizado el 13-08-2026 porque 193f99f es el mismo arbol SIN
+    # el brazo greedy pero CON el embedder/reranker ya en x86. Volver a bd570d0
+    # los devolveria a sauvage, que es justo lo que se acaba de deshacer.)
     # Vive en rama propia (ab-draft-sample-greedy-20260813) justo para que nadie
     # se lo lleve por delante rodando su rama hacia delante.
     #
     # Medida y contexto: k8s/analysis/deepseek-v4-flash-2xspark/bench/ab-draft-sample/
-    targetRevision: fb279923475e7da9099c860228f654969491d4fc
+    # 2026-08-13: 193f99f = fb27992 (brazo greedy, intacto) + el embedder y el
+    # reranker de llm-tp de vuelta a CPU en x86. Estuvieron unas horas en sauvage y
+    # no vale: topology=remote en OVH-FR mete la WAN en cada llamada de RAG.
+    # Pareja obligatoria ya desplegada: ~/dgx-infra@acf1d3e1 (COMPONENTS). Los
+    # nombres de Deployment no cambian, asi que el orden entre las dos da igual.
+    targetRevision: 193f99fed91a36ac3ebd8dcf023d1d0d1ddefbed
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
