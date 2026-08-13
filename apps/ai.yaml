@@ -339,7 +339,12 @@ spec:
     # 2026-08-14 decision operativa: DeepSeek TP debe permanecer residente en
     # ambos DGX. a38cfb9 conserva replicas:1 y evita el autotune de FlashInfer
     # que bloqueaba el arranque despues de cargar los pesos y la cache KV.
-    targetRevision: a38cfb973e3688450386efc86e1f5bc16f39b6df
+    # 2026-08-14 P1-EXPAND F2/F3 (+reaplica el contract de F1 que la rama
+    # bge-oom-shrink dejo fuera): twins de rol creative para bge, canonico del
+    # 27B fusionado + su Service, y los omnivoice/stt por nodo retirados otra
+    # vez. Todo convive; el dashboard apunta a los nuevos en el siguiente build.
+    # ROLLBACK de SOLO esto: a38cfb973e3688450386efc86e1f5bc16f39b6df
+    targetRevision: c85fc83e2621af450072b545bf8452dd01279de7
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
