@@ -111,7 +111,24 @@ spec:
     # Apagable quitando las tres DSV4_VISION_* del deployment, sin rebuild.
     # ROLLBACK: devolver este campo a df14bbe85b410c692c27b01fc297a0ca0ab6fd06
     # (384K sin vision; acceptance medido 0.5731, mean accept len 3.866).
-    targetRevision: f6759f20cf6e2428425876c1dc72332ae21bedda
+    #
+    # 2026-08-13 REVERTIDO a df14bbe: f6759f2 entra en CrashLoopBackOff. La causa
+    # NO es memoria ni los pesos — el rank 1 aborta con
+    #     RuntimeError: Model does not support EAGLE3 interface
+    # (multiproc_executor.py:898). El camino DSpark de esta imagen exige la
+    # interfaz EAGLE3 sobre la clase de nivel superior, y el wrapper
+    # DeepseekV4VisionForCausalLM del plugin delega compute_logits,
+    # get_mtp_target_hidden_states, get_expert_mapping y embed_input_ids pero NO
+    # los metodos de EAGLE3. El head solo reporta "WorkerProc initialization
+    # failed ... Failed core proc(s): {}": la excepcion real esta en el LOG DEL
+    # WORKER, en el otro nodo.
+    # Para volver a intentarlo hacen falta las dos cosas: parchear el wrapper
+    # para que delegue EAGLE3, o servir la vision SIN --speculative-config
+    # (que es lo que da los 40-50 tps: sin DSpark se cae a ~20).
+    # Lo demas del camino de vision quedo VERIFICADO en este intento:
+    # DS4_VISION_ACTIVE, "Resolved architecture: DeepseekV4VisionForCausalLM",
+    # checkpoint config.tiles=2 y limit_mm_per_prompt {'image': 8}.
+    targetRevision: df14bbe85b410c692c27b01fc297a0ca0ab6fd06
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
