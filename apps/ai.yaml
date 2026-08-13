@@ -336,10 +336,10 @@ spec:
     # EMBEDDING_BATCH_SIZE 16 -> 4 (pico x4 menor, cero perdida de calidad: trocear
     # el lote no cambia ningun vector) y PYTORCH_CUDA_ALLOC_CONF=expandable_segments,
     # que lo recomendaba el propio mensaje del OOM (1,43 GiB reserved-but-unallocated).
-    # 2026-08-14: 54caf6e conserva lo anterior y fija los dos ranks de DeepSeek
-    # TP a replicas:0. Con el controlador global deshabilitado, una sincronizacion
-    # explicita ya no puede volver a ocupar ~104 GiB en cada DGX.
-    targetRevision: 54caf6e48a1f8f883cfe07957ab9d7be8a8f20e7
+    # 2026-08-14 decision operativa: DeepSeek TP debe permanecer residente en
+    # ambos DGX. 6aa89f7 declara head y worker a replicas:1 y conserva el ajuste
+    # del embedder RTX. No apagar ni escalar un rank de forma aislada.
+    targetRevision: 6aa89f79f1e1afdf19be3585f911c66eea302e60
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
