@@ -205,7 +205,12 @@ spec:
     # clavado en 3 cores con el nodo al 33%, y con EMBEDDING_CONCURRENCY=1 el
     # trafico del brain se ponia en cola (p50 4661 ms, picos de 35 s; aislado
     # contesta en 270 ms).
-    targetRevision: 2c2ab32b6b6e9bfc4a3c6cb1523a734c32651ebc
+    # 2026-08-13: 7305c30 acota los dos bge de CPU a 6 hilos. Acotado por medida
+    # por los dos lados: con 4 el embedder se quedaba en 3 cores con el nodo al 33%
+    # y encolaba el trafico del brain; sin tope, los dos pods cogian 6,3 cores cada
+    # uno, x86 se iba al 88% de sus 16 y al reranker se le caian readiness Y
+    # liveness. En sauvage (48 cores) esto no hacia falta; en 16 si.
+    targetRevision: 7305c304a717bb58066d41f6afeda8e974b3a8d6
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
