@@ -311,7 +311,13 @@ spec:
     # omnivoice-tts-dgx2 / -dgx2-static como alias DEPRECADOS pero vivos.
     # Los alias no se tocan: los consumen LiteLLM, OpenClaw y la monitorizacion.
     # ROLLBACK de SOLO esto: 0c58a355bb4ad321093092e5bb6119ab96d5d036
-    targetRevision: da264b93ac74cfd42e8de9087b7003f6bf2ef6dc
+    # 2026-08-13 URGENTE: 44b4264 repone un apiVersion que faltaba en da264b9. Al
+    # partir el Service en canonico + deprecado, el `apiVersion: v1` del viejo
+    # quedo absorbido por el bloque nuevo. kubectl kustomize lo renderiza igual,
+    # pero Argo dejo la app ENTERA en ComparisonError (groupVersion shouldn't be
+    # empty) con health=Missing y sin reconciliar nada. Verificados los 46
+    # documentos del render: ninguno sin apiVersion ni kind.
+    targetRevision: 44b4264eeafe48c835d314a454930128680c3233
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
