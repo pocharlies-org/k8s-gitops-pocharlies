@@ -337,14 +337,15 @@ spec:
     # el lote no cambia ningun vector) y PYTORCH_CUDA_ALLOC_CONF=expandable_segments,
     # que lo recomendaba el propio mensaje del OOM (1,43 GiB reserved-but-unallocated).
     # 2026-08-14 decision operativa: DeepSeek TP debe permanecer residente en
-    # ambos DGX. a38cfb9 conserva replicas:1 y evita el autotune de FlashInfer
+    # ambos DGX. b08e859 conserva replicas:1 y desactiva de forma explicita el
+    # autotune de FlashInfer
     # que bloqueaba el arranque despues de cargar los pesos y la cache KV.
     # 2026-08-14 P1-EXPAND F2/F3 (+reaplica el contract de F1 que la rama
     # bge-oom-shrink dejo fuera): twins de rol creative para bge, canonico del
     # 27B fusionado + su Service, y los omnivoice/stt por nodo retirados otra
     # vez. Todo convive; el dashboard apunta a los nuevos en el siguiente build.
     # ROLLBACK de SOLO esto: a38cfb973e3688450386efc86e1f5bc16f39b6df
-    targetRevision: c85fc83e2621af450072b545bf8452dd01279de7
+    targetRevision: b08e85946ad1d733f6a2a68ce38615bdaf53f7ad
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
