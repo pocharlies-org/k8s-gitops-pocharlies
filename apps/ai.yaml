@@ -303,7 +303,15 @@ spec:
     # posiciones en un forward, OOM seguro. 16x8192 deja el mismo pico que hoy.
     # Imagen derivada de la que ya corria; el Dockerfile del repo es de arm64/GB10 y
     # no construye esta. Solo se bumpea el pod de la RTX; CPU y dgx1 sin tocar.
-    targetRevision: 0c58a355bb4ad321093092e5bb6119ab96d5d036
+    # 2026-08-13: da264b9 = 0c58a35 + los dos commits de limpieza de Services que
+    # se quedaron fuera al ramificar `bge-empty-cache` desde 3fc5a82. Reaplicados
+    # tal cual: (1) retira `omnivoice-tts` (alias muerto, 0 endpoints, 0
+    # consumidores) y `omnivoice-tts-rtx` (sobra desde dgx-infra@966c7b3a);
+    # (2) anade `omnivoice-tts` como nombre CANONICO del pool y deja
+    # omnivoice-tts-dgx2 / -dgx2-static como alias DEPRECADOS pero vivos.
+    # Los alias no se tocan: los consumen LiteLLM, OpenClaw y la monitorizacion.
+    # ROLLBACK de SOLO esto: 0c58a355bb4ad321093092e5bb6119ab96d5d036
+    targetRevision: da264b93ac74cfd42e8de9087b7003f6bf2ef6dc
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
