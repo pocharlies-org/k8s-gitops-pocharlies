@@ -210,7 +210,22 @@ spec:
     # y encolaba el trafico del brain; sin tope, los dos pods cogian 6,3 cores cada
     # uno, x86 se iba al 88% de sus 16 y al reranker se le caian readiness Y
     # liveness. En sauvage (48 cores) esto no hacia falta; en 16 si.
-    targetRevision: 7305c304a717bb58066d41f6afeda8e974b3a8d6
+    # 2026-08-13: 0f9c58a = 7305c30 + UN delta: DRAFT_SAMPLE_METHOD vuelve de
+    # `greedy` a `probabilistic` en el head y el worker de DeepSeek. Conserva
+    # intactos los bge de CPU a 6 hilos y el gateway de omnivoice de 7305c30 — por
+    # eso el revert va ENCIMA y no devolviendo el pin a bd570d00.
+    #
+    # `greedy` entro en produccion sin que nadie lo decidiera: era el brazo B de un
+    # A/B, vivia en rama aparte justo para que no pasara, y viajo igual porque esa
+    # rama se rebaso dentro de bge-cpu-sauvage-20260813 y el pin la siguio.
+    #
+    # El A/B lo cierra con medida (3 corridas por condicion, misma config, 0 filas
+    # fallidas). A temperature 1.0 / top_p 0.95, que es lo que LiteLLM impone a la
+    # familia deepseek-v4, `greedy` pierde en las dos familias de prompt y en las
+    # tres metricas: acceptance -7.27 pp (code) y -4.59 pp (varied), accept len
+    # -0.366 / -0.230, tok/s -7.4 / -4.2.
+    # Evidencia: k8s/analysis/deepseek-v4-flash-2xspark/bench/ab-draft-sample/
+    targetRevision: 0f9c58af39fd6f94f0df708022b90f0427f05b31
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
