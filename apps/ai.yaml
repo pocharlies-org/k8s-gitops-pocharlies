@@ -399,6 +399,12 @@ spec:
       name: omnivoice-tts-cpu-x86
       namespace: llm
       jsonPointers: ["/spec/replicas"]
+    # 13-08 F1: identidad nueva del mismo fallback (regla: en el raiz Y aqui).
+    - group: apps
+      kind: Deployment
+      name: omnivoice-tts-cpu
+      namespace: llm
+      jsonPointers: ["/spec/replicas"]
     # vLLM resident on the GB10 (dgx2): the gpu_arbiter scales it 0<->1 to free the
     # single GB10 for on-demand workloads (comfyui/trellis/ltx) and restores it after.
     # ArgoCD must NOT selfHeal that replica change — otherwise it reverts the eviction
