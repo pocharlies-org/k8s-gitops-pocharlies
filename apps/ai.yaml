@@ -330,7 +330,13 @@ spec:
     # por las de variante. Tumbas en los manifiestos. Services deprecados y el
     # par vision-deep viejo siguen vivos hasta F2/F4.
     # ROLLBACK de SOLO esto: ce87075c589a295fbdcede0cb63e2e6522589f4d
-    targetRevision: 121273bc48bd5586288ddf4b724951f10053eb64
+    # 2026-08-14: 6aa89f7 baja el pico del embedder de la RTX tras un CUDA OOM real.
+    # La tarjeta llego a 10238 de 11905 MiB — omnivoice-tts-rtx 3093 + stt-turbo 2261
+    # + omnivoice-tts-fp16 2319 + embedder 2565 — y pidio 720 MiB que no habia.
+    # EMBEDDING_BATCH_SIZE 16 -> 4 (pico x4 menor, cero perdida de calidad: trocear
+    # el lote no cambia ningun vector) y PYTORCH_CUDA_ALLOC_CONF=expandable_segments,
+    # que lo recomendaba el propio mensaje del OOM (1,43 GiB reserved-but-unallocated).
+    targetRevision: 6aa89f79f1e1afdf19be3585f911c66eea302e60
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
