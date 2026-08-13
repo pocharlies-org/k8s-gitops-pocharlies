@@ -150,8 +150,8 @@ spec:
     # sin pesos. Imagen @acbf7de0 + build-check 4 que lo impide en el futuro.
     # ROLLBACK: 905086ae5ebfa5f88b66a73bcce97287a9335d6b (sin vision, 384K).
     # 2026-08-13: retire the dormant NVIDIA Qwen3.6 35B and Ornith residents,
-    # including their Services and obsolete Ornith benchmark route/policy.
-    targetRevision: 935e699cb0443976f7c3cc5e0304bba8180adf1d
+    # the cold Qwen3 embedder/reranker challengers, and their residual Services.
+    targetRevision: 03ee5f2d392bcc8c3e126f93dc1e81c38f09f5a3
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
