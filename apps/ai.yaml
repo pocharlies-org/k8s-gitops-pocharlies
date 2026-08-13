@@ -154,7 +154,7 @@ spec:
     # 2026-08-13: caffbd7 ajusta DeepSeek TP=2 a tres secuencias concurrentes,
     # 262144 tokens y GPU_MEMORY_UTILIZATION=0.85; mantiene batch 8192, MTP k=5,
     # sampling probabilistic, pesos y topologia. ROLLBACK: b51fad4a5a98bc67.
-    targetRevision: caffbd73a575b9301a8859b97b02f1944a04c053
+    targetRevision: caffbd7e825dd010295d2956f4ca50b2676ee47c
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
