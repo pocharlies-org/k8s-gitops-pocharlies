@@ -287,7 +287,15 @@ spec:
     # la causa se arreglo en dgx-infra@966c7b3a y ya sobra). Quedan cuatro, cada uno
     # con motivo. OJO: la app tiene prune:true, asi que esto los BORRA del cluster.
     # ROLLBACK de SOLO esto: 3fc5a8237818eec361f3c6f3db7feb8a298b4d30
-    targetRevision: 8f49aa184c52d3b8c2b09fbca088fd35c5c12e63
+    # 2026-08-13: 5ce977d = 8f49aa1 + `omnivoice-tts` como nombre canonico del pool.
+    # omnivoice-tts-dgx2 y -dgx2-static son byte-identicos salvo el nombre, y el
+    # nombre miente: ese Deployment esta a 0 y responde omnivoice-tts-rtx desde
+    # `ubuntu`. Se ANADE el nombre bueno y los viejos quedan DEPRECADOS pero vivos:
+    # los consumen LiteLLM (api_base) y la monitorizacion, y renombrar en sitio los
+    # rompe en silencio. Migrado ya OMNIVOICE_TTS_URL del gateway. Nada puede
+    # romperse por este pin: no se ha tocado ningun alias.
+    # ROLLBACK de SOLO esto: 8f49aa184c52d3b8c2b09fbca088fd35c5c12e63
+    targetRevision: 5ce977df8eb63fc43c1e2d4c0df5534d4f73be75
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
