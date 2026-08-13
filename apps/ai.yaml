@@ -225,7 +225,19 @@ spec:
     # tres metricas: acceptance -7.27 pp (code) y -4.59 pp (varied), accept len
     # -0.366 / -0.230, tok/s -7.4 / -4.2.
     # Evidencia: k8s/analysis/deepseek-v4-flash-2xspark/bench/ab-draft-sample/
-    targetRevision: 0f9c58af39fd6f94f0df708022b90f0427f05b31
+    # 2026-08-13: 1e3b23d = 0f9c58a + el ASR. Anade stt-turbo-x86 en `ubuntu`
+    # (amd64, RTX compartida) y convierte el Service stt-turbo en pool por label
+    # `stt-pool: turbo`. Ningun consumidor cambia de URL: gateway, dashboard y
+    # stt-mcp siguen en stt-turbo.llm.svc:8000. El arm64 se queda a 0.
+    # Sin esto no habia transcripcion EN NINGUN SITIO desde el 09-08: /api/stt/status
+    # tiene un unico backend y daba healthy:false. NO se levanta en los Sparks —
+    # MemAvailable REAL nvidia-dgx 6.2 GiB / gx10-ec3d 3.3 GiB y el pod tiene limite
+    # de 16Gi: seria rehacer el OOM global del 09-08. En `ubuntu` hay 44.6 GiB y la
+    # RTX esta sin reclamar. Imagen amd64 ya publicada, sin build nuevo.
+    # No toca DeepSeek ni el perfil: render comparado contra 0f9c58a, el delta son
+    # solo el Deployment nuevo y la label del pool.
+    # ROLLBACK de SOLO esto: 0f9c58af39fd6f94f0df708022b90f0427f05b31
+    targetRevision: 1e3b23d57340e30c44d335f36b209ce2ed61458d
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
