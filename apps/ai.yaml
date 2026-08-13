@@ -250,7 +250,14 @@ spec:
     # STT caido para gateway, Telegram y dashboard sin motivo. Solo toca las probes:
     # render comparado contra 82bf13d, el delta son esas cuatro lineas.
     # ROLLBACK de SOLO esto: 82bf13da8385e5a63beaf354fbbbcd3a31b23b5f
-    targetRevision: f2b4e25473a72c67bc08cb73f17142404809d8e8
+    # 2026-08-13: d89b71b = lo anterior + las probes del reranker de CPU. Servia 34
+    # POST /rerank con 200 OK en cinco minutos y k8s lo tenia FUERA de su propio
+    # Service por readiness ("context deadline exceeded"): es monohilo al responder
+    # y no contesta /health mientras puntua. Con una replica, una readiness estricta
+    # no protege, VACIA el Service. readiness 4->20, liveness 3->10 (ya estaba
+    # fallando: lo habria reiniciado trabajando) y startupProbe nuevo para lo del
+    # puerto que liga antes de cargar el modelo.
+    targetRevision: d89b71bd424a420f54df7e9a56bce31671026c48
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
