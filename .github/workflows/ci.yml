@@ -30,4 +30,10 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+      # ubuntu-latest traía PyYAML en el python del sistema y estos tests lo
+      # importaban sin declararlo. El runner de ARC no lo lleva.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet pyyaml
       - run: python3 -m unittest discover -s tests -p 'test_*.py'
