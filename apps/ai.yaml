@@ -151,7 +151,10 @@ spec:
     # ROLLBACK: 905086ae5ebfa5f88b66a73bcce97287a9335d6b (sin vision, 384K).
     # 2026-08-13: retire the dormant NVIDIA Qwen3.6 35B and Ornith residents,
     # the cold Qwen3 embedder/reranker challengers, and their residual Services.
-    targetRevision: 03ee5f2d392bcc8c3e126f93dc1e81c38f09f5a3
+    # 2026-08-13: b51fad4 limita DeepSeek TP=2 a dos secuencias concurrentes y
+    # devuelve la ventana normal a 262144 tokens. Mantiene pesos, MTP k=5,
+    # topologia y GPU_MEMORY_UTILIZATION sin cambios. ROLLBACK: 03ee5f2d392b.
+    targetRevision: b51fad4a5a98bc67abcb71470c7beae6a58a1245
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
