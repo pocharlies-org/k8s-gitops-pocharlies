@@ -132,7 +132,16 @@ spec:
     # `deepseek-v4-flash-0731-unc` (cebeuq abliterated), ya descartado. Mantiene
     # intactos el checkpoint oficial, la proyeccion lambda del runtime y 384K.
     # Argo poda sus dos Deployments y dos Services al mover este pin.
-    targetRevision: 905086ae5ebfa5f88b66a73bcce97287a9335d6b
+    # 2026-08-13: 94b6009 = 905086a (retirada del uncensored, de la sesion codex)
+    # + los dos commits de vision encima, por cherry-pick y fast-forward sobre
+    # codex/remove-deepseek-unc-20260813. NO se pisa nada de esa sesion.
+    # El intento anterior (f6759f2 / imagen @ac2cd1c0) entro en CrashLoopBackOff
+    # por EAGLE3, no por memoria: isinstance(model, SupportsEagle3) se hace sobre
+    # la clase de NIVEL SUPERIOR, que con el plugin es el wrapper de vision, y le
+    # faltaban los cinco miembros del Protocol. La imagen @de1177fe los delega al
+    # backbone y el build-check 3 falla el BUILD si vuelven a faltar.
+    # ROLLBACK: devolver a 905086ae5ebfa5f88b66a73bcce97287a9335d6b (sin vision).
+    targetRevision: 94b60091ec30dee31b8ea18769162364d7ab3482
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
