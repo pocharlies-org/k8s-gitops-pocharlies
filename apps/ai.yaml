@@ -295,7 +295,15 @@ spec:
     # rompe en silencio. Migrado ya OMNIVOICE_TTS_URL del gateway. Nada puede
     # romperse por este pin: no se ha tocado ningun alias.
     # ROLLBACK de SOLO esto: 8f49aa184c52d3b8c2b09fbca088fd35c5c12e63
-    targetRevision: 5ce977df8eb63fc43c1e2d4c0df5534d4f73be75
+    # 2026-08-13: 0c58a35 en el embedder de la RTX. empty_cache() tras cada lote
+    # (retenia 2704 MiB que no usaba: 2436 MiB con el modelo cargado, 5140 tras tres
+    # lotes, plano media hora con 0 peticiones activas), max_length=8192 explicito
+    # (el default real era 512 y truncaba ~1 de cada 3 textos del brain en silencio)
+    # y batch_size=16, que NO es opcional: el default es 256 y 256x8192 son 2,1M
+    # posiciones en un forward, OOM seguro. 16x8192 deja el mismo pico que hoy.
+    # Imagen derivada de la que ya corria; el Dockerfile del repo es de arm64/GB10 y
+    # no construye esta. Solo se bumpea el pod de la RTX; CPU y dgx1 sin tocar.
+    targetRevision: 0c58a355bb4ad321093092e5bb6119ab96d5d036
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
