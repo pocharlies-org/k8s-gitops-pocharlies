@@ -265,7 +265,13 @@ spec:
     # niega a pintar verde replicas sin endpoint propio a proposito.
     # Render comparado: el delta son las 16 lineas del Service.
     # ROLLBACK de SOLO esto: d89b71bd424a420f54df7e9a56bce31671026c48
-    targetRevision: a82daa060e8ebc9471133ce0569175e7c5c1589f
+    # 2026-08-13 (tarde): cd31c0f repone bge-m3-embedding-rtx. El embedder en CPU
+    # da 7,8 s de media y p99 de 29,6 s con hasta 61 peticiones en cola (su propio
+    # /stats, carga real del brain); en la RTX hacia 123 ms. El reranker se queda
+    # en CPU, que ahi cumple. PAREJA OBLIGATORIA Y EN ESTE ORDEN: este pin PRIMERO
+    # y despues el COMPONENTS de ~/dgx-infra — al reves, _structural_conflicts()
+    # devuelve 409 y bloquea todo cambio de perfil.
+    targetRevision: cd31c0f87b4f7cc660f675601a156714d7dafed5
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
