@@ -280,7 +280,14 @@ spec:
     # el mismo pin vale en amd64 y arm64: volver a los Sparks sera cambiar el
     # nodeSelector y ya. Se quita el failover blando a gx10-ec3d a proposito.
     # ROLLBACK de SOLO esto: cd31c0f87b4f7cc660f675601a156714d7dafed5
-    targetRevision: 3fc5a8237818eec361f3c6f3db7feb8a298b4d30
+    # 2026-08-13: 8f49aa1 = 3fc5a82 - dos Services de TTS que no servian a nadie.
+    # Fuera `omnivoice-tts` (alias muerto: selector app=omnivoice-tts-dgx2, ese
+    # Deployment a 0 desde el 09-08, cero endpoints, cero consumidores) y fuera
+    # `omnivoice-tts-rtx` (lo anadi hoy para que el panel tuviera algo que sondear;
+    # la causa se arreglo en dgx-infra@966c7b3a y ya sobra). Quedan cuatro, cada uno
+    # con motivo. OJO: la app tiene prune:true, asi que esto los BORRA del cluster.
+    # ROLLBACK de SOLO esto: 3fc5a8237818eec361f3c6f3db7feb8a298b4d30
+    targetRevision: 8f49aa184c52d3b8c2b09fbca088fd35c5c12e63
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
