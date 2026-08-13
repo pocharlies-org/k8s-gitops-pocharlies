@@ -141,7 +141,15 @@ spec:
     # faltaban los cinco miembros del Protocol. La imagen @de1177fe los delega al
     # backbone y el build-check 3 falla el BUILD si vuelven a faltar.
     # ROLLBACK: devolver a 905086ae5ebfa5f88b66a73bcce97287a9335d6b (sin vision).
-    targetRevision: 94b60091ec30dee31b8ea18769162364d7ab3482
+    # 2026-08-13: 7e551f8 expone lm_head en el wrapper de vision. 94b6009 ya
+    # ARRANCABA (fix de EAGLE3) pero servia con acceptance 0.0124 y ~10 tok/s,
+    # SIN un solo error en el log: dspark/utils.py lee
+    # getattr(target_model, "lm_head") sobre la clase de nivel superior, que con
+    # el plugin es el wrapper, y con has_own_lm_head=False el drafter tiene que
+    # heredarla. Sin el atributo el reparto se salta y el drafter usa una cabeza
+    # sin pesos. Imagen @acbf7de0 + build-check 4 que lo impide en el futuro.
+    # ROLLBACK: 905086ae5ebfa5f88b66a73bcce97287a9335d6b (sin vision, 384K).
+    targetRevision: 7e551f8f4ca0c6d14c94e39b92d8a7dcfb2b4b5a
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
