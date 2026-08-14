@@ -208,11 +208,27 @@ metadata:
     # Para quien venga: un cambio en plugins.* de los configs del repo NO llega
     # solo. El ConfigMap siembra /data/config/openclaw.json en el primer
     # arranque y despues manda el PVC; hace falta migracion con marker.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: dd4709afdad2cea39f1560f15b4f0d212a989088
-    operations.pocharlies.org/approval-id: openclaw-thinking-profile-checksum-20260814
-    operations.pocharlies.org/approval-sequence: "20260814222523"
-    operations.pocharlies.org/approved-prune: "false"
+    # APPROVAL CERRADO para dd4709afdad2cea39f1560f15b4f0d212a989088
+    # (openclaw-thinking-profile-checksum-20260814). Cierra las cinco
+    # operaciones del plugin litellm-thinking-profile. Verificado sobre un pod
+    # NUEVO, unico y 5/5, con el exec fijado a ese pod:
+    #
+    #   litellm/deepseek-v4-flash-0731  -> off, low, high, max
+    #   litellm/qwen35-4b               -> off            (no razona: el plugin se abstiene)
+    #   openai/gpt-5.6-sol y terra      -> ... xhigh, max, ultra   (sin cambio)
+    #   openai/gpt-5.6-luna             -> ... xhigh, max          (sin cambio)
+    #   openai/gpt-5.5                  -> ... xhigh               (sin cambio)
+    #
+    # litellm-256k/deepseek-v4-flash-0731 no lo permite ningun agente; contra el
+    # plugin desplegado resuelve off, low, high, max pese a conservar el "none"
+    # antiguo en el PVC, porque el plugin lo normaliza a off.
+    #
+    # Dos trampas que costaron tres operaciones de mas, por si vuelve a pasar:
+    # sin "providers" en openclaw.plugin.json el plugin queda non-capability y
+    # su hook no se consulta nunca; y sin su checksum/<id>-plugin en la plantilla
+    # del pod, cambiar el ConfigMap NO provoca rollout y el initContainer sigue
+    # sembrando la version vieja.
+    operations.pocharlies.org/state-writer-lease: inactive
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
