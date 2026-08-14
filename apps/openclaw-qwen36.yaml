@@ -181,7 +181,17 @@ metadata:
     # (openai-completions) no corre en Codex. Quitar el 'none' era condicion
     # necesaria pero no suficiente. No repitas la operacion esperando otro
     # resultado: hace falta un provider plugin con resolveThinkingProfile.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL OPEN para a912756: mantiene vacias las seis plantillas genericas
+    # de Jarbis. El canary vivo probo que borrarlas no basta porque OpenClaw las
+    # recrea; los sentinels de cero bytes bajan el prompt 6636 -> 4720 tokens,
+    # 19035 -> 12401 caracteres y la muestra 6,124 -> 4,196 s. Conserva AGENTS,
+    # seis herramientas, contexto 32K y requireMention=false. 493 tests + 103
+    # regresiones, Helm lint/render default y Synapse. prune=false.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: a912756c0a1bb789fc6d6ba010c6665e0b0fa3b7
+    operations.pocharlies.org/approval-id: openclaw-jarbis-empty-prompt-sentinels-20260814
+    operations.pocharlies.org/approval-sequence: "20260814203301"
+    operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
