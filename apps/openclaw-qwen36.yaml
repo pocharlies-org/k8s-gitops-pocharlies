@@ -105,7 +105,31 @@ metadata:
     # APPROVAL CERRADO para 57bf3e1: Succeeded/Synced/Healthy, prune=false,
     # pods al digest be1f58a con 0 reinicios, OpenClaw 2026.7.1-2 y plugin
     # dgx-video 1.7.0 cargado entre los plugins activos.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL AMPLIADO para cb0da5c (incluye 0ffcc43): el selector local de OpenClaw pasa de cinco
+    # entradas a UNA. `tooling`, `agent`, `high` y `max` nunca fueron cinco
+    # modelos -- son el MISMO residente con cuatro niveles de pensamiento -- asi
+    # que se retiran del picker y el nivel se pide con `/effort`, que viaja como
+    # `reasoning_effort` y traduce el hook central (k8s-litellm-pocharlies
+    # fbfd9a5, ya desplegado y verificado en el pod: CLIENT_EFFORT_TIERS con
+    # low y medium FUERA a proposito).
+    #
+    # Riesgo acotado: el effort ambiente NO pisa al alias (solo high/max/none),
+    # que es la regresion que hizo revertir a4ccc95 y esta cubierta por
+    # test_un_effort_ambiente_NO_pisa_al_alias. `culturismo` e `image-cloud`
+    # conservan su camino barato via thinkingDefault: "off". prune=false.
+    #
+    # Verificado antes de abrir: validate.sh OK (485 + 103 pytest, node --test,
+    # helm lint y template). La revision exacta incluye ademas el default Turbo
+    # ya presente en trunk para MiniMax-H3 y la opcion explicita
+    # litellm/qwen35-4b; no convierte Qwen en primary ni fallback automatico.
+    #
+    # OJO: el marker de migracion sube a v5 y lo escribe el init container, asi
+    # que sin pod nuevo el PVC se queda con los cinco perfiles del v4.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: cb0da5c3aa42ce81a53e053f245f58d4fff4dd47
+    operations.pocharlies.org/approval-id: openclaw-qwen35-4b-option-20260814
+    operations.pocharlies.org/approval-sequence: "20260814115445"
+    operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
