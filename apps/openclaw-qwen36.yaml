@@ -193,7 +193,11 @@ metadata:
     # (4,9Gi usados, 5,0Gi libres) sin borrar sesiones ni datos. Desaparecio
     # ENOSPC y cinco smokes Jarbis dieron mediana 2,762 s. El modelo directo
     # mantiene 183,9 tok/s de media y tool calling correcto.
-    operations.pocharlies.org/state-writer-lease: inactive
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 8ec83e018b4654f903c5455bc017fe9cec14d8c1
+    operations.pocharlies.org/approval-id: openclaw-litellm-thinking-profile-plugin-20260814
+    operations.pocharlies.org/approval-sequence: "20260814212105"
+    operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
