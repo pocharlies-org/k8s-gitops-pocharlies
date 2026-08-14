@@ -165,11 +165,23 @@ metadata:
     # Smoke real: JARBIS_OK en 6,8 s, contextTokens=32768 y thinking=off.
     # Backup Velero Kubernetes daily-aiops-20260814033024 Completed. Validacion:
     # 493 tests + 103 regresiones, 44 pruebas focalizadas y Helm lint/template.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: b50c4a0b07c4af64e388d9773f6f3b8f0af3243a
-    operations.pocharlies.org/approval-id: openclaw-restore-jarbis-plus-thinking-20260814
-    operations.pocharlies.org/approval-sequence: "20260814202126"
-    operations.pocharlies.org/approved-prune: "false"
+    # APPROVAL CERRADO para b50c4a0b07c4af64e388d9773f6f3b8f0af3243a
+    # (openclaw-restore-jarbis-plus-thinking-20260814): operacion Succeeded,
+    # Synced/Healthy, pod 5/5 Ready. Repone el rename a Jarbis que la operacion
+    # inmediatamente anterior habia revertido al sincronizar 2bf2af3, un
+    # ancestro de lo desplegado: 'Jarbis' verificado en /runtime-config/openclaw.json
+    # del pod. Entran tambien 075db7a y b50c4a0, que estaban en el tronco sin
+    # desplegar.
+    #
+    # AVISO para quien siga: el cambio de niveles de thinking de DeepSeek que
+    # motivo 2bf2af3 esta desplegado pero es INERTE. La config del pod ya lleva
+    # supportedReasoningEfforts=[low,high,max], y aun asi el gateway sigue
+    # anunciando off/minimal/low/medium/high. En thinking-policy la lista
+    # autoritativa solo se usa si agentRuntime==='codex', y la ruta litellm
+    # (openai-completions) no corre en Codex. Quitar el 'none' era condicion
+    # necesaria pero no suficiente. No repitas la operacion esperando otro
+    # resultado: hace falta un provider plugin con resolveThinkingProfile.
+    operations.pocharlies.org/state-writer-lease: inactive
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
