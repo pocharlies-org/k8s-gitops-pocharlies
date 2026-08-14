@@ -353,7 +353,9 @@ spec:
     # del 27B (-dgx2 muere con su Service cruzado). Solo quedan los dos Services
     # deprecados de omnivoice, gateados por el approval bundle de OpenClaw (F4).
     # ROLLBACK de SOLO esto: 07ddaa2025d839937cf984dcaf4de1c0aa3bee6a
-    targetRevision: 523c62b40716397086070a9708ad6e8c59ab8872
+    # 2026-08-14: 1d03b7f desactiva temporalmente DSpark speculative decode;
+    # next_n=6 bloquea el warmup del sparse DSA indexer en los dos GB10.
+    targetRevision: 1d03b7f3f973f724c8eba0f541d256c8117eff90
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
