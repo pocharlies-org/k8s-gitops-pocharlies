@@ -385,7 +385,13 @@ spec:
     # lleva 3 corridas abortando con coseno 1,001 en vez de corromper datos — pero
     # mientras tanto el trabajo esta parado. Los dos backends del pool bge-m3-embedding
     # tienen que llevar el parche: si se re-pinea sin este commit, vuelve a pasar.
-    targetRevision: 7af1768bfbdc588d4f2ca8747787de6e4cb23ce4
+    # 2026-08-14 (noche, 2): 9412649 = 7af1768 + targetPort del Service del 27B, que
+    # apuntaba a 8000 cuando el contenedor sirve en 8888. TODO el trafico que entraba
+    # por el Service caia en un puerto cerrado: SVC -> 000, POD:8888 -> 200. Como las
+    # probes van contra el POD, el EndpointSlice se poblaba y litellm-dgx-backend-sync
+    # publicaba dense, dense-uncensored, dense-reasoning y taxonomy igualmente. Verde
+    # en todas partes y trafico muerto. ROLLBACK: 7af1768bfbdc588d4f2ca8747787de6e4cb23ce4.
+    targetRevision: 941264975196e302c3b0a8c16143cbec2d590202
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
