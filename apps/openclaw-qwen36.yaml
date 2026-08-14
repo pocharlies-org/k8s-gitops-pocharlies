@@ -193,11 +193,22 @@ metadata:
     # (4,9Gi usados, 5,0Gi libres) sin borrar sesiones ni datos. Desaparecio
     # ENOSPC y cinco smokes Jarbis dieron mediana 2,762 s. El modelo directo
     # mantiene 183,9 tok/s de media y tool calling correcto.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: ae509bf9622b2a5e14410425370e1a9703c4e73b
-    operations.pocharlies.org/approval-id: openclaw-thinking-profile-pvc-migration-20260814
-    operations.pocharlies.org/approval-sequence: "20260814213951"
-    operations.pocharlies.org/approved-prune: "false"
+    # APPROVAL CERRADO para ae509bf9622b2a5e14410425370e1a9703c4e73b
+    # (openclaw-thinking-profile-pvc-migration-20260814): Succeeded,
+    # Synced/Healthy, pod 5/5. Cierra las tres operaciones del plugin
+    # litellm-thinking-profile. Verificado en el gateway:
+    #
+    #   litellm/deepseek-v4-flash-0731 -> off, low, high, max
+    #
+    # que es lo que su backend acepta; antes ofrecia off/minimal/low/medium/high.
+    # Marker .litellm-thinking-profile-v1 escrito y plugin 'enabled' desde
+    # /data/extensions/litellm-thinking-profile/index.js. Controles sin cambio:
+    # terra sigue con ultra, luna sin ultra y gpt-5.5 hasta xhigh.
+    #
+    # Para quien venga: un cambio en plugins.* de los configs del repo NO llega
+    # solo. El ConfigMap siembra /data/config/openclaw.json en el primer
+    # arranque y despues manda el PVC; hace falta migracion con marker.
+    operations.pocharlies.org/state-writer-lease: inactive
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
