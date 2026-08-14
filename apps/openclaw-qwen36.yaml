@@ -166,9 +166,9 @@ metadata:
     # Backup Velero Kubernetes daily-aiops-20260814033024 Completed. Validacion:
     # 493 tests + 103 regresiones, 44 pruebas focalizadas y Helm lint/template.
     operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 2bf2af363ebe06bb88aef20c6ea5c734ee94d621
-    operations.pocharlies.org/approval-id: openclaw-deepseek-thinking-levels-20260814
-    operations.pocharlies.org/approval-sequence: "20260814201437"
+    operations.pocharlies.org/approved-revision: b50c4a0b07c4af64e388d9773f6f3b8f0af3243a
+    operations.pocharlies.org/approval-id: openclaw-restore-jarbis-plus-thinking-20260814
+    operations.pocharlies.org/approval-sequence: "20260814202126"
     operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
