@@ -208,7 +208,11 @@ metadata:
     # Para quien venga: un cambio en plugins.* de los configs del repo NO llega
     # solo. El ConfigMap siembra /data/config/openclaw.json en el primer
     # arranque y despues manda el PVC; hace falta migracion con marker.
-    operations.pocharlies.org/state-writer-lease: inactive
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 86b83cadadd8d990ab706bf0886c691505fab92b
+    operations.pocharlies.org/approval-id: openclaw-thinking-profile-manifest-provider-20260814
+    operations.pocharlies.org/approval-sequence: "20260814222042"
+    operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
