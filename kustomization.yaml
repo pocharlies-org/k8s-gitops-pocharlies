@@ -243,6 +243,16 @@ patches:
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *compute-replicas, name: vllm-vision-deep }
+      # 14-08 F2/F3: twins de rol creative y el 27B fusionado.
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: bge-m3-embedding-creative }
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: bge-reranker-creative }
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: vllm-qwen36-27b-uncensored }
       # CPU/Sauvage fallbacks are raised transactionally while ComfyUI borrows
       # the RTX in LLM TP. The root kustomization replaces each Application's
       # ignoreDifferences list, so these entries must live here as well as in
