@@ -117,15 +117,15 @@ metadata:
     # que es la regresion que hizo revertir a4ccc95 y quedo cubierta por las
     # pruebas citadas en el cierre anterior.
     #
-    # Aprobacion explicita de Daniel para recuperar el nodo Mac y reparar
-    # OpenChamber. La revision confia unicamente en el PodCIDR /24 de ubuntu,
-    # donde traefik-lan esta ejecutandose, y mantiene prune=false.
+    # Segunda operacion de la aprobacion explicita de Daniel para recuperar el
+    # nodo Mac y reparar OpenChamber. La revision migra la copia persistida del
+    # PVC a la lista revisada que ya incluye solo el PodCIDR /24 de ubuntu.
     # Verificado antes de abrir: validate.sh OK (485 + 103 pytest, node --test,
     # helm lint y template); VolumeSnapshots de Kubernetes Ready.
     operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 7d492db1b7ae13edbec2d50fdfc474872eff86cc
-    operations.pocharlies.org/approval-id: openclaw-traefik-ubuntu-proxy-20260814
-    operations.pocharlies.org/approval-sequence: "20260814122504"
+    operations.pocharlies.org/approved-revision: 9811cb1ba2ffd66e9487242a9b7164602691797b
+    operations.pocharlies.org/approval-id: openclaw-proxy-pvc-migration-20260814
+    operations.pocharlies.org/approval-sequence: "20260814123712"
     operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
