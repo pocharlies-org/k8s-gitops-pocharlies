@@ -105,16 +105,12 @@ metadata:
     # APPROVAL CERRADO para 57bf3e1: Succeeded/Synced/Healthy, prune=false,
     # pods al digest be1f58a con 0 reinicios, OpenClaw 2026.7.1-2 y plugin
     # dgx-video 1.7.0 cargado entre los plugins activos.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: cdc94b990a9fa398e3dade8747e3db33e0467a07
-    operations.pocharlies.org/approval-id: talk-omnivoice-pool-20260814
-    operations.pocharlies.org/approval-sequence: "20260814003210"
-    operations.pocharlies.org/approved-prune: "false"
-    # APPROVAL OPEN para cdc94b990a9fa398e3dade8747e3db33e0467a07: talk.providers.openai.baseUrl pasa del alias
-    # deprecado omnivoice-tts-dgx2 al pool canonico omnivoice-tts, con migracion
-    # versionada del PVC (talk-omnivoice-pool-v1). Autorizado por Dani en sesion
-    # (14-08, "arregla lo que queda"). prune=false. Cierra F4 del rename por
-    # roles; tras verificar, los dos Services deprecados quedan sin consumidores.
+    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL CERRADO tras el rollout verificado de cdc94b99
+    # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
+    # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
+    # config persistido del PVC (verificado con exec). Los Services deprecados
+    # omnivoice-tts-dgx2/-dgx2-static quedan sin consumidores y se retiran.
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
