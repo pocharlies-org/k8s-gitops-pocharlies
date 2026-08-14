@@ -379,7 +379,13 @@ spec:
     # llama.cpp b10423, Q4_0 y backend sampling, sin DFlash ni MTP. Genera
     # 185,2 tok/s en conversacion y 175,7 tok/s con prompt de ~6465 tokens;
     # conserva 32K, KV Q8 y tool calling. ROLLBACK: c11a4cfb5c8d5177ecd1555ce840f5a6cd202c88.
-    targetRevision: c36ba0bf644c2c7f4ee56ab44c38bc9cf573fa26
+    # 2026-08-14 (noche): 7af1768 = el pin anterior + REPONER el max_length=8192 en
+    # bge-m3-embedding-creative. Mi commit 3845b5d se perdio en un re-pin ajeno y el
+    # embedder del DGX volvio a truncar a 512. Lo caza el guard del re-embebido, que
+    # lleva 3 corridas abortando con coseno 1,001 en vez de corromper datos — pero
+    # mientras tanto el trabajo esta parado. Los dos backends del pool bge-m3-embedding
+    # tienen que llevar el parche: si se re-pinea sin este commit, vuelve a pasar.
+    targetRevision: 7af1768bfbdc588d4f2ca8747787de6e4cb23ce4
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
