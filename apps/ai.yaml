@@ -375,7 +375,11 @@ spec:
     # 8f18783 reactiva DSpark MTP k=5 y el autotune FlashInfer por decision
     # operativa; readiness completo es la puerta de aceptacion por los hangs previos.
     # fa276cb anade la revision declarativa que reinicia ambos ranks con ese script.
-    targetRevision: c11a4cfb5c8d5177ecd1555ce840f5a6cd202c88
+    # 2026-08-14: c36ba0b fija el ganador del canary Qwen3.5-4B en la RTX:
+    # llama.cpp b10423, Q4_0 y backend sampling, sin DFlash ni MTP. Genera
+    # 185,2 tok/s en conversacion y 175,7 tok/s con prompt de ~6465 tokens;
+    # conserva 32K, KV Q8 y tool calling. ROLLBACK: c11a4cfb5c8d5177ecd1555ce840f5a6cd202c88.
+    targetRevision: c36ba0bf644c2c7f4ee56ab44c38bc9cf573fa26
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
