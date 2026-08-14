@@ -140,15 +140,23 @@ metadata:
     # Regresion: 493 tests, 9 focalizados y render default/Synapse. Se reutiliza
     # el mismo backup Kubernetes Completed y se mantiene prune=false; operacion
     # principal Succeeded/Synced/Healthy.
-    # APPROVAL ABIERTO para 0b57e9c9bae3eacfe076cc64f6dac35e28c11d8b:
+    # APPROVAL CERRADO para 0b57e9c9bae3eacfe076cc64f6dac35e28c11d8b:
     # amplía `minimal` antes del allowlist exacto para exponer Firecrawl y la
     # delegacion, y reduce solo la reserva CPU de Synapse (sin CPU limit) para
     # que el Recreate quepa en KS5. Synapse esta Succeeded/Synced/Healthy en
     # ks5-cp-1. Validacion: 493 tests completos + 73 focalizados y ambos renders.
+    # El runtime principal quedo Succeeded/Healthy en esta revision antes del
+    # ajuste final de policy, que se publica mediante la aprobacion siguiente.
+    # APPROVAL ABIERTO para a73fdcaf223f148905c985807c11f5c073b4ab53:
+    # conserva `profile: minimal` con `alsoAllow` (sin mezclar `allow`) y deja
+    # exactamente nueve herramientas efectivas para dgx-charla: Firecrawl,
+    # agents_list, sessions_spawn y seis codex_*. Mantiene Synapse con request
+    # CPU 100m y sin limite CPU. Validacion: 493 tests + 73 focalizados, y
+    # render Helm default/Synapse; se ejecuta con prune=false.
     operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 0b57e9c9bae3eacfe076cc64f6dac35e28c11d8b
-    operations.pocharlies.org/approval-id: openclaw-dgx-charla-tools-20260814
-    operations.pocharlies.org/approval-sequence: "20260814163444"
+    operations.pocharlies.org/approved-revision: a73fdcaf223f148905c985807c11f5c073b4ab53
+    operations.pocharlies.org/approval-id: openclaw-dgx-charla-tools-v3-20260814
+    operations.pocharlies.org/approval-sequence: "20260814165248"
     operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
