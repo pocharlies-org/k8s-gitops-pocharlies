@@ -181,17 +181,14 @@ metadata:
     # (openai-completions) no corre en Codex. Quitar el 'none' era condicion
     # necesaria pero no suficiente. No repitas la operacion esperando otro
     # resultado: hace falta un provider plugin con resolveThinkingProfile.
-    # APPROVAL OPEN para a912756: mantiene vacias las seis plantillas genericas
-    # de Jarbis. El canary vivo probo que borrarlas no basta porque OpenClaw las
-    # recrea; los sentinels de cero bytes bajan el prompt 6636 -> 4720 tokens,
-    # 19035 -> 12401 caracteres y la muestra 6,124 -> 4,196 s. Conserva AGENTS,
-    # seis herramientas, contexto 32K y requireMention=false. 493 tests + 103
-    # regresiones, Helm lint/render default y Synapse. prune=false.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: a912756c0a1bb789fc6d6ba010c6665e0b0fa3b7
-    operations.pocharlies.org/approval-id: openclaw-jarbis-empty-prompt-sentinels-20260814
-    operations.pocharlies.org/approval-sequence: "20260814203301"
-    operations.pocharlies.org/approved-prune: "false"
+    # APPROVAL CERRADO para a912756: operacion Succeeded/Synced/Healthy,
+    # prune=false y pod 5/5 Ready. Las seis plantillas genericas quedaron a cero
+    # bytes y solo AGENTS aporta contenido; el smoke final bajo el prompt de
+    # 6636 a 4548 tokens y de 19035 a 11786 caracteres. Conserva seis tools,
+    # contexto 32K y requireMention=false. Durante el benchmark se descubrio el
+    # PVC principal preexistente al 100%; su ampliacion va en la aprobacion
+    # siguiente, sin borrar sesiones ni datos.
+    operations.pocharlies.org/state-writer-lease: inactive
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
