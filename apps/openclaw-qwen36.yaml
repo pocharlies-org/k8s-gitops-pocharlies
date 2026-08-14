@@ -126,7 +126,18 @@ metadata:
     # sha256:30ffbe6ee6c300c4872fb597b0488b6100d4ccbc637031e5d40960884c4e26db.
     # El pod cargo dgx-video 1.7.1 con defaultTier nvfp4_turbo y el spec DGX
     # vivo confirma Turbo LoRA disponible y 8 pasos por defecto.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL ABIERTO para 0db701739d876984d4c85e4e23a86496f7600d7c:
+    # incorpora los agentes ligeros qwen4b y dgx-charla sobre Qwen3.5 4B,
+    # enlaza DGX Charla (-1003705829351) al segundo y conserva DeepSeek como
+    # ruta local general. dgx-charla solo puede buscar en web o delegar al
+    # agente programador/Codex; no recibe herramientas operativas ni fallback.
+    # Backup Velero Kubernetes daily-aiops-20260814033024 Completed. Validacion
+    # completa: 492 tests + 103 regresiones, Helm lint/template y prune=false.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 0db701739d876984d4c85e4e23a86496f7600d7c
+    operations.pocharlies.org/approval-id: openclaw-dgx-charla-qwen4b-20260814
+    operations.pocharlies.org/approval-sequence: "20260814155845"
+    operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
