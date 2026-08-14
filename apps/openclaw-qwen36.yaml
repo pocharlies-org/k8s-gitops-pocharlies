@@ -188,17 +188,12 @@ metadata:
     # contexto 32K y requireMention=false. Durante el benchmark se descubrio el
     # PVC principal preexistente al 100%; su ampliacion va en la aprobacion
     # siguiente, sin borrar sesiones ni datos.
-    # APPROVAL OPEN para c57f8c7: amplia solo el PVC principal de OpenClaw de
-    # 5Gi a 10Gi. El filesystem esta al 100% y las sesiones nuevas fallan con
-    # ENOSPC; no se borra ningun dato. La StorageClass Longhorn tiene expansion
-    # online habilitada y el backup daily-aiops-20260814033024 esta Completed.
-    # El target RWOP futuro queda en el mismo tamano. 68 tests focalizados,
-    # Helm lint/render default y Synapse; prune=false.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: c57f8c7360400a26556cb85ad40638467c043189
-    operations.pocharlies.org/approval-id: openclaw-main-pvc-expand-10gi-20260814
-    operations.pocharlies.org/approval-sequence: "20260814204238"
-    operations.pocharlies.org/approved-prune: "false"
+    # APPROVAL CERRADO para c57f8c7: Succeeded/Synced/Healthy, prune=false.
+    # Longhorn amplio online el PVC y el filesystem de 5Gi a 10Gi; queda al 50%
+    # (4,9Gi usados, 5,0Gi libres) sin borrar sesiones ni datos. Desaparecio
+    # ENOSPC y cinco smokes Jarbis dieron mediana 2,762 s. El modelo directo
+    # mantiene 183,9 tok/s de media y tool calling correcto.
+    operations.pocharlies.org/state-writer-lease: inactive
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
