@@ -228,11 +228,19 @@ metadata:
     # su hook no se consulta nunca; y sin su checksum/<id>-plugin en la plantilla
     # del pod, cambiar el ConfigMap NO provoca rollout y el initContainer sigue
     # sembrando la version vieja.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 11f1f3134289cdede57685f89447e85e73b6f11f
-    operations.pocharlies.org/approval-id: openclaw-context-sync-v7-luna-mirror-20260814
-    operations.pocharlies.org/approval-sequence: "20260814225044"
-    operations.pocharlies.org/approved-prune: "false"
+    # APPROVAL CERRADO para 11f1f3134289cdede57685f89447e85e73b6f11f
+    # (openclaw-context-sync-v7-luna-mirror-20260814): Succeeded, Synced/Healthy.
+    # Verificado sobre el pod nuevo estable 665667c4cb-bj7gl (5/5, exec fijado):
+    #   - marker .litellm-context-sync-v7 escrito, con su backup
+    #     openclaw.json.pre-litellm-context-sync-v7.bak
+    #   - fallbackAliases en la config viva del PVC:
+    #     ['cloudblue/gpt-5.6-luna', 'e-dani/gpt-5.6-luna']
+    #   - sin regresion del plugin: litellm/deepseek-v4-flash-0731 sigue en
+    #     off, low, high, max, y litellm-thinking-profile en plain-capability
+    #
+    # El espejo solo declara la ventana; el enrutado real vive en
+    # k8s-litellm-pocharlies@fb44436 (router_settings.fallbacks).
+    operations.pocharlies.org/state-writer-lease: inactive
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
