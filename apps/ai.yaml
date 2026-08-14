@@ -348,7 +348,7 @@ spec:
     # 2026-08-14 P2: c3c90cc respecifica bge-m3-embedding al rol llm-tp (spec
     # del -rtx afinado, in-place). Scale a 1 tras el rollout D1; -rtx se retira
     # en P3. ROLLBACK de SOLO esto: b08e85946ad1d733f6a2a68ce38615bdaf53f7ad
-    targetRevision: c3c90cc96c276494518ebd11566ef25b1acd6a9d
+    targetRevision: 07ddaa2025d839937cf984dcaf4de1c0aa3bee6a
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
