@@ -209,9 +209,9 @@ metadata:
     # solo. El ConfigMap siembra /data/config/openclaw.json en el primer
     # arranque y despues manda el PVC; hace falta migracion con marker.
     operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 86b83cadadd8d990ab706bf0886c691505fab92b
-    operations.pocharlies.org/approval-id: openclaw-thinking-profile-manifest-provider-20260814
-    operations.pocharlies.org/approval-sequence: "20260814222042"
+    operations.pocharlies.org/approved-revision: dd4709afdad2cea39f1560f15b4f0d212a989088
+    operations.pocharlies.org/approval-id: openclaw-thinking-profile-checksum-20260814
+    operations.pocharlies.org/approval-sequence: "20260814222523"
     operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
