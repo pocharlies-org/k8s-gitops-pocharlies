@@ -360,7 +360,11 @@ spec:
     # canonico (approval talk-omnivoice-pool-20260814, verificado en PVC).
     # El ns llm queda con CERO objetos nombrados por nodo.
     # ROLLBACK de SOLO esto: 1d03b7f3f973f724c8eba0f541d256c8117eff90
-    targetRevision: 1fec504dfb34e59f5ab836aec2617a2b4b4108c8
+    # 2026-08-14: 2dbbe20 añade qwen35-4b-int4 a la RTX de ubuntu con
+    # llama.cpp/Q4_K_M, 32K, KV Q8 y CUDA compartida. El GGUF fijado y verificado
+    # se mmap-ea desde hostPath local para aprovechar la page cache DDR4.
+    # ROLLBACK de SOLO esto: 1fec504dfb34e59f5ab836aec2617a2b4b4108c8
+    targetRevision: 2dbbe200a75276c93d475457ed8dfff17abe96e6
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
