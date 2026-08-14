@@ -374,7 +374,8 @@ spec:
     # MAX_NUM_SEQS de DeepSeek de 3 a 6 para absorber el fan-out de traducciones.
     # 8f18783 reactiva DSpark MTP k=5 y el autotune FlashInfer por decision
     # operativa; readiness completo es la puerta de aceptacion por los hangs previos.
-    targetRevision: 8f18783ffbf382f0fd5028a2eed19198287c5528
+    # fa276cb anade la revision declarativa que reinicia ambos ranks con ese script.
+    targetRevision: fa276cb204b1e7279588df3241568203bdff802c
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
