@@ -397,7 +397,22 @@ spec:
     # la imagen), el de CPU con imagen vieja SIN parche (habria truncado en cuanto
     # entrara a servir durante un prestamo de ComfyUI) y un cuarto, dgx2, que no vi
     # yo — lo encontro el test. El CI se pone rojo si alguien vuelve a separarlos.
-    targetRevision: 9a6abc5516e4bd16e0fe3eb6d8f81e18f8b2dae4
+    # 2026-08-15: d11d7e8 = 9a6abc5 + Qwen3.8-27B con el dial de refusal en runtime, y
+    # DE NUEVO el targetPort del Service del 27B. El re-pin a 9a6abc5 —que cuelga de
+    # 7af1768, anterior al arreglo— revirtio por selfHeal el fix del puerto y dejo otra
+    # vez a dense contestando 000 por el Service: 9412649 se quedo fuera del linaje.
+    # Es el tercer commit que se pierde asi en este fichero. Si vuelves a re-pinear,
+    # comprueba `git show <sha>:k8s/compute-mode-creative-dgx1.yaml | grep targetPort`
+    # antes de empujar: tiene que haber DOS Services con 8888, no uno.
+    #
+    # El 27B pasa de servir pesos con la ablacion HORNEADA (llmfan46 heretic NVFP4) a
+    # servir el checkpoint LIMPIO (unsloth/Qwen3.8-27B-NVFP4) mas 2,6 MB de direcciones,
+    # con lambda conmutable en caliente y arrancando en 0 = base intacto y bit-exacto.
+    # Puertas medidas antes de desplegar: equivalencia de la proyeccion 7,9e-16 en
+    # float64, energia rank-1 >= 0,9867 y lambda_eff ~= 1,000 en los 128 modulos.
+    # ROLLBACK: devolver este campo a 9a6abc5516e4bd16e0fe3eb6d8f81e18f8b2dae4
+    # (vuelve el 3.6 horneado — y vuelve el bug del puerto).
+    targetRevision: d11d7e8071e49af209e3021b0eea6c7e31b7ed92
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
