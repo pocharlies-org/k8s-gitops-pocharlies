@@ -345,7 +345,10 @@ spec:
     # 27B fusionado + su Service, y los omnivoice/stt por nodo retirados otra
     # vez. Todo convive; el dashboard apunta a los nuevos en el siguiente build.
     # ROLLBACK de SOLO esto: a38cfb973e3688450386efc86e1f5bc16f39b6df
-    targetRevision: b08e85946ad1d733f6a2a68ce38615bdaf53f7ad
+    # 2026-08-14 P2: c3c90cc respecifica bge-m3-embedding al rol llm-tp (spec
+    # del -rtx afinado, in-place). Scale a 1 tras el rollout D1; -rtx se retira
+    # en P3. ROLLBACK de SOLO esto: b08e85946ad1d733f6a2a68ce38615bdaf53f7ad
+    targetRevision: c3c90cc96c276494518ebd11566ef25b1acd6a9d
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
