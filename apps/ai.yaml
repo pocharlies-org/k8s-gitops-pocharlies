@@ -422,11 +422,6 @@ spec:
       name: bge-reranker-cpu
       namespace: llm
       jsonPointers: ["/spec/replicas"]
-    - group: apps
-      kind: Deployment
-      name: omnivoice-tts-cpu-x86
-      namespace: llm
-      jsonPointers: ["/spec/replicas"]
     # 13-08 F1: identidad nueva del mismo fallback (regla: en el raiz Y aqui).
     - group: apps
       kind: Deployment

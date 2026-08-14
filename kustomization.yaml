@@ -209,28 +209,10 @@ patches:
         value: { <<: *compute-replicas, name: deepseek-v4-flash-0731-worker }
       - op: add
         path: /spec/ignoreDifferences/-
-        value: { <<: *compute-replicas, name: vllm-qwen36-27b-uncensored-dgx1 }
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value: { <<: *compute-replicas, name: vllm-vision-deep-dgx1 }
-      - op: add
-        path: /spec/ignoreDifferences/-
         value: { <<: *compute-replicas, name: bge-m3-embedding }
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *compute-replicas, name: bge-reranker }
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value: { <<: *compute-replicas, name: omnivoice-tts-dgx2 }
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value: { <<: *compute-replicas, name: bge-m3-embedding-rtx }
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value: { <<: *compute-replicas, name: bge-reranker-rtx }
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value: { <<: *compute-replicas, name: omnivoice-tts-rtx }
       # 13-08 F1 (nombres por variante): las nuevas identidades de los mismos
       # residentes. Las viejas se retiran del cluster en el contract de F1.4 y
       # de esta lista en el cleanup posterior.
@@ -263,9 +245,6 @@ patches:
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *compute-replicas, name: bge-reranker-cpu }
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value: { <<: *compute-replicas, name: omnivoice-tts-cpu-x86 }
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *compute-replicas, name: omnivoice-tts-cpu }
