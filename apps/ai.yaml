@@ -364,7 +364,13 @@ spec:
     # llama.cpp/Q4_K_M, 32K, KV Q8 y CUDA compartida. El GGUF fijado y verificado
     # se mmap-ea desde hostPath local para aprovechar la page cache DDR4.
     # ROLLBACK de SOLO esto: 1fec504dfb34e59f5ab836aec2617a2b4b4108c8
-    targetRevision: d36ef864d703738d004bba036211135ab8aab10c
+    # 2026-08-14: 3845b5d pone el parche de max_length=8192 tambien en el embedder
+    # del DGX (bge-m3-embedding-creative). Los dos sirven el MISMO Service —pool por
+    # la etiqueta bge-pool— pero eran imagenes distintas, y al cambiar el perfil a
+    # creative a las 09:56Z el re-embebido de fondo estuvo 1 h 45 min escribiendo
+    # vectores truncados a 512. Comprobado: coseno 1,000053 entre dos textos con
+    # 900 tokens de prefijo comun. Los dos backends de un pool deben comportarse igual.
+    targetRevision: 3845b5d09f5a02978c7fce73a218e4458e0035ec
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
