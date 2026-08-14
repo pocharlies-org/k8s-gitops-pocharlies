@@ -348,7 +348,12 @@ spec:
     # 2026-08-14 P2: c3c90cc respecifica bge-m3-embedding al rol llm-tp (spec
     # del -rtx afinado, in-place). Scale a 1 tras el rollout D1; -rtx se retira
     # en P3. ROLLBACK de SOLO esto: b08e85946ad1d733f6a2a68ce38615bdaf53f7ad
-    targetRevision: 07ddaa2025d839937cf984dcaf4de1c0aa3bee6a
+    # 2026-08-14 P3-CONTRACT FINAL de los nombres por rol: 523c62b retira
+    # bge-m3-embedding-rtx, bge-reranker arm64, vision-deep-dgx{1,2} y el par
+    # del 27B (-dgx2 muere con su Service cruzado). Solo quedan los dos Services
+    # deprecados de omnivoice, gateados por el approval bundle de OpenClaw (F4).
+    # ROLLBACK de SOLO esto: 07ddaa2025d839937cf984dcaf4de1c0aa3bee6a
+    targetRevision: 523c62b40716397086070a9708ad6e8c59ab8872
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
