@@ -412,7 +412,7 @@ spec:
     # float64, energia rank-1 >= 0,9867 y lambda_eff ~= 1,000 en los 128 modulos.
     # ROLLBACK: devolver este campo a 9a6abc5516e4bd16e0fe3eb6d8f81e18f8b2dae4
     # (vuelve el 3.6 horneado — y vuelve el bug del puerto).
-    targetRevision: d11d7e8071e49af209e3021b0eea6c7e31b7ed92
+    targetRevision: f97b255bd9c385704793272c853bf601a815ee50
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
