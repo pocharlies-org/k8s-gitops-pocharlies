@@ -355,7 +355,12 @@ spec:
     # ROLLBACK de SOLO esto: 07ddaa2025d839937cf984dcaf4de1c0aa3bee6a
     # 2026-08-14: 1d03b7f desactiva temporalmente DSpark speculative decode;
     # next_n=6 bloquea el warmup del sparse DSA indexer en los dos GB10.
-    targetRevision: 1d03b7f3f973f724c8eba0f541d256c8117eff90
+    # 2026-08-14 F4-CIERRE: 1fec504 retira los dos ultimos Services con nodo
+    # en el nombre (omnivoice-tts-dgx2/-static). OpenClaw talk ya esta en el
+    # canonico (approval talk-omnivoice-pool-20260814, verificado en PVC).
+    # El ns llm queda con CERO objetos nombrados por nodo.
+    # ROLLBACK de SOLO esto: 1d03b7f3f973f724c8eba0f541d256c8117eff90
+    targetRevision: 1fec504dfb34e59f5ab836aec2617a2b4b4108c8
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
