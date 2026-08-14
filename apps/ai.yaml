@@ -375,7 +375,7 @@ spec:
     # 8f18783 reactiva DSpark MTP k=5 y el autotune FlashInfer por decision
     # operativa; readiness completo es la puerta de aceptacion por los hangs previos.
     # fa276cb anade la revision declarativa que reinicia ambos ranks con ese script.
-    targetRevision: 3575eaed87ca6a392e1c20acbca86c2a69c1ba6a
+    targetRevision: e243d1dcf11dce851b49d52e958383f49012925d
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
