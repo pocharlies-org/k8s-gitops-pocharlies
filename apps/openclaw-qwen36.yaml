@@ -157,7 +157,19 @@ metadata:
     # comprobados en el PVC. Smokes reales: DGX_CHARLA_OK, firecrawl_search y
     # sessions_spawn/programador sin fallos. Telegram DGX Charla recibio el
     # mensaje 4 de @oppocharliesllmbot.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL ABIERTO para 4850c4e11bb305f2a8f69e4f73a0538bc5b865fc:
+    # cambia solo el nombre visible y el prompt del agente dgx-charla a Jarbis.
+    # Conserva el ID tecnico, el binding y las sesiones; Qwen mantiene ventana
+    # exacta de 32768 tokens, sin fallback, y Telegram -1003705829351 conserva
+    # requireMention=false. La migracion PVC v4 es selectiva y atomica.
+    # Backup Velero Kubernetes daily-aiops-20260814033024 Completed. Validacion:
+    # 493 tests + 103 regresiones, 44 pruebas focalizadas y Helm lint/template.
+    # No añade API, permisos, herramientas, secretos ni almacenamiento; prune=false.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 4850c4e11bb305f2a8f69e4f73a0538bc5b865fc
+    operations.pocharlies.org/approval-id: openclaw-jarbis-dgx-charla-20260814
+    operations.pocharlies.org/approval-sequence: "20260814175608"
+    operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
