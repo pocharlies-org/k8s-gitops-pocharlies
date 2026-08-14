@@ -117,15 +117,16 @@ metadata:
     # que es la regresion que hizo revertir a4ccc95 y quedo cubierta por las
     # pruebas citadas en el cierre anterior.
     #
-    # Segunda operacion de la aprobacion explicita de Daniel para recuperar el
-    # nodo Mac y reparar OpenChamber. La revision migra la copia persistida del
-    # PVC a la lista revisada que ya incluye solo el PodCIDR /24 de ubuntu.
-    # Verificado antes de abrir: validate.sh OK (485 + 103 pytest, node --test,
-    # helm lint y template); VolumeSnapshots de Kubernetes Ready.
+    # Aprobacion explicita de Daniel para publicar DeepSeek V4 en el selector
+    # de los dos OpenClaw productivos. La migracion del PVC es selectiva:
+    # incorpora el checkpoint y conserva pines explicitos sin convertirlo en
+    # ruta automatica ni fallback. Verificado antes de abrir: validate.sh OK
+    # (488 + 103 pytest), dry-run del API server y VolumeSnapshots Kubernetes
+    # Ready; prune permanece desactivado.
     operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 9811cb1ba2ffd66e9487242a9b7164602691797b
-    operations.pocharlies.org/approval-id: openclaw-proxy-pvc-migration-20260814
-    operations.pocharlies.org/approval-sequence: "20260814123712"
+    operations.pocharlies.org/approved-revision: 0b401b798d908a2f403779e899946a3bab51edad
+    operations.pocharlies.org/approval-id: openclaw-deepseek-v4-20260814
+    operations.pocharlies.org/approval-sequence: "20260814124537"
     operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
