@@ -5,7 +5,7 @@ metadata:
   namespace: argocd
   annotations:
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-ai-pocharlies
-    e-dani.com/rho-pin-purpose: perfiles globales LLM TP / Creative con DeepSeek max-num-seqs 6
+    e-dani.com/rho-pin-purpose: perfiles globales LLM TP / Creative con DeepSeek seqs 6, DSpark y autotune activos
     e-dani.com/rho-rollback-revision: 8f82bec0a51536a7c7308d2dfd275d3de337d345
     e-dani.com/rho-restore-target-revision: codex/restore-official-global-profile-20260811
   labels:
@@ -372,7 +372,9 @@ spec:
     # 900 tokens de prefijo comun. Los dos backends de un pool deben comportarse igual.
     # 2026-08-14: 6fd9642 conserva exactamente el perfil 3845b5d y eleva solo
     # MAX_NUM_SEQS de DeepSeek de 3 a 6 para absorber el fan-out de traducciones.
-    targetRevision: 6fd9642c1c8a274332409047e30988e5b520bb95
+    # 8f18783 reactiva DSpark MTP k=5 y el autotune FlashInfer por decision
+    # operativa; readiness completo es la puerta de aceptacion por los hangs previos.
+    targetRevision: 8f18783ffbf382f0fd5028a2eed19198287c5528
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
