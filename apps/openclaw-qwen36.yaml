@@ -121,7 +121,15 @@ metadata:
     # Succeeded/Synced/Healthy, PostSync completado, deployments principal y
     # social Ready 1/1, y DeepSeek V4 disponible en vivo con contexto 393216 y
     # esfuerzos none/low/high/max. Se ejecuto con prune=false.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL ABIERTO para promover la imagen MiniMax H3 Turbo 8-step del
+    # commit 7515c4414320aa932a9896e68d63832b6392199e. El release
+    # 31799729864 paso validacion, build/attestation, Trivy y promocion del
+    # digest sha256:30ffbe6ee6c300c4872fb597b0488b6100d4ccbc637031e5d40960884c4e26db.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 7515c4414320aa932a9896e68d63832b6392199e
+    operations.pocharlies.org/approval-id: openclaw-h3-turbo-8step-20260814
+    operations.pocharlies.org/approval-sequence: "20260814143557"
+    operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
