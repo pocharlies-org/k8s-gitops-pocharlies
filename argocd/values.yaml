@@ -51,7 +51,10 @@ controller:
     enabled: true
   resources:
     requests:
-      cpu: 100m
+      # 2026-08-15: 100m -> 400m. Pedia 100m con un p95 de 825m y picos de
+      # 287m en reposo: el scheduler no veia su peso en nodos al 92-98% de
+      # requests. Sin cpu limit, como estaba.
+      cpu: 400m
       memory: 256Mi
     limits:
       memory: 2Gi
