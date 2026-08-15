@@ -412,7 +412,18 @@ spec:
     # float64, energia rank-1 >= 0,9867 y lambda_eff ~= 1,000 en los 128 modulos.
     # ROLLBACK: devolver este campo a 9a6abc5516e4bd16e0fe3eb6d8f81e18f8b2dae4
     # (vuelve el 3.6 horneado — y vuelve el bug del puerto).
-    targetRevision: f51781cbae6d91c13fea1a1ac4c45a0212a6b129
+    #
+    # 2026-08-15: 32e2b2f abre el 27B a 262144 de contexto (nativo del checkpoint;
+    # servirlo a 64K era una decision, no un limite), sube max-num-seqs 4 -> 6 y la
+    # KV de 8 a 28 GiB. Dimensionada con la medida del propio motor — 8589934592 B ->
+    # 180224 tokens = 47662 B/token en fp8 — asi que 28 GiB = ~630790 tokens = 2,41x
+    # a 262144 llenos. NO se pidio 1M (46,55 GiB): el hueco real de nvidia-dgx son
+    # ~25 GiB y llegar a 1M exigiria bajar vllm-vision-deep (32,6 GiB en ese nodo).
+    # Sube tambien mem-cost-gib 42 -> 52, que es lo que el arbitro usa para rankear
+    # nodos por `allocatable - Sigma mem-cost`, y limits.memory 42Gi -> 60Gi.
+    # Gate del puerto comprobado antes de empujar: DOS Services con targetPort 8888.
+    # ROLLBACK: devolver este campo a f51781cbae6d91c13fea1a1ac4c45a0212a6b129.
+    targetRevision: 32e2b2f130dc4b54216ee606172027372055ed41
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
