@@ -490,7 +490,12 @@ spec:
     # backend NVFP4-MoE viable en GB10 con esta imagen. El techo de 17,7 tok/s es
     # de la build (marlin weight-only porque vLLM no ve FP4 nativo en sm_121), no
     # de la config. ROLLBACK: 4dd7bcd0593ceb50ed25ff296a2edfa38dac2f8d.
-    targetRevision: 63aeaddbd2feb1e392641afd373cf222bff69729
+    # 15-08: 62931af solo anota el resultado real y corrige el registro — son
+    # anotaciones de metadata del Deployment, NO del pod template, asi que no
+    # reinicia nada. Medido en 6 tandas: 59-71 tok/s, mediana 68 (7,5x sobre los
+    # 9,07 del 32B denso). Los 17,7 tok/s que me hicieron acusar a MARLIN eran
+    # CONTENCION de vecinos, no el kernel.
+    targetRevision: 62931afeff1f26e265cb34f045edd0ace7d4bd9a
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
