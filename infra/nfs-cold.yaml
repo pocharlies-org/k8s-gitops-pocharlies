@@ -40,8 +40,14 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: nfs-provisioner
-  # Sin `automated` a proposito: se activa en un commit aparte tras leer el diff.
+  # Diff de adopcion comprobado el 15-08-2026 ANTES de activar el sync:
+  # `kubectl diff -n <ns> --server-side` del chart renderizado contra el cluster
+  # vivo salio con exit 0 -- cero diferencias -- una vez descontados los hooks de
+  # helm, que ArgoCD gestiona como hooks y no como recursos.
   syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
