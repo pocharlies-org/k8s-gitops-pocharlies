@@ -14,6 +14,22 @@
 #
 # `prune: false` no es negociable aqui: Velero define CRDs y un prune equivocado
 # se llevaria los Backup/Restore por delante.
+#
+# OJO AL ADOPTAR (vale para las 12 releases que quedan fuera de GitOps): adoptar
+# NO borra el registro de Helm. Los secrets `sh.helm.release.v1.velero.*` siguen
+# ahi y `helm list -n velero` sigue diciendo `velero  12.0.1  deployed  rev 9`,
+# congelado en el 07-08-2026. A partir de ahora manda ArgoCD: un `helm upgrade`
+# aqui lo revierte selfHeal en segundos y parece que "no hace nada" -- es lo que
+# paso con la release `vm` el 15-08 (cinco upgrades tirados a la basura). No
+# borres los secrets: son el unico historial de como se instalo. La comprobacion
+# fiable antes de tocar CUALQUIER release es cruzar `helm list -A` con
+# `kubectl -n argocd get application`; si sale en los dos, manda Argo.
+#
+# El `ignoreDifferences` de abajo esta aqui por documentacion pero NO llega vivo:
+# el patch general del kustomization raiz reemplaza la lista entera de toda
+# Application. La entrada que de verdad se aplica esta en `kustomization.yaml`,
+# en el patch con `name: velero` y ruta `/spec/ignoreDifferences/-`. Mismo patron
+# que `ai` y `agentgateway-mcp`.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
