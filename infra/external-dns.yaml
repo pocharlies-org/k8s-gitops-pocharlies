@@ -1,0 +1,51 @@
+# external-dns -- publica en Cloudflare los DNS de e-dani.com y skirmshop.es a
+# partir de Services/Ingress/IngressRoute. Entra en GitOps el 15-08-2026; hasta
+# hoy era un `helm install` a mano y sus valores solo existian en el cluster.
+#
+# Multi-source:
+#   source 1 = chart upstream kubernetes-sigs/external-dns, pinado a lo desplegado.
+#   source 2 = ESTE repo como `$values`, para el fichero de valores.
+#
+# `prune: false`: si el render fallara alguna vez, un prune se llevaria el
+# Deployment que sostiene TODO el DNS publico. No hay prisa que lo justifique.
+#
+# OJO AL ADOPTAR: adoptar no borra el registro de Helm. `helm list -n external-dns`
+# seguira diciendo `rev 6 deployed`, congelado en el 22-07-2026, pero a partir de
+# ahora manda ArgoCD y un `helm upgrade` aqui lo revierte selfHeal en segundos.
+# Cruzar siempre `helm list -A` con `kubectl -n argocd get application`.
+#
+# El `ignoreDifferences` que necesite esta app va al `kustomization.yaml` RAIZ con
+# ruta `/spec/ignoreDifferences/-`, no aqui: el patch general de Application del
+# kustomization reemplaza la lista entera de este fichero.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-dns
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/kubernetes-sigs/external-dns
+  labels:
+    e-dani.com/tier: infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  sources:
+    - repoURL: https://kubernetes-sigs.github.io/external-dns
+      chart: external-dns
+      targetRevision: 1.21.1
+      helm:
+        releaseName: external-dns
+        valueFiles:
+          - $values/infra/external-dns/values.yaml
+    - repoURL: https://github.com/pocharlies-org/k8s-gitops-pocharlies
+      targetRevision: deploy/prod
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: external-dns
+  # Sin `automated` a proposito: se activa en un commit aparte, despues de leer el
+  # diff de adopcion contra el cluster vivo. Ver infra/velero.yaml.
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

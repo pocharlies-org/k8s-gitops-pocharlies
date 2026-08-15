@@ -11,6 +11,7 @@ resources:
   - infra/traefik-edge.yaml
   - infra/arc.yaml
   - infra/velero.yaml
+  - infra/external-dns.yaml
   - apps/adguard.yaml
   - apps/ai.yaml
   - apps/firecrawl.yaml

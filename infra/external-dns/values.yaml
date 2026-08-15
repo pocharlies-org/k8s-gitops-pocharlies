@@ -1,0 +1,42 @@
+# Captura LITERAL de `helm get values external-dns -n external-dns` del 15-08-2026
+# (release rev 6, chart external-dns-1.21.1, app 0.21.0), tomada justo antes de
+# meter la release en GitOps. No se ha "mejorado" ni reordenado nada: el objetivo
+# de la adopcion es que el render coincida con lo que ya corre.
+#
+# El token de Cloudflare NO esta aqui: entra por `secretKeyRef` al secret
+# `cloudflare-api-token`, que lo gestiona external-secrets. Este fichero es
+# seguro en git.
+#
+# `policy: upsert-only` es deliberado: external-dns crea y actualiza registros
+# pero NUNCA borra. No lo cambies a `sync` sin pensarlo -- con `sync` un fallo de
+# lectura de los sources se traduce en borrado masivo de DNS de e-dani.com y
+# skirmshop.es.
+domainFilters:
+  - e-dani.com
+  - skirmshop.es
+env:
+  - name: CF_API_TOKEN
+    valueFrom:
+      secretKeyRef:
+        key: api-token
+        name: cloudflare-api-token
+excludeDomains:
+  - lan.e-dani.com
+extraArgs:
+  - --default-targets=192.168.50.240
+interval: 1m
+logLevel: info
+policy: upsert-only
+provider:
+  name: cloudflare
+resources:
+  limits:
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+sources:
+  - service
+  - ingress
+  - traefik-proxy
+txtOwnerId: k3s-x86-home
