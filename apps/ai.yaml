@@ -423,7 +423,22 @@ spec:
     # nodos por `allocatable - Sigma mem-cost`, y limits.memory 42Gi -> 60Gi.
     # Gate del puerto comprobado antes de empujar: DOS Services con targetPort 8888.
     # ROLLBACK: devolver este campo a f51781cbae6d91c13fea1a1ac4c45a0212a6b129.
-    targetRevision: 32e2b2f130dc4b54216ee606172027372055ed41
+    #
+    # 2026-08-15: b2a6544 cambia vllm-vision-deep de Qwen3-VL-32B DENSO a
+    # Qwen3.6-35B-A3B MoE (256 expertos / 8 activos). Motivo medido, no teorico:
+    # el denso daba 9,07 tok/s de decode limpio en nvidia-dgx porque lee 19,1 GB
+    # POR TOKEN — ~173 GB/s efectivos, ~63% del pico nominal de la GB10. Estaba
+    # bandwidth-bound con eficiencia sana, asi que no habia nada que ganar en la
+    # config: la unica palanca es leer menos bytes por token. El MoE lee ~3B
+    # activos; el autor mide 34-35 tok/s en un GB10 y ~44 con el head MTP.
+    # Coste en el nodo: +3,7 GiB reales (32,61 -> ~36,3 GiB), que caben en los
+    # ~25 GiB de hueco que dejo 32e2b2f. mem-cost-gib 36 -> 44 y limits 36 -> 44Gi
+    # para que el arbitro rankee con el numero verdadero.
+    # OJO: `vision-deep` sigue siendo el served-model-name, el lock del arbitro
+    # (gpu_arbiter.acquire) y el workload del dashboard. Solo cambia el checkpoint.
+    # El pod hace Recreate y descarga 25,6 GB, asi que hay downtime de vision-deep.
+    # ROLLBACK: devolver este campo a 32e2b2f130dc4b54216ee606172027372055ed41.
+    targetRevision: b2a65446247c0354683881b1c0f42912d9d593f8
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
