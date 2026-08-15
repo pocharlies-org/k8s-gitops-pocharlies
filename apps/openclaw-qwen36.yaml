@@ -241,9 +241,9 @@ metadata:
     # El espejo solo declara la ventana; el enrutado real vive en
     # k8s-litellm-pocharlies@fb44436 (router_settings.fallbacks).
     operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 134ec0a175fe29166c791fd14b400dd8389db652
-    operations.pocharlies.org/approval-id: openclaw-culturismo-shared-brain-20260815
-    operations.pocharlies.org/approval-sequence: "20260815101429"
+    operations.pocharlies.org/approved-revision: aca6734e83a612ce5f6611868d16f9b13ca60456
+    operations.pocharlies.org/approval-id: openclaw-culturismo-pvc-migration-20260815
+    operations.pocharlies.org/approval-sequence: "20260815102536"
     operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
