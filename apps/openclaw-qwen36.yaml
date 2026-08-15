@@ -244,7 +244,33 @@ metadata:
     # (openclaw-gateway-cpu-request-20260815): Succeeded, pod 5/5 en ks5-cp-2
     # con request de CPU 1 core (era 200m). Cierra tambien la tanda de hoy:
     # culturismo al Brain compartido (134ec0a) y su migracion PVC (aca6734).
-    operations.pocharlies.org/state-writer-lease: inactive
+    #
+    # APPROVAL ABIERTO 2026-08-15 para 45246670aaac634a1734b1c8bb2686ce2cd088cd
+    # (openclaw-tooling-stable-pins-20260815).
+    #
+    # QUE APLICA: `stableLocalRef` reescribia todo pin gestionado del PVC a
+    # `litellm/deepseek-v4-flash-0731`, que NO EXISTE mientras corra el perfil
+    # creative — comprobado contra /model/info: de 47 alias vivos estan tooling,
+    # dense*, taxonomy y qwen35-4b, y NO estan deepseek, router, agent, high ni
+    # max. Pasa a `litellm/tooling`, que lo sirve el residente de CADA perfil.
+    # Ademas anade `taxonomy` a managedModelIds (faltaba: sin el, un pin en
+    # `litellm/taxonomy` quedaba huerfano) y sube el marcador
+    # .litellm-stable-profiles-v1 -> v2, sin el cual el bloque no vuelve a correr
+    # en un PVC ya estampado y el cambio seria un no-op silencioso.
+    #
+    # Es prerequisito de retirar dense/dense-reasoning/dense-uncensored/taxonomy
+    # en LiteLLM: sin esto, los pines de OpenClaw se quedan apuntando a alias que
+    # ya no existen.
+    #
+    # ARRASTRE: ninguno. status.sync.revision ya era 4524667 y el HEAD de
+    # deploy/prod es el mismo commit, asi que la operacion no trae trabajo ajeno.
+    # PRUNE false: los 19 recursos OutOfSync son 18 Jobs/Secrets huerfanos de
+    # hooks previos; el unico cambio real es el Deployment.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 45246670aaac634a1734b1c8bb2686ce2cd088cd
+    operations.pocharlies.org/approval-id: openclaw-tooling-stable-pins-20260815
+    operations.pocharlies.org/approval-sequence: "20260815182558"
+    operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
