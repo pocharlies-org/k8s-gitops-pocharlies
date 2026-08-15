@@ -438,7 +438,14 @@ spec:
     # (gpu_arbiter.acquire) y el workload del dashboard. Solo cambia el checkpoint.
     # El pod hace Recreate y descarga 25,6 GB, asi que hay downtime de vision-deep.
     # ROLLBACK: devolver este campo a 32e2b2f130dc4b54216ee606172027372055ed41.
-    targetRevision: b2a65446247c0354683881b1c0f42912d9d593f8
+    # 15-08 (bis): e0dcbb0 corrige tres cosas de b2a6544 antes de que llegara a
+    # arrancar — quita --attention-backend (b308884 era el 27B DENSO, no este
+    # MoE, y el known-good de la casa usa flashinfer: dos referencias que se
+    # contradicen, asi que no se fuerza ninguna), quita el video del
+    # --limit-mm-per-prompt (no lo declara ni el README del checkpoint ni el
+    # manifiesto de NVIDIA) y sube progressDeadlineSeconds a 3600 porque son
+    # 25,6 GB de descarga mas ~5,5 min de compile+autotune.
+    targetRevision: e0dcbb0476da3c582db603c06d35a247a5007aba
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
