@@ -457,7 +457,14 @@ spec:
     # A 10 GiB dense baja a ~35 y entran los dos. Contexto sigue en 262144; lo que
     # cae es la concurrencia de peticiones largas: 3,01x -> 1,08x.
     # ROLLBACK: devolver este campo a ea45d61a8e860a7b6f91f20a71d5efe9bfc2f1c1.
-    targetRevision: a1adafa6a113f4da8a4699f355bfa908c4567453
+    # 15-08: f9de38a REVIERTE vision-deep al 32B denso. El MoE frischeDaten no
+    # carga en esta imagen — KeyError layers.0.mlp.experts.routed_experts
+    # .w2_weight_input_scale, que es vllm#49638: el weight_loader carga los
+    # expertos fusionados pero no sus escalas NVFP4. El parche del propio repo
+    # del checkpoint arregla justo eso, pero esta escrito contra
+    # qwen3_5_vl_moe.py (julio) y esta imagen tiene qwen3_5.py con
+    # `routed_experts`. NO se toca el 27B ni el qwen38 de a1adafa.
+    targetRevision: f9de38a77d11ebbfdfd1acc07484871de0ee9212
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
