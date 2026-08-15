@@ -5,14 +5,12 @@
 #   source 1 = chart upstream vmware-tanzu/velero, pinado a la version desplegada.
 #   source 2 = ESTE repo como `$values`, para el fichero de valores.
 #
-# SIN `automated` a proposito. Adoptar recursos que ya existen es el momento
-# delicado: ArgoCD compara lo que renderiza el chart contra lo que hay vivo, y un
-# default distinto podria tocar el DaemonSet del node-agent o la
-# BackupStorageLocation. Primero se mira el diff con la app en manual; cuando
-# salga vacio, se anade:
-#
-#   syncPolicy:
-#     automated: { selfHeal: true, prune: false }
+# Diff de adopcion comprobado el 15-08-2026 antes de activar el sync: de 23
+# recursos, 10 salian OutOfSync y TODAS las diferencias eran campos que rellena
+# el API server, no configuracion -- protocol: TCP, terminationMessagePath,
+# imagePullPolicy, schedulerName, securityContext: {}, defaultMode: 420. Imagen,
+# recursos, bucket y provider coincidian exactos. Con ServerSideApply ArgoCD solo
+# gestiona los campos que declara, asi que adoptar no toca nada de eso.
 #
 # `prune: false` no es negociable aqui: Velero define CRDs y un prune equivocado
 # se llevaria los Backup/Restore por delante.
@@ -43,6 +41,9 @@ spec:
     server: https://kubernetes.default.svc
     namespace: velero
   syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true

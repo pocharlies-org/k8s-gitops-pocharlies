@@ -263,14 +263,23 @@ metadata:
     # ya no existen.
     #
     # ARRASTRE: ninguno. status.sync.revision ya era 4524667 y el HEAD de
-    # deploy/prod es el mismo commit, asi que la operacion no trae trabajo ajeno.
+    # deploy/prod es el mismo commit, asi que la operacion no trajo trabajo ajeno.
     # PRUNE false: los 19 recursos OutOfSync son 18 Jobs/Secrets huerfanos de
-    # hooks previos; el unico cambio real es el Deployment.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 45246670aaac634a1734b1c8bb2686ce2cd088cd
-    operations.pocharlies.org/approval-id: openclaw-tooling-stable-pins-20260815
-    operations.pocharlies.org/approval-sequence: "20260815182558"
-    operations.pocharlies.org/approved-prune: "false"
+    # hooks previos; el unico cambio real era el Deployment.
+    #
+    # APPROVAL CERRADO: operacion Succeeded, app Healthy en la revision aprobada,
+    # pod openclaw-qwen36-openclaw-5fd467f897-9x2vk 5/5. Verificado DENTRO del PVC:
+    # el marcador `.litellm-stable-profiles-v2` existe, o sea que el bloque volvio
+    # a correr (con v1 habria sido un no-op silencioso).
+    #
+    # LO QUE NO ARREGLA, y hace falta decirlo: el config persistido conserva 16
+    # pines en `litellm/deepseek-v4-flash-0731`, que NO esta registrado mientras
+    # corra el perfil creative. No los toca `stableLocalRef` porque mergeRoute los
+    # trata como eleccion explicita de checkpoint —igual que `litellm/qwen35-4b`—
+    # y ese guard se conservo a proposito. El cambio arregla el DESTINO de futuras
+    # reescrituras, no los pines ya escritos. Decidir aparte si deepseek deja de
+    # contar como eleccion explicita mientras no este registrado.
+    operations.pocharlies.org/state-writer-lease: inactive
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
