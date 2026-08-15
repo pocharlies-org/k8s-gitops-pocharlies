@@ -1,0 +1,20 @@
+# Captura de `helm get values cert-manager -n cert-manager` del 15-08-2026 (chart cert-manager-v1.20.2).
+# Verificado ese dia contra el cluster VIVO con `kubectl diff --server-side`:
+# exit 0, cero diferencias. Es decir, esto describe lo que de verdad corre.
+#
+# Regla aprendida adoptando nfs-warm: si el objeto vivo y `helm get values` no
+# coinciden, manda el OBJETO VIVO. Los valores de una release se quedan obsoletos
+# en cuanto alguien parchea el objeto a mano.
+#
+# `crds.enabled: true`: el chart es DUENO de los CRDs de cert-manager. Por eso su
+# Application va con `prune: false` sin excepcion -- un prune se llevaria
+# Certificate/Issuer/ClusterIssuer y con ellos todo el TLS del cluster.
+#
+# Los `extraArgs` de DNS01 fuerzan resolucion recursiva contra 1.1.1.1 y 8.8.8.8
+# en vez de contra el DNS del cluster: sin eso, la validacion DNS01 de Let's
+# Encrypt se resuelve contra la vista interna y nunca ve el TXT publicado.
+crds:
+  enabled: true
+extraArgs:
+- --dns01-recursive-nameservers=1.1.1.1:53,8.8.8.8:53
+- --dns01-recursive-nameservers-only

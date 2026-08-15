@@ -1,0 +1,78 @@
+# Captura de `helm get values kyverno -n kyverno` del 15-08-2026 (chart kyverno-3.8.1).
+# Verificado ese dia contra el cluster VIVO con `kubectl diff --server-side`:
+# exit 0, cero diferencias. Es decir, esto describe lo que de verdad corre.
+#
+# Regla aprendida adoptando nfs-warm: si el objeto vivo y `helm get values` no
+# coinciden, manda el OBJETO VIVO. Los valores de una release se quedan obsoletos
+# en cuanto alguien parchea el objeto a mano.
+#
+# CUIDADO: el admissionController es un webhook BLOQUEANTE. Si sus 2 replicas caen
+# a la vez, la admision de pods del cluster se va al garete. Estan en `ks5-nvme`
+# con `replicas: 2` justamente para eso; no bajes a 1 ni las muevas sin pensarlo.
+#
+# Este chart trae el MOTOR, no las politicas. Las ClusterPolicy (entre ellas
+# `restrict-image-registries`, la que obliga a que las imagenes vengan de
+# harbor.lan.e-dani.com) viven en otro sitio y no las toca esta Application.
+admissionController:
+  nodeSelector:
+    node-pool: ks5-nvme
+  replicas: 2
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  tolerations:
+  - effect: NoSchedule
+    key: dedicated
+    operator: Equal
+    value: llm
+backgroundController:
+  nodeSelector:
+    node-pool: ks5-nvme
+  resources:
+    limits:
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  tolerations:
+  - effect: NoSchedule
+    key: dedicated
+    operator: Equal
+    value: llm
+cleanupController:
+  nodeSelector:
+    node-pool: ks5-nvme
+  resources:
+    limits:
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  tolerations:
+  - effect: NoSchedule
+    key: dedicated
+    operator: Equal
+    value: llm
+features:
+  policyExceptions:
+    enabled: true
+    namespace: monitoring
+grafana:
+  enabled: true
+reportsController:
+  nodeSelector:
+    node-pool: ks5-nvme
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+  tolerations:
+  - effect: NoSchedule
+    key: dedicated
+    operator: Equal
+    value: llm

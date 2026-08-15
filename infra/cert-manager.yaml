@@ -1,0 +1,50 @@
+# cert-manager -- entra en GitOps el 15-08-2026. Hasta hoy era un `helm install` a mano y
+# sus valores solo existian dentro del cluster.
+#
+# RIESGO: el chart es dueno de los CRDs. Un prune se llevaria Certificate,
+# Issuer y ClusterIssuer, y con ellos el TLS de todo el cluster. prune: false.
+#
+# Multi-source: source 1 = chart upstream pinado a lo desplegado; source 2 = ESTE
+# repo como $values.
+#
+# Diff de adopcion comprobado ANTES de activar el sync: `kubectl diff
+# --server-side` del chart renderizado (con --include-crds y descontando hooks)
+# contra el cluster vivo, exit 0 y cero lineas.
+#
+# OJO: adoptar NO borra el registro de Helm. `helm list -n cert-manager` seguira
+# reportando la release, pero manda ArgoCD y un `helm upgrade` lo revierte
+# selfHeal en segundos. Cruza `helm list -A` con `kubectl -n argocd get application`.
+#
+# Un `ignoreDifferences` para esta app va al `kustomization.yaml` RAIZ con ruta
+# `/spec/ignoreDifferences/-`: el patch general reemplaza la lista de este fichero.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/cert-manager/cert-manager
+  labels:
+    e-dani.com/tier: infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  sources:
+    - repoURL: https://charts.jetstack.io
+      chart: cert-manager
+      targetRevision: v1.20.2
+      helm:
+        releaseName: cert-manager
+        valueFiles:
+          - $values/infra/cert-manager/values.yaml
+    - repoURL: https://github.com/pocharlies-org/k8s-gitops-pocharlies
+      targetRevision: deploy/prod
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  # Sin `automated` a proposito: se activa en un commit aparte.
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

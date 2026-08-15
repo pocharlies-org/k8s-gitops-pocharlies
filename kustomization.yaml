@@ -16,6 +16,11 @@ resources:
   - infra/nfs-cold.yaml
   - infra/nfs-warm.yaml
   - infra/gpu-operator.yaml
+  - infra/cert-manager.yaml
+  - infra/external-secrets.yaml
+  - infra/metallb.yaml
+  - infra/kyverno.yaml
+  - infra/longhorn.yaml
   - apps/adguard.yaml
   - apps/ai.yaml
   - apps/firecrawl.yaml

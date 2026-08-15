@@ -1,0 +1,84 @@
+# Captura de `helm get values longhorn -n longhorn-system` del 15-08-2026 (chart longhorn-1.11.2).
+# Verificado ese dia contra el cluster VIVO con `kubectl diff --server-side`:
+# exit 0, cero diferencias. Es decir, esto describe lo que de verdad corre.
+#
+# Regla aprendida adoptando nfs-warm: si el objeto vivo y `helm get values` no
+# coinciden, manda el OBJETO VIVO. Los valores de una release se quedan obsoletos
+# en cuanto alguien parchea el objeto a mano.
+#
+# Es la capa de ALMACENAMIENTO: `persistence.defaultClass: true` la convierte en la
+# StorageClass por defecto del cluster. `prune: false` y ninguna prisa.
+#
+# `guaranteedInstanceManagerCPU: 12` es el 12 % de CPU RESERVADO en cada nodo de
+# Longhorn (~960m en los ks5). Es la respuesta a "por que el instance-manager come
+# tanto": no lo consume, lo tiene reservado. Bajarlo libera requests pero le quita
+# margen al plano de datos.
+#
+# `reclaimPolicy: Retain`: borrar un PVC NO borra el volumen. Es lo que salva los
+# datos cuando alguien borra algo por error.
+#
+# `systemManagedComponentsNodeSelector: storage-longhorn:true` -- sauvage NO lleva
+# esa etiqueta y por eso no es nodo de Longhorn. No es un fallo.
+attacherReplicaCount: 2
+csi:
+  attacherReplicaCount: 2
+  provisionerReplicaCount: 2
+  resizerReplicaCount: 2
+  snapshotterReplicaCount: 2
+defaultSettings:
+  concurrentReplicaRebuildPerNodeLimit: 1
+  createDefaultDiskLabeledNodes: true
+  defaultDataPath: /var/lib/longhorn
+  defaultReplicaCount: '{"v1":"3","v2":"3"}'
+  guaranteedInstanceManagerCPU: 12
+  replicaSoftAntiAffinity: true
+  replicaZoneSoftAntiAffinity: true
+  storageMinimalAvailablePercentage: 15
+  storageOverProvisioningPercentage: 110
+  systemManagedComponentsNodeSelector: storage-longhorn:true
+  taintToleration: dedicated=llm:NoSchedule;role=edge:NoSchedule;pocharlies.io/pool=bulk:NoSchedule
+ingress:
+  enabled: false
+longhornDriver:
+  nodeSelector:
+    storage-longhorn: "true"
+  tolerations:
+  - effect: NoSchedule
+    key: dedicated
+    operator: Equal
+    value: llm
+  - effect: NoSchedule
+    key: role
+    operator: Equal
+    value: edge
+  - effect: NoSchedule
+    key: pocharlies.io/pool
+    operator: Equal
+    value: bulk
+longhornManager:
+  nodeSelector:
+    storage-longhorn: "true"
+  tolerations:
+  - effect: NoSchedule
+    key: dedicated
+    operator: Equal
+    value: llm
+  - effect: NoSchedule
+    key: role
+    operator: Equal
+    value: edge
+  - effect: NoSchedule
+    key: pocharlies.io/pool
+    operator: Equal
+    value: bulk
+longhornUI:
+  nodeSelector:
+    storage-longhorn: "true"
+  replicas: 1
+persistence:
+  defaultClass: true
+  defaultClassReplicaCount: 3
+  reclaimPolicy: Retain
+provisionerReplicaCount: 2
+resizerReplicaCount: 2
+snapshotterReplicaCount: 2

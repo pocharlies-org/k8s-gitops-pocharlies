@@ -1,0 +1,13 @@
+# Captura de `helm get values external-secrets -n external-secrets-operator` del 15-08-2026 (chart external-secrets-2.5.0).
+# Verificado ese dia contra el cluster VIVO con `kubectl diff --server-side`:
+# exit 0, cero diferencias. Es decir, esto describe lo que de verdad corre.
+#
+# Regla aprendida adoptando nfs-warm: si el objeto vivo y `helm get values` no
+# coinciden, manda el OBJETO VIVO. Los valores de una release se quedan obsoletos
+# en cuanto alguien parchea el objeto a mano.
+#
+# La release mas escueta del cluster: un solo valor. `installCRDs: true` significa
+# que el chart es DUENO de los CRDs -- ExternalSecret, SecretStore, ClusterSecretStore.
+# `prune: false` no es opinable: un prune borraria esos CRDs y con ellos TODOS los
+# ExternalSecret del cluster, que es como decir todos los secretos.
+installCRDs: true

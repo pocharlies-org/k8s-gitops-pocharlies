@@ -1,0 +1,76 @@
+# Captura de `helm get values metallb -n metallb-system` del 15-08-2026 (chart metallb-0.15.3).
+# Verificado ese dia contra el cluster VIVO con `kubectl diff --server-side`:
+# exit 0, cero diferencias. Es decir, esto describe lo que de verdad corre.
+#
+# Regla aprendida adoptando nfs-warm: si el objeto vivo y `helm get values` no
+# coinciden, manda el OBJETO VIVO. Los valores de una release se quedan obsoletos
+# en cuanto alguien parchea el objeto a mano.
+#
+# El `speaker` esta clavado en `kubernetes.io/hostname: ubuntu` a proposito: es el
+# unico nodo en la LAN de casa que puede anunciar por ARP las IPs del pool. Si lo
+# sueltas, MetalLB anuncia desde un nodo de OVH y las IPs de la LAN dejan de
+# responder. Los IPAddressPool/L2Advertisement NO los define este chart.
+controller:
+  resources:
+    limits:
+      memory: 256Mi
+    requests:
+      cpu: 10m
+      memory: 96Mi
+speaker:
+  frr:
+    resources:
+      limits:
+        memory: 256Mi
+      requests:
+        cpu: 10m
+        memory: 64Mi
+  frrMetrics:
+    resources:
+      limits:
+        memory: 128Mi
+      requests:
+        cpu: 5m
+        memory: 32Mi
+  initContainers:
+    cpFrrFiles:
+      resources:
+        limits:
+          memory: 128Mi
+        requests:
+          cpu: 5m
+          memory: 32Mi
+    cpMetrics:
+      resources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 5m
+          memory: 16Mi
+    cpReloader:
+      resources:
+        limits:
+          memory: 64Mi
+        requests:
+          cpu: 5m
+          memory: 16Mi
+  nodeSelector:
+    kubernetes.io/hostname: ubuntu
+  reloader:
+    resources:
+      limits:
+        memory: 64Mi
+      requests:
+        cpu: 5m
+        memory: 16Mi
+  resources:
+    limits:
+      memory: 256Mi
+    requests:
+      cpu: 10m
+      memory: 96Mi
+  tolerations:
+  - effect: NoSchedule
+    key: dedicated
+    operator: Equal
+    value: llm
