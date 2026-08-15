@@ -37,6 +37,17 @@ spec:
     - repoURL: https://github.com/pocharlies-org/k8s-gitops-pocharlies
       targetRevision: deploy/prod
       ref: values
+  # El controlador de Velero BORRA `spec.default` del BSL en cuanto lo reconcilia
+  # (en 1.18 el BSL por defecto no se marca ya con ese campo). El chart lo sigue
+  # renderizando, asi que sin esto la Application se queda OutOfSync para siempre
+  # por un campo que nunca va a existir en el objeto vivo. Comprobado: el BSL esta
+  # `Available` y funciona; los otros 22 recursos sincronizan limpios.
+  ignoreDifferences:
+    - group: velero.io
+      kind: BackupStorageLocation
+      name: default
+      jsonPointers:
+        - /spec/default
   destination:
     server: https://kubernetes.default.svc
     namespace: velero
