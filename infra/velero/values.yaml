@@ -1,0 +1,95 @@
+# Velero — valores del release en vivo, capturados con `helm get values velero -n velero`
+# el 15-08-2026 (chart velero-12.0.1, app 1.18.0, revision 9).
+#
+# Hasta ahora Velero se instalaba a mano con Helm y NO estaba en GitOps: cualquier
+# cambio vivia solo en el cluster y se perdia en la siguiente reinstalacion. Este
+# fichero es ahora la fuente de verdad; lo consume infra/velero.yaml.
+#
+# La Application arranca SIN `automated` a proposito: primero se comprueba que el
+# diff contra lo desplegado sale vacio, y solo despues se activa el sync.
+backupsEnabled: true
+configuration:
+  backupStorageLocation:
+  - bucket: velero-backups
+    config:
+      publicUrl: https://s3.lan.e-dani.com
+      region: us-east-1
+      s3ForcePathStyle: true
+      s3Url: http://minio-s3.minio.svc.cluster.local:9000
+    credential:
+      key: cloud
+      name: velero-minio-creds
+    default: true
+    name: default
+    provider: aws
+  clientBurst: 100
+  clientQPS: 50
+  defaultRepoMaintainFrequency: 24h0m0s
+  features: EnableCSI
+  garbageCollectionFrequency: 1h0m0s
+  logLevel: info
+  repositoryMaintenanceJob:
+    repositoryConfigData:
+      global:
+        keepLatestMaintenanceJobs: 1
+        loadAffinity:
+        - nodeSelector:
+            matchExpressions:
+            - key: node-pool
+              operator: In
+              values:
+              - ks5-nvme
+        podResources:
+          cpuLimit: "1"
+          cpuRequest: 100m
+          memoryLimit: 2Gi
+          memoryRequest: 512Mi
+  volumeSnapshotLocation:
+  - config:
+      region: us-east-1
+    name: default
+    provider: aws
+credentials:
+  existingSecret: velero-minio-creds
+  useSecret: true
+deployNodeAgent: true
+initContainers:
+- image: docker.io/velero/velero-plugin-for-aws:v1.14.2@sha256:0751144c1c8e52d52c48717fbd13ad5a3061e612ae4d7ad744a946cd5b139d1a
+  name: velero-plugin-for-aws
+  volumeMounts:
+  - mountPath: /target
+    name: plugins
+nodeAgent:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: topology
+            operator: In
+            values:
+            - lan
+            - ovh
+  extraArgs:
+  - --node-agent-configmap=velero-node-agent-config
+  resources:
+    limits:
+      cpu: "1"
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  tolerations:
+  - effect: NoSchedule
+    key: dedicated
+    operator: Equal
+    value: llm
+nodeSelector:
+  node-pool: ks5-nvme
+resources:
+  limits:
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi
+snapshotsEnabled: true

@@ -1,0 +1,48 @@
+# Velero — copias de seguridad de k8s. Entra en GitOps el 15-08-2026; hasta hoy
+# era un `helm install` a mano y sus valores solo existian en el cluster.
+#
+# Multi-source:
+#   source 1 = chart upstream vmware-tanzu/velero, pinado a la version desplegada.
+#   source 2 = ESTE repo como `$values`, para el fichero de valores.
+#
+# SIN `automated` a proposito. Adoptar recursos que ya existen es el momento
+# delicado: ArgoCD compara lo que renderiza el chart contra lo que hay vivo, y un
+# default distinto podria tocar el DaemonSet del node-agent o la
+# BackupStorageLocation. Primero se mira el diff con la app en manual; cuando
+# salga vacio, se anade:
+#
+#   syncPolicy:
+#     automated: { selfHeal: true, prune: false }
+#
+# `prune: false` no es negociable aqui: Velero define CRDs y un prune equivocado
+# se llevaria los Backup/Restore por delante.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: velero
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/vmware-tanzu/helm-charts
+  labels:
+    e-dani.com/tier: infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  sources:
+    - repoURL: https://vmware-tanzu.github.io/helm-charts
+      chart: velero
+      targetRevision: 12.0.1
+      helm:
+        releaseName: velero
+        valueFiles:
+          - $values/infra/velero/values.yaml
+    - repoURL: https://github.com/pocharlies-org/k8s-gitops-pocharlies
+      targetRevision: deploy/prod
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: velero
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
