@@ -49,8 +49,11 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
-  # Sin `automated` a proposito: se activa en un commit aparte.
+  # Diff de adopcion a CERO verificado el 15-08-2026 antes de activar esto.
   syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
