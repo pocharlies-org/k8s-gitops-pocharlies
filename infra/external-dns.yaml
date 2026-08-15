@@ -43,9 +43,14 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: external-dns
-  # Sin `automated` a proposito: se activa en un commit aparte, despues de leer el
-  # diff de adopcion contra el cluster vivo. Ver infra/velero.yaml.
+  # Diff de adopcion comprobado el 15-08-2026 ANTES de activar el sync:
+  # `kubectl diff --server-side` del chart renderizado contra el cluster vivo
+  # salio con exit 0 -- cero diferencias en los 6 recursos. Argo los marcaba
+  # OutOfSync solo porque su baseline era el de Helm y nunca los habia aplicado el.
   syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
