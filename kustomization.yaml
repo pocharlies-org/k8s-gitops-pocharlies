@@ -21,6 +21,7 @@ resources:
   - infra/metallb.yaml
   - infra/kyverno.yaml
   - infra/longhorn.yaml
+  - infra/argocd.yaml
   - apps/adguard.yaml
   - apps/ai.yaml
   - apps/firecrawl.yaml

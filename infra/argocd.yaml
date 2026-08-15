@@ -1,0 +1,56 @@
+# ArgoCD gestionandose a si mismo. Entra en GitOps el 15-08-2026; hasta hoy era
+# la unica pieza que se actualizaba con `helm upgrade` a mano usando
+# `argocd/values.yaml` de ESTE repo.
+#
+# No se duplica el fichero de valores: `argocd/values.yaml` ya existia y se
+# comprobo el 15-08-2026 que es IDENTICO, clave por clave, a la salida de
+# `helm get values argocd -n argocd`. Esta Application apunta ahi directamente,
+# asi que `argocd/tests/verify-scheduling.sh` sigue validando el mismo fichero
+# que despliega ArgoCD.
+#
+# Diff de adopcion: `kubectl diff --server-side` de los 49 objetos renderizados
+# contra el cluster vivo -> exit 0, cero lineas. Y se comprobo que NINGUNO de los
+# 49 choca con los 47 objetos sueltos que el root ya gestiona (ingressroute,
+# AppProjects, repositories, RBAC de openclaw): solape vacio.
+#
+# QUE PASA SI ESTO SE ROMPE: ArgoCD deja de reconciliar, pero las cargas siguen
+# corriendo -- nada se para por si solo. La salida es `helm upgrade` a mano con
+# `argocd/values.yaml`, que es exactamente como se hacia hasta hoy. Por eso la
+# adopcion es reversible y no hace falta red de seguridad adicional.
+#
+# `prune: false`: un prune aqui se llevaria el propio controlador que hace el
+# prune. Ni de broma.
+#
+# Un `ignoreDifferences` para esta app va al `kustomization.yaml` RAIZ con ruta
+# `/spec/ignoreDifferences/-`: el patch general reemplaza la lista de este fichero.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/argoproj/argo-helm
+  labels:
+    e-dani.com/tier: infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-cd
+      targetRevision: 9.5.14
+      helm:
+        releaseName: argocd
+        valueFiles:
+          - $values/argocd/values.yaml
+    - repoURL: https://github.com/pocharlies-org/k8s-gitops-pocharlies
+      targetRevision: deploy/prod
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  # Sin `automated` a proposito: se activa en un commit aparte.
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
