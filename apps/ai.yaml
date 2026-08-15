@@ -177,7 +177,7 @@ spec:
     # softmax del draft, y `greedy` no la tiene — entra como one-hot.
     #
     # ROLLBACK, y hay que hacerlo en cuanto termine la medida:
-    #   targetRevision: 36077d4d23ad5b7894d22347de5a269a00f7c6c8
+    #   targetRevision: 193f99fed91a36ac3ebd8dcf023d1d0d1ddefbed
     # (era bd570d0; actualizado el 13-08-2026 porque 193f99f es el mismo arbol SIN
     # el brazo greedy pero CON el embedder/reranker ya en x86. Volver a bd570d0
     # los devolveria a sauvage, que es justo lo que se acaba de deshacer.)
@@ -498,7 +498,7 @@ spec:
     # 15-08 cierre: f589f26 solo precisa comentarios (no se atribuyo el salto a
     # 68 tok/s a una sola causa). Anotaciones de metadata del Deployment, NO del
     # pod template: no reinicia.
-    targetRevision: f589f2648ec197588fd614495bab94b8beefb9e6
+    targetRevision: 36077d4d23ad5b7894d22347de5a269a00f7c6c8
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
