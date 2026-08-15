@@ -483,7 +483,14 @@ spec:
     # Ademas memoria: el proceso ocupaba 30,34 GiB de 35,89, y el KV daba 313.636
     # tokens para 65.536 necesarios. KV 6->3 GiB, util 0.30->0.24, limits 36->30Gi.
     # ROLLBACK: 4dd7bcd0593ceb50ed25ff296a2edfa38dac2f8d (marlin, 17,7 tok/s).
-    targetRevision: 4d76a2942de5db56aac85e139d0a97097ca3b617
+    # 15-08: 63aeadd deshace el forzado de kernel de 4d76a29 (flashinfer_cutedsl
+    # da "does not support current device cuda") y CONSERVA el recorte de memoria.
+    # Correccion de lectura: la lista "out of potential backends" es de candidatos
+    # por prioridad, no de soportados — `auto` ya elegia bien, MARLIN es el unico
+    # backend NVFP4-MoE viable en GB10 con esta imagen. El techo de 17,7 tok/s es
+    # de la build (marlin weight-only porque vLLM no ve FP4 nativo en sm_121), no
+    # de la config. ROLLBACK: 4dd7bcd0593ceb50ed25ff296a2edfa38dac2f8d.
+    targetRevision: 63aeaddbd2feb1e392641afd373cf222bff69729
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
