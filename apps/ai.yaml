@@ -451,7 +451,13 @@ spec:
     # --gpu-memory-utilization es fraccion del TOTAL del dispositivo, no de lo
     # libre, y en GB10 la memoria es la del sistema. Tambien method qwen3_5_mtp
     # -> mtp (la imagen lo marca deprecated y lo resuelve igual).
-    targetRevision: ea45d61a8e860a7b6f91f20a71d5efe9bfc2f1c1
+    # 2026-08-15: a1adafa baja la KV del 27B denso de 28 a 10 GiB. No sobraba:
+    # con los DOS residentes arriba el nodo se iba a 120,7 GiB sobre 119,64 de
+    # unificada (53,1 dense + 33,8 vision-deep + 8,2 tts/bge + 25,6 fuera de GPU).
+    # A 10 GiB dense baja a ~35 y entran los dos. Contexto sigue en 262144; lo que
+    # cae es la concurrencia de peticiones largas: 3,01x -> 1,08x.
+    # ROLLBACK: devolver este campo a ea45d61a8e860a7b6f91f20a71d5efe9bfc2f1c1.
+    targetRevision: a1adafa6a113f4da8a4699f355bfa908c4567453
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
