@@ -464,7 +464,15 @@ spec:
     # del checkpoint arregla justo eso, pero esta escrito contra
     # qwen3_5_vl_moe.py (julio) y esta imagen tiene qwen3_5.py con
     # `routed_experts`. NO se toca el 27B ni el qwen38 de a1adafa.
-    targetRevision: f9de38a77d11ebbfdfd1acc07484871de0ee9212
+    # 15-08: 4dd7bcd lleva vision-deep a nvidia/Qwen3.6-35B-A3B-NVFP4 (MoE 256
+    # expertos / 8 activos) tras descartar el frischeDaten, que no carga en esta
+    # imagen (vllm#49638, escalas NVFP4 de expertos fusionados). El de NVIDIA usa
+    # W4A16_NVFP4: activaciones en 16 bits, luego no existe el input_scale que
+    # reventaba. Revision 491c2f1e, la misma que ya pinnea
+    # vllm-nvidia-qwen36-35b-dgx1. Presupuesto ~32,3 GiB en util 0.30, y hay ~55
+    # libres desde a1adafa. ROLLBACK: f9de38a77d11ebbfdfd1acc07484871de0ee9212
+    # (32B denso, 9,07 tok/s).
+    targetRevision: 4dd7bcd0593ceb50ed25ff296a2edfa38dac2f8d
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
