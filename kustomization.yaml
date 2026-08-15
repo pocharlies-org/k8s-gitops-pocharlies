@@ -312,6 +312,28 @@ patches:
       - op: add
         path: /spec/ignoreDifferences/0/jqPathExpressions/-
         value: .spec.target.template.mergePolicy
+  # Misma trampa: el patch general de arriba REEMPLAZA la lista, asi que el
+  # ignoreDifferences que declara infra/velero.yaml nunca llega vivo. El
+  # controlador de Velero 1.18 borra `spec.default` del BSL en cuanto lo
+  # reconcilia (comprobado 15-08-2026: el objeto vivo esta `Available` y su spec
+  # solo tiene accessMode/config/credential/objectStorage/provider), pero el
+  # chart lo sigue renderizando. Sin esta entrada la Application se queda
+  # OutOfSync para siempre por un campo que no va a existir nunca.
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+      name: velero
+    patch: |-
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: velero.io
+          kind: BackupStorageLocation
+          name: default
+          namespace: velero
+          jsonPointers:
+            - /spec/default
   - target:
       group: argoproj.io
       version: v1alpha1
