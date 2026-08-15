@@ -472,7 +472,18 @@ spec:
     # vllm-nvidia-qwen36-35b-dgx1. Presupuesto ~32,3 GiB en util 0.30, y hay ~55
     # libres desde a1adafa. ROLLBACK: f9de38a77d11ebbfdfd1acc07484871de0ee9212
     # (32B denso, 9,07 tok/s).
-    targetRevision: 4dd7bcd0593ceb50ed25ff296a2edfa38dac2f8d
+    # 15-08: 4d76a29 saca el MoE de MARLIN. El arranque decia "Using 'MARLIN'
+    # NvFp4 MoE backend" teniendo FLASHINFER_* y CUTLASS disponibles, y ademas
+    # "Your GPU does not have native support for FP4 computation ... weight-only
+    # FP4 compression". Marlin descomprime los pesos antes de calcular, y por eso
+    # el MoE rendia 17,7 tok/s cuando la cuenta da ~80: lee ~9,1 GiB/token en vez
+    # de los ~2,2 de un 8-de-256. A flashinfer_cutedsl. RIESGO CONOCIDO: el
+    # FlashInfer NVFP4-MoE puede petar con illegal instruction en el forward de
+    # IMAGEN en GB10 — verificar con una imagen, no con /health.
+    # Ademas memoria: el proceso ocupaba 30,34 GiB de 35,89, y el KV daba 313.636
+    # tokens para 65.536 necesarios. KV 6->3 GiB, util 0.30->0.24, limits 36->30Gi.
+    # ROLLBACK: 4dd7bcd0593ceb50ed25ff296a2edfa38dac2f8d (marlin, 17,7 tok/s).
+    targetRevision: 4d76a2942de5db56aac85e139d0a97097ca3b617
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
