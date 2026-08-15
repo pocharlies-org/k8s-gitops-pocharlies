@@ -445,7 +445,13 @@ spec:
     # --limit-mm-per-prompt (no lo declara ni el README del checkpoint ni el
     # manifiesto de NVIDIA) y sube progressDeadlineSeconds a 3600 porque son
     # 25,6 GB de descarga mas ~5,5 min de compile+autotune.
-    targetRevision: e0dcbb0476da3c582db603c06d35a247a5007aba
+    # 15-08 (ter): ea45d61 baja util 0.35 -> 0.30 y KV 8 -> 6 GiB. e0dcbb0 no
+    # llego a arrancar: pedia 41,87 GiB y solo habia 37,51 libres (el 27B vecino
+    # se lleva 53,12 desde que 32e2b2f le subio la KV a 28 GiB). Recordatorio:
+    # --gpu-memory-utilization es fraccion del TOTAL del dispositivo, no de lo
+    # libre, y en GB10 la memoria es la del sistema. Tambien method qwen3_5_mtp
+    # -> mtp (la imagen lo marca deprecated y lo resuelve igual).
+    targetRevision: ea45d61a8e860a7b6f91f20a71d5efe9bfc2f1c1
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
