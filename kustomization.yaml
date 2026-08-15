@@ -235,6 +235,17 @@ patches:
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *compute-replicas, name: vllm-qwen36-27b-uncensored }
+      # 15-08: el 27B se renombra a `vllm-qwen38-27b-uncensored` (el checkpoint es
+      # un Qwen3.8, no un 3.6). La entrada nueva va ANTES del rename y es inofensiva
+      # mientras el objeto no exista: ignoreDifferences sobre un Deployment ausente
+      # es un no-op. Si se renombra sin esto, el Deployment nuevo nace con las
+      # replicas de git —que son 0— Argo las gestiona porque el nombre nuevo no
+      # esta en la lista, y el residente se queda ABAJO; un `kubectl scale` a 1
+      # lo revierte selfHeal acto seguido. Las dos conviven hasta que el objeto
+      # viejo desaparezca.
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: vllm-qwen38-27b-uncensored }
       # CPU/Sauvage fallbacks are raised transactionally while ComfyUI borrows
       # the RTX in LLM TP. The root kustomization replaces each Application's
       # ignoreDifferences list, so these entries must live here as well as in
