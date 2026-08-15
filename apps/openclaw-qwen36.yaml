@@ -240,11 +240,11 @@ metadata:
     #
     # El espejo solo declara la ventana; el enrutado real vive en
     # k8s-litellm-pocharlies@fb44436 (router_settings.fallbacks).
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 8bffee8e4e82f18f572a8376b2b62155964fd44b
-    operations.pocharlies.org/approval-id: openclaw-gateway-cpu-request-20260815
-    operations.pocharlies.org/approval-sequence: "20260815155001"
-    operations.pocharlies.org/approved-prune: "false"
+    # APPROVAL CERRADO para 8bffee8e4e82f18f572a8376b2b62155964fd44b
+    # (openclaw-gateway-cpu-request-20260815): Succeeded, pod 5/5 en ks5-cp-2
+    # con request de CPU 1 core (era 200m). Cierra tambien la tanda de hoy:
+    # culturismo al Brain compartido (134ec0a) y su migracion PVC (aca6734).
+    operations.pocharlies.org/state-writer-lease: inactive
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
