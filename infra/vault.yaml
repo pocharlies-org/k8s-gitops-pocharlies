@@ -42,8 +42,21 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: vault
-  # Sin `automated` a proposito: se activa en un commit aparte tras leer el diff.
+  # Diff de adopcion comprobado el 15-08-2026 ANTES de activar el sync:
+  # `kubectl diff -n vault --server-side` del chart renderizado contra el cluster
+  # vivo salio con exit 0 en los 16 recursos, descontando el Pod de test (hook de
+  # helm, que ArgoCD salta) y salvo el caBundle del webhook.
+  #
+  # `RespectIgnoreDifferences=true` NO es cosmetico aqui. `ignoreDifferences` solo
+  # afecta al DIFF: sin esta opcion ArgoCD seguiria ENVIANDO `caBundle: ""` en cada
+  # sync, dejando el webhook del injector sin CA hasta que el propio injector lo
+  # reparchee. Con ella, el campo ni se manda. (Velero no la necesita porque
+  # escribir su `spec.default` es inerte; escribir un caBundle vacio no lo es.)
   syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
