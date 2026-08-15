@@ -1,0 +1,48 @@
+# gpu-operator -- anuncia las GPUs de los nodos LLM y monta el toolkit de
+# containerd. Entra en GitOps el 15-08-2026; hasta hoy era un `helm install`.
+#
+# Multi-source: source 1 = chart upstream pinado a lo desplegado; source 2 = ESTE
+# repo como $values.
+#
+# OJO AL ADOPTAR: adoptar NO borra el registro de Helm. `helm list` seguira
+# reportando la release, pero a partir de ahora manda ArgoCD y un `helm upgrade`
+# lo revierte selfHeal en segundos. Cruza `helm list -A` con
+# `kubectl -n argocd get application` antes de tocar nada.
+#
+# Un `ignoreDifferences` para esta app va al `kustomization.yaml` RAIZ con ruta
+# `/spec/ignoreDifferences/-`: el patch general de Application reemplaza la lista
+# entera de este fichero.
+# RIESGO ESPECIFICO: sus DaemonSets tocan el runtime de containerd de los nodos
+# con GPU. Un rollout inesperado deja las GPUs sin anunciar y todo el ns `llm`
+# en Pending. `prune: false` y adopcion solo con el diff a cero.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gpu-operator
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/NVIDIA/gpu-operator
+  labels:
+    e-dani.com/tier: infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  sources:
+    - repoURL: https://helm.ngc.nvidia.com/nvidia
+      chart: gpu-operator
+      targetRevision: v26.3.1
+      helm:
+        releaseName: gpu-operator
+        valueFiles:
+          - $values/infra/gpu-operator/values.yaml
+    - repoURL: https://github.com/pocharlies-org/k8s-gitops-pocharlies
+      targetRevision: deploy/prod
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gpu-operator
+  # Sin `automated` a proposito: se activa en un commit aparte tras leer el diff.
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

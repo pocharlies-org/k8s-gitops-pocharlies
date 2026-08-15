@@ -1,0 +1,49 @@
+# Vault -- el almacen de secretos del que cuelgan TODOS los ExternalSecret del
+# cluster. Entra en GitOps el 15-08-2026; hasta hoy era un `helm install` a mano.
+#
+# Multi-source: source 1 = chart upstream pinado a lo desplegado; source 2 = ESTE
+# repo como $values.
+#
+# OJO AL ADOPTAR: adoptar NO borra el registro de Helm. `helm list` seguira
+# reportando la release, pero a partir de ahora manda ArgoCD y un `helm upgrade`
+# lo revierte selfHeal en segundos. Cruza `helm list -A` con
+# `kubectl -n argocd get application` antes de tocar nada.
+#
+# Un `ignoreDifferences` para esta app va al `kustomization.yaml` RAIZ con ruta
+# `/spec/ignoreDifferences/-`: el patch general de Application reemplaza la lista
+# entera de este fichero.
+# RIESGO ESPECIFICO: sello `shamir` sobre raft de UN nodo. Si el pod template
+# cambia, `vault-0` reinicia y arranca SELLADO; lo abre el pod
+# `vault-auto-unseal`, pero durante la ventana ningun ExternalSecret resuelve.
+# Por eso esta app se adopta con el diff a cero verificado, y nunca de otra forma.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vault
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/hashicorp/vault-helm
+  labels:
+    e-dani.com/tier: infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  sources:
+    - repoURL: https://helm.releases.hashicorp.com
+      chart: vault
+      targetRevision: 0.32.0
+      helm:
+        releaseName: vault
+        valueFiles:
+          - $values/infra/vault/values.yaml
+    - repoURL: https://github.com/pocharlies-org/k8s-gitops-pocharlies
+      targetRevision: deploy/prod
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vault
+  # Sin `automated` a proposito: se activa en un commit aparte tras leer el diff.
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

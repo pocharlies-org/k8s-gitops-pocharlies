@@ -1,0 +1,25 @@
+# nfs-warm -- provisioner de la StorageClass `nfs-warm`.
+#
+# ATENCION: esto NO es la salida de `helm get values`. Esos valores estan
+# OBSOLETOS y son PELIGROSOS: dicen `nfs.server: 192.168.50.142`, una IP de la LAN
+# de casa. El objeto vivo lleva `x86.taile0ad27.ts.net` porque el pod corre en
+# **ks5-cp-1, que esta en OVH** y no alcanza esa LAN. Alguien corrigio el
+# Deployment a mano despues del ultimo `helm upgrade` (rev 1, 19-05-2026) y nunca
+# actualizo los valores de la release.
+#
+# Verificado el 15-08-2026 al adoptar: ningun nodo del cluster tiene la IP
+# 192.168.50.142, y los 6 PV ya provisionados por esta clase llevan grabado
+# `server: x86.taile0ad27.ts.net`. Adoptar con los valores de Helm habria dejado
+# el provisioner apuntando a un servidor inalcanzable.
+#
+# Regla que sale de aqui: al adoptar una release, la verdad es el OBJETO VIVO,
+# no `helm get values`.
+#
+# `archiveOnDelete: true` protege los datos al borrar un PVC.
+nfs:
+  path: /srv/nfs/k8s-warm
+  server: x86.taile0ad27.ts.net
+storageClass:
+  archiveOnDelete: true
+  name: nfs-warm
+  provisionerName: cluster.local/nfs-warm

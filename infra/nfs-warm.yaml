@@ -1,0 +1,47 @@
+# nfs-warm -- provisioner NFS de la StorageClass `nfs-warm` (/srv/nfs/k8s-warm en nvidia-dgx).
+# Entra en GitOps el 15-08-2026; hasta hoy era un `helm install` a mano.
+#
+# Multi-source: source 1 = chart upstream pinado a lo desplegado; source 2 = ESTE
+# repo como $values.
+#
+# OJO AL ADOPTAR: adoptar NO borra el registro de Helm. `helm list` seguira
+# reportando la release, pero a partir de ahora manda ArgoCD y un `helm upgrade`
+# lo revierte selfHeal en segundos. Cruza `helm list -A` con
+# `kubectl -n argocd get application` antes de tocar nada.
+#
+# Un `ignoreDifferences` para esta app va al `kustomization.yaml` RAIZ con ruta
+# `/spec/ignoreDifferences/-`: el patch general de Application reemplaza la lista
+# entera de este fichero.
+# `prune: false` importa aqui: un prune se llevaria la StorageClass y los PVC
+# que la usan quedarian sin provisioner.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nfs-warm
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/kubernetes-sigs/nfs-subdir-external-provisioner
+  labels:
+    e-dani.com/tier: infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  sources:
+    - repoURL: https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner
+      chart: nfs-subdir-external-provisioner
+      targetRevision: 4.0.18
+      helm:
+        releaseName: nfs-warm
+        valueFiles:
+          - $values/infra/nfs-warm/values.yaml
+    - repoURL: https://github.com/pocharlies-org/k8s-gitops-pocharlies
+      targetRevision: deploy/prod
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nfs-provisioner
+  # Sin `automated` a proposito: se activa en un commit aparte tras leer el diff.
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

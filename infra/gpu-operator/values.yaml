@@ -1,0 +1,110 @@
+# Captura LITERAL de `helm get values gpu-operator -n gpu-operator` del 15-08-2026
+# (release rev 3, chart gpu-operator-v26.3.1). Sin retoques ni reordenar.
+#
+# `driver.enabled: false` es DELIBERADO: el driver de NVIDIA lo pone el host, no
+# el operador. Ponerlo a true haria que intentara cargar su propio modulo y
+# tumbaria las GPUs de los nodos.
+#
+# El `devicePlugin.config` define el time-slicing `gx10-timeslice-2` (2 replicas
+# por GPU) que usa el Spark gx10. `failRequestsGreaterThanOne: true` evita que un
+# pod pida 2 y se lleve la tarjeta entera.
+#
+# Las tolerations `dedicated=llm:NoSchedule` estan en TODOS los daemonsets a
+# proposito: sin ellas el operador no llega a los nodos de LLM y las GPUs quedan
+# sin anunciar.
+cdi:
+  default: true
+  enabled: true
+daemonsets:
+  nodeSelector:
+    nvidia.com/gpu: "true"
+  tolerations:
+  - effect: NoSchedule
+    key: dedicated
+    operator: Equal
+    value: llm
+dcgm:
+  enabled: true
+dcgmExporter:
+  enabled: true
+devicePlugin:
+  config:
+    create: true
+    data:
+      gx10-timeslice-2: |-
+        version: v1
+        flags:
+          migStrategy: none
+        sharing:
+          timeSlicing:
+            renameByDefault: false
+            failRequestsGreaterThanOne: true
+            resources:
+              - name: nvidia.com/gpu
+                replicas: 2
+    default: ""
+    name: dgx-device-plugin-config
+  enabled: true
+driver:
+  enabled: false
+gfd:
+  enabled: true
+migManager:
+  enabled: false
+nfd:
+  enabled: true
+  gc:
+    tolerations:
+    - effect: NoSchedule
+      key: dedicated
+      operator: Equal
+      value: llm
+  master:
+    tolerations:
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/control-plane
+      operator: Equal
+      value: ""
+    - effect: NoSchedule
+      key: dedicated
+      operator: Equal
+      value: llm
+  nodefeaturerules:
+    enabled: true
+  worker:
+    tolerations:
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/control-plane
+      operator: Equal
+      value: ""
+    - effect: NoSchedule
+      key: nvidia.com/gpu
+      operator: Exists
+    - effect: NoSchedule
+      key: dedicated
+      operator: Equal
+      value: llm
+nodeStatusExporter:
+  enabled: true
+operator:
+  cleanupCRD: false
+  defaultRuntime: containerd
+  tolerations:
+  - effect: NoSchedule
+    key: dedicated
+    operator: Equal
+    value: llm
+toolkit:
+  enabled: true
+  env:
+  - name: CONTAINERD_CONFIG
+    value: /var/lib/rancher/k3s/agent/etc/containerd/config.toml
+  - name: CONTAINERD_SOCKET
+    value: /run/k3s/containerd/containerd.sock
+  - name: CONTAINERD_SET_AS_DEFAULT
+    value: "false"
+validator:
+  driver:
+    env:
+    - name: DISABLE_DEV_CHAR_SYMLINK_CREATION
+      value: "true"

@@ -1,0 +1,30 @@
+# nfs-cold -- provisioner de la StorageClass `nfs-cold`, servida desde sauvage.
+#
+# ATENCION: esto NO es la salida literal de `helm get values`. Esos valores dicen
+# `nodeSelector: {kubernetes.io/hostname: ubuntu, topology: lan, ...}`, pero el
+# Deployment vivo lleva `node-pool: ks5-nvme` y el pod corre en ks5-cp-1. Alguien
+# lo movio a mano despues del ultimo `helm upgrade` (rev 6, 22-05-2026). Se
+# adopta el estado VIVO: adoptar con los valores de la release habria movido el
+# provisioner de nodo sin que nadie lo pidiera.
+#
+# `nfs.server: 100.109.183.9` es la IP de TAILSCALE de sauvage, no una LAN: desde
+# ks5 (OVH) es la unica ruta. Los 2 PV de esta clase la llevan grabada.
+#
+# `archiveOnDelete: true` es lo que evita que borrar un PVC borre los datos.
+nfs:
+  path: /srv/nfs/k8s-cold
+  server: 100.109.183.9
+nodeSelector:
+  node-pool: ks5-nvme
+replicaCount: 1
+resources:
+  limits:
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 32Mi
+storageClass:
+  archiveOnDelete: true
+  defaultClass: false
+  name: nfs-cold
+  provisionerName: cluster.local/nfs-cold

@@ -1,0 +1,63 @@
+# Captura LITERAL de `helm get values vault -n vault` del 15-08-2026
+# (release rev 2, chart vault-0.32.0, app 1.21.2). Sin retoques.
+#
+# CUIDADO AL TOCAR ESTE FICHERO: el sello es `shamir`, no un KMS. Vault arranca
+# SELLADO y solo lo abre el pod `vault-auto-unseal` del namespace. Cualquier
+# cambio que altere el pod template del StatefulSet reinicia `vault-0`, y
+# mientras esta sellado NINGUN ExternalSecret del cluster resuelve. Es raft de un
+# solo nodo (`ha.replicas: 1`), asi que no hay quorum que absorba el golpe.
+global:
+  enabled: true
+  tlsDisable: true
+injector:
+  enabled: true
+  nodeSelector:
+    kubernetes.io/arch: amd64
+  replicas: 1
+server:
+  dataStorage:
+    accessMode: ReadWriteOnce
+    enabled: true
+    size: 5Gi
+    storageClass: longhorn
+  ha:
+    # El chart pone `disruptionBudget.enabled: true` por defecto y, con 1 replica,
+    # `maxUnavailable` sale (n/2)-1 = 0: un PDB que BLOQUEA cualquier eviction y
+    # cuelga el drain del nodo para siempre. En el cluster vivo ese PDB NO existe
+    # -- alguien lo borro a mano-- y el Ansible de los ks5 hace drain con timeout
+    # de 420 s. Adoptar recreandolo seria una regresion, asi que se apaga aqui
+    # para que git describa lo que de verdad corre.
+    disruptionBudget:
+      enabled: false
+    enabled: true
+    raft:
+      config: |
+        ui = true
+        listener "tcp" {
+          tls_disable = 1
+          address = "[::]:8200"
+          cluster_address = "[::]:8201"
+        }
+        storage "raft" {
+          path = "/vault/data"
+        }
+        service_registration "kubernetes" {}
+      enabled: true
+      setNodeId: true
+    replicas: 1
+  ingress:
+    enabled: false
+  logFormat: standard
+  logLevel: info
+  nodeSelector:
+    kubernetes.io/arch: amd64
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  serviceAccount:
+    create: true
+  standalone:
+    enabled: false
