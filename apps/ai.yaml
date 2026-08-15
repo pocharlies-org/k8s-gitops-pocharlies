@@ -495,7 +495,10 @@ spec:
     # reinicia nada. Medido en 6 tandas: 59-71 tok/s, mediana 68 (7,5x sobre los
     # 9,07 del 32B denso). Los 17,7 tok/s que me hicieron acusar a MARLIN eran
     # CONTENCION de vecinos, no el kernel.
-    targetRevision: 62931afeff1f26e265cb34f045edd0ace7d4bd9a
+    # 15-08 cierre: f589f26 solo precisa comentarios (no se atribuyo el salto a
+    # 68 tok/s a una sola causa). Anotaciones de metadata del Deployment, NO del
+    # pod template: no reinicia.
+    targetRevision: f589f2648ec197588fd614495bab94b8beefb9e6
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
