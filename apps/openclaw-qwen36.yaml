@@ -295,7 +295,21 @@ metadata:
     # persistente y recrear el pod, el hook SyncFail verifico blue + operator,
     # reabrio el router y termino correctamente; Argo cerro la operacion Failed
     # con la aplicacion Healthy. La correccion declarativa va en b6ca808 (v9).
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL ABIERTO para b6ca8085dc208c75b108ebae77ad2708ed912a31
+    # (openclaw-live-litellm-catalog-v9-20260816): retira el escritor one-shot
+    # antiguo, migra el PVC con `.litellm-context-sync-v9` y registra el catalogo
+    # vivo en `registerModelCatalogProvider`, que alimenta los pickers y
+    # `models.list` de OpenClaw 2026.7.1.
+    #
+    # Verificado antes de abrir: plugin 11/11, suite completa 494 passed, Helm
+    # lint y renders principal/Synapse correctos. `openclaw-synapse` ya sirve los
+    # 15 modelos autorizados con esta revision. El backup Longhorn principal
+    # sigue Completed (2026-08-09T04:00:28Z). PRUNE false: no se borra nada.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: b6ca8085dc208c75b108ebae77ad2708ed912a31
+    operations.pocharlies.org/approval-id: openclaw-live-litellm-catalog-v9-20260816
+    operations.pocharlies.org/approval-sequence: "20260816014102"
+    operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
