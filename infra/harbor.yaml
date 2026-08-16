@@ -52,10 +52,13 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: harbor
-  # Sin `automated` a proposito. Ademas del diff, aqui hay una precondicion dura:
-  # los 5 ExternalSecret de `platform/harbor/generated-keys.yaml` tienen que estar
-  # SecretSynced ANTES de sincronizar, o los pods arrancan sin sus claves.
+  # Precondicion cumplida el 15-08-2026 antes de activar esto: los 5 ExternalSecret
+  # de `platform/harbor/generated-keys.yaml` estaban SecretSynced y sus 10 valores
+  # se verificaron por sha256 contra los secrets vivos -- identicos los diez.
   syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
