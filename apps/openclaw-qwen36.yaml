@@ -279,7 +279,22 @@ metadata:
     # y ese guard se conservo a proposito. El cambio arregla el DESTINO de futuras
     # reescrituras, no los pines ya escritos. Decidir aparte si deepseek deja de
     # contar como eleccion explicita mientras no este registrado.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL ABIERTO para a61e397a1af0aceef9d83a30206737ddadf509ae
+    # (openclaw-live-litellm-catalog-20260816): el plugin versionado
+    # litellm-context-sync pasa a ser el unico owner del provider `litellm` y
+    # publica en OpenClaw el catalogo conversacional autorizado que exponen
+    # /v1/models y /v1/model/info. Refresca cada 2 s, conserva la ultima foto
+    # valida y mantiene dos seeds offline; no crea un segundo controlador ni
+    # publica ids fisicos, audio, imagen, video, embeddings o rerankers.
+    #
+    # Verificado antes de abrir: plugin 10/10, pytest 494 passed, Helm lint y
+    # ambos renders correctos. El PVC principal tiene backup Longhorn Completed
+    # de 2026-08-09T04:00:28Z. PRUNE false: solo ConfigMaps y Deployment.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: a61e397a1af0aceef9d83a30206737ddadf509ae
+    operations.pocharlies.org/approval-id: openclaw-live-litellm-catalog-20260816
+    operations.pocharlies.org/approval-sequence: "20260816010135"
+    operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
