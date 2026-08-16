@@ -1,0 +1,181 @@
+# Harbor -- valores para GitOps. NO es la salida literal de `helm get values`.
+#
+# POR QUE DIVERGE: el chart de Harbor GENERA secretos aleatorios en cada render
+# (`randAlphaNum`, `genCA`, `htpasswd`). Con `helm upgrade` eso no se nota porque
+# el chart hace un `lookup` del secret vivo y reusa su valor
+# (`harbor.secretKeyHelper`). ArgoCD renderiza con `helm template` SIN acceso al
+# cluster: el lookup sale vacio y cae al random. Sin las opciones de abajo, CADA
+# sync generaria secretos nuevos, romperia la autenticacion entre core, registry
+# y jobservice, y rodaria los tres Deployments por el cambio de `checksum/secret`.
+#
+# Las 8 opciones `existingSecret*` apagan las 8 fuentes de aleatoriedad. Los
+# valores salen de Vault via ExternalSecret y son los MISMOS que ya corren: se
+# copiaron del cluster, no se generaron nuevos. Comprobado que con esto el render
+# es determinista (dos `helm template` seguidos dan un fichero identico).
+#
+# `harborAdminPassword` ya no esta aqui a proposito: viaja por Vault. Ojo, el
+# valor viejo sigue en el historial de `k8s-infra-pocharlies` desde el commit
+# inicial 98d7c01 -- rotarlo es deuda pendiente aparte.
+#
+# LO QUE NO SE PUEDE EXTERNALIZAR: `POSTGRESQL_PASSWORD` (harbor-core) y
+# `POSTGRES_PASSWORD` (harbor-database). El chart solo ofrece
+# `database.external.existingSecret` y esta BD es INTERNA.
+#
+# OJO, DEUDA REAL: esa password es hoy el default del chart, `changeit`. Medido
+# el 15-08-2026 -- 8 bytes, sha256 00810cf8b94d, igual en el render y en el
+# cluster. No la protege este fichero ni Vault; la protege que la BD solo se
+# expone por ClusterIP. Rotarla es trabajo aparte, y cuando se haga hay que
+# hacerlo en Postgres Y en los dos secrets a la vez.
+#
+# Los tres `genCA` restantes del chart (internalTLS, ingress, nginx) no se
+# renderizan: internalTLS.enabled=false, expose.type=clusterIP, tls.enabled=false.
+chartmuseum:
+  enabled: false
+core:
+  existingSecret: harbor-core-keys
+  existingXsrfSecret: harbor-core-keys
+  existingXsrfSecretKey: CSRF_KEY
+  nodeSelector:
+    node-pool: ks5-nvme
+  replicas: 1
+  resources:
+    limits:
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  secretName: harbor-token-cert
+database:
+  internal:
+    nodeSelector:
+      node-pool: ks5-nvme
+    resources:
+      limits:
+        memory: 2Gi
+      requests:
+        cpu: 100m
+        memory: 384Mi
+existingSecretAdminPassword: harbor-core-keys
+existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
+existingSecretSecretKey: harbor-core-keys
+expose:
+  clusterIP:
+    name: harbor
+  tls:
+    enabled: false
+  type: clusterIP
+externalURL: https://harbor.lan.e-dani.com
+internalTLS:
+  enabled: false
+jobservice:
+  existingSecret: harbor-jobservice-keys
+  existingSecretKey: JOBSERVICE_SECRET
+  nodeSelector:
+    node-pool: ks5-nvme
+  replicas: 1
+  resources:
+    limits:
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+nginx:
+  nodeSelector:
+    node-pool: ks5-nvme
+  resources:
+    limits:
+      memory: 256Mi
+    requests:
+      cpu: 25m
+      memory: 32Mi
+nodeSelector:
+  node-pool: ks5-nvme
+notary:
+  enabled: false
+persistence:
+  enabled: true
+  imageChartStorage:
+    disableredirect: true
+    s3:
+      bucket: harbor-blobs
+      existingSecret: harbor-s3-credentials
+      multipartcopychunksize: '33554432'
+      multipartcopymaxconcurrency: '1'
+      region: us-east-1
+      regionendpoint: http://minio-s3.minio.svc.cluster.local:9000
+      secure: false
+      v4auth: true
+    type: s3
+  persistentVolumeClaim:
+    database:
+      size: 5Gi
+      storageClass: longhorn
+    jobservice:
+      jobLog:
+        size: 1Gi
+        storageClass: longhorn
+    redis:
+      size: 1Gi
+      storageClass: longhorn
+    registry:
+      size: 5Gi
+      storageClass: longhorn
+    trivy:
+      size: 5Gi
+      storageClass: longhorn
+  resourcePolicy: keep
+portal:
+  nodeSelector:
+    node-pool: ks5-nvme
+  replicas: 1
+  resources:
+    limits:
+      memory: 256Mi
+    requests:
+      cpu: 25m
+      memory: 32Mi
+redis:
+  internal:
+    nodeSelector:
+      node-pool: ks5-nvme
+    resources:
+      limits:
+        memory: 512Mi
+      requests:
+        cpu: 25m
+        memory: 64Mi
+registry:
+  controller:
+    resources:
+      limits:
+        memory: 512Mi
+      requests:
+        cpu: 50m
+        memory: 128Mi
+  credentials:
+    existingSecret: harbor-registry-creds
+  existingSecret: harbor-registry-keys
+  existingSecretKey: REGISTRY_HTTP_SECRET
+  nodeSelector:
+    node-pool: ks5-nvme
+  registry:
+    resources:
+      limits:
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  replicas: 1
+trivy:
+  enabled: true
+  nodeSelector:
+    node-pool: ks5-nvme
+  replicas: 1
+  resources:
+    limits:
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+updateStrategy:
+  type: Recreate

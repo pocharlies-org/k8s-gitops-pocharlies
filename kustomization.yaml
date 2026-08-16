@@ -22,6 +22,7 @@ resources:
   - infra/kyverno.yaml
   - infra/longhorn.yaml
   - infra/argocd.yaml
+  - infra/harbor.yaml
   - apps/adguard.yaml
   - apps/ai.yaml
   - apps/firecrawl.yaml
@@ -365,6 +366,37 @@ patches:
           name: vault-agent-injector-cfg
           jsonPointers:
             - /webhooks/0/clientConfig/caBundle
+  # La password de Postgres de Harbor no se puede externalizar: el chart solo
+  # ofrece `database.external.existingSecret` y esta BD es INTERNA.
+  #
+  # MEDIDO EL 15-08-2026: hoy esa password es literalmente el default del chart,
+  # `changeit` (8 bytes, sha256 00810cf8b94d, identico en el render y en el
+  # cluster). O sea que ahora mismo el render coincide y este ignore no cambia
+  # nada. Se deja puesto como red: el dia que alguien rote la password de la BD
+  # --que deberia hacerse-- ArgoCD la revertiria a `changeit` en el siguiente
+  # sync. Con esto y `RespectIgnoreDifferences=true` el campo ni se envia.
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+      name: harbor
+    patch: |-
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          kind: Secret
+          name: harbor-core
+          namespace: harbor
+          jsonPointers:
+            - /data/POSTGRESQL_PASSWORD
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          kind: Secret
+          name: harbor-database
+          namespace: harbor
+          jsonPointers:
+            - /data/POSTGRES_PASSWORD
   - target:
       group: argoproj.io
       version: v1alpha1

@@ -1,0 +1,62 @@
+# Harbor -- el registry privado del cluster. Ultima release de Helm que quedaba
+# fuera de GitOps; las otras 12 entraron el 15-08-2026 el mismo dia.
+#
+# POR QUE TARDO MAS QUE LAS OTRAS. No fue el password de admin: el chart GENERA
+# secretos aleatorios en cada render (`randAlphaNum`, `genCA`, `htpasswd`). Con
+# `helm upgrade` no se nota, porque el chart hace un `lookup` del secret vivo y
+# reusa lo que ya hay (`harbor.secretKeyHelper`). ArgoCD renderiza con
+# `helm template` SIN acceso al cluster: el lookup sale vacio y cae al random.
+# Adoptar sin arreglar eso habria regenerado las claves en CADA sync, roto la
+# autenticacion entre core, registry y jobservice, y rodado los tres Deployments.
+#
+# Medido el 15-08-2026: dos `helm template` seguidos con los valores originales
+# daban ficheros que diferian en 28 lineas. Con las 8 opciones `existingSecret*`
+# de `infra/harbor/values.yaml`, los dos renders salen IDENTICOS byte a byte
+# (30 objetos, 52720 bytes). Esa es la condicion para que esto sea adoptable.
+#
+# Los valores de los secretos NO son nuevos: se copiaron del cluster a Vault y
+# vuelven por ExternalSecret. Los ExternalSecret viven en el repo
+# `k8s-infra-pocharlies` (`platform/harbor/generated-keys.yaml`), al lado del que
+# ya existia para las credenciales de S3, no aqui.
+#
+# `prune: false`: un prune se llevaria el registry del que tira TODO el cluster
+# --Kyverno obliga a que las imagenes vengan de harbor.lan.e-dani.com-- ademas de
+# los PVC de la BD y de trivy.
+#
+# El `ignoreDifferences` de la password de Postgres va al `kustomization.yaml`
+# RAIZ, no aqui: el patch general de Application reemplaza la lista de este
+# fichero.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/goharbor/harbor-helm
+  labels:
+    e-dani.com/tier: infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  sources:
+    - repoURL: https://helm.goharbor.io
+      chart: harbor
+      targetRevision: 1.19.0
+      helm:
+        releaseName: harbor
+        valueFiles:
+          - $values/infra/harbor/values.yaml
+    - repoURL: https://github.com/pocharlies-org/k8s-gitops-pocharlies
+      targetRevision: deploy/prod
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: harbor
+  # Sin `automated` a proposito. Ademas del diff, aqui hay una precondicion dura:
+  # los 5 ExternalSecret de `platform/harbor/generated-keys.yaml` tienen que estar
+  # SecretSynced ANTES de sincronizar, o los pods arrancan sin sus claves.
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
