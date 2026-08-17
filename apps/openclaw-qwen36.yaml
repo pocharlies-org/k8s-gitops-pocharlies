@@ -368,7 +368,7 @@ metadata:
     #    caliente, cuando lo declarado es VLLM_REFUSAL_LAMBDA_INIT=0.0 y el punto
     #    documentado de «uncensored» es 1.5. Medido: 2.5 basura, 1.5 coherente,
     #    0.0 coherente. Restaurado a 0.0, el valor declarado.
-    # APPROVAL ABIERTO para c2c92652ab86b45a4f50e30a203e12ffd1945a1b
+    # APPROVAL CERRADO para c2c92652ab86b45a4f50e30a203e12ffd1945a1b
     # (openclaw-deepseek-window-384k-20260817): retira el provider `litellm-256k`
     # y deja UNA sola ventana para `deepseek-v4-flash-0731`, la suya: 393216.
     #
@@ -403,11 +403,16 @@ metadata:
     # `scripts/validate.sh` falla en HEAD limpio por el alias consistency guard,
     # que lee `files/culturismo-workspace/bodybuilding-brain-mcp.mjs` — borrado a
     # proposito en 134ec0a y que pytest afirma que NO debe existir. Previo y ajeno.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: c2c92652ab86b45a4f50e30a203e12ffd1945a1b
-    operations.pocharlies.org/approval-id: openclaw-deepseek-window-384k-20260817
-    operations.pocharlies.org/approval-sequence: "20260817175103"
-    operations.pocharlies.org/approved-prune: "false"
+    #
+    # RESULTADO: operacion Succeeded con la app Healthy y prune=false. Pod nuevo
+    # openclaw-qwen36-openclaw-66fc9bbd44-6nm9q (2026-08-17T17:53:37Z), 3/3, con los
+    # 29 plugins activos y sin errores de config ni registro duplicado. Marker
+    # `.litellm-context-sync-v10` escrito. En el PVC ya NO existe el provider
+    # `litellm-256k`, y el provider `litellm` declara sus tres modelos una sola vez:
+    # deepseek-v4-flash-0731 393216, tooling 262144, qwen35-4b 32768. El catalogo
+    # vivo que publica el plugin coincide y no trae duplicados. Cero runs por
+    # `provider=litellm-256k` desde el rollout.
+    operations.pocharlies.org/state-writer-lease: inactive
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
