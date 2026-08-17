@@ -461,7 +461,7 @@ metadata:
     #
     # PERO faltaba un caso, medido despues: el residente seguia declarando 393216 en
     # creative. Se arregla en 3bb7c5f, aprobado a continuacion.
-    # APPROVAL ABIERTO para 3bb7c5f71c58308a78d6bc11123295b2565859a2
+    # APPROVAL CERRADO para 3bb7c5f71c58308a78d6bc11123295b2565859a2
     # (openclaw-resident-window-from-chain-20260817): cierra el ultimo agujero del
     # v11. Cambio de plugin solamente, sin migracion de PVC ni marker nuevo.
     #
@@ -483,11 +483,20 @@ metadata:
     # cadena muerta -> seed 393216). pytest 494 passed, helm lint y render limpios.
     # Backup Longhorn del PVC principal Completed 2026-08-16T04:11:18Z. Sin operacion
     # en vuelo (secuencia 20260817213820 < 20260817214557). PRUNE false.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 3bb7c5f71c58308a78d6bc11123295b2565859a2
-    operations.pocharlies.org/approval-id: openclaw-resident-window-from-chain-20260817
-    operations.pocharlies.org/approval-sequence: "20260817214557"
-    operations.pocharlies.org/approved-prune: "false"
+    #
+    # RESULTADO: operacion Succeeded, app Healthy, pod nuevo
+    # openclaw-qwen36-openclaw-7f9b48bc65-zsb7r. El catalogo vivo del plugin,
+    # ejecutado dentro del pod contra LiteLLM real (43 filas, 48 liveIds, 15
+    # definiciones), publica en creative:
+    #
+    #   deepseek-v4-flash-0731  ctx=272000  DeepSeek V4 Flash · via cloudblue/gpt-5.6-luna
+    #   tooling                 ctx=262144  Local DGX (residente del perfil) · qwen38-27b @ dgx1
+    #   qwen35-4b               ctx=32768   Qwen3.5 4B · rapido (agente ligero) · qwen3.5-4b @ rtx
+    #
+    # Es el contrato que se buscaba: nadie declara una ventana mayor que la que
+    # acepta quien contesta, y el nombre dice quien es. En el PVC el provider sigue
+    # con UNA sola estatica, `qwen35-4b@32768`.
+    operations.pocharlies.org/state-writer-lease: inactive
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
