@@ -498,7 +498,7 @@ spec:
     # 15-08 cierre: f589f26 solo precisa comentarios (no se atribuyo el salto a
     # 68 tok/s a una sola causa). Anotaciones de metadata del Deployment, NO del
     # pod template: no reinicia.
-    targetRevision: 36077d4d23ad5b7894d22347de5a269a00f7c6c8
+    targetRevision: 9c7381fb178a3f6aa22c04ae7d56890b83bc0e68
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
