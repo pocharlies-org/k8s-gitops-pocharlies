@@ -368,7 +368,46 @@ metadata:
     #    caliente, cuando lo declarado es VLLM_REFUSAL_LAMBDA_INIT=0.0 y el punto
     #    documentado de «uncensored» es 1.5. Medido: 2.5 basura, 1.5 coherente,
     #    0.0 coherente. Restaurado a 0.0, el valor declarado.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL ABIERTO para c2c92652ab86b45a4f50e30a203e12ffd1945a1b
+    # (openclaw-deepseek-window-384k-20260817): retira el provider `litellm-256k`
+    # y deja UNA sola ventana para `deepseek-v4-flash-0731`, la suya: 393216.
+    #
+    # Queja del owner: el picker ensenaba DeepSeek con 256K cuando declara 384K, y
+    # aparecia un bloque de modelos aparte. Era literal: el alias tiene entrada
+    # ESTATICA con 393216, y una estatica no se puede corregir en caliente, asi que
+    # para capar la ventana el plugin declaraba el MISMO modelo otra vez en un
+    # segundo provider con 262144 y hacia `providerOverride` por run. El precio era
+    # el duplicado visible, con una de las dos entradas mintiendo.
+    #
+    # v10 sustituye el disfraz por un aviso: cuando quien responde de verdad sirve
+    # menos que lo declarado, el hook lo dice en el log con el numero real
+    # (`serves 272000, below the declared 393216`) y no cambia de provider. Baja
+    # `providerForCapacity`, PROVIDER_256K/CONTEXT_256K, el engancha del
+    # litellm-thinking-profile a ese provider, el bloque en los tres runtime
+    # configs y en el generador del clon, y con el `litellm_context_model_doc`.
+    # La migracion de PVC v9 -> v10 borra el provider de un PVC ya estampado, el
+    # mismo patron con que se retiro `litellm-384k`.
+    #
+    # Verificado antes de abrir: `node --test` 74/74, pytest 494 passed, helm lint
+    # sin fallos y el render no declara ningun `litellm-256k` — solo el `delete` de
+    # la migracion y sus comentarios. Backup Longhorn del PVC principal
+    # (pvc-13b814ca) Completed 2026-08-16T04:11:18Z. Sin operacion en vuelo (ultima
+    # Succeeded, secuencia 20260817133149 < 20260817175103). PRUNE false.
+    #
+    # Efecto que hay que aceptar, dicho claro: en creative un pin manual a DeepSeek
+    # declara 384K mientras responde la nube con 272000, asi que una conversacion
+    # que pase de ahi fallara arriba en vez de bajarse sola. Ya no hay pines a
+    # DeepSeek (el v4 los mando a `tooling`); queda como checkpoint explicito del
+    # picker, y ahora avisa por log en vez de callarse.
+    #
+    # `scripts/validate.sh` falla en HEAD limpio por el alias consistency guard,
+    # que lee `files/culturismo-workspace/bodybuilding-brain-mcp.mjs` — borrado a
+    # proposito en 134ec0a y que pytest afirma que NO debe existir. Previo y ajeno.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: c2c92652ab86b45a4f50e30a203e12ffd1945a1b
+    operations.pocharlies.org/approval-id: openclaw-deepseek-window-384k-20260817
+    operations.pocharlies.org/approval-sequence: "20260817175103"
+    operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
