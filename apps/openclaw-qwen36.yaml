@@ -310,7 +310,7 @@ metadata:
     # `litellm-context-sync` activo sin errores de config ni registro duplicado.
     # El RPC real `models.list view=all` publica 15 modelos autorizados. La app
     # queda OutOfSync solo por recursos huerfanos conservados por prune=false.
-    # APPROVAL ABIERTO para 00795063159b717f8d070750102003604e8fcd0d
+    # APPROVAL CERRADO para 00795063159b717f8d070750102003604e8fcd0d
     # (openclaw-local-tooling-v4-20260817): lo local se queda en casa. b72e3fc
     # (v4) manda TODA ruta local de `litellm/deepseek-v4-flash-0731` a
     # `litellm/tooling` — primaries de image-cloud/local/culturismo, red local de
@@ -343,11 +343,32 @@ metadata:
     # al 96%, con timeouts a 90-170 s y un 200 en 54 s cuando la cola drena.
     # Mandar lo local a casa es correcto, pero la casa va justa: la capacidad se
     # decide aparte, en k8s-ai-pocharlies/k8s/compute-mode-creative-dgx1.yaml.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 00795063159b717f8d070750102003604e8fcd0d
-    operations.pocharlies.org/approval-id: openclaw-local-tooling-v4-20260817
-    operations.pocharlies.org/approval-sequence: "20260817133149"
-    operations.pocharlies.org/approved-prune: "false"
+    #
+    # RESULTADO: operacion Succeeded con la app Healthy y prune=false. Pod nuevo
+    # openclaw-qwen36-openclaw-696f4ffd46-4llms (2026-08-17T16:39:14Z), 3/3.
+    # Marker `.litellm-stable-profiles-v4` presente en el PVC. Los 9 agentes
+    # verificados con exec: cero pines a deepseek — image-cloud/local/culturismo
+    # con primary `litellm/tooling`, y main/skirmshop/synapse-ops-analyst/
+    # programador con `litellm/tooling` de red; `litellm/qwen35-4b` intacto en
+    # qwen4b y Jarbis. El picker publica «Local DGX (residente del perfil)»
+    # ctx 262144. Llamada real desde el pod al alias `tooling`: HTTP 200 en 7,5 s
+    # y responde el Qwen local. La app queda OutOfSync solo por los huerfanos que
+    # conserva prune=false, como en los approvals anteriores.
+    #
+    # Dos bloqueos ajenos que hubo que retirar para poder entregar esto:
+    # 1) El root de Argo llevaba desde antes fallando TODO sync con
+    #    `metadata.resourceVersion: Invalid value: 0` en traefik-edge/traefik-lan:
+    #    su `kubectl.kubernetes.io/last-applied-configuration` venia de un dump en
+    #    vivo (con resourceVersion, uid, generation y status), asi que el merge de
+    #    tres vias intentaba borrar resourceVersion. Retirada esa annotation, el
+    #    apply admite y root volvio a Succeeded. Ningun spec cambiado, Traefik sin
+    #    reiniciar. Con root roto no habia forma de aplicar ninguna approval.
+    # 2) El modelo que sirve `tooling` devolvia basura (`))))))))`) con cualquier
+    #    prompt y temperature 0: la proyeccion rank-1 estaba en lambda=2.5 en
+    #    caliente, cuando lo declarado es VLLM_REFUSAL_LAMBDA_INIT=0.0 y el punto
+    #    documentado de «uncensored» es 1.5. Medido: 2.5 basura, 1.5 coherente,
+    #    0.0 coherente. Restaurado a 0.0, el valor declarado.
+    operations.pocharlies.org/state-writer-lease: inactive
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
