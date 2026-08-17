@@ -461,7 +461,33 @@ metadata:
     #
     # PERO faltaba un caso, medido despues: el residente seguia declarando 393216 en
     # creative. Se arregla en 3bb7c5f, aprobado a continuacion.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL ABIERTO para 3bb7c5f71c58308a78d6bc11123295b2565859a2
+    # (openclaw-resident-window-from-chain-20260817): cierra el ultimo agujero del
+    # v11. Cambio de plugin solamente, sin migracion de PVC ni marker nuevo.
+    #
+    # Medido tras desplegar el v11: `deepseek-v4-flash-0731` seguia declarando
+    # 393216 en creative. La logica de cadena no llegaba a ejecutarse porque el guard
+    # `!dashboardRow || !infoRow` descartaba la fila antes, y el caso real es mas
+    # agresivo de lo asumido: comprobado desde el pod, el alias esta en /v1/models
+    # pero tiene 0 filas en /model/info y 0 en el catalogo del dashboard. Sin
+    # metadatos propios caia al seed, que publica 384K — declarando mas de lo que
+    # acepta quien contesta (la nube, 272000). Justo la mentira que el v11 venia a
+    # quitar de las estaticas.
+    #
+    # Ahora ventana y capacidades se toman del primer salto vivo de la cadena. La
+    # puerta es estrecha: solo aliases con cadena declarada en `fallbackAliases`, y
+    # si la cadena tampoco esta viva no se inventa nada — manda el seed offline.
+    #
+    # Verificado antes de abrir: `node --test` 78/78, con un test nuevo que cubre las
+    # dos ramas (cadena viva -> 272000 y nombre `· via cloudblue/gpt-5.6-luna`;
+    # cadena muerta -> seed 393216). pytest 494 passed, helm lint y render limpios.
+    # Backup Longhorn del PVC principal Completed 2026-08-16T04:11:18Z. Sin operacion
+    # en vuelo (secuencia 20260817213820 < 20260817214557). PRUNE false.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 3bb7c5f71c58308a78d6bc11123295b2565859a2
+    operations.pocharlies.org/approval-id: openclaw-resident-window-from-chain-20260817
+    operations.pocharlies.org/approval-sequence: "20260817214557"
+    operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
