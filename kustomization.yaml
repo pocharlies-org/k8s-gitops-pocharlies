@@ -20,6 +20,7 @@ resources:
   - infra/external-secrets.yaml
   - infra/metallb.yaml
   - infra/kyverno.yaml
+  - infra/reflector.yaml
   - infra/longhorn.yaml
   - infra/argocd.yaml
   - infra/harbor.yaml
@@ -123,6 +124,25 @@ patches:
             - /spec/template/metadata/creationTimestamp
           managedFieldsManagers:
             - kube-controller-manager
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+      name: k8s-infra
+    patch: |-
+      # The seven wildcard-lan mirrors are metadata-only SSA resources. Their
+      # TLS data and reflection status are owned by Reflector, not Argo CD.
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          kind: Secret
+          name: wildcard-lan-tls
+          jsonPointers:
+            - /data
+          jqPathExpressions:
+            - .metadata.annotations."reflector.v1.k8s.emberstack.com/auto-reflects"
+            - .metadata.annotations."reflector.v1.k8s.emberstack.com/reflected-at"
+            - .metadata.annotations."reflector.v1.k8s.emberstack.com/reflected-version"
   - target:
       group: argoproj.io
       version: v1alpha1

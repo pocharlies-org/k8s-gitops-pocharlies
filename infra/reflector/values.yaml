@@ -1,0 +1,15 @@
+# RBAC is intentionally supplied by k8s-infra. The upstream chart grants "*"
+# writes to every Secret and ConfigMap in the cluster, which this use case does
+# not require.
+rbac:
+  enabled: false
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 128Mi
+
+nodeSelector:
+  node-pool: ks5-nvme
