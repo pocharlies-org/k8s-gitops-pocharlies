@@ -412,7 +412,7 @@ metadata:
     # deepseek-v4-flash-0731 393216, tooling 262144, qwen35-4b 32768. El catalogo
     # vivo que publica el plugin coincide y no trae duplicados. Cero runs por
     # `provider=litellm-256k` desde el rollout.
-    # APPROVAL ABIERTO para 54829f6bbb68f4474477ae959780f3c85fc1a761
+    # APPROVAL CERRADO para 54829f6bbb68f4474477ae959780f3c85fc1a761
     # (openclaw-window-follows-profile-20260817): la ventana deja de escribirse en
     # ningun sitio y la publica el catalogo vivo, asi que sigue al perfil sola.
     #
@@ -450,11 +450,18 @@ metadata:
     # Application aparte y sin auto-sync: se sincroniza detras de esta. No la cubre
     # el gate de admision (sus validaciones cortocircuitan con
     # `object.metadata.name != 'openclaw-qwen36'`), asi que le vale un sync normal.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 54829f6bbb68f4474477ae959780f3c85fc1a761
-    operations.pocharlies.org/approval-id: openclaw-window-follows-profile-20260817
-    operations.pocharlies.org/approval-sequence: "20260817213820"
-    operations.pocharlies.org/approved-prune: "false"
+    #
+    # RESULTADO: operacion Succeeded, app Healthy, pod nuevo
+    # openclaw-qwen36-openclaw-59fb5dbb65-w7669 con marker
+    # `.litellm-context-sync-v11`. En el PVC el provider `litellm` declara UNA sola
+    # entrada estatica, `qwen35-4b@32768`; ni `tooling` ni el residente. El catalogo
+    # vivo publica `tooling ctx=262144` con nombre
+    # `Local DGX (residente del perfil) · qwen38-27b @ dgx1` — la ventana del perfil
+    # creative y quien la sirve, sin nada escrito a mano.
+    #
+    # PERO faltaba un caso, medido despues: el residente seguia declarando 393216 en
+    # creative. Se arregla en 3bb7c5f, aprobado a continuacion.
+    operations.pocharlies.org/state-writer-lease: inactive
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
