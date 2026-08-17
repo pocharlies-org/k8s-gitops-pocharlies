@@ -310,7 +310,44 @@ metadata:
     # `litellm-context-sync` activo sin errores de config ni registro duplicado.
     # El RPC real `models.list view=all` publica 15 modelos autorizados. La app
     # queda OutOfSync solo por recursos huerfanos conservados por prune=false.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL ABIERTO para 00795063159b717f8d070750102003604e8fcd0d
+    # (openclaw-local-tooling-v4-20260817): lo local se queda en casa. b72e3fc
+    # (v4) manda TODA ruta local de `litellm/deepseek-v4-flash-0731` a
+    # `litellm/tooling` — primaries de image-cloud/local/culturismo, red local de
+    # main, skirmshop, social, synapse-ops-analyst, programador y los 10 de
+    # synapse — y da la entrada `tooling` al picker. `stableLocalRef` deja de
+    # exceptuar a deepseek; solo `qwen35-4b` (RTX x86, ajeno al perfil) se
+    # respeta. Marker `.litellm-stable-profiles-v4`.
+    #
+    # Por que ahora: medido el 17-08 con el cluster en creative, un pin a
+    # `deepseek-v4-flash-0731` NO da 400 — devuelve HTTP 200 en 6 s contestando
+    # `gpt-5.6-luna`, por el fallback de servidor deepseek->luna de
+    # k8s-litellm-pocharlies (fb44436). Los agentes «locales» salian a la nube en
+    # silencio con el nombre DeepSeek en pantalla. Eso caduca la premisa del v3
+    # (37e8d81, «400 duro»), cuya red `litellm/tooling` nunca se disparaba.
+    # Auditoria completa en el repo de la app:
+    # docs/auditoria-perfil-creative-openclaw-20260817.md
+    #
+    # Verificado antes de abrir: `node --test` 74/74, pytest 494 passed en 90.13s,
+    # Helm lint sin fallos y el render lleva el marker v4 (x3) y 25 referencias a
+    # `litellm/tooling`. El PVC principal (pvc-13b814ca) tiene backup Longhorn
+    # Completed de 2026-08-16T04:11:18Z — el `weekly-backup` es `0 4 * * 0` y el
+    # 16-08 fue domingo; los diarios son snapshots. Cero backups no-Completed.
+    # Sin operacion en vuelo (ultima Succeeded 2026-08-16T01:44:46Z, secuencia
+    # 20260816014102 < 20260817133149). PRUNE false: no se borra nada.
+    #
+    # Aviso operativo, no bloqueante: en creative `tooling` lo sirve
+    # vllm-qwen38-27b-uncensored, que comparte la GB10 de DGX1 con
+    # vllm-vision-deep y arranca con --max-num-seqs 6 y
+    # --gpu-memory-utilization 0.24. Medido hoy: Running 6 / Waiting 22-29 y GPU
+    # al 96%, con timeouts a 90-170 s y un 200 en 54 s cuando la cola drena.
+    # Mandar lo local a casa es correcto, pero la casa va justa: la capacidad se
+    # decide aparte, en k8s-ai-pocharlies/k8s/compute-mode-creative-dgx1.yaml.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 00795063159b717f8d070750102003604e8fcd0d
+    operations.pocharlies.org/approval-id: openclaw-local-tooling-v4-20260817
+    operations.pocharlies.org/approval-sequence: "20260817133149"
+    operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
