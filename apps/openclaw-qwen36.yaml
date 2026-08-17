@@ -412,7 +412,49 @@ metadata:
     # deepseek-v4-flash-0731 393216, tooling 262144, qwen35-4b 32768. El catalogo
     # vivo que publica el plugin coincide y no trae duplicados. Cero runs por
     # `provider=litellm-256k` desde el rollout.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL ABIERTO para 54829f6bbb68f4474477ae959780f3c85fc1a761
+    # (openclaw-window-follows-profile-20260817): la ventana deja de escribirse en
+    # ningun sitio y la publica el catalogo vivo, asi que sigue al perfil sola.
+    #
+    # Decision del owner: que todo sea `tooling`, que su ventana sea 384K cuando el
+    # residente es DeepSeek y 256K cuando es el Qwen denso, transparente para quien
+    # lo use, y poder saber quien esta contestando.
+    #
+    # El bug estaba puesto: el v4 dejo a `tooling` con entrada ESTATICA de 262144, y
+    # una estatica GANA al catalogo vivo. En llm-tp —donde su residente es DeepSeek y
+    # sirve 393216— seguia declarando 262144: 131072 tokens tirados y sin alarma,
+    # porque declarar de menos no falla. El origen es `litellmCatalogAliases`, que
+    # hacia que la migracion escribiese la ventana que LiteLLM sirviera EN ESE
+    # INSTANTE: una foto del perfil que hubiera al estampar el PVC.
+    #
+    # v11: ni `deepseek-v4-flash-0731` ni `tooling` se declaran; `qwen35-4b` si,
+    # porque vive en la RTX del x86 y su ventana no depende del perfil.
+    # `litellmCatalogAliases` pasa a [qwen35-4b] para que ningun PVC nuevo vuelva a
+    # congelarla. Un alias registrado sin ventana propia deja de caer en el seed y
+    # toma la del primer salto vivo de su cadena (deepseek en creative: 272000 de la
+    # nube, no 384K). El nombre del picker dice quien contesta con datos que ya
+    # venian en la fila y se tiraban: `Local DGX (residente del perfil) ·
+    # qwen38-27b @ dgx1`, y `· via cloudblue/gpt-5.6-luna` cuando responde por
+    # cadena. La migracion v10 -> v11 los borra del provider en un PVC estampado
+    # via mergeProvider, que toma de `desired` los ids gestionados.
+    #
+    # Verificado antes de abrir: `node --test` 77/77 —tres tests nuevos: la ventana
+    # sigue al perfil (262144 en creative, 393216 en llm-tp, sin editar nada), el
+    # nombre dice quien contesta, y un alias sin ventana propia declara la del salto
+    # que responde y NO el seed—, pytest 494 passed, helm lint sin fallos y el render
+    # con `catalogAliases = ["qwen35-4b"]`. Backup Longhorn del PVC principal
+    # (pvc-13b814ca) Completed 2026-08-16T04:11:18Z. Sin operacion en vuelo
+    # (secuencia 20260817175103 < 20260817213820). PRUNE false.
+    #
+    # `openclaw-synapse` corre el MISMO chart y carga el mismo plugin, pero es una
+    # Application aparte y sin auto-sync: se sincroniza detras de esta. No la cubre
+    # el gate de admision (sus validaciones cortocircuitan con
+    # `object.metadata.name != 'openclaw-qwen36'`), asi que le vale un sync normal.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 54829f6bbb68f4474477ae959780f3c85fc1a761
+    operations.pocharlies.org/approval-id: openclaw-window-follows-profile-20260817
+    operations.pocharlies.org/approval-sequence: "20260817213820"
+    operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
