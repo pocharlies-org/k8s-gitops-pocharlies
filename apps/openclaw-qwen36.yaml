@@ -496,7 +496,42 @@ metadata:
     # Es el contrato que se buscaba: nadie declara una ventana mayor que la que
     # acepta quien contesta, y el nombre dice quien es. En el PVC el provider sigue
     # con UNA sola estatica, `qwen35-4b@32768`.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL ABIERTO para 039e77ff61f07c5e1a4fcbc2ad796bee94d91072
+    # (openclaw-no-agent-no-dense-20260818): P0 de la auditoria de consumidores de
+    # LiteLLM. Ninguna ruta local vuelve a pasar por `agent` ni por `dense`.
+    #
+    # Medido contra el gateway real, con el cluster en creative:
+    #   400  t=0.048  model=dense  -> Invalid model name passed in model=dense
+    #   200  t=10.9   model=agent  -> model devuelto: gpt-5.6-luna   (la NUBE)
+    # `dense` es un primario roto y `agent` una red que se va fuera sin decirlo, por
+    # el desvio de capacidad de LiteLLM. `tooling` lo sirve el residente de LOS DOS
+    # perfiles, asi que es el unico nombre local que no se rompe al cambiar de
+    # perfil — y va sin red porque no hay a donde caer que siga siendo local.
+    #
+    # - values.yaml: personaGateway, socialGateway y readonlyPlane pasan de
+    #   `litellm/dense` + `[litellm/agent]` a `litellm/tooling` + `[]`. El fallo era
+    #   LATENTE: esos gateways no tienen ni una llamada LLM en sus logs, se habrian
+    #   roto en la primera peticion.
+    # - sre-runtime-config.json: el plano SRE ruteaba a `agent`, o sea a la nube.
+    # - readonly/social/persona: fuera `agent` de fallbacks, del provider y de la
+    #   entrada del PICKER, donde se podia elegir a mano y salia a la nube.
+    # - active-memory (hoy con config.enabled false) apuntaba a `agent` en los cuatro
+    #   configs; migrado para que no muerda el dia que se encienda.
+    # - Aparte y de otro tipo: `openclaw-synapse` tenia
+    #   `imageGenerationModel.primary: litellm/agent`, un alias de TEXTO para generar
+    #   imagenes. Se alinea con el plano principal (`openai/gpt-image-2`). Si el
+    #   modelo de imagen de Synapse debe ser otro, ese es el sitio.
+    #
+    # Verificado antes de abrir: pytest 494 passed, `node --test` 78/78, helm lint
+    # sin fallos y el render con CERO `litellm/dense` y CERO `litellm/agent`. Los
+    # ocho planos coherentes: todo lo local es `tooling`. Backup Longhorn del PVC
+    # principal (pvc-13b814ca) Completed 2026-08-16T04:11:18Z. Sin operacion en vuelo
+    # (secuencia 20260817214557 < 20260818081810). PRUNE false.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 039e77ff61f07c5e1a4fcbc2ad796bee94d91072
+    operations.pocharlies.org/approval-id: openclaw-no-agent-no-dense-20260818
+    operations.pocharlies.org/approval-sequence: "20260818081810"
+    operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
