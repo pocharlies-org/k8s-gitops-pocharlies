@@ -573,7 +573,32 @@ metadata:
     # `.talk-omnivoice-pool-v1`. No se hace aqui a proposito: que modelo de imagen debe
     # usar Synapse es una decision del owner, y `openai/gpt-image-2` era solo una
     # analogia con el plano principal.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL ABIERTO para bf2515293278d35fb2f5d26ec26d47c182147c87
+    # (openclaw-image-model-gpt-image-2-20260818): migracion de UN campo con marker
+    # propio `.image-generation-model-v1` para forzar el modelo de imagen.
+    #
+    # `openclaw-synapse` tenia `imageGenerationModel.primary: litellm/agent`, un alias
+    # de TEXTO para generar imagenes que ademas contesta desde la nube. Ponerlo en el
+    # ConfigMap no basta y ya se intento en el v12: `mergeRoute` normaliza toda ref
+    # local GESTIONADA con `stableLocalRef` —todo lo local va a `tooling`— y solo
+    # acepta el desired si su lista local incluye ese normalizado. `openai/gpt-image-2`
+    # no es una ref `litellm/*`, asi que no entraba y el campo quedo en
+    # `litellm/tooling`, que sigue siendo texto.
+    #
+    # Mismo patron que `.talk-omnivoice-pool-v1`: copia
+    # `agents.defaults.imageGenerationModel` del desired y el PVC gana en todo lo
+    # demas. Valor `openai/gpt-image-2`, decidido por el owner el 18-08.
+    #
+    # Verificado antes de abrir: pytest 494 passed, `node --test` 78/78, helm lint sin
+    # fallos y render correcto. El guard del test de migracion obligo a redirigir el
+    # marker nuevo al tmp del test, que es exactamente para lo que esta. Backup
+    # Longhorn del PVC principal Completed 2026-08-16T04:11:18Z. Sin operacion en
+    # vuelo (secuencia 20260818083721 < 20260818090405). PRUNE false.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: bf2515293278d35fb2f5d26ec26d47c182147c87
+    operations.pocharlies.org/approval-id: openclaw-image-model-gpt-image-2-20260818
+    operations.pocharlies.org/approval-sequence: "20260818090405"
+    operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
