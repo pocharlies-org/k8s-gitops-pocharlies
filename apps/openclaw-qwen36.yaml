@@ -573,7 +573,7 @@ metadata:
     # `.talk-omnivoice-pool-v1`. No se hace aqui a proposito: que modelo de imagen debe
     # usar Synapse es una decision del owner, y `openai/gpt-image-2` era solo una
     # analogia con el plano principal.
-    # APPROVAL ABIERTO para bf2515293278d35fb2f5d26ec26d47c182147c87
+    # APPROVAL CERRADO para bf2515293278d35fb2f5d26ec26d47c182147c87
     # (openclaw-image-model-gpt-image-2-20260818): migracion de UN campo con marker
     # propio `.image-generation-model-v1` para forzar el modelo de imagen.
     #
@@ -594,11 +594,16 @@ metadata:
     # marker nuevo al tmp del test, que es exactamente para lo que esta. Backup
     # Longhorn del PVC principal Completed 2026-08-16T04:11:18Z. Sin operacion en
     # vuelo (secuencia 20260818083721 < 20260818090405). PRUNE false.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: bf2515293278d35fb2f5d26ec26d47c182147c87
-    operations.pocharlies.org/approval-id: openclaw-image-model-gpt-image-2-20260818
-    operations.pocharlies.org/approval-sequence: "20260818090405"
-    operations.pocharlies.org/approved-prune: "false"
+    #
+    # RESULTADO: operacion Succeeded, app Healthy. Marker
+    # `.image-generation-model-v1` presente y el campo forzado en los DOS planos,
+    # verificado con exec:
+    #   openclaw-qwen36  -> {"primary":"openai/gpt-image-2","timeoutMs":300000}
+    #   openclaw-synapse -> {"primary":"openai/gpt-image-2","timeoutMs":180000}
+    # (pod nuevo openclaw-synapse-openclaw-845cdcb56-jst54). Esta vez si aterrizo:
+    # la migracion de un campo se salta la normalizacion de `mergeRoute`, que era lo
+    # que dejaba el valor en `litellm/tooling`.
+    operations.pocharlies.org/state-writer-lease: inactive
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
