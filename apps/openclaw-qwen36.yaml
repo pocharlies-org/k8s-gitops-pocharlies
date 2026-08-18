@@ -604,7 +604,7 @@ metadata:
     # la migracion de un campo se salta la normalizacion de `mergeRoute`, que era lo
     # que dejaba el valor en `litellm/tooling`.
     #
-    # APPROVAL ABIERTO 2026-08-18 para 163f23313f0ea19cffeba9a13aa6f6ab22ef8130
+    # APPROVAL CERRADO para 163f23313f0ea19cffeba9a13aa6f6ab22ef8130
     # (openclaw-main-out-of-skirmshop-20260818).
     #
     # QUE APLICA: decision del owner — `main` se queda FUERA del plano Skirmshop, y
@@ -659,11 +659,30 @@ metadata:
     # guard, que lee `files/culturismo-workspace/bodybuilding-brain-mcp.mjs` —
     # borrado a proposito en 134ec0a y que pytest afirma que NO debe existir. Previo
     # y ajeno, como en los dos approvals anteriores.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 163f23313f0ea19cffeba9a13aa6f6ab22ef8130
-    operations.pocharlies.org/approval-id: openclaw-main-out-of-skirmshop-20260818
-    operations.pocharlies.org/approval-sequence: "20260818163415"
-    operations.pocharlies.org/approved-prune: "false"
+    #
+    # RESULTADO: operacion Succeeded con la app Healthy y prune=false. Pod nuevo
+    # openclaw-qwen36-openclaw-77b9685b9c-wcqpt (2026-08-18T16:38:25Z), 3/3 Ready y
+    # cero reinicios. Verificado DENTRO del PVC vivo:
+    #
+    #   marker .main-agent-tools-v1 escrito (0600)
+    #   main  -> 0 tools `brain-commerce*` en alsoAllow (122 en total, profile full)
+    #         -> deny: shopify__*, shopify-admin__*, offers__*, skirmshop-plugins__*,
+    #            skirmshop-plugins-admin__*, picqer__*, gsc__*, brain-commerce__*,
+    #            shopify_gateway_tools_list, shopify_gateway_call,
+    #            shopify_admin_graphql_execute
+    #   skirmshop -> sus 9 `brain-commerce__*` intactos
+    #   culturismo sin bloque `tools` y programador en {profile: coding}, o sea que
+    #   el arrastre no cambio nada en vivo, como estaba previsto.
+    #
+    # La app queda OutOfSync solo por los huerfanos que conserva prune=false, igual
+    # que en los approvals anteriores.
+    #
+    # AVISO para quien siga, medido al verificar: el PVC de `skirmshop` declara 203
+    # entradas en `tools.allow` y el repo 222. Es divergencia PREVIA y ajena a esta
+    # operacion —solo se migro `main`— pero significa que los permisos vivos de
+    # `skirmshop` no son los del repo. Si se quiere alinear, necesita su propia
+    # migracion con marker; no se hace aqui porque no se pidio.
+    operations.pocharlies.org/state-writer-lease: inactive
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
