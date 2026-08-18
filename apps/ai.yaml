@@ -512,7 +512,11 @@ spec:
     # template, pero el unico deployment con replicas>0 (el head) ya la lleva tras
     # el rollout, y el Service es un objeto nuevo. ROLLBACK:
     # 1d5bdac2b1173612d5609ae271ff53d8520065f1.
-    targetRevision: 17a7d1abaab3d699100665502830f5407138a44e
+    # 18-08 (2/2): segundo nombre servido `tooling` en los DOS residentes, para
+    # que la entrada estatica del model_list pueda apuntar al Service de pool.
+    # DeepSeek: solo ConfigMap launch.sh -> NO reinicia. qwen38: a 0 replicas.
+    # ROLLBACK: 17a7d1abaab3d699100665502830f5407138a44e.
+    targetRevision: 392fdaafba851eee9155e6a9fbae1fc8c790e99a
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
