@@ -537,7 +537,7 @@ metadata:
     # ocurrencias de `litellm/agent` y `litellm/dense`. El plano SRE no tiene PVC y
     # su ConfigMap `openclaw-qwen36-sre-agent-config` ya declara
     # `ruta={'primary': 'litellm/tooling', 'fallbacks': []}` y `declara=['tooling']`.
-    # APPROVAL ABIERTO para 6c804371228fce22dfdd90bf216afaacef4a17cc
+    # APPROVAL CERRADO para 6c804371228fce22dfdd90bf216afaacef4a17cc
     # (openclaw-marker-v12-synapse-image-model-20260818): sube el marker de migracion
     # a `.litellm-context-sync-v12` por UN campo.
     #
@@ -554,11 +554,26 @@ metadata:
     # comentario que explica esto. Backup Longhorn del PVC principal Completed
     # 2026-08-16T04:11:18Z. Sin operacion en vuelo (secuencia 20260818081810 <
     # 20260818083721). PRUNE false.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 6c804371228fce22dfdd90bf216afaacef4a17cc
-    operations.pocharlies.org/approval-id: openclaw-marker-v12-synapse-image-model-20260818
-    operations.pocharlies.org/approval-sequence: "20260818083721"
-    operations.pocharlies.org/approved-prune: "false"
+    #
+    # RESULTADO: operacion Succeeded, app Healthy. Marker `.litellm-context-sync-v12`
+    # presente en los dos planos. En el PVC de `openclaw-synapse` (pod nuevo
+    # openclaw-synapse-openclaw-6dcf85767c-b2j8p) ya NO hay ni un `litellm/agent` ni
+    # un `litellm/dense`.
+    #
+    # PERO el campo no aterrizo donde decia el desired: `imageGenerationModel.primary`
+    # quedo en `litellm/tooling`, no en `openai/gpt-image-2`. La razon esta en
+    # `mergeRoute`: cuando el primary del PVC es una ref local GESTIONADA la normaliza
+    # con `stableLocalRef` —que manda todo lo local a `tooling`— y solo acepta el
+    # desired si su lista local incluye ese normalizado. `openai/gpt-image-2` no es una
+    # ref local, asi que no entra. O sea: para generacion de imagenes Synapse ha pasado
+    # de un modelo de TEXTO en la nube a un modelo de TEXTO local. Mejor —no sale
+    # fuera— pero sigue sin poder generar imagenes.
+    #
+    # Forzarlo necesita una migracion de UN campo con su propio marker, el patron de
+    # `.talk-omnivoice-pool-v1`. No se hace aqui a proposito: que modelo de imagen debe
+    # usar Synapse es una decision del owner, y `openai/gpt-image-2` era solo una
+    # analogia con el plano principal.
+    operations.pocharlies.org/state-writer-lease: inactive
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
