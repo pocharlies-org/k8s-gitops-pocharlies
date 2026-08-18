@@ -537,7 +537,28 @@ metadata:
     # ocurrencias de `litellm/agent` y `litellm/dense`. El plano SRE no tiene PVC y
     # su ConfigMap `openclaw-qwen36-sre-agent-config` ya declara
     # `ruta={'primary': 'litellm/tooling', 'fallbacks': []}` y `declara=['tooling']`.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL ABIERTO para 6c804371228fce22dfdd90bf216afaacef4a17cc
+    # (openclaw-marker-v12-synapse-image-model-20260818): sube el marker de migracion
+    # a `.litellm-context-sync-v12` por UN campo.
+    #
+    # Tras desplegar el P0 quedaba un `litellm/agent` vivo: el PVC de
+    # `openclaw-synapse` conservaba `imageGenerationModel.primary: litellm/agent`, un
+    # alias de TEXTO para generar imagenes que ademas contesta desde la nube. El
+    # desired ya dice `openai/gpt-image-2` y `mergeRoute` lo migraria —`agent` esta en
+    # managedModelIds—, pero la migracion solo corre cuando FALTA el marker y ese PVC
+    # ya estaba sellado con v11. Subir el marker es lo unico que la hace pasar.
+    #
+    # Ninguna superficie nueva: mismo bloque de migracion, un campo mas convergido.
+    # Verificado antes de abrir: pytest 494 passed, `node --test` 78/78, helm lint sin
+    # fallos, render con el marker v12 y con un unico `litellm/agent`, que es el
+    # comentario que explica esto. Backup Longhorn del PVC principal Completed
+    # 2026-08-16T04:11:18Z. Sin operacion en vuelo (secuencia 20260818081810 <
+    # 20260818083721). PRUNE false.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 6c804371228fce22dfdd90bf216afaacef4a17cc
+    operations.pocharlies.org/approval-id: openclaw-marker-v12-synapse-image-model-20260818
+    operations.pocharlies.org/approval-sequence: "20260818083721"
+    operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
