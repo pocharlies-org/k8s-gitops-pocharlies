@@ -603,7 +603,67 @@ metadata:
     # (pod nuevo openclaw-synapse-openclaw-845cdcb56-jst54). Esta vez si aterrizo:
     # la migracion de un campo se salta la normalizacion de `mergeRoute`, que era lo
     # que dejaba el valor en `litellm/tooling`.
-    operations.pocharlies.org/state-writer-lease: inactive
+    #
+    # APPROVAL ABIERTO 2026-08-18 para 163f23313f0ea19cffeba9a13aa6f6ab22ef8130
+    # (openclaw-main-out-of-skirmshop-20260818).
+    #
+    # QUE APLICA: decision del owner — `main` se queda FUERA del plano Skirmshop, y
+    # el plano Skirmshop entero vive en el agente `skirmshop`. `main` ya denegaba
+    # Shopify/Shopify-Admin/Picqer/GSC/offers/skirmshop-plugins, pero conservaba las
+    # nueve tools `brain-commerce__*` (order/tracking/customer/serial lookup, price
+    # context, order stats, price comparison, entity edges, offers search): era la
+    # ultima puerta a datos de tienda fuera de `skirmshop`. Salen de `alsoAllow`
+    # (131 -> 122 tools) y entra `brain-commerce__*` en el deny, que es lo que cierra
+    # de verdad, porque el `tools.alsoAllow` GLOBAL reparte picqer/gsc/offers a todo
+    # agente y "no listarlo" no basta. Mismo idioma que ya usaban `local`,
+    # `image-cloud` y `synapse-ops-analyst`. `skirmshop` intacto: sus nueve
+    # `brain-commerce__*` y sus 222 tools siguen igual.
+    #
+    # Van DOS commits: b69d0ce (el cambio de permisos + el guard de aislamiento en
+    # scripts/validate.sh) y 163f233 (la migracion que lo hace aterrizar).
+    #
+    # POR QUE HAY MIGRACION: b69d0ce solo no habria hecho nada. El ConfigMap siembra
+    # /data/config/openclaw.json en el PRIMER arranque y despues manda el PVC, y la
+    # unica migracion que toca a los agentes es `mergeAgentModels`, que mira solo el
+    # MODELO. Medido dentro del pod openclaw-qwen36-openclaw-649754c95c-shs2r antes
+    # de abrir esto: el PVC vivo conservaba las nueve tools en `alsoAllow` y NO tenia
+    # `brain-commerce__*` en el deny. Sincronizar b69d0ce a secas habria sido un
+    # no-op silencioso — la trampa que ya costo el v12. Marker propio
+    # `.main-agent-tools-v1`, patron de `.image-generation-model-v1` (bf25152): copia
+    # `tools` del agente `main` del desired y el PVC gana en todo lo demas. Solo
+    # `main`; ningun otro agente se toca.
+    #
+    # ARRASTRE: 163f233 revierte tambien el aflojado de `culturismo`/`programador` de
+    # 3402604 (mismo dia, sin desplegar: la ultima revision aplicada es bf25152).
+    # Darles `profile: full` cruzaba justo los carriles que este cambio refuerza y
+    # rompia cuatro contratos del repo — `culturismo` sin bloque `tools`,
+    # `programador` exactamente `{profile: coding}`, y todo agente coding/full
+    # obligado a denegar `image_generate` y `skirmshop-plugins-admin__*`. Con eso
+    # configs/openclaw/openclaw.json vuelve a ser copia exacta del helm/files, como
+    # exige el guard. Ambos agentes quedan como estaban desplegados, asi que el
+    # arrastre no cambia nada en vivo.
+    #
+    # Verificado antes de abrir: pytest 494 passed (con una asercion nueva en
+    # test_pvc_migration_is_selective_atomic_and_idempotent, que corre el script de
+    # migracion contra un PVC ya estampado y comprueba que main.tools queda igual al
+    # desired mientras `customUserSetting` del PVC sigue ganando), `node --test`
+    # 264/264, helm lint sin fallos y el marker `.main-agent-tools-v1` presente en
+    # los dos renders. Backup Longhorn del PVC principal (pvc-13b814ca)
+    # backup-5f049c68601b4314 Completed 2026-08-16T04:00:46Z, y cero backups
+    # no-Completed en el cluster. Sin operacion en vuelo (ultima Succeeded
+    # 2026-08-18T09:09:35Z, secuencia 20260818090405 < 20260818163415).
+    # PRUNE false: no se borra nada; cambian ConfigMaps de runtime y el Deployment
+    # (checksum del bloque de migracion).
+    #
+    # `scripts/validate.sh` sigue fallando en HEAD limpio por el alias consistency
+    # guard, que lee `files/culturismo-workspace/bodybuilding-brain-mcp.mjs` —
+    # borrado a proposito en 134ec0a y que pytest afirma que NO debe existir. Previo
+    # y ajeno, como en los dos approvals anteriores.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 163f23313f0ea19cffeba9a13aa6f6ab22ef8130
+    operations.pocharlies.org/approval-id: openclaw-main-out-of-skirmshop-20260818
+    operations.pocharlies.org/approval-sequence: "20260818163415"
+    operations.pocharlies.org/approved-prune: "false"
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
