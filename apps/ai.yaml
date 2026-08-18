@@ -498,7 +498,13 @@ spec:
     # 15-08 cierre: f589f26 solo precisa comentarios (no se atribuyo el salto a
     # 68 tok/s a una sola causa). Anotaciones de metadata del Deployment, NO del
     # pod template: no reinicia.
-    targetRevision: 9c7381fb178a3f6aa22c04ae7d56890b83bc0e68
+    # 18-08: 1d5bdac sube DeepSeek a rank1g-vision. Arregla la seleccion de lambda
+    # POR PETICION, que estaba muerta en silencio: `capture_model` no pasa por
+    # `execute_model`, asi que el grafo CUDA tenia horneado el escalar global y
+    # todo decode servido por grafo ignoraba el cache_salt. ESTO SI REINICIA los
+    # dos ranks (cambia la imagen del pod template). ROLLBACK:
+    # 9c7381fb178a3f6aa22c04ae7d56890b83bc0e68.
+    targetRevision: 1d5bdac2b1173612d5609ae271ff53d8520065f1
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
