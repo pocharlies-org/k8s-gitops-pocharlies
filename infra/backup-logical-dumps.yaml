@@ -1,0 +1,52 @@
+# Dumps lógicos de las BBDD + kit de recuperación a Google Drive.
+#
+# 2026-08-20. Estos objetos existían desde hace meses en
+# `dgx-infra/k8s/backup/logical-dumps/` pero se aplicaban a mano con
+# `kubectl apply -k`. Consecuencia medida: `recovery-kit-to-drive` falló las
+# noches del 16, 17, 18 y 19 de agosto (emptyDir de 32Gi desbordado, pods
+# `Evicted`) y **ningún semáforo se puso rojo** — la app `backup-hub` seguía
+# Synced/Healthy porque estos CronJobs no eran suyos. Cinco días sin kit en
+# Drive y nadie se enteró.
+#
+# `destination.namespace: databases` es sólo el namespace por defecto de la
+# Application: los ocho recursos declaran el suyo a propósito y viven en
+# `databases`, `keycloak`, `backup-hub`, `aiops`, `libreplay` y
+# `longhorn-system`. Por eso NO lleva `CreateNamespace=true`: los seis ya
+# existen, y si alguno desapareciera prefiero que el sync falle a que Argo lo
+# recree vacío.
+#
+# `prune: false` a propósito: es la ruta de los backups. Que un fichero salga
+# del kustomize no puede traducirse en que ArgoCD borre el CronJob que hace la
+# copia. Se borran a mano, mirando.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: backup-logical-dumps
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/dgx-infra/tree/master/k8s/backup/logical-dumps
+  labels:
+    e-dani.com/tier: infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/dgx-infra
+    targetRevision: master
+    path: k8s/backup/logical-dumps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: databases
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+  revisionHistoryLimit: 10
