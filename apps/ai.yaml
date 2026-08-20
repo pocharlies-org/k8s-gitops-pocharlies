@@ -557,7 +557,12 @@ spec:
     # decoding"): con el runtime anterior, min_p=0.01 devolvia 400. 4236254
     # incorpora el backport de vLLM #42802, mantiene logit_bias bloqueado y
     # vuelve a activar min_p. ROLLBACK: pin 796f946.
-    targetRevision: "4236254"
+    # 21-08: 0d69ab0 — max-num-seqs 5->4 en ambos ranks. Con DSpark k=5, un
+    # step lleno pasa de 30 tokens rellenados al graph 32 a 24 tokens exactos,
+    # que coinciden con un tamano capturado. Prioriza latencia interactiva bajo
+    # fan-out sobre admitir una quinta request simultanea. SI REINICIA.
+    # ROLLBACK: 4236254f84d228623e7e08c202e4e801f174637c.
+    targetRevision: "0d69ab0"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
