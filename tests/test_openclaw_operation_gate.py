@@ -364,7 +364,11 @@ class OpenClawOperationGateTest(unittest.TestCase):
             manifest,
         )
         self.assertIn('verbs: ["get", "patch"]', manifest)
-        self.assertIn('resourceNames: ["openclaw-qwen36"]', manifest)
+        self.assertIn(
+            'resourceNames: ["openclaw-qwen36", "openclaw-synapse"]',
+            manifest,
+        )
+        self.assertEqual(manifest.count("resourceNames:"), 1)
 
     def test_metadata_and_delete_paths_are_controller_owned(self) -> None:
         manifest = (

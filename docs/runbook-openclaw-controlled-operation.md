@@ -99,6 +99,22 @@ same request that creates `.operation`. Admission denies this for `Running` or
 Argo CD upgrade changes that status schema, update the explicit comparison and
 rerun the server-side policy type check before upgrading the CRD.
 
+## Independent `openclaw-synapse` manual sync
+
+`openclaw-synapse` is intentionally manual but does not use the qwen36 approval
+bundle. Its sanctioned path is
+`scripts/execute_openclaw_synapse_manual_sync.sh --revision <40-hex> --reason
+<nonempty> --dry-run-only` as a standalone preflight, followed by the same
+arguments with `--execute`. The execute invocation performs its own server-side
+dry run and persists those exact patch bytes under a resourceVersion CAS. The
+executor is fixed to the `argocd/openclaw-synapse` Application,
+uses the same ten-minute `openclaw-operation-executor` ServiceAccount identity,
+and submits no prune or force option. Granting that identity `get` and `patch`
+on this second named Application does not extend the qwen36 approval gate: all
+of that gate's validations still short-circuit unless the Application name is
+`openclaw-qwen36`. A separate admission policy confines the shared executor
+identity to the exact Synapse operation and terminal-status cleanup shape.
+
 Direct creation and deletion are denied, including recreation after restore and
 namespace teardown, until the root GitOps controller performs the change. If
 that controller is unavailable, treat policy suspension as a break-glass

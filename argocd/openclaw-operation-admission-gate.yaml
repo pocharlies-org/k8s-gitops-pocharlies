@@ -19,7 +19,12 @@ metadata:
 rules:
   - apiGroups: ["argoproj.io"]
     resources: ["applications"]
-    resourceNames: ["openclaw-qwen36"]
+    # 20-08-2026: entra openclaw-synapse. Su sync manual sancionado es el mismo
+    # .operation explicito (test_openclaw_synapse_manual_sync.py) y lo lanza el
+    # ejecutor scripts/execute_openclaw_synapse_manual_sync.sh con ESTA identidad
+    # dedicada en vez del kubeconfig admin. El gate de admision no cambia: todas
+    # sus reglas eximen a cualquier Application que no sea openclaw-qwen36.
+    resourceNames: ["openclaw-qwen36", "openclaw-synapse"]
     verbs: ["get", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -114,6 +119,8 @@ spec:
           && (!has(object.metadata.finalizers) || object.metadata.finalizers == oldObject.metadata.finalizers)
           && has(object.metadata.ownerReferences) == has(oldObject.metadata.ownerReferences)
           && (!has(object.metadata.ownerReferences) || object.metadata.ownerReferences == oldObject.metadata.ownerReferences)
+          && has(object.metadata.generateName) == has(oldObject.metadata.generateName)
+          && (!has(object.metadata.generateName) || object.metadata.generateName == oldObject.metadata.generateName)
         )
       message: >-
         Only the Argo CD application controller may change OpenClaw annotations,
@@ -342,6 +349,154 @@ metadata:
     app.kubernetes.io/component: deployment-safety
 spec:
   policyName: openclaw-operation-state-writer-gate
+  validationActions:
+    - Deny
+---
+# openclaw-synapse remains independent from the qwen36 approval bundle. This
+# policy only confines the shared short-lived executor identity to the exact
+# manual sync operation shape; Argo CD controllers remain unaffected.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: openclaw-synapse-manual-sync-executor-gate
+  labels:
+    app.kubernetes.io/name: openclaw-synapse
+    app.kubernetes.io/component: deployment-safety
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - argoproj.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - UPDATE
+        resources:
+          - applications
+        scope: Namespaced
+  validations:
+    - expression: >-
+        object.metadata.namespace != 'argocd'
+        || object.metadata.name != 'openclaw-synapse'
+        || request.userInfo.username != 'system:serviceaccount:argocd:openclaw-operation-executor'
+        || object.spec == oldObject.spec
+      message: The Synapse manual sync executor may not change the Application spec.
+      reason: Forbidden
+    - expression: >-
+        object.metadata.namespace != 'argocd'
+        || object.metadata.name != 'openclaw-synapse'
+        || request.userInfo.username != 'system:serviceaccount:argocd:openclaw-operation-executor'
+        || (
+          has(object.metadata.annotations) == has(oldObject.metadata.annotations)
+          && (!has(object.metadata.annotations) || object.metadata.annotations == oldObject.metadata.annotations)
+          && has(object.metadata.labels) == has(oldObject.metadata.labels)
+          && (!has(object.metadata.labels) || object.metadata.labels == oldObject.metadata.labels)
+          && has(object.metadata.finalizers) == has(oldObject.metadata.finalizers)
+          && (!has(object.metadata.finalizers) || object.metadata.finalizers == oldObject.metadata.finalizers)
+          && has(object.metadata.ownerReferences) == has(oldObject.metadata.ownerReferences)
+          && (!has(object.metadata.ownerReferences) || object.metadata.ownerReferences == oldObject.metadata.ownerReferences)
+          && has(object.metadata.generateName) == has(oldObject.metadata.generateName)
+          && (!has(object.metadata.generateName) || object.metadata.generateName == oldObject.metadata.generateName)
+        )
+      message: The Synapse manual sync executor may not change Application metadata.
+      reason: Forbidden
+    - expression: >-
+        object.metadata.namespace != 'argocd'
+        || object.metadata.name != 'openclaw-synapse'
+        || request.userInfo.username != 'system:serviceaccount:argocd:openclaw-operation-executor'
+        || (
+          has(oldObject.status) == has(object.status)
+          && (!has(oldObject.status) || (
+            has(oldObject.status.conditions) == has(object.status.conditions)
+            && (!has(oldObject.status.conditions) || oldObject.status.conditions == object.status.conditions)
+            && has(oldObject.status.controllerNamespace) == has(object.status.controllerNamespace)
+            && (!has(oldObject.status.controllerNamespace) || oldObject.status.controllerNamespace == object.status.controllerNamespace)
+            && has(oldObject.status.health) == has(object.status.health)
+            && (!has(oldObject.status.health) || oldObject.status.health == object.status.health)
+            && has(oldObject.status.history) == has(object.status.history)
+            && (!has(oldObject.status.history) || oldObject.status.history == object.status.history)
+            && has(oldObject.status.observedAt) == has(object.status.observedAt)
+            && (!has(oldObject.status.observedAt) || oldObject.status.observedAt == object.status.observedAt)
+            && has(oldObject.status.reconciledAt) == has(object.status.reconciledAt)
+            && (!has(oldObject.status.reconciledAt) || oldObject.status.reconciledAt == object.status.reconciledAt)
+            && has(oldObject.status.resourceHealthSource) == has(object.status.resourceHealthSource)
+            && (!has(oldObject.status.resourceHealthSource) || oldObject.status.resourceHealthSource == object.status.resourceHealthSource)
+            && has(oldObject.status.resources) == has(object.status.resources)
+            && (!has(oldObject.status.resources) || oldObject.status.resources == object.status.resources)
+            && has(oldObject.status.sourceHydrator) == has(object.status.sourceHydrator)
+            && (!has(oldObject.status.sourceHydrator) || oldObject.status.sourceHydrator == object.status.sourceHydrator)
+            && has(oldObject.status.sourceType) == has(object.status.sourceType)
+            && (!has(oldObject.status.sourceType) || oldObject.status.sourceType == object.status.sourceType)
+            && has(oldObject.status.sourceTypes) == has(object.status.sourceTypes)
+            && (!has(oldObject.status.sourceTypes) || oldObject.status.sourceTypes == object.status.sourceTypes)
+            && has(oldObject.status.summary) == has(object.status.summary)
+            && (!has(oldObject.status.summary) || oldObject.status.summary == object.status.summary)
+            && has(oldObject.status.sync) == has(object.status.sync)
+            && (!has(oldObject.status.sync) || oldObject.status.sync == object.status.sync)
+            && (
+              has(oldObject.status.operationState) == has(object.status.operationState)
+              && (!has(oldObject.status.operationState) || oldObject.status.operationState == object.status.operationState)
+              || (
+                has(oldObject.status.operationState)
+                && oldObject.status.operationState.phase in ['Succeeded', 'Failed', 'Error']
+                && !has(object.status.operationState)
+              )
+            )
+          ))
+        )
+      message: >-
+        The Synapse manual sync executor may only remove one terminal
+        operationState while leaving every other status field unchanged.
+      reason: Forbidden
+    - expression: >-
+        object.metadata.namespace != 'argocd'
+        || object.metadata.name != 'openclaw-synapse'
+        || request.userInfo.username != 'system:serviceaccount:argocd:openclaw-operation-executor'
+        || (
+          !has(oldObject.operation)
+          && has(object.operation)
+          && has(object.operation.initiatedBy)
+          && !has(object.operation.initiatedBy.username)
+          && !has(object.operation.initiatedBy.automated)
+          && has(object.operation.info)
+          && object.operation.info.size() == 1
+          && object.operation.info[0].name == 'reason'
+          && object.operation.info[0].value.matches('.*[^[:space:]].*')
+          && has(object.operation.sync)
+          && has(object.operation.sync.revision)
+          && object.operation.sync.revision.matches('^[0-9a-f]{40}$')
+          && has(object.operation.sync.syncOptions)
+          && object.operation.sync.syncOptions == ['CreateNamespace=true', 'ServerSideApply=true']
+          && !has(object.operation.sync.prune)
+          && !has(object.operation.sync.autoHealAttemptsCount)
+          && !has(object.operation.sync.dryRun)
+          && !has(object.operation.sync.manifests)
+          && !has(object.operation.sync.resources)
+          && !has(object.operation.sync.revisions)
+          && !has(object.operation.sync.source)
+          && !has(object.operation.sync.sources)
+          && !has(object.operation.sync.syncStrategy)
+          && has(object.operation.retry)
+          && !has(object.operation.retry.backoff)
+          && !has(object.operation.retry.limit)
+          && !has(object.operation.retry.refresh)
+        )
+      message: >-
+        The Synapse executor may only create the fixed-scope full sync operation
+        with a commit revision, one reason, standard sync options, and no prune,
+        force, selective resources, source override, or retry policy.
+      reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: openclaw-synapse-manual-sync-executor-gate
+  labels:
+    app.kubernetes.io/name: openclaw-synapse
+    app.kubernetes.io/component: deployment-safety
+spec:
+  policyName: openclaw-synapse-manual-sync-executor-gate
   validationActions:
     - Deny
 ---
