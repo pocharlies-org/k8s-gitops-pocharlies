@@ -552,7 +552,12 @@ spec:
     # hundia el acceptance de DSpark 53-62% -> 38-45% bajo carga. Brazo A
     # archivado en diagnostics/sampling-ab-20260820/. SI REINICIA (v3).
     # ROLLBACK: 796f946a76ee7c01f89d1f0bc49efccb7aac0b8c.
-    targetRevision: 98f9d1c3683a8c0d70d889cef0a173182175d7da
+    # 20-08 (7/7): ROLLBACK EJECUTADO del brazo B — este build NO soporta min_p
+    # con speculative decoding ("min_p ... not yet supported with speculative
+    # decoding"): con el default {"min_p":0.01} TODA peticion devolvia 400. El
+    # A/B min_p queda IMPOSIBLE con DSpark activo en 0.25.2.
+    # ROLLBACK: (este ES el rollback; el anterior bueno es 796f946).
+    targetRevision: 796f946a76ee7c01f89d1f0bc49efccb7aac0b8c
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
