@@ -516,7 +516,16 @@ spec:
     # que la entrada estatica del model_list pueda apuntar al Service de pool.
     # DeepSeek: solo ConfigMap launch.sh -> NO reinicia. qwen38: a 0 replicas.
     # ROLLBACK: 17a7d1abaab3d699100665502830f5407138a44e.
-    targetRevision: 392fdaafba851eee9155e6a9fbae1fc8c790e99a
+    # 20-08: db0730b anade `--long-prefill-token-threshold 1024` al launch.sh de
+    # DeepSeek. El KV nunca fue el problema (1,28M tokens de pool, <37,1% de uso
+    # en 16 h); lo que ahogaba la concurrencia era el prefill largo comiendose el
+    # step entero. En el mismo salto entra 50ef097 (preflight fail-closed del DAC
+    # 200G: aborta en 3 s en vez de colgarse mudo 9 min si el TP saldria por LAN)
+    # y los TP_PEER_IP que necesita. SI REINICIA: el launch.sh solo se lee al
+    # arrancar, hay que rotar los DOS ranks juntos — un rank solo se queda
+    # ocupando 104 GiB esperando un rendezvous que no llega. ROLLBACK:
+    # 392fdaafba851eee9155e6a9fbae1fc8c790e99a.
+    targetRevision: db0730bdb3eb703e87f3d92958e00d90d41740d6
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
