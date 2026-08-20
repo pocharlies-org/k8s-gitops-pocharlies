@@ -542,7 +542,12 @@ spec:
     # imposible: dspark_block_size=5 del checkpoint, guard en launch.sh. SI
     # REINICIA (launch-revision bump en los dos ranks).
     # ROLLBACK: e3456879733b59457449698702a56955978584d8.
-    targetRevision: 7de5ab3cfcbc98eed65eaf571031e625f6a34379
+    # 20-08 (5/5): 796f946 — CAPTURE redondea ARRIBA a multiplo de 8: el build
+    # trunca hacia abajo (pedir 30 dio 24, medido 17:39) y el step lleno de 5
+    # seqs (30 tok) seguia en piecewise. Con 32 pedido entra en full graph.
+    # SI REINICIA (launch-revision v2 en ambos ranks).
+    # ROLLBACK: 7de5ab3cfcbc98eed65eaf571031e625f6a34379.
+    targetRevision: 796f946a76ee7c01f89d1f0bc49efccb7aac0b8c
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
