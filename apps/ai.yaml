@@ -529,7 +529,14 @@ spec:
     # DeepSeek via override-generation-config; solo ConfigMap launch.sh -> NO reinicia,
     # entra en el siguiente arranque) + informe antes/despues medido del threshold.
     # ROLLBACK: db0730bdb3eb703e87f3d92958e00d90d41740d6.
-    targetRevision: b36cf3ceaee3fc449ff1a3084b105e2a64f232a5
+    # 20-08 (3/3): e345687 — chat template Unsloth para DS4 via CM + sitecustomize
+    # (from_json en el env jinja). Motivo: el template integrado de vLLM falla los
+    # vectores dorados oficiales (tira el <think> del ultimo turno en thinking y
+    # pierde el system con tools); el de Unsloth da EXACT 4/4 tambien con los
+    # kwargs vivos (thinking=true, reasoning_effort=low). SI REINICIA: bump de
+    # launch-revision en head y worker — Argo rota los DOS ranks al sincronizar.
+    # ROLLBACK: b36cf3ceaee3fc449ff1a3084b105e2a64f232a5.
+    targetRevision: e3456879733b59457449698702a56955978584d8
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
