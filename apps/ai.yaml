@@ -554,10 +554,10 @@ spec:
     # ROLLBACK: 796f946a76ee7c01f89d1f0bc49efccb7aac0b8c.
     # 20-08 (7/7): ROLLBACK EJECUTADO del brazo B — este build NO soporta min_p
     # con speculative decoding ("min_p ... not yet supported with speculative
-    # decoding"): con el default {"min_p":0.01} TODA peticion devolvia 400. El
-    # A/B min_p queda IMPOSIBLE con DSpark activo en 0.25.2.
-    # ROLLBACK: (este ES el rollback; el anterior bueno es 796f946).
-    targetRevision: 796f946a76ee7c01f89d1f0bc49efccb7aac0b8c
+    # decoding"): con el runtime anterior, min_p=0.01 devolvia 400. 4236254
+    # incorpora el backport de vLLM #42802, mantiene logit_bias bloqueado y
+    # vuelve a activar min_p. ROLLBACK: pin 796f946.
+    targetRevision: 4236254
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
