@@ -525,7 +525,11 @@ spec:
     # arrancar, hay que rotar los DOS ranks juntos — un rank solo se queda
     # ocupando 104 GiB esperando un rendezvous que no llega. ROLLBACK:
     # 392fdaafba851eee9155e6a9fbae1fc8c790e99a.
-    targetRevision: db0730bdb3eb703e87f3d92958e00d90d41740d6
+    # 20-08 (2/2): b36cf3c — sampling por defecto (f487498: top_p 0.95 agentico en
+    # DeepSeek via override-generation-config; solo ConfigMap launch.sh -> NO reinicia,
+    # entra en el siguiente arranque) + informe antes/despues medido del threshold.
+    # ROLLBACK: db0730bdb3eb703e87f3d92958e00d90d41740d6.
+    targetRevision: b36cf3ceaee3fc449ff1a3084b105e2a64f232a5
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
