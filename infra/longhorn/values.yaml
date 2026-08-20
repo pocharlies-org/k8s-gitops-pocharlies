@@ -19,6 +19,23 @@
 #
 # `systemManagedComponentsNodeSelector: storage-longhorn:true` -- sauvage NO lleva
 # esa etiqueta y por eso no es nodo de Longhorn. No es un fallo.
+#
+# 20-08-2026: este ConfigMap es el UNICO dueño de los Settings de Longhorn.
+# Antes `k8s-infra` declaraba tambien Setting CRs sueltos y uno de ellos ponia
+# storage-over-provisioning-percentage a 112 mientras esto decia 110. El manager
+# sincroniza ConfigMap -> Setting CR al arrancar, `k8s-infra` lo devolvia a 112 por
+# selfHeal, y la escritura del manager moria con "the object has been modified" ->
+# fatal en daemon.go:109 -> CrashLoopBackOff. El 20-08 tumbo el manager de ks5-cp-3,
+# dejo 33 volumenes degradados y con ellos harbor-database, o sea el registry entero.
+# Se subio este valor a 112 (el techo que documenta el capacity gate del 02-08) para
+# que ambas fuentes convergieran, y se borraron los CRs duplicados de `k8s-infra`.
+# No volver a declarar Settings de Longhorn fuera de aqui.
+#
+# `replicaAutoBalance: best-effort`: cuando un nodo vuelve de una caida, Longhorn NO
+# rebalancea solo si esto esta en `disabled` (su default). Tras el incidente del 20-08
+# ks5-cp-1 quedo al 97 % de sobreaprovisionamiento y ks5-cp-3 al 17,5 %: las replicas
+# se reconstruyeron en los demas y nadie las devolvio. Con `best-effort` las mueve el
+# propio Longhorn, y `concurrentReplicaRebuildPerNodeLimit: 1` acota el trafico.
 attacherReplicaCount: 2
 csi:
   attacherReplicaCount: 2
@@ -31,10 +48,11 @@ defaultSettings:
   defaultDataPath: /var/lib/longhorn
   defaultReplicaCount: '{"v1":"3","v2":"3"}'
   guaranteedInstanceManagerCPU: 12
+  replicaAutoBalance: best-effort
   replicaSoftAntiAffinity: true
   replicaZoneSoftAntiAffinity: true
   storageMinimalAvailablePercentage: 15
-  storageOverProvisioningPercentage: 110
+  storageOverProvisioningPercentage: 112
   systemManagedComponentsNodeSelector: storage-longhorn:true
   taintToleration: dedicated=llm:NoSchedule;role=edge:NoSchedule;pocharlies.io/pool=bulk:NoSchedule
 ingress:
