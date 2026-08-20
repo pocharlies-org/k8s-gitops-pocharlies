@@ -683,9 +683,9 @@ metadata:
     # `skirmshop` no son los del repo. Si se quiere alinear, necesita su propia
     # migracion con marker; no se hace aqui porque no se pidio.
     #
-    # APPROVAL ABIERTO 2026-08-20 para aa5e9ef61cba82615d906bb3c7c58c30b5306d5d
+    # APPROVAL CERRADO para aa5e9ef61cba82615d906bb3c7c58c30b5306d5d
     # (openclaw-think-effort-honesty-20260820). Ordenado por el owner: "haz el
-    # reinicio". Consume SIETE commits acumulados en deploy/prod:
+    # reinicio". Consumio SIETE commits acumulados en deploy/prod:
     #
     #   22bb4e7  un pin abliterado nunca normaliza a tooling censurado
     #            (managedModelIds + stableLocalRef, marker stable-profiles v5,
@@ -711,10 +711,6 @@ metadata:
     #            migracion litellm-thinking-profile-retired-v1 que deshace las
     #            tres claves que la v1 del 14-08 anadio en el PVC
     #
-    # RESULTADO ESPERADO tras el rollout: /think de litellm/tooling ofrece SOLO
-    # off/high/max (hoy: escalera fija off/minimal/low/medium/high); idem los
-    # alias de capacidad y qwen35-4b; los alias de nube conservan sus niveles.
-    #
     # Verificado antes de abrir: pytest 524 passed, node --test 18/18 (context-
     # sync), helm template OK, node --check del init OK. Controles negativos en
     # rojo para cada migracion nueva (poda por agente: 3 mutaciones; efforts
@@ -725,11 +721,37 @@ metadata:
     # snapshot diario de hoy 02:00:07Z readyToUse. Sin operacion en vuelo
     # (Succeeded 2026-08-18T16:40:19Z, secuencia 20260818163415 < 20260820164437).
     # PRUNE false.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: aa5e9ef61cba82615d906bb3c7c58c30b5306d5d
-    operations.pocharlies.org/approval-id: openclaw-think-effort-honesty-20260820
-    operations.pocharlies.org/approval-sequence: "20260820164437"
-    operations.pocharlies.org/approved-prune: "false"
+    #
+    # RESULTADO: operacion Succeeded (sequence 20260820164437), app Healthy. Pod
+    # nuevo openclaw-qwen36-openclaw-68488bcd8c-tdj8l (2026-08-20T16:59Z) 5/5
+    # Ready, cero reinicios; los demas planos no cambiaron de spec y no rotaron.
+    # Verificado DENTRO del pod nuevo:
+    #
+    #   init: "agent-catalog: main/skirmshop: litellm suelta la entrada estatica
+    #   de qwen35-4b" (los fantasmas 384k/256k ya no estaban: la poda a mano del
+    #   19-08 mas v10 sin fuente de rematerializacion). Markers nuevos escritos:
+    #   .litellm-agent-catalog-prune-v1, .litellm-static-effort-honesty-v1,
+    #   .litellm-thinking-profile-retired-v1.
+    #
+    #   openclaw.json vivo: estatica qwen35-4b -> [none, high, max]; el plugin
+    #   litellm-thinking-profile FUERA de allow/entries/load.paths. `openclaw
+    #   plugins list`: context-sync loaded con providerIds [litellm] y el hook
+    #   dentro (grep 4); thinking-profile status=disabled (su copia vieja en
+    #   /data/extensions queda inerte). La entrada de qwen35-4b que el gateway
+    #   rematerializa en el catalogo de main trae ya la lista honesta.
+    #
+    #   Menu medido contra el CORE real del pod con el registro real (el arnes
+    #   de la sesion hermana, reproducido):
+    #     litellm/tooling            -> off, high, max     <- lo pedido
+    #     litellm/tooling-uncensored -> off, high, max
+    #     openai/gpt-5.6-terra       -> escalera de nube intacta
+    #     modelo sin compat          -> escalera base (sin regresion)
+    #
+    # La app queda OutOfSync solo por dos huerfanos de prune=false: el ConfigMap
+    # del plugin retirado (esperado, lo borra un prune futuro o a mano) y el
+    # ExternalSecret openclaw-qwen36-bodybuilding-brain, que ya era huerfano
+    # ANTES de esta operacion y es ajeno a ella.
+    operations.pocharlies.org/state-writer-lease: inactive
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
