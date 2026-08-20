@@ -6,6 +6,12 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "20"
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
+    # 20-08-2026: sync manual aa5e9ef por el ejecutor acotado (c47b93a),
+    # Succeeded 17:59:47Z-17:59:49Z. Pod 7bd4dd657b-mqf8g 4/4, cero
+    # reinicios; markers del PVC presentes y /think medido en el core real:
+    # tooling/tooling-uncensored -> off,high,max. OutOfSync residual solo por
+    # el ConfigMap retirado y el ExternalSecret huérfano previo (prune=false).
+    operations.pocharlies.org/last-manual-sync: aa5e9ef61cba82615d906bb3c7c58c30b5306d5d
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
