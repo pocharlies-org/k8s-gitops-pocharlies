@@ -547,7 +547,12 @@ spec:
     # seqs (30 tok) seguia en piecewise. Con 32 pedido entra en full graph.
     # SI REINICIA (launch-revision v2 en ambos ranks).
     # ROLLBACK: 7de5ab3cfcbc98eed65eaf571031e625f6a34379.
-    targetRevision: 796f946a76ee7c01f89d1f0bc49efccb7aac0b8c
+    # 20-08 (6/6): 98f9d1c — A/B sampling brazo B: default min_p 0.01 (Unsloth)
+    # en vez de top_p 0.95 (DS oficial agentico). Motivo: el nucleus truncado
+    # hundia el acceptance de DSpark 53-62% -> 38-45% bajo carga. Brazo A
+    # archivado en diagnostics/sampling-ab-20260820/. SI REINICIA (v3).
+    # ROLLBACK: 796f946a76ee7c01f89d1f0bc49efccb7aac0b8c.
+    targetRevision: 98f9d1c3683a8c0d70d889cef0a173182175d7da
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
