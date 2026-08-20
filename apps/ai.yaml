@@ -557,7 +557,7 @@ spec:
     # decoding"): con el runtime anterior, min_p=0.01 devolvia 400. 4236254
     # incorpora el backport de vLLM #42802, mantiene logit_bias bloqueado y
     # vuelve a activar min_p. ROLLBACK: pin 796f946.
-    targetRevision: 4236254
+    targetRevision: "4236254"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
