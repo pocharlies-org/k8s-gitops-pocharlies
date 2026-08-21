@@ -20,7 +20,7 @@ spec:
   syncPolicy:
     automated:
       selfHeal: true
-      # SC-126: habilitar prune para que Argo retire el codex-bridge; alineado con el estándar del stack.
+      # SC-126: prune queda habilitado para retirar recursos obsoletos declarativamente.
       prune: true
     syncOptions:
       - CreateNamespace=true

@@ -233,8 +233,8 @@ metadata:
     # Verificado sobre el pod nuevo estable 665667c4cb-bj7gl (5/5, exec fijado):
     #   - marker .litellm-context-sync-v7 escrito, con su backup
     #     openclaw.json.pre-litellm-context-sync-v7.bak
-    #   - fallbackAliases en la config viva del PVC:
-    #     ['cloudblue/gpt-5.6-luna', 'e-dani/gpt-5.6-luna']
+    #   - fallbackAliases existia entonces en el PVC; esa configuracion externa
+    #     quedo retirada y podada de forma definitiva el 21-08-2026.
     #   - sin regresion del plugin: litellm/deepseek-v4-flash-0731 sigue en
     #     off, low, high, max, y litellm-thinking-profile en plain-capability
     #
@@ -434,8 +434,8 @@ metadata:
     # toma la del primer salto vivo de su cadena (deepseek en creative: 272000 de la
     # nube, no 384K). El nombre del picker dice quien contesta con datos que ya
     # venian en la fila y se tiraban: `Local DGX (residente del perfil) ·
-    # qwen38-27b @ dgx1`, y `· via cloudblue/gpt-5.6-luna` cuando responde por
-    # cadena. La migracion v10 -> v11 los borra del provider en un PVC estampado
+    # qwen38-27b @ dgx1`, y mostraba el salto externo que entonces contestaba.
+    # La migracion v10 -> v11 los borra del provider en un PVC estampado
     # via mergeProvider, que toma de `desired` los ids gestionados.
     #
     # Verificado antes de abrir: `node --test` 77/77 —tres tests nuevos: la ventana
@@ -479,7 +479,7 @@ metadata:
     # si la cadena tampoco esta viva no se inventa nada — manda el seed offline.
     #
     # Verificado antes de abrir: `node --test` 78/78, con un test nuevo que cubre las
-    # dos ramas (cadena viva -> 272000 y nombre `· via cloudblue/gpt-5.6-luna`;
+    # dos ramas (cadena viva -> 272000 y nombre del salto externo entonces vivo;
     # cadena muerta -> seed 393216). pytest 494 passed, helm lint y render limpios.
     # Backup Longhorn del PVC principal Completed 2026-08-16T04:11:18Z. Sin operacion
     # en vuelo (secuencia 20260817213820 < 20260817214557). PRUNE false.
@@ -489,7 +489,7 @@ metadata:
     # ejecutado dentro del pod contra LiteLLM real (43 filas, 48 liveIds, 15
     # definiciones), publica en creative:
     #
-    #   deepseek-v4-flash-0731  ctx=272000  DeepSeek V4 Flash · via cloudblue/gpt-5.6-luna
+    #   deepseek-v4-flash-0731  ctx=272000  DeepSeek V4 Flash · via salto externo retirado
     #   tooling                 ctx=262144  Local DGX (residente del perfil) · qwen38-27b @ dgx1
     #   qwen35-4b               ctx=32768   Qwen3.5 4B · rapido (agente ligero) · qwen3.5-4b @ rtx
     #
