@@ -562,12 +562,13 @@ spec:
     # que coinciden con un tamano capturado. Prioriza latencia interactiva bajo
     # fan-out sobre admitir una quinta request simultanea. SI REINICIA.
     # ROLLBACK: 4236254f84d228623e7e08c202e4e801f174637c.
-    # 22-08: 51d0692 — Qwen3.8 mantiene unsloth NVFP4 y sustituye MTP k=3 por
+    # 22-08: 4ab7702 — Qwen3.8 mantiene unsloth NVFP4 y sustituye MTP k=3 por
     # Doopeworld/RadixArk DSpark block-7 probabilistico, pineado y precargado.
-    # Incluye el drafter en el coste de memoria del arbitro. SI REINICIA solo
-    # el residente Qwen del perfil creative; DeepSeek TP=2 sigue a replicas 0.
+    # Incluye el drafter en el coste de memoria del arbitro y reserva 15 GiB de
+    # KV: DSpark exige 13.99 GiB para conservar el contexto nativo de 262144.
+    # SI REINICIA solo el residente Qwen; DeepSeek TP=2 sigue a replicas 0.
     # ROLLBACK: 0d69ab04cfc048e58d10871243202d32900d8ad8.
-    targetRevision: "51d0692489fb2628d19883f0491375f37a111876"
+    targetRevision: "4ab7702522b1119a919edd9ee5b2f74fc91889b7"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
