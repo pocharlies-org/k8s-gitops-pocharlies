@@ -5,6 +5,8 @@ metadata:
   namespace: argocd
   annotations:
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-skirmshop-competitor-crawler-pocharlies
+    e-dani.com/disabled-at: "2026-08-21"
+    e-dani.com/disabled-reason: "Retirado por petición operativa tras aviso de scraping de Powair6"
   labels:
     e-dani.com/portfolio: skirmshop
     e-dani.com/tier: worker
