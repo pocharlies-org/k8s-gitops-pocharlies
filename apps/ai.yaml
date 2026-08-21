@@ -566,7 +566,7 @@ spec:
     # 0.33-1.30% de acceptance y 8.01-8.84 tok/s limpios frente al MTP estable.
     # La receta externa usa vLLM 0.27.1; no promover DSpark de nuevo hasta que la
     # imagen rank1 se actualice y una prueba local supere este gate.
-    targetRevision: "0d69ab04cfc048e58d10871243202d32900d8ad8"
+    targetRevision: "2ff0c3c78f62817a7a6a903a070dc0bb740fb455"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
