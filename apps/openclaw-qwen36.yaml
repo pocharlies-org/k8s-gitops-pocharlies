@@ -789,13 +789,9 @@ metadata:
     #
     # openclaw-k8s.e-dani.com responde 302 al SSO de Keycloak, que es lo
     # correcto: ya hay backend detras de la cadena de autenticacion.
-    # APPROVAL ABIERTO: bfe9793 poda del PVC los aliases de fallback externos
-    # retirados del declarativo. Sync completo revisado, prune=false.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: bfe9793be61bd9f9189ea0902268c813aa824132
-    operations.pocharlies.org/approval-id: openclaw-retire-fallback-aliases-bfe9793
-    operations.pocharlies.org/approval-sequence: "20260821130854"
-    operations.pocharlies.org/approved-prune: "false"
+    # APPROVAL CERRADO: bfe9793 podo del PVC los aliases externos retirados;
+    # operacion Succeeded, pod principal Ready 5/5 y JSON vivo sin referencias.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
