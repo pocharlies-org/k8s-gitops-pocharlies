@@ -789,7 +789,13 @@ metadata:
     #
     # openclaw-k8s.e-dani.com responde 302 al SSO de Keycloak, que es lo
     # correcto: ya hay backend detras de la cadena de autenticacion.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL OPEN: retira del runtime los fallbacks de las cuentas externas.
+    # Revision revisada, prune=false; no se elimina ningun recurso Kubernetes.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: b35472c8cf766dde59083e2248baadb040bfe2f9
+    operations.pocharlies.org/approval-id: retire-codex-bridge-refs-20260821
+    operations.pocharlies.org/approval-sequence: "20260821125654"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
