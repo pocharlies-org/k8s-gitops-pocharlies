@@ -778,11 +778,18 @@ metadata:
     # ni el PVC, asi que no rueda ningun pod. prune false: no se borra nada.
     # Verificado antes de abrir: 524 tests del chart en verde y `helm template`
     # rinde el ipBlock en la regla del 8080 (28 -> 31 ipBlock en el render).
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: c6a1b79bfb432228c770864163f6e8c3e33fd736
-    operations.pocharlies.org/approval-id: openclaw-public-ui-netpol-20260821
-    operations.pocharlies.org/approval-sequence: "20260821004930"
-    operations.pocharlies.org/approved-prune: "false"
+    #
+    # APPROVAL CERRADO tras la operacion verificada de c6a1b79: Succeeded /
+    # Healthy, ningun pod rodo (solo cambio el NetworkPolicy). La regla viva del
+    # 8080 lleva ya `traefik-edge, 100.64.0.0/10, 10.42.0.0/16`, y la prueba que
+    # motivo el cambio pasa desde las cuatro replicas:
+    #
+    #   ks5-cp-1 OK · ks5-cp-2 OK · ks5-cp-3 OK · sauvage OK
+    #   (antes: solo ks5-cp-3; las otras tres daban connection refused)
+    #
+    # openclaw-k8s.e-dani.com responde 302 al SSO de Keycloak, que es lo
+    # correcto: ya hay backend detras de la cadena de autenticacion.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
