@@ -751,12 +751,38 @@ metadata:
     # del plugin retirado (esperado, lo borra un prune futuro o a mano) y el
     # ExternalSecret openclaw-qwen36-bodybuilding-brain, que ya era huerfano
     # ANTES de esta operacion y es ajeno a ella.
-    operations.pocharlies.org/state-writer-lease: inactive
     # APPROVAL CERRADO tras el rollout verificado de cdc94b99
     # (talk-omnivoice-pool-20260814): op Succeeded, pod nuevo 00:34Z, marker
     # .talk-omnivoice-pool-v1 presente y talk.baseUrl reescrito al canonico en el
     # config persistido del PVC (verificado con exec). Los Services deprecados
     # omnivoice-tts-dgx2/-dgx2-static quedan sin consumidores y se retiran.
+    #
+    # APPROVAL OPEN para c6a1b79: el panel humano openclaw-k8s.e-dani.com solo
+    # respondia desde una de las cuatro replicas de traefik-edge. traefik-edge
+    # corre con hostNetwork, asi que sus paquetes llegan con la direccion del
+    # NODO como origen y el namespaceSelector/podSelector de publicIngress solo
+    # casa con la replica que comparte nodo con el pod. Medido:
+    #
+    #   traefik en ks5-cp-3 (mismo nodo) -> clusterIP OK, podIP OK
+    #   traefik en ks5-cp-1/-2/sauvage   -> connection refused a ambos
+    #   destinos de control en cp-1 y cp-2 -> responden, luego la red entre
+    #   nodos esta sana; lo filtrado es este pod en concreto
+    #
+    # Las reglas del webhook de Telegram (:8787) y del telegram-router ya
+    # recorrian networkPolicy.publicIngress.hostNetworkCidrs -- por eso el bot
+    # nunca fallo. A la regla del puerto humano (:8080) se le habia pasado. El
+    # cambio anade ese mismo range; no toca valores, porque hostNetworkCidrs ya
+    # existe y ya documenta este caso.
+    #
+    # Alcance: un unico recurso NetworkPolicy. No cambia imagen, ni ConfigMaps,
+    # ni el PVC, asi que no rueda ningun pod. prune false: no se borra nada.
+    # Verificado antes de abrir: 524 tests del chart en verde y `helm template`
+    # rinde el ipBlock en la regla del 8080 (28 -> 31 ipBlock en el render).
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: c6a1b79bfb432228c770864163f6e8c3e33fd736
+    operations.pocharlies.org/approval-id: openclaw-public-ui-netpol-20260821
+    operations.pocharlies.org/approval-sequence: "20260821004930"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
