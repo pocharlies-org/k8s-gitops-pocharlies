@@ -23,7 +23,12 @@ required = [
     "f625d97cd707df4ff96254916fbc5ff014f09c09effe5a1e0ca8f6d41a8789d4",
     "d28c8a5bf0a808f0ed434a1dce8c54ae98f0371c0bd86ac58abc613f73e6643f",
     "docker/login-action@dbcb813823bdd20940b903addbd779551569679f",
-    "actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd",
+    # `actions/github-script` se exigia pinneado porque el aviso de fallo iba
+    # en JS inline dentro de esta workflow. Ese aviso es ahora la accion
+    # compartida notify-telegram y la accion ya NO se usa aqui: exigir su pin
+    # obligaria a mantener una dependencia muerta. La procedencia SLSA, que es
+    # lo que de verdad protege este guard, no la usaba — corre con `node` a
+    # secas (heredoc NODE) y sus marcadores siguen exigidos mas abajo.
     "TRIVY_VERSION: v0.70.0",
     "8b4376d5d6befe5c24d503f10ff136d9e0c49f9127a4279fd110b727929a5aa9",
     "2f6bb988b553a1bbac6bdd1ce890f5e412439564e17522b88a4541b4f364fc8d",
@@ -135,7 +140,13 @@ require(workflow.count('--certificate-github-workflow-repository "$GITHUB_REPOSI
 require(workflow.count('--certificate-github-workflow-sha "$GITHUB_SHA"') == 3, "all Cosign evidence must bind caller revision")
 require("refs/(heads|tags)" not in workflow, "mutable certificate reference accepted")
 
-expected_workflow_digest = "c7427fb27df517e7a9182a261572b8f02fe22d69e9cc95d4a9f4a41b0db05cd5"
+# Revisado el 22-08-2026. Lo unico que cambio: el aviso de fallo deja de ser
+# ~90 lineas de JS inline y pasa a la accion compartida notify-telegram. Con
+# ello desaparece el canal de webhook a OpenClaw (era el primario, con Telegram
+# de respaldo): hoy el aviso es SOLO Telegram, y los secretos
+# OPENCLAW_GITHUB_NOTIFY_URL/_TOKEN ya no se declaran. La cadena de suministro
+# del release —firma, procedencia SLSA, escaneo, evidencia— no se toca.
+expected_workflow_digest = "db5bd7448b8d6305ad4120a8b87039edff9bb4df44901594fa1772257dcb75ac"
 workflow_digest = hashlib.sha256(workflow.encode()).hexdigest()
 require(
     workflow_digest == expected_workflow_digest,

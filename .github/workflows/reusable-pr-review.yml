@@ -208,7 +208,14 @@ jobs:
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 10
     permissions:
-      contents: write
+      # `contents: read`, no `write`. Con write, GitHub rechaza el run ENTERO
+      # al arrancar (startup_failure, sin jobs y sin anotacion util) porque el
+      # llamador solo concede lectura: la validacion de permisos ocurre antes
+      # que el `if:`, asi que no basta con que este job no llegue a correr.
+      # Medido el 22-08-2026 con el primer PR piloto.
+      # Consecuencia asumida: en modo `workflow_dispatch` la review se queda en
+      # el resumen del job en vez de comentarse en el commit.
+      contents: read
     outputs:
       veredicto: ${{ steps.revisar.outputs.veredicto }}
       resumen: ${{ steps.revisar.outputs.resumen }}
