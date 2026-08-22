@@ -570,7 +570,7 @@ spec:
     # 22-08: 8839aea prueba aislada: misma configuracion MTP k=3, KV, contexto,
     # concurrencia y modelo de 2ff0c3c; solo cambia la imagen a vLLM 0.27.1.
     # ROLLBACK: 2ff0c3c78f62817a7a6a903a070dc0bb740fb455.
-    targetRevision: "8839aea53725decaceb03feb7048c49b679767fa"
+    targetRevision: "b511afea0efe730debd8500fa900fc130df0e2fd"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
