@@ -808,14 +808,13 @@ metadata:
     # pero la verificacion efectiva detecto que el tag nuevo seguia fijado al
     # digest anterior. Ningun pod cargo el parche y models.list siguio ocultando
     # el catalogo dinamico. El follow-up fija el digest escaneado correcto.
-    # APPROVAL OPEN para 765ed79: follow-up con los seis pins y el digest de
-    # capacidad fijados al candidato ae4c6ce, escaneado y promovido por la
-    # release 32580153411. Render default/Synapse y guards verdes; prune=false.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 765ed7935ccff3f1113065730b8cc4a24862f921
-    operations.pocharlies.org/approval-id: openclaw-dynamic-catalog-digest-765ed79
-    operations.pocharlies.org/approval-sequence: "20260822163519"
-    operations.pocharlies.org/approved-prune: "false"
+    # APPROVAL CERRADO para 765ed7935ccff3f1113065730b8cc4a24862f921:
+    # main y Synapse terminaron Succeeded/Synced/Healthy con prune=false y los
+    # seis workloads usan el digest escaneado ae4c6ce. models.list por defecto
+    # devuelve el catalogo LiteLLM dinamico (DeepSeek V4, Qwen 27B y aliases
+    # uncensored); un smoke desde OpenClaw obtuvo HTTP 200 de tooling y LiteLLM
+    # lo enruto al residente ready deepseek-v4-flash-0731.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
