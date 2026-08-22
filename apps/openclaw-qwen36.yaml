@@ -804,16 +804,11 @@ metadata:
     # APPROVAL CERRADO: af28af8 termino Succeeded/Synced/Healthy. El JSON vivo
     # conserva los cuatro contratos Codex; CLI y Telegram rechazan `minimal`,
     # el boton `high` persiste y /think 214508 confirma el menu exacto.
-    # APPROVAL OPEN para d8fa9ba: despliega la imagen escaneada que fuerza al
-    # picker normal de OpenClaw a descubrir `litellm/*` desde el catalogo vivo.
-    # Incluye los aliases directos/uncensored y no cambia datos ni permisos.
-    # Backups Longhorn de los cinco PVCs de estado Completed; 550 tests + 105
-    # regresiones, Helm y release supply-chain verdes. prune=false.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: d8fa9bab8d95d7875f26d2c93f5166b7b45adca5
-    operations.pocharlies.org/approval-id: openclaw-dynamic-catalog-d8fa9ba
-    operations.pocharlies.org/approval-sequence: "20260822162744"
-    operations.pocharlies.org/approved-prune: "false"
+    # APPROVAL CERRADO para d8fa9ba: la operacion termino Succeeded/Synced/Healthy,
+    # pero la verificacion efectiva detecto que el tag nuevo seguia fijado al
+    # digest anterior. Ningun pod cargo el parche y models.list siguio ocultando
+    # el catalogo dinamico. El follow-up fija el digest escaneado correcto.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
