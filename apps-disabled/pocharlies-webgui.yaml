@@ -1,24 +1,13 @@
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: pocharlies-webgui
-  namespace: argocd
-  annotations:
-    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-pocharlies-webgui-pocharlies
-  labels:
-    e-dani.com/portfolio: skirmshop
-    e-dani.com/tier: app
-    e-dani.com/activation: disabled
-spec:
-  project: default
-  source:
-    repoURL: https://github.com/pocharlies-org/k8s-pocharlies-webgui-pocharlies
-    targetRevision: main
-    path: k8s
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: skirmshop
-  syncPolicy:
-    syncOptions:
-      - CreateNamespace=true
-      - ServerSideApply=true
+# ERRADICADO (2026-08-23): sustituido por la app `chat` (Open WebUI) en
+# dgx-infra k8s/apps/chat, desplegada en chat.e-dani.com con SSO Keycloak.
+#
+# Este Application se elimina del repositorio. El repo de manifiestos
+# pocharlies-org/k8s-pocharlies-webgui-pocharlies queda sin uso: su
+# contenido (Deployment replicas:0, sin ingress, sin conexión a LiteLLM)
+# fue el esqueleto de donde salió el diseño nuevo, pero no se revive.
+#
+# Para completar la erradicación:
+#   1. kubectl delete application pocharlies-webgui -n argocd
+#      (o dejar que ArgoCD lo pruebe al desaparecer de git)
+#   2. kubectl delete pvc pocharlies-webgui-data -n skirmshop  (estado viejo)
+#   3. Archivar el repo GitHub pocharlies-org/k8s-pocharlies-webgui-pocharlies
