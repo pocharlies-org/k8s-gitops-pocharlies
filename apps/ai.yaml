@@ -584,7 +584,14 @@ spec:
     # de LiteLLM con una clave virtual limitada exclusivamente a ese modelo.
     # 22-08: b1a612d conserva exactamente ese perfil y cambia solo BRAIN_URL al
     # hostname canonico; no toca replicas, selectors, pesos ni compute mode.
-    targetRevision: "b1a612d7c123c250cb904d99f443137b521da8d7"
+    # 22-08: dd339ed anade UNA variable de entorno a vllm-qwen38-27b-uncensored,
+    # VLLM_USE_V2_MODEL_RUNNER=1. Sin ella el lambda POR PETICION de la proyeccion
+    # rank-1 no existe: el port cablea el Model Runner V2 y vLLM 0.27.1 elige el V1
+    # para esta arquitectura hibrida, que no tiene refusal ninguno — asi que el
+    # sello de los alias `-uncensored` no hacia NADA (salida byte a byte identica a
+    # temperatura 0 con cache_salt refusal:0/1.0/2.5/4.0). Cuesta un reinicio del
+    # residente de `creative`. No toca replicas, selectors, pesos ni compute mode.
+    targetRevision: "dd339ed02ec110b35df4b56d0774fd5782008038"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
