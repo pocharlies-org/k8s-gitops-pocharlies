@@ -578,7 +578,9 @@ spec:
     # 22-08: 1b25df8 recompila el DeepGEMM 2.5.0 SM121 historico contra
     # PyTorch 2.13; copiar su _C.so antiguo rompe ABI. El perfil DSpark/B12X
     # permanece sin cambios y solo el runtime base pasa a vLLM 0.27.1.
-    targetRevision: "1b25df8f060ca23cacc2a68b878135c28ba94a02"
+    # 22-08: 6219f1c declara que el wrapper vision no expande placeholders;
+    # vLLM 0.27.1 aplica asi su PromptReplacement durante el perfil dummy.
+    targetRevision: "6219f1c73a40cced4d564117896d7697a11a74bb"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
