@@ -819,11 +819,10 @@ metadata:
     # pines/config refs de los cuatro aliases retirados.
     # Approval 2026-08-22: identifica en el catalogo dinamico el residente
     # tooling realmente Ready y normaliza pines fisicos antiguos a tooling.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: ee33d4391db770e02137835b58626070e0bba699
-    operations.pocharlies.org/approval-id: openclaw-ready-catalog-ee33d439
-    operations.pocharlies.org/approval-sequence: "20260822200358"
-    operations.pocharlies.org/approved-prune: "false"
+    # APPROVAL CERRADO: ee33d439 termino Succeeded/Synced/Healthy en main y
+    # Synapse; ambos normalizadores encontraron cero pines obsoletos y el
+    # catalogo principal identifica Qwen3.8 27B como residente Ready.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
