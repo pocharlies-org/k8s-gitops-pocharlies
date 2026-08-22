@@ -1,0 +1,306 @@
+name: Reusable PR review
+
+# Bot de review de PRs: manda el diff a DeepSeek por LiteLLM y publica UN
+# comentario con los hallazgos. Pensado para que los 113 repos activos lo
+# enciendan copiando `templates/ci/pr-review.yml`, cinco lineas.
+#
+# Tres decisiones que parecen raras y no lo son:
+#
+# 1. `pull_request`, NUNCA `pull_request_target`. El segundo corre con el token
+#    del repo base y acceso a los secretos sobre codigo del PR: cualquiera con
+#    un fork se lleva la key de LiteLLM. El precio es que un PR desde un fork
+#    trae token de solo lectura y no puede comentar; el review queda entonces
+#    en el resumen del job y el check sigue verde.
+#
+# 2. El review NO se invoca con `uses:`. `scripts/check-workflow-pins.py`
+#    rechaza cualquier `uses:` que no sea `./` o un SHA de 40 hex, y pinear por
+#    SHA esta descartado (la casa referencia `@main`). Y `./.github/actions/...`
+#    dentro de un workflow reutilizable se resuelve contra el workspace de
+#    QUIEN LLAMA, donde la accion no existe. Asi que se hace lo mismo que ya
+#    hace `reusable-ci.yml` con su checker de contratos: checkout del repo del
+#    framework en un subdirectorio y ejecucion directa del script. La accion
+#    compuesta de `.github/actions/llm-review` sigue siendo el envoltorio
+#    documentado para quien la quiera usar con `uses:` desde su propio job.
+#
+# 3. Modelo no disponible = VERDE. Los Sparks sirven un perfil de computo a la
+#    vez; en `creative` DeepSeek no tiene endpoints. 113 checks en rojo porque
+#    el arbitro cambio de perfil es peor que no tener bot.
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: Runner ARC del cluster.
+        type: string
+        default: arc-k8s
+      model:
+        # TODO(devops): valor pendiente de medicion. Ojo al gotcha de la casa:
+        # hay alias de CAPACIDAD (degradan solos) y alias de MODELO (dan 400 si
+        # no existen). Fijar el que se mida vivo, no el que suene bien.
+        description: Alias del modelo en LiteLLM.
+        type: string
+        default: deepseek-v4-flash
+      litellm_url:
+        # TODO(devops): valor pendiente de medicion. Vale la raiz o la ruta
+        # completa de /v1/chat/completions; el script normaliza las dos.
+        description: Endpoint de LiteLLM.
+        type: string
+        default: https://litellm.lan.e-dani.com
+      max_diff_bytes:
+        description: >
+          Tope duro del diff. Por encima se recorta por ficheros enteros.
+        type: number
+        default: 120000
+      telegram_topic:
+        description: Nombre del topic del aviso.
+        type: string
+        default: ci
+      telegram_thread_id:
+        description: message_thread_id explicito. Gana sobre el topic.
+        type: string
+        default: ''
+      notificar:
+        description: Avisar por Telegram al terminar.
+        type: boolean
+        default: true
+    secrets:
+      # Nombres deliberados con prefijo CI: un secreto de organizacion queda
+      # ENSOMBRECIDO por uno de repo con el mismo nombre, y ya hay repos con
+      # TELEGRAM_BOT_TOKEN propio (release-bot-pocharlies).
+      LITELLM_CI_KEY:
+        required: false
+      TELEGRAM_CI_BOT_TOKEN:
+        required: false
+      TELEGRAM_CI_CHAT_ID:
+        required: false
+      FRAMEWORK_REPO_TOKEN:
+        description: Solo si este repo dejara de ser publico.
+        required: false
+    outputs:
+      veredicto:
+        description: "`ok` | `hallazgos` | `omitido`."
+        value: ${{ jobs.revisar_pr.outputs.veredicto || jobs.revisar_commit.outputs.veredicto }}
+      n_hallazgos:
+        description: Numero de hallazgos.
+        value: ${{ jobs.revisar_pr.outputs.n_hallazgos || jobs.revisar_commit.outputs.n_hallazgos }}
+
+permissions:
+  contents: read
+
+jobs:
+  # Modo PR. Permisos minimos: escribir en el PR, leer el codigo.
+  revisar_pr:
+    name: Review del PR
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    concurrency:
+      # Un push encima cancela el review anterior: el backend corre con
+      # --max-num-seqs 5 y no sobra GPU para revisar diffs ya obsoletos.
+      group: llm-review-${{ github.workflow }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    outputs:
+      veredicto: ${{ steps.revisar.outputs.veredicto }}
+      resumen: ${{ steps.revisar.outputs.resumen }}
+      n_hallazgos: ${{ steps.revisar.outputs.n_hallazgos }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check out the review framework
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # `job.workflow_repository` / `job.workflow_sha` no son contexto
+          # documentado: si no resuelven quedan en cadena VACIA y el checkout
+          # se traeria el repo de quien llama. El fallback deja las dos ramas
+          # apuntando al framework.
+          repository: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
+          ref: ${{ job.workflow_sha || 'main' }}
+          token: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
+          persist-credentials: false
+          path: .llm-review-framework
+
+      - name: Compute the diff
+        env:
+          # Del payload del evento y por entorno: los nombres de rama son texto
+          # de terceros. El rango se toma del evento, no de `origin/<base>`,
+          # porque el checkout de un PR no deja la base como rama local.
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          for s in "$PR_BASE_SHA" "$PR_HEAD_SHA"; do
+            echo "$s" | grep -Eq '^[0-9a-f]{40}$' || {
+              echo "::error::el rango del PR no trae SHAs completos"; exit 1; }
+          done
+          git cat-file -e "${PR_BASE_SHA}^{commit}" 2>/dev/null || \
+            git fetch --no-tags --depth=1 origin "$PR_BASE_SHA"
+          git diff -M --no-color "$PR_BASE_SHA" "$PR_HEAD_SHA" \
+            > "$RUNNER_TEMP/review.diff"
+          echo "diff: $(wc -c < "$RUNNER_TEMP/review.diff") bytes"
+
+      - name: Review
+        id: revisar
+        env:
+          REVIEW_LITELLM_URL: ${{ inputs.litellm_url }}
+          REVIEW_LITELLM_KEY: ${{ secrets.LITELLM_CI_KEY }}
+          REVIEW_MODEL: ${{ inputs.model }}
+          REVIEW_DIFF_FILE: ${{ runner.temp }}/review.diff
+          REVIEW_MAX_DIFF_BYTES: ${{ inputs.max_diff_bytes }}
+          REVIEW_GITHUB_TOKEN: ${{ github.token }}
+          REVIEW_REPO: ${{ github.repository }}
+          REVIEW_PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -uo pipefail
+          revisor=.llm-review-framework/.github/actions/llm-review/review.py
+          if [ ! -f "$revisor" ]; then
+            echo "::error::no se pudo traer el framework de review"
+            exit 1
+          fi
+          python3 "$revisor"
+
+  # Modo validacion: comenta el ultimo commit del tronco, sin ensuciar con PRs
+  # de prueba. Job aparte porque la API de comentarios de commit exige
+  # `contents: write`, y ese permiso no tiene por que vivir en el modo PR.
+  revisar_commit:
+    name: Review del ultimo commit
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    outputs:
+      veredicto: ${{ steps.revisar.outputs.veredicto }}
+      resumen: ${{ steps.revisar.outputs.resumen }}
+      n_hallazgos: ${{ steps.revisar.outputs.n_hallazgos }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check out the review framework
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
+          ref: ${{ job.workflow_sha || 'main' }}
+          token: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
+          persist-credentials: false
+          path: .llm-review-framework
+
+      - name: Compute the diff
+        run: |
+          set -euo pipefail
+          if git rev-parse --verify --quiet "HEAD~1" >/dev/null; then
+            base="$(git rev-parse HEAD~1)"
+          else
+            # Arbol vacio: el primer commit del repo se revisa entero.
+            base=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+          fi
+          git diff -M --no-color "$base" HEAD > "$RUNNER_TEMP/review.diff"
+          echo "diff: $(wc -c < "$RUNNER_TEMP/review.diff") bytes"
+
+      - name: Review
+        id: revisar
+        env:
+          REVIEW_LITELLM_URL: ${{ inputs.litellm_url }}
+          REVIEW_LITELLM_KEY: ${{ secrets.LITELLM_CI_KEY }}
+          REVIEW_MODEL: ${{ inputs.model }}
+          REVIEW_DIFF_FILE: ${{ runner.temp }}/review.diff
+          REVIEW_MAX_DIFF_BYTES: ${{ inputs.max_diff_bytes }}
+          REVIEW_GITHUB_TOKEN: ${{ github.token }}
+          REVIEW_REPO: ${{ github.repository }}
+          REVIEW_PR_NUMBER: ''
+          REVIEW_SHA: ${{ github.sha }}
+        run: |
+          set -uo pipefail
+          revisor=.llm-review-framework/.github/actions/llm-review/review.py
+          if [ ! -f "$revisor" ]; then
+            echo "::error::no se pudo traer el framework de review"
+            exit 1
+          fi
+          python3 "$revisor"
+
+  avisar:
+    name: Aviso en Telegram
+    needs: [revisar_pr, revisar_commit]
+    if: ${{ always() && inputs.notificar }}
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the review framework
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
+          ref: ${{ job.workflow_sha || 'main' }}
+          token: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
+          persist-credentials: false
+          path: .llm-review-framework
+
+      - name: Compose the notice
+        id: componer
+        env:
+          # El contexto `secrets` no existe en un `if:`, asi que la ausencia de
+          # secretos se resuelve aqui: sin ellos no se avisa, y el job no
+          # inventa un fallo por algo que el repo no ha configurado.
+          TG_TOKEN: ${{ secrets.TELEGRAM_CI_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_CI_CHAT_ID }}
+          # `resumen` es TEXTO DEL MODELO: entra por entorno, jamas por `${{ }}`
+          # dentro del `run`.
+          VEREDICTO: ${{ needs.revisar_pr.outputs.veredicto || needs.revisar_commit.outputs.veredicto }}
+          RESUMEN: ${{ needs.revisar_pr.outputs.resumen || needs.revisar_commit.outputs.resumen }}
+          N_HALLAZGOS: ${{ needs.revisar_pr.outputs.n_hallazgos || needs.revisar_commit.outputs.n_hallazgos }}
+          PR_NUMERO: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          if [ -z "${TG_TOKEN}" ] || [ -z "${TG_CHAT}" ]; then
+            echo "::notice::sin secretos de Telegram; no se avisa"
+            echo "hay=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          case "${VEREDICTO}" in
+            ok)        estado=ok ;;
+            hallazgos) estado=fallo ;;
+            omitido)   estado=sin_cambios ;;
+            *)         estado=fallo; VEREDICTO="sin veredicto (review no ejecutada)" ;;
+          esac
+          destino="commit ${GITHUB_SHA:0:12}"
+          [ -n "${PR_NUMERO}" ] && destino="PR #${PR_NUMERO}"
+          {
+            echo "Review de ${GITHUB_REPOSITORY} - ${destino}"
+            echo "veredicto: ${VEREDICTO} (${N_HALLAZGOS:-0} hallazgos)"
+            [ -n "${RESUMEN}" ] && echo "${RESUMEN}"
+            echo "${RUN_URL}"
+          } > "$RUNNER_TEMP/aviso.txt"
+          echo "hay=true" >> "$GITHUB_OUTPUT"
+          echo "estado=${estado}" >> "$GITHUB_OUTPUT"
+
+      - name: Notify Telegram
+        # `strict: true` + `continue-on-error: true`: un aviso perdido se ve en
+        # rojo en el paso, pero no tumba el job ni inventa un exito.
+        if: ${{ steps.componer.outputs.hay == 'true' }}
+        continue-on-error: true
+        env:
+          NOTIFY_TOKEN: ${{ secrets.TELEGRAM_CI_BOT_TOKEN }}
+          NOTIFY_CHAT_ID: ${{ secrets.TELEGRAM_CI_CHAT_ID }}
+          NOTIFY_STATE: ${{ steps.componer.outputs.estado }}
+          NOTIFY_TOPIC: ${{ inputs.telegram_topic }}
+          NOTIFY_THREAD_ID: ${{ inputs.telegram_thread_id }}
+          NOTIFY_STRICT: 'true'
+        run: |
+          set -uo pipefail
+          notificador=.llm-review-framework/.github/actions/notify-telegram/notify_telegram.py
+          if [ ! -f "$notificador" ]; then
+            echo "::error::no se pudo traer el notificador"
+            exit 1
+          fi
+          NOTIFY_TEXT="$(cat "$RUNNER_TEMP/aviso.txt")" python3 "$notificador"

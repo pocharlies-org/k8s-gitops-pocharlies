@@ -1,0 +1,105 @@
+name: Review con LLM
+description: >
+  Revisa un diff con DeepSeek servido por LiteLLM y publica el veredicto como
+  comentario del PR (o de un commit, en modo validacion). Implementacion unica
+  de la organizacion: la usa `reusable-pr-review.yml`.
+
+# El destino NO vive aqui: este repo es publico. La URL de LiteLLM entra como
+# input y la key SIEMPRE como secreto de quien llama.
+
+inputs:
+  litellm_url:
+    description: >
+      Raiz de LiteLLM (`https://.../`) o la ruta completa de
+      `/v1/chat/completions`. Se aceptan las dos formas.
+    required: true
+  litellm_key:
+    description: >
+      Key de LiteLLM. Siempre desde un secreto. Vacia = review omitida en
+      verde, NO error: durante el despliegue habra repos activos antes de que
+      el secreto de organizacion exista.
+    required: false
+    default: ''
+  model:
+    description: Alias del modelo en LiteLLM.
+    required: true
+  diff:
+    description: >
+      Diff unificado a revisar, en texto. Alternativa a `diff_file`, que gana
+      si viene informado.
+    required: false
+    default: ''
+  diff_file:
+    description: >
+      Fichero con el diff. Preferido sobre `diff` - un diff grande en el
+      entorno choca con el limite de tamaño del bloque de env del runner.
+    required: false
+    default: ''
+  max_diff_bytes:
+    description: >
+      Tope duro del diff. Por encima se recorta POR FICHEROS ENTEROS y se dice
+      en el comentario que quedo fuera.
+    required: false
+    default: '120000'
+  timeout_seconds:
+    description: Timeout de la llamada a LiteLLM.
+    required: false
+    default: '300'
+  github_token:
+    description: >
+      GITHUB_TOKEN del job que llama, para publicar el comentario. Necesita
+      `pull-requests: write` en modo PR y `contents: write` en modo commit.
+      Vacio o sin permiso = el review va solo al resumen del job.
+    required: false
+    default: ''
+  repo:
+    description: "`owner/repo` donde publicar."
+    required: true
+  pr_number:
+    description: >
+      Numero del PR. VACIO = modo commit: se comenta sobre `sha`, que es como
+      se valida repo por repo sin ensuciar con PRs de prueba.
+    required: false
+    default: ''
+  sha:
+    description: Commit a comentar en modo commit.
+    required: false
+    default: ''
+
+outputs:
+  veredicto:
+    description: "`ok` | `hallazgos` | `omitido`."
+    value: ${{ steps.revisar.outputs.veredicto }}
+  resumen:
+    description: Texto corto, listo para el aviso de Telegram.
+    value: ${{ steps.revisar.outputs.resumen }}
+  n_hallazgos:
+    description: Numero de hallazgos publicados.
+    value: ${{ steps.revisar.outputs.n_hallazgos }}
+
+runs:
+  using: composite
+  steps:
+    - id: revisar
+      shell: bash
+      env:
+        # Todo por entorno: el diff y el titulo del PR son texto de TERCEROS y
+        # una interpolacion `${{ }}` dentro del `run` seria inyeccion de shell.
+        REVIEW_LITELLM_URL: ${{ inputs.litellm_url }}
+        REVIEW_LITELLM_KEY: ${{ inputs.litellm_key }}
+        REVIEW_MODEL: ${{ inputs.model }}
+        REVIEW_DIFF: ${{ inputs.diff }}
+        REVIEW_DIFF_FILE: ${{ inputs.diff_file }}
+        REVIEW_MAX_DIFF_BYTES: ${{ inputs.max_diff_bytes }}
+        REVIEW_TIMEOUT_SECONDS: ${{ inputs.timeout_seconds }}
+        REVIEW_GITHUB_TOKEN: ${{ inputs.github_token }}
+        REVIEW_REPO: ${{ inputs.repo }}
+        REVIEW_PR_NUMBER: ${{ inputs.pr_number }}
+        REVIEW_SHA: ${{ inputs.sha }}
+      run: |
+        set -uo pipefail
+        command -v python3 >/dev/null || {
+          echo "::error::este runner no trae python3 y la accion es python de libreria estandar"
+          exit 1
+        }
+        python3 "$GITHUB_ACTION_PATH/review.py"
