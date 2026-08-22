@@ -27,9 +27,10 @@ jobs:
       run_node: false
       run_docker_build: false
       kustomize_paths: "."
-    secrets:
-      OPENCLAW_GITHUB_NOTIFY_URL: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_URL }}
-      OPENCLAW_GITHUB_NOTIFY_TOKEN: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_TOKEN }}
+    # inherit y no una lista: el notificador compartido necesita el token de
+    # Telegram, y enumerarlo aqui obligaria a tocar este fichero cada vez que
+    # el reusable cambie de secretos. Es lo que ya hacen los otros 83 llamantes.
+    secrets: inherit
 
   release:
     needs: [ci]
@@ -45,5 +46,5 @@ jobs:
     secrets:
       HARBOR_USER: ${{ secrets.HARBOR_USER }}
       HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
-      OPENCLAW_GITHUB_NOTIFY_URL: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_URL }}
-      OPENCLAW_GITHUB_NOTIFY_TOKEN: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_TOKEN }}
+      # El resto (Telegram) llega por el entorno del repo; estos dos van
+      # explicitos porque el reusable los declara required.
