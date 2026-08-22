@@ -26,6 +26,10 @@ extraArgs:
   - --default-targets=192.168.50.240
 interval: 1m
 logLevel: info
+# Canonical split-DNS IngressRoutes are covered publicly by the manually
+# owned DNS-only *.e-dani.com wildcard. Honor their explicit exclusion so
+# ExternalDNS does not spend five zone records per hostname.
+annotationFilter: "external-dns.alpha.kubernetes.io/exclude notin (true)"
 policy: upsert-only
 provider:
   name: cloudflare
