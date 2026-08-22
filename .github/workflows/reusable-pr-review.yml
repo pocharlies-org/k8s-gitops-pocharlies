@@ -342,7 +342,12 @@ jobs:
           NOTIFY_CHAT_ID: ${{ secrets.TELEGRAM_CI_CHAT_ID }}
           NOTIFY_STATE: ${{ steps.componer.outputs.estado }}
           NOTIFY_TOPIC: ${{ inputs.telegram_topic }}
-          NOTIFY_THREAD_ID: ${{ inputs.telegram_thread_id }}
+          # El input gana; si viene vacio, el secreto de ORGANIZACION
+          # TELEGRAM_CI_THREAD_ID pone el thread para los 113 repos sin tocar
+          # sus plantillas. Sin ninguno de los dos, el topic `ci` no se puede
+          # resolver (el mapa vive en el repo del release-bot) y el aviso caeria
+          # en General marcado como no disponible.
+          NOTIFY_THREAD_ID: ${{ inputs.telegram_thread_id || secrets.TELEGRAM_CI_THREAD_ID }}
           NOTIFY_STRICT: 'true'
         run: |
           set -uo pipefail
