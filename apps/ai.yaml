@@ -575,7 +575,9 @@ spec:
     # ROLLBACK: 8839aea53725decaceb03feb7048c49b679767fa.
     # 22-08: 2a6a369 conserva tambien el backend estable B12X/MXFP4 y sus
     # variables de tuning; la unica sustitucion funcional es vLLM 0.27.1.
-    targetRevision: "2a6a369731b32df10cd69873dc4511d519b0d076"
+    # 22-08: 008af15 conserva el DeepGEMM 2.5.0 SM121 del DSpark estable;
+    # DeepGEMM 2.6.1 de la rueda 0.27.1 no admite escalas (1,32) en GB10.
+    targetRevision: "008af15a9a7febcc04df20f832821c6151c112a6"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
