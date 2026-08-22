@@ -45,21 +45,7 @@ on:
         type: string
         default: 15m
     secrets:
-      OPENCLAW_GITHUB_NOTIFY_URL:
-        required: false
-      OPENCLAW_GITHUB_NOTIFY_TOKEN:
-        required: false
-      OPENCLAW_IDENTITY_B64:
-        required: false
-      OPENCLAW_GATEWAY_URL:
-        required: false
-      OPENCLAW_GATEWAY_TOKEN:
-        required: false
-      OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:
-        required: false
       OPENCLAW_TELEGRAM_BOT_TOKEN:
-        required: false
-      OPENCLAW_TELEGRAM_ACCOUNT:
         required: false
       OPENCLAW_TELEGRAM_TARGET:
         required: false
@@ -623,267 +609,61 @@ jobs:
     if: ${{ always() && (needs.app.result == 'failure' || needs.app.result == 'cancelled' || needs.manifests.result == 'failure' || needs.manifests.result == 'cancelled' || needs.docker.result == 'failure' || needs.docker.result == 'cancelled' || needs.contracts.result == 'failure' || needs.contracts.result == 'cancelled') }}
     timeout-minutes: 10
     steps:
-      - name: Send failure report
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+      - name: Que paso se rompio
+        # Se CONSERVA de la version anterior: sale de consultar la API de runs
+        # y es lo mas util del aviso. Sin esto hay que abrir el run para saber
+        # que fallo. La accion compartida no lo hace: solo publica el texto.
+        #
+        # continue-on-error: si la API no responde, el aviso sale igual pero
+        # sin la linea del paso. Un adorno no puede impedir que se notifique.
+        id: detalle
+        continue-on-error: true
         env:
-          OPENCLAW_GITHUB_NOTIFY_URL: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_URL }}
-          OPENCLAW_GITHUB_NOTIFY_TOKEN: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_TOKEN }}
-          OPENCLAW_IDENTITY_B64: ${{ secrets.OPENCLAW_IDENTITY_B64 }}
-          OPENCLAW_GATEWAY_URL: ${{ secrets.OPENCLAW_GATEWAY_URL }}
-          OPENCLAW_GATEWAY_TOKEN: ${{ secrets.OPENCLAW_GATEWAY_TOKEN }}
-          OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${{ secrets.OPENCLAW_ALLOW_INSECURE_PRIVATE_WS }}
-          OPENCLAW_TELEGRAM_BOT_TOKEN: ${{ secrets.OPENCLAW_TELEGRAM_BOT_TOKEN }}
-          OPENCLAW_TELEGRAM_ACCOUNT: ${{ secrets.OPENCLAW_TELEGRAM_ACCOUNT }}
-          OPENCLAW_TELEGRAM_TARGET: ${{ secrets.OPENCLAW_TELEGRAM_TARGET }}
-          OPENCLAW_TELEGRAM_THREAD_ID: ${{ secrets.OPENCLAW_TELEGRAM_THREAD_ID }}
-          GITHUB_TOKEN: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_TOKEN || github.token }}
+          GH_TOKEN: ${{ github.token }}
+          API: ${{ github.api_url }}/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs?per_page=100
+        run: |
+          set -uo pipefail
+          # El python va por heredoc y no con `-c`: un script en columna 0
+          # dentro de un bloque `run: |` rompe el YAML entero.
+          curl -s -m 25 -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' "$API" > /tmp/jobs.json || true
+          paso="$(python3 - <<'PY' || true
+          import json
+          try:
+              d = json.load(open('/tmp/jobs.json'))
+          except Exception:
+              raise SystemExit
+          for j in d.get('jobs', []):
+              if j.get('conclusion') in ('failure', 'cancelled'):
+                  for s in j.get('steps', []):
+                      if s.get('conclusion') in ('failure', 'cancelled'):
+                          print(j['name'] + ' / ' + s['name'])
+                          raise SystemExit
+          PY
+          )"
+          echo "paso_fallido=$paso" >> "$GITHUB_OUTPUT"
+
+      - name: Avisar por Telegram
+        # La MISMA accion que usan el release-bot y openclaw. Antes esto eran
+        # ~90 lineas de JS inline repetidas en CINCO reusables.
+        # Ruta ABSOLUTA con @main, no `./`: dentro de un reusable, `./` se
+        # resuelve contra el repo que LLAMA, no contra este, asi que desde
+        # cualquiera de los 37 consumidores esa ruta no existe. @main es
+        # ademas la convencion de la casa para reusables propios (93 usos).
+        uses: pocharlies-org/k8s-gitops-pocharlies/.github/actions/notify-telegram@main
         with:
-          # Use the notify PAT (if configured) so the enriched report can read
-          # job logs (needs actions:read) without the workflow token requiring
-          # it — keeps the reusable startable under the org's default-read token.
-          # Falls back to the default token (log excerpt is skipped if it lacks
-          # actions:read, handled by the script's try/catch).
-          github-token: ${{ secrets.OPENCLAW_GITHUB_NOTIFY_TOKEN || github.token }}
-          script: |
-            const FAILURE_CONCLUSIONS = new Set(['failure', 'cancelled', 'timed_out', 'action_required']);
-
-            function failureExcerpt(text, maxLines = 220, maxChars = 16000) {
-              const lines = String(text || '').split(/\r?\n/).filter((line) => line.trim());
-              if (!lines.length) return '';
-              const markerPatterns = [
-                /##\[error\]/i,
-                /\bERR_[A-Z0-9_]+\b/,
-                /\bELIFECYCLE\b/,
-                /prettier\/prettier/i,
-                /\u2716\s+\d+\s+problems/i,
-                /\berror\s{2,}/i,
-                /failed/i,
-                /exit (status|code) \d+/i,
-              ];
-              const cleanupPatterns = [
-                /Post job cleanup/i,
-                /Cleaning up orphan processes/i,
-                /actions are deprecated/i,
-              ];
-              let markerIndex = -1;
-              for (let index = lines.length - 1; index >= 0; index -= 1) {
-                const line = lines[index];
-                if (cleanupPatterns.some((pattern) => pattern.test(line))) continue;
-                if (markerPatterns.some((pattern) => pattern.test(line))) {
-                  markerIndex = index;
-                  break;
-                }
-              }
-              if (markerIndex < 0) markerIndex = lines.length - 1;
-              const before = Math.floor(maxLines * 0.75);
-              const after = maxLines - before;
-              let selected = lines.slice(
-                Math.max(0, markerIndex - before),
-                Math.min(lines.length, markerIndex + after),
-              );
-              let out = selected.join('\n');
-              if (out.length > maxChars) {
-                selected = lines
-                  .filter(
-                    (line) =>
-                      !cleanupPatterns.some((pattern) => pattern.test(line)) &&
-                      markerPatterns.some((pattern) => pattern.test(line)),
-                  )
-                  .slice(-maxLines);
-                out = selected.join('\n');
-              }
-              if (out.length > maxChars) {
-                out = out.slice(-maxChars);
-                const firstNewline = out.indexOf('\n');
-                if (firstNewline > 0) out = out.slice(firstNewline + 1);
-              }
-              return out;
-            }
-
-            function redact(text) {
-              let out = String(text || '');
-              for (const value of [
-                process.env.GITHUB_TOKEN,
-                process.env.OPENCLAW_GITHUB_NOTIFY_TOKEN,
-                process.env.OPENCLAW_TELEGRAM_BOT_TOKEN,
-                process.env.OPENCLAW_GATEWAY_TOKEN,
-              ]) {
-                if (value && value.length > 6) out = out.split(value).join('***');
-              }
-              return out
-                .replace(/gh[pousr]_[A-Za-z0-9_]+/g, '***')
-                .replace(/github_pat_[A-Za-z0-9_]+/g, '***');
-            }
-
-            async function fetchJobLogTail(job) {
-              if (!process.env.GITHUB_TOKEN || !job.id) return '';
-              const url = `https://api.github.com/repos/${context.repo.owner}/${context.repo.repo}/actions/jobs/${job.id}/logs`;
-              try {
-                const response = await fetch(url, {
-                  headers: {
-                    authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-                    accept: 'application/vnd.github+json',
-                    'x-github-api-version': '2022-11-28',
-                  },
-                });
-                if (!response.ok) {
-                  core.warning(`Failed to fetch logs for job ${job.id}: HTTP ${response.status}`);
-                  return '';
-                }
-                return failureExcerpt(redact(await response.text()));
-              } catch (error) {
-                core.warning(`Failed to fetch logs for job ${job.id}: ${error.message}`);
-                return '';
-              }
-            }
-
-            async function collectFailedJobDetails() {
-              const jobs = [];
-              try {
-                for (let page = 1; page <= 5; page += 1) {
-                  const response = await github.rest.actions.listJobsForWorkflowRun({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    run_id: context.runId,
-                    per_page: 100,
-                    page,
-                  });
-                  jobs.push(...response.data.jobs);
-                  if (response.data.jobs.length < 100) break;
-                }
-              } catch (error) {
-                core.warning(`Failed to list workflow jobs for run ${context.runId}: ${error.message}`);
-                return [];
-              }
-              const failedJobs = jobs.filter((job) => FAILURE_CONCLUSIONS.has(String(job.conclusion || '').toLowerCase()));
-              const details = [];
-              for (const job of failedJobs) {
-                const steps = Array.isArray(job.steps) ? job.steps : [];
-                const failedSteps = steps.filter((step) => FAILURE_CONCLUSIONS.has(String(step.conclusion || '').toLowerCase()));
-                details.push({
-                  id: job.id,
-                  name: job.name,
-                  status: job.status,
-                  conclusion: job.conclusion,
-                  url: job.html_url,
-                  startedAt: job.started_at,
-                  completedAt: job.completed_at,
-                  failedSteps: failedSteps.map((step) => ({
-                    name: step.name,
-                    number: step.number,
-                    status: step.status,
-                    conclusion: step.conclusion,
-                    startedAt: step.started_at,
-                    completedAt: step.completed_at,
-                  })),
-                  logTail: await fetchJobLogTail(job),
-                });
-              }
-              return details;
-            }
-
-            const failedJobs = {
-              app: '${{ needs.app.result }}',
-              manifests: '${{ needs.manifests.result }}',
-              docker: '${{ needs.docker.result }}',
-              contracts: '${{ needs.contracts.result }}',
-            };
-            const failed = Object.entries(failedJobs)
-              .filter(([, result]) => ['failure', 'cancelled'].includes(result))
-              .map(([name, result]) => `${name}:${result}`);
-            const jobDetails = await collectFailedJobDetails();
-            const firstFailedStep = jobDetails
-              .flatMap((job) => job.failedSteps || [])
-              .map((step) => step.name)
-              .find(Boolean);
-            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const text = [
-              `GitHub Actions CI failed`,
-              `repo: ${context.repo.owner}/${context.repo.repo}`,
-              `ref: ${context.ref}`,
-              `sha: ${context.sha.slice(0, 12)}`,
-              `jobs: ${failed.join(', ')}`,
-              firstFailedStep ? `failed step: ${firstFailedStep}` : null,
-              `run: ${runUrl}`,
-            ].filter(Boolean).join('\n');
-            const payload = {
-              source: 'github-actions',
-              destination: { group: 'synapse', topic: 'github' },
-              event: 'ci_failed',
-              repo: `${context.repo.owner}/${context.repo.repo}`,
-              workflow: context.workflow,
-              runId: context.runId,
-              runNumber: context.runNumber,
-              runAttempt: context.runAttempt,
-              eventName: context.eventName,
-              ref: context.ref,
-              sha: context.sha,
-              actor: context.actor,
-              failedJobs: failed,
-              jobs: jobDetails,
-              runUrl,
-              text,
-            };
-
-            async function postWebhook() {
-              const url = process.env.OPENCLAW_GITHUB_NOTIFY_URL;
-              if (!url) return false;
-              const headers = { 'content-type': 'application/json' };
-              if (process.env.OPENCLAW_GITHUB_NOTIFY_TOKEN) {
-                headers.authorization = `Bearer ${process.env.OPENCLAW_GITHUB_NOTIFY_TOKEN}`;
-              }
-              try {
-                const response = await fetch(url, {
-                  method: 'POST',
-                  headers,
-                  body: JSON.stringify(payload),
-                });
-                if (!response.ok) {
-                  core.warning(`OpenClaw webhook returned HTTP ${response.status}`);
-                  return false;
-                }
-                return true;
-              } catch (error) {
-                core.warning(`OpenClaw webhook failed: ${error.message}`);
-                return false;
-              }
-            }
-
-            async function sendTelegramBotFallback() {
-              if (!process.env.OPENCLAW_TELEGRAM_BOT_TOKEN) return false;
-              if (!process.env.OPENCLAW_TELEGRAM_TARGET || !process.env.OPENCLAW_TELEGRAM_THREAD_ID) {
-                core.warning('OPENCLAW_TELEGRAM_BOT_TOKEN is set, but Telegram target/thread secrets are missing');
-                return false;
-              }
-
-              const body = {
-                chat_id: process.env.OPENCLAW_TELEGRAM_TARGET,
-                message_thread_id: Number(process.env.OPENCLAW_TELEGRAM_THREAD_ID),
-                text,
-                disable_web_page_preview: true,
-              };
-              try {
-                const response = await fetch(
-                  `https://api.telegram.org/bot${process.env.OPENCLAW_TELEGRAM_BOT_TOKEN}/sendMessage`,
-                  {
-                    method: 'POST',
-                    headers: { 'content-type': 'application/json' },
-                    body: JSON.stringify(body),
-                  },
-                );
-                if (!response.ok) {
-                  core.warning(`Telegram fallback returned HTTP ${response.status}`);
-                  return false;
-                }
-                return true;
-              } catch (error) {
-                core.warning(`Telegram fallback failed: ${error.message}`);
-                return false;
-              }
-            }
-
-            const webhookSent = await postWebhook();
-            const telegramSent = webhookSent ? false : await sendTelegramBotFallback();
-            if (!webhookSent && !telegramSent) {
-              core.warning('OpenClaw notification skipped: configure OPENCLAW_GITHUB_NOTIFY_URL or OPENCLAW_TELEGRAM_BOT_TOKEN secrets');
-            }
+          # Se acepta el par de la ORG y el del repo: en plan free los secretos
+          # de organizacion NO alcanzan a los repos privados, y 13 de los 37
+          # consumidores lo son. El que exista, gana.
+          token:   ${{ secrets.TELEGRAM_CI_BOT_TOKEN || secrets.OPENCLAW_TELEGRAM_BOT_TOKEN }}
+          chat_id: ${{ secrets.TELEGRAM_CI_CHAT_ID  || secrets.OPENCLAW_TELEGRAM_TARGET }}
+          thread_id: ${{ secrets.OPENCLAW_TELEGRAM_THREAD_ID }}
+          state: audit_fail
+          text: |
+            ${{ github.repository }} — CI en rojo
+            ref: ${{ github.ref_name }}  sha: ${{ github.sha }}
+            ${{ steps.detalle.outputs.paso_fallido && format('paso: {0}', steps.detalle.outputs.paso_fallido) || '' }}
+            run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          # false: un aviso perdido no puede tumbar un job que ya esta rojo por
+          # otra razon, y el propio paso ya deja ::warning:: si Telegram falla.
+          strict: 'false'
