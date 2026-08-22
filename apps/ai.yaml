@@ -580,7 +580,9 @@ spec:
     # permanece sin cambios y solo el runtime base pasa a vLLM 0.27.1.
     # 22-08: 6219f1c declara que el wrapper vision no expande placeholders;
     # vLLM 0.27.1 aplica asi su PromptReplacement durante el perfil dummy.
-    targetRevision: "6219f1c73a40cced4d564117896d7697a11a74bb"
+    # 22-08: b45ee9f migra OmniVoice del Ornith retirado al alias local `tooling`
+    # de LiteLLM con una clave virtual limitada exclusivamente a ese modelo.
+    targetRevision: "b45ee9ff32b0b6839a0e0e93c85a1b592f1c77d5"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
