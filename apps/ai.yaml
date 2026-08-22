@@ -570,9 +570,10 @@ spec:
     # 22-08: 8839aea prueba aislada: misma configuracion MTP k=3, KV, contexto,
     # concurrencia y modelo de 2ff0c3c; solo cambia la imagen a vLLM 0.27.1.
     # ROLLBACK: 2ff0c3c78f62817a7a6a903a070dc0bb740fb455.
-    # 22-08: se retiene b511afea (DeepSeek vLLM 0.27.1) hasta portar y validar
-    # el overlay/fix DSpark de la imagen Anemll que usa produccion.
-    targetRevision: "8839aea53725decaceb03feb7048c49b679767fa"
+    # 22-08: 9673838 porta a vLLM 0.27.1 el overlay NVFP4/sparse-MLA de Anemll
+    # y conserva nuestro hotfix min_p spec-decode. Config DSpark sin cambios.
+    # ROLLBACK: 8839aea53725decaceb03feb7048c49b679767fa.
+    targetRevision: "967383825bc57a1ff514b427161fcc2be51db3f8"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
