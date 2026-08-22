@@ -796,11 +796,9 @@ metadata:
     # Approval 2026-08-22: completa la ruta CLI sin allowlist. El catálogo
     # dinámico se carga también cuando el caller usa --thinking/--thinking-once;
     # la promoción revisada fija el mismo digest escaneado en seis workloads.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 9a78c060b43d1833b189b11c903abec208f3c16d
-    operations.pocharlies.org/approval-id: openclaw-think-cli-9a78c06
-    operations.pocharlies.org/approval-sequence: "20260822041604"
-    operations.pocharlies.org/approved-prune: "false"
+    # APPROVAL CERRADO: 9a78c06 terminó Succeeded/Synced/Healthy en los dos
+    # planos; los seis workloads usan el digest escaneado de la ruta CLI.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
