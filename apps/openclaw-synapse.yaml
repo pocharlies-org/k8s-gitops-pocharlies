@@ -11,7 +11,7 @@ metadata:
     # reinicios; markers del PVC presentes y /think medido en el core real:
     # tooling/tooling-uncensored -> off,high,max. OutOfSync residual solo por
     # el ConfigMap retirado y el ExternalSecret huérfano previo (prune=false).
-    operations.pocharlies.org/last-manual-sync: aa5e9ef61cba82615d906bb3c7c58c30b5306d5d
+    operations.pocharlies.org/last-manual-sync: cc998115f78d227a4e2914e62a250ab441c8c1ce
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
