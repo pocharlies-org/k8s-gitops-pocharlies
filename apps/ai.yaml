@@ -573,7 +573,7 @@ spec:
     # 22-08: 9673838 porta a vLLM 0.27.1 el overlay NVFP4/sparse-MLA de Anemll
     # y conserva nuestro hotfix min_p spec-decode. Config DSpark sin cambios.
     # ROLLBACK: 8839aea53725decaceb03feb7048c49b679767fa.
-    targetRevision: "967383825bc57a1ff514b427161fcc2be51db3f8"
+    targetRevision: "5f4f306d643a3b0d2d453533a940f60240b1babe"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
