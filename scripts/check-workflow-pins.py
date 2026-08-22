@@ -11,6 +11,14 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
 IMMUTABLE_REF = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
+# Este mismo repo. Una accion propia referenciada por nombre completo NO es una
+# dependencia de tercero: es el mismo limite de confianza que `./`, que aqui no
+# se puede usar porque en un workflow REUTILIZABLE `./` se resuelve contra el
+# workspace de QUIEN LLAMA, no contra este repo. Y un SHA tampoco vale: seria
+# imposible de escribir en el mismo commit que cambia la accion. Solo `@main`:
+# cualquier otra rama o tag sigue siendo violacion.
+PROPIO = "pocharlies-org/k8s-gitops-pocharlies/"
+
 
 violations: list[str] = []
 
@@ -63,6 +71,8 @@ for workflow in workflows:
     document = yaml.safe_load(text)
     for path, target in action_uses(document):
         if target.startswith("./"):
+            continue
+        if target.startswith(PROPIO) and target.endswith("@main"):
             continue
         if not IMMUTABLE_REF.fullmatch(target):
             violations.append(f"{workflow.relative_to(ROOT)}:{path}: {target}")
@@ -153,7 +163,11 @@ validate_overlay = deploy_workflow.index("      - name: Validate staging overlay
 stamp_overlay = deploy_workflow.index("      - name: Stamp staging overlay")
 commit_overlay = deploy_workflow.index("      - name: Commit staging image stamp")
 require(validate_overlay < stamp_overlay < commit_overlay, "deploy overlay validation occurs after path use")
-expected_deploy_digest = "e34c68f3aebc685248e7630c7d215a42d518e67e34a1b270532cd3a1dc59d5a0"
+# Revisado el 22-08-2026 al unificar el notificador. El unico cambio en ese
+# workflow es el destino del aviso (thread de Telegram): fronteras de entrada
+# intactas —ningun `inputs.` interpolado en shell— y el orden validar ->
+# estampar -> commitear se mantiene, que es lo que esta guarda protege.
+expected_deploy_digest = "a5d13835f0b4a655b44804cd7a238246af415b96093b1c82fa8c5b5bf7fc3929"
 require(
     hashlib.sha256(deploy_workflow.encode()).hexdigest() == expected_deploy_digest,
     "deploy workflow changed without reviewing input boundaries",

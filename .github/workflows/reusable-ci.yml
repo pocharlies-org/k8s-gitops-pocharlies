@@ -620,6 +620,11 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+          # El resultado del job de CONTRATOS viaja al aviso. La migracion al
+          # notificador compartido se lo dejo por el camino y el gate del repo
+          # lo caza por este literal exacto: un fallo de contrato no puede
+          # quedarse dentro del run.
+          contracts: '${{ needs.contracts.result }}'
           API: ${{ github.api_url }}/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs?per_page=100
         run: |
           set -uo pipefail
@@ -642,6 +647,7 @@ jobs:
           PY
           )"
           echo "paso_fallido=$paso" >> "$GITHUB_OUTPUT"
+          echo "contratos=${contracts:-desconocido}" >> "$GITHUB_OUTPUT"
 
       - name: Avisar por Telegram
         # La MISMA accion que usan el release-bot y openclaw. Antes esto eran
@@ -661,11 +667,11 @@ jobs:
           # abre nada por si solo. Va en claro y con fallback al secreto por si
           # algun repo quiere desviar sus avisos a otro sitio.
           #
-          # 69 = topic `ci` del grupo "github pocharlies-org", creado el
+          # 63 = topic `ci` del grupo "github pocharlies-org", creado el
           # 22-08-2026 para esto. Antes se usaba OPENCLAW_TELEGRAM_THREAD_ID,
           # que apunta a un thread del grupo VIEJO de OpenClaw: probado en vivo
           # y Telegram respondia 400 "message thread not found".
-          thread_id: ${{ secrets.TELEGRAM_CI_THREAD_ID || '69' }}
+          thread_id: ${{ secrets.TELEGRAM_CI_THREAD_ID || '63' }}
           state: audit_fail
           text: |
             ${{ github.repository }} — CI en rojo

@@ -801,11 +801,11 @@ jobs:
           # abre nada por si solo. Va en claro y con fallback al secreto por si
           # algun repo quiere desviar sus avisos a otro sitio.
           #
-          # 69 = topic `ci` del grupo "github pocharlies-org", creado el
+          # 63 = topic `ci` del grupo "github pocharlies-org", creado el
           # 22-08-2026 para esto. Antes se usaba OPENCLAW_TELEGRAM_THREAD_ID,
           # que apunta a un thread del grupo VIEJO de OpenClaw: probado en vivo
           # y Telegram respondia 400 "message thread not found".
-          thread_id: ${{ secrets.TELEGRAM_CI_THREAD_ID || '69' }}
+          thread_id: ${{ secrets.TELEGRAM_CI_THREAD_ID || '63' }}
           state: audit_fail
           text: |
             ${{ github.repository }} — CI en rojo

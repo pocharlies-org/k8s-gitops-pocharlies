@@ -347,7 +347,12 @@ jobs:
           # sus plantillas. Sin ninguno de los dos, el topic `ci` no se puede
           # resolver (el mapa vive en el repo del release-bot) y el aviso caeria
           # en General marcado como no disponible.
-          NOTIFY_THREAD_ID: ${{ inputs.telegram_thread_id || secrets.TELEGRAM_CI_THREAD_ID }}
+          # Tercer escalon en claro a proposito: la organizacion esta en plan
+          # FREE, donde los secretos de organizacion NO alcanzan a los repos
+          # privados — y 65 de los 113 activos lo son. Un id de topic no abre
+          # nada por si solo, asi que el destino sigue funcionando ahi sin
+          # replicar un secreto en 65 repos.
+          NOTIFY_THREAD_ID: ${{ inputs.telegram_thread_id || secrets.TELEGRAM_CI_THREAD_ID || '63' }}
           NOTIFY_STRICT: 'true'
         run: |
           set -uo pipefail
