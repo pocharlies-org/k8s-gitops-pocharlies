@@ -280,8 +280,12 @@ jobs:
     # termino, con exito o con fallo (un 401 de LiteLLM es justo el aviso que
     # hace falta). `skipped` es el otro modo y `cancelled` es un push que
     # adelanto a este: ninguno de los dos merece aviso.
+    # `always()` NO es decoracion: `needs` incluye los DOS modos y solo uno
+    # corre, asi que el otro queda `skipped` — y un job cuyo `needs` tiene un
+    # skipped se salta entero, por mucho que la condicion de despues sea
+    # cierta. Medido en el primer PR piloto: review publicada y aviso mudo.
     if: >-
-      ${{ inputs.notificar && (
+      ${{ always() && inputs.notificar && (
           needs.revisar_pr.result == 'success' ||
           needs.revisar_pr.result == 'failure' ||
           needs.revisar_commit.result == 'success' ||
