@@ -812,7 +812,7 @@ metadata:
     operations.pocharlies.org/state-writer-lease: active
     operations.pocharlies.org/approved-revision: d8fa9bab8d95d7875f26d2c93f5166b7b45adca5
     operations.pocharlies.org/approval-id: openclaw-dynamic-catalog-d8fa9ba
-    operations.pocharlies.org/approval-sequence: "20260822162036"
+    operations.pocharlies.org/approval-sequence: "20260822162744"
     operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
