@@ -582,7 +582,9 @@ spec:
     # vLLM 0.27.1 aplica asi su PromptReplacement durante el perfil dummy.
     # 22-08: b45ee9f migra OmniVoice del Ornith retirado al alias local `tooling`
     # de LiteLLM con una clave virtual limitada exclusivamente a ese modelo.
-    targetRevision: "b45ee9fc3e474472b39e69302588e953b0c13306"
+    # 22-08: b1a612d conserva exactamente ese perfil y cambia solo BRAIN_URL al
+    # hostname canonico; no toca replicas, selectors, pesos ni compute mode.
+    targetRevision: "b1a612d7c123c250cb904d99f443137b521da8d7"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
