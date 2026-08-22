@@ -801,7 +801,14 @@ metadata:
     # APPROVAL CERRADO: ef78377 termino Succeeded/Synced/Healthy, pero la
     # comprobacion efectiva detecto que el PVC retenia las filas Codex antiguas.
     # El ConfigMap quedo correcto; la siguiente revision migra ese campo al PVC.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Approval 2026-08-22: migra al PVC exclusivamente los dos campos del
+    # contrato de reasoning de las cuatro filas Codex. 546 tests y render Helm
+    # verificados; backups Longhorn presentes y prune revisado como false.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: af28af80badf283b2bad0090bbbc95b33f582540
+    operations.pocharlies.org/approval-id: openclaw-codex-efforts-pvc-af28af8
+    operations.pocharlies.org/approval-sequence: "20260822083058"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
