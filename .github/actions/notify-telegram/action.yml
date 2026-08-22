@@ -1,0 +1,105 @@
+name: Notificar en Telegram
+description: >
+  Publica un aviso de pipeline en el topic que le toca del grupo de Telegram.
+  Implementacion unica de la organizacion: la usan el release-bot (openchamber,
+  shield, loki, opencode-claude) y la pipeline de openclaw.
+
+# El destino NO vive aqui: este repo es publico. El chat entra como secreto y
+# el thread como variable o mapa del repo que llama.
+
+inputs:
+  token:
+    description: Token del bot de Telegram. Siempre desde un secreto.
+    required: true
+  chat_id:
+    description: Chat destino (grupo, supergrupo o usuario).
+    required: true
+  text:
+    description: >
+      Cuerpo del aviso, ya compuesto por quien llama. Aqui solo se le antepone
+      el icono del estado y se recorta a 3900 caracteres.
+    required: true
+  state:
+    description: >
+      Estado a iconizar. Del release-bot - detectada, rebase, audit_ok,
+      audit_fail, canary, e2e_ok, promovido, rollback, sin_cambios. De la
+      pipeline de openclaw - lanzado, build, ok, fallo, notas, esperando.
+      Vacio = sin icono.
+    required: false
+    default: ''
+  thread_id:
+    description: message_thread_id explicito. Gana sobre `topic`.
+    required: false
+    default: ''
+  topic:
+    description: >
+      Nombre del topic, a resolver contra el mapa (`topics_file` o
+      `topics_json`). Si no esta en el mapa se publica en General con marca
+      explicita, salvo `create_topic`.
+    required: false
+    default: ''
+  topics_file:
+    description: Fichero JSON {nombre - thread_id} del repo que llama.
+    required: false
+    default: ''
+  topics_json:
+    description: El mismo mapa en linea, alternativa a `topics_file`.
+    required: false
+    default: ''
+  create_topic:
+    description: >
+      Crear el topic cuando falta en el mapa. Por defecto NO - el mapa no se
+      committea solo, asi que crear aqui significa un topic nuevo en cada
+      ejecucion. Dar de alta un topic es un commit en el mapa, a mano y una vez.
+    required: false
+    default: 'false'
+  parse_mode:
+    description: >
+      parse_mode de la Bot API. Vacio = texto plano, que es lo correcto cuando
+      el texto lleva asuntos de commit - sus backticks y guiones bajos rompen
+      Markdown y Telegram devuelve 400.
+    required: false
+    default: ''
+  strict:
+    description: >
+      true = si Telegram rechaza el mensaje el paso falla. Para que un aviso
+      perdido no redondee un job en verde. Cuando el aviso no deba tumbar el
+      job, dejalo en true y pon `continue-on-error: true` en el paso - asi se
+      ve el fallo sin inventar un exito.
+    required: false
+    default: 'true'
+
+outputs:
+  thread_id:
+    description: Thread donde se publico (vacio = General).
+    value: ${{ steps.publicar.outputs.thread_id }}
+  message_id:
+    description: message_id del aviso publicado.
+    value: ${{ steps.publicar.outputs.message_id }}
+
+runs:
+  using: composite
+  steps:
+    - id: publicar
+      shell: bash
+      env:
+        # Todo por entorno: el texto viene de asuntos de commit de terceros y
+        # una interpolacion `${{ }}` dentro del `run` seria inyeccion de shell.
+        NOTIFY_TOKEN: ${{ inputs.token }}
+        NOTIFY_CHAT_ID: ${{ inputs.chat_id }}
+        NOTIFY_TEXT: ${{ inputs.text }}
+        NOTIFY_STATE: ${{ inputs.state }}
+        NOTIFY_THREAD_ID: ${{ inputs.thread_id }}
+        NOTIFY_TOPIC: ${{ inputs.topic }}
+        NOTIFY_TOPICS_FILE: ${{ inputs.topics_file }}
+        NOTIFY_TOPICS_JSON: ${{ inputs.topics_json }}
+        NOTIFY_CREATE_TOPIC: ${{ inputs.create_topic }}
+        NOTIFY_PARSE_MODE: ${{ inputs.parse_mode }}
+        NOTIFY_STRICT: ${{ inputs.strict }}
+      run: |
+        set -uo pipefail
+        command -v python3 >/dev/null || {
+          echo "::error::este runner no trae python3 y la accion es python de libreria estandar"
+          exit 1
+        }
+        python3 "$GITHUB_ACTION_PATH/notify_telegram.py"
