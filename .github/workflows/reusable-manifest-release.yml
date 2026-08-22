@@ -322,7 +322,15 @@ jobs:
           # consumidores lo son. El que exista, gana.
           token:   ${{ secrets.TELEGRAM_CI_BOT_TOKEN || secrets.OPENCLAW_TELEGRAM_BOT_TOKEN }}
           chat_id: ${{ secrets.TELEGRAM_CI_CHAT_ID  || secrets.OPENCLAW_TELEGRAM_TARGET }}
-          thread_id: ${{ secrets.OPENCLAW_TELEGRAM_THREAD_ID }}
+          # El thread NO es un secreto, es configuracion: un id de topic no
+          # abre nada por si solo. Va en claro y con fallback al secreto por si
+          # algun repo quiere desviar sus avisos a otro sitio.
+          #
+          # 69 = topic `ci` del grupo "github pocharlies-org", creado el
+          # 22-08-2026 para esto. Antes se usaba OPENCLAW_TELEGRAM_THREAD_ID,
+          # que apunta a un thread del grupo VIEJO de OpenClaw: probado en vivo
+          # y Telegram respondia 400 "message thread not found".
+          thread_id: ${{ secrets.TELEGRAM_CI_THREAD_ID || '69' }}
           state: audit_fail
           text: |
             ${{ github.repository }} — CI en rojo

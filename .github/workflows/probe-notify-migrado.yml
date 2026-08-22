@@ -13,7 +13,7 @@ jobs:
         with:
           token:   ${{ secrets.TELEGRAM_CI_BOT_TOKEN || secrets.OPENCLAW_TELEGRAM_BOT_TOKEN }}
           chat_id: ${{ secrets.TELEGRAM_CI_CHAT_ID  || secrets.OPENCLAW_TELEGRAM_TARGET }}
-          thread_id: ${{ secrets.OPENCLAW_TELEGRAM_THREAD_ID }}
+          thread_id: ${{ secrets.TELEGRAM_CI_THREAD_ID || '69' }}
           state: audit_fail
           text: |
             PRUEBA de la migracion de los 5 reusables (no es un fallo real)
