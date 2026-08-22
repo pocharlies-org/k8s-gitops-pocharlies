@@ -798,7 +798,14 @@ metadata:
     # la promoción revisada fija el mismo digest escaneado en seis workloads.
     # APPROVAL CERRADO: 9a78c06 terminó Succeeded/Synced/Healthy en los dos
     # planos; los seis workloads usan el digest escaneado de la ruta CLI.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Approval 2026-08-22: publica por modelo los niveles de reasoning que
+    # codex-app-server acepta realmente. Cambio solo de ConfigMap/checksum;
+    # backups Longhorn requeridos verificados y prune revisado como false.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: ef78377709534c7d9f372b623aba80c4ff9bfbef
+    operations.pocharlies.org/approval-id: openclaw-think-efforts-ef78377
+    operations.pocharlies.org/approval-sequence: "20260822081813"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
