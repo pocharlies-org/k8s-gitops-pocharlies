@@ -42,9 +42,13 @@ inputs:
     required: false
     default: '120000'
   timeout_seconds:
-    description: Timeout de la llamada a LiteLLM.
+    description: >
+      Timeout de la llamada a LiteLLM. 120 s a proposito, muy por debajo de
+      los 600 que hereda el proxy: `arc-k8s` tiene maxRunners=3 para toda la
+      organizacion y un job colgado se come un tercio del CI hasta las 6 h de
+      timeout por defecto de GitHub.
     required: false
-    default: '300'
+    default: '120'
   github_token:
     description: >
       GITHUB_TOKEN del job que llama, para publicar el comentario. Necesita

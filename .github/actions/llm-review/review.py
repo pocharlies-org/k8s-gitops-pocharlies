@@ -19,7 +19,6 @@ import json
 import os
 import re
 import sys
-import time
 import urllib.error
 import urllib.request
 
@@ -208,13 +207,15 @@ def pedir(url, key, modelo, prompt, timeout):
 
 
 def consultar(url, key, modelo, prompt, timeout):
+    """SIN reintentos, y 429 y 5xx tratados IGUAL. Medido en el cluster: el
+    alias no tiene `fallbacks` en `router_settings`, asi que sin endpoints
+    LiteLLM da 500 y despues un 429 que se INVENTA el cooldown del router
+    durante 120 s. Reintentar dentro de esa ventana solo quema runner para
+    acabar igual de degradado, y el scale set `arc-k8s` tiene maxRunners=3
+    para toda la organizacion."""
     estado, dato = pedir(url, key, modelo, prompt, timeout)
     if estado == 'degradado':
-        # Un reintento y ya. El cooldown del router es de 120 s: insistir mas
-        # solo quema minutos de runner para acabar igual de degradado.
-        print(f'::warning::LiteLLM no disponible ({dato}); un reintento')
-        time.sleep(3)
-        estado, dato = pedir(url, key, modelo, prompt, timeout)
+        print(f'::warning::LiteLLM no disponible ({dato}); review omitida')
     return estado, dato
 
 
@@ -400,7 +401,10 @@ def main():
     pr = env('REVIEW_PR_NUMBER')
     sha = env('REVIEW_SHA')
     max_bytes = entero('REVIEW_MAX_DIFF_BYTES', 120000)
-    timeout = entero('REVIEW_TIMEOUT_SECONDS', 300)
+    # 120 s, muy por debajo de los 600 que hereda el proxy: un job
+    # colgado ocupa un tercio del CI de la organizacion (maxRunners=3)
+    # hasta las 6 h de timeout por defecto de GitHub.
+    timeout = entero('REVIEW_TIMEOUT_SECONDS', 120)
 
     fichero = env('REVIEW_DIFF_FILE')
     diff = os.environ.get('REVIEW_DIFF') or ''

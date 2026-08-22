@@ -34,18 +34,21 @@ on:
         type: string
         default: arc-k8s
       model:
-        # TODO(devops): valor pendiente de medicion. Ojo al gotcha de la casa:
-        # hay alias de CAPACIDAD (degradan solos) y alias de MODELO (dan 400 si
-        # no existen). Fijar el que se mida vivo, no el que suene bien.
+        # Medido desde un pod del scale set en `arc-runners`. Alias de MODELO,
+        # no de capacidad: los de capacidad (`tooling`, `agent`) NO fallan,
+        # degradan a `content` vacio con finish_reason=length, que es peor que
+        # un error porque parece una respuesta. Existe `-uncensored` sobre el
+        # mismo backend; no es el de por defecto.
         description: Alias del modelo en LiteLLM.
         type: string
-        default: deepseek-v4-flash
+        default: deepseek-v4-flash-0731
       litellm_url:
-        # TODO(devops): valor pendiente de medicion. Vale la raiz o la ruta
-        # completa de /v1/chat/completions; el script normaliza las dos.
+        # Servicio interno del cluster: el namespace es `litellm`, no `llm`.
+        # Desde CI NO se usa litellm.lan.e-dani.com. Medido: sin key devuelve
+        # 401 en ~64 ms, o sea alcanzable y con el gate activo.
         description: Endpoint de LiteLLM.
         type: string
-        default: https://litellm.lan.e-dani.com
+        default: http://litellm.litellm.svc.cluster.local:4000
       max_diff_bytes:
         description: >
           Tope duro del diff. Por encima se recorta por ficheros enteros.
@@ -93,7 +96,7 @@ jobs:
     name: Review del PR
     if: ${{ github.event_name == 'pull_request' }}
     runs-on: ${{ inputs.runner }}
-    timeout-minutes: 15
+    timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: write
@@ -103,16 +106,40 @@ jobs:
       group: llm-review-${{ github.workflow }}-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     outputs:
-      veredicto: ${{ steps.revisar.outputs.veredicto }}
-      resumen: ${{ steps.revisar.outputs.resumen }}
-      n_hallazgos: ${{ steps.revisar.outputs.n_hallazgos }}
+      # Con los pasos saltados (PR de un fork) el paso no deja salida y el job
+      # publica igualmente un veredicto, que es `omitido`.
+      veredicto: ${{ steps.revisar.outputs.veredicto || 'omitido' }}
+      resumen: ${{ steps.revisar.outputs.resumen || steps.guarda.outputs.motivo }}
+      n_hallazgos: ${{ steps.revisar.outputs.n_hallazgos || '0' }}
     steps:
+      # Un PR desde un FORK trae GITHUB_TOKEN de solo lectura y NO recibe los
+      # secretos: el bot no puede ni leer la key ni comentar. Se sale en verde
+      # y se dice por que. Lo que lo "arreglaria" es `pull_request_target`, que
+      # ejecutaria con los secretos del repo base sobre codigo de un fork: es
+      # precisamente el agujero que no se abre.
+      - name: Skip pull requests from forks
+        id: guarda
+        env:
+          ES_FORK: ${{ github.event.pull_request.head.repo.fork }}
+        run: |
+          set -uo pipefail
+          if [ "${ES_FORK}" = "true" ]; then
+            echo "::notice::PR desde un fork: sin secretos y con token de solo lectura; review omitida"
+            echo "fork=true" >> "$GITHUB_OUTPUT"
+            echo "motivo=PR desde un fork: sin secretos, review omitida" >> "$GITHUB_OUTPUT"
+          else
+            echo "fork=false" >> "$GITHUB_OUTPUT"
+            echo "motivo=" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: ${{ steps.guarda.outputs.fork != 'true' }}
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Check out the review framework
+        if: ${{ steps.guarda.outputs.fork != 'true' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # `job.workflow_repository` / `job.workflow_sha` no son contexto
@@ -126,6 +153,7 @@ jobs:
           path: .llm-review-framework
 
       - name: Compute the diff
+        if: ${{ steps.guarda.outputs.fork != 'true' }}
         env:
           # Del payload del evento y por entorno: los nombres de rama son texto
           # de terceros. El rango se toma del evento, no de `origin/<base>`,
@@ -137,21 +165,27 @@ jobs:
           for s in "$PR_BASE_SHA" "$PR_HEAD_SHA"; do
             echo "$s" | grep -Eq '^[0-9a-f]{40}$' || {
               echo "::error::el rango del PR no trae SHAs completos"; exit 1; }
+            # Los dos extremos, no solo la base: antes que dejar el check en
+            # rojo por un objeto que no vino en el fetch, se trae al vuelo.
+            git cat-file -e "${s}^{commit}" 2>/dev/null || \
+              git fetch --no-tags --depth=1 origin "$s"
           done
-          git cat-file -e "${PR_BASE_SHA}^{commit}" 2>/dev/null || \
-            git fetch --no-tags --depth=1 origin "$PR_BASE_SHA"
           git diff -M --no-color "$PR_BASE_SHA" "$PR_HEAD_SHA" \
             > "$RUNNER_TEMP/review.diff"
           echo "diff: $(wc -c < "$RUNNER_TEMP/review.diff") bytes"
 
       - name: Review
         id: revisar
+        if: ${{ steps.guarda.outputs.fork != 'true' }}
         env:
           REVIEW_LITELLM_URL: ${{ inputs.litellm_url }}
           REVIEW_LITELLM_KEY: ${{ secrets.LITELLM_CI_KEY }}
           REVIEW_MODEL: ${{ inputs.model }}
           REVIEW_DIFF_FILE: ${{ runner.temp }}/review.diff
           REVIEW_MAX_DIFF_BYTES: ${{ inputs.max_diff_bytes }}
+          # Muy por debajo de los 600 s del proxy: con maxRunners=3 un job
+          # colgado es un tercio del CI de la organizacion parado.
+          REVIEW_TIMEOUT_SECONDS: '120'
           REVIEW_GITHUB_TOKEN: ${{ github.token }}
           REVIEW_REPO: ${{ github.repository }}
           REVIEW_PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -172,7 +206,7 @@ jobs:
     name: Review del ultimo commit
     if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ${{ inputs.runner }}
-    timeout-minutes: 15
+    timeout-minutes: 10
     permissions:
       contents: write
     outputs:
@@ -214,6 +248,9 @@ jobs:
           REVIEW_MODEL: ${{ inputs.model }}
           REVIEW_DIFF_FILE: ${{ runner.temp }}/review.diff
           REVIEW_MAX_DIFF_BYTES: ${{ inputs.max_diff_bytes }}
+          # Muy por debajo de los 600 s del proxy: con maxRunners=3 un job
+          # colgado es un tercio del CI de la organizacion parado.
+          REVIEW_TIMEOUT_SECONDS: '120'
           REVIEW_GITHUB_TOKEN: ${{ github.token }}
           REVIEW_REPO: ${{ github.repository }}
           REVIEW_PR_NUMBER: ''
@@ -230,7 +267,18 @@ jobs:
   avisar:
     name: Aviso en Telegram
     needs: [revisar_pr, revisar_commit]
-    if: ${{ always() && inputs.notificar }}
+    # Los dos modos son excluyentes: uno de los dos jobs queda SIEMPRE en
+    # `skipped`, y un need saltado salta tambien a quien depende de el salvo
+    # que la condicion diga otra cosa. Se avisa cuando el que toco ejecutar
+    # termino, con exito o con fallo (un 401 de LiteLLM es justo el aviso que
+    # hace falta). `skipped` es el otro modo y `cancelled` es un push que
+    # adelanto a este: ninguno de los dos merece aviso.
+    if: >-
+      ${{ inputs.notificar && (
+          needs.revisar_pr.result == 'success' ||
+          needs.revisar_pr.result == 'failure' ||
+          needs.revisar_commit.result == 'success' ||
+          needs.revisar_commit.result == 'failure') }}
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 10
     permissions:
