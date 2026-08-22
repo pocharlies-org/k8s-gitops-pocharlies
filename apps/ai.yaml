@@ -572,7 +572,7 @@ spec:
     # ROLLBACK: 2ff0c3c78f62817a7a6a903a070dc0bb740fb455.
     # 22-08: se retiene b511afea (DeepSeek vLLM 0.27.1) hasta portar y validar
     # el overlay/fix DSpark de la imagen Anemll que usa produccion.
-    targetRevision: "8839aea53725d1d2ae5dccfc79b4b940bb48d204"
+    targetRevision: "8839aea53725decaceb03feb7048c49b679767fa"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
