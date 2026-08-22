@@ -814,7 +814,15 @@ metadata:
     # devuelve el catalogo LiteLLM dinamico (DeepSeek V4, Qwen 27B y aliases
     # uncensored); un smoke desde OpenClaw obtuvo HTTP 200 de tooling y LiteLLM
     # lo enruto al residente ready deepseek-v4-flash-0731.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL OPEN 2026-08-22: retira definitivamente los aliases LLM
+    # automaticos y deja OpenClaw en `tooling`. Las dos claves dedicadas ya
+    # tienen scopes exactos, los pines retirados del PVC son cero, el catalogo
+    # queda dinamico y `scripts/validate.sh` termina VALIDATION OK (555+105).
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: cc998115f78d227a4e2914e62a250ab441c8c1ce
+    operations.pocharlies.org/approval-id: remove-litellm-routing-aliases-20260822
+    operations.pocharlies.org/approval-sequence: "20260822194230"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
