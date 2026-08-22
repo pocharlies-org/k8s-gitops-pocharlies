@@ -575,9 +575,10 @@ spec:
     # ROLLBACK: 8839aea53725decaceb03feb7048c49b679767fa.
     # 22-08: 2a6a369 conserva tambien el backend estable B12X/MXFP4 y sus
     # variables de tuning; la unica sustitucion funcional es vLLM 0.27.1.
-    # 22-08: 008af15 conserva el DeepGEMM 2.5.0 SM121 del DSpark estable;
-    # DeepGEMM 2.6.1 de la rueda 0.27.1 no admite escalas (1,32) en GB10.
-    targetRevision: "008af15a9a7febcc04df20f832821c6151c112a6"
+    # 22-08: 1b25df8 recompila el DeepGEMM 2.5.0 SM121 historico contra
+    # PyTorch 2.13; copiar su _C.so antiguo rompe ABI. El perfil DSpark/B12X
+    # permanece sin cambios y solo el runtime base pasa a vLLM 0.27.1.
+    targetRevision: "1b25df8f060ca23cacc2a68b878135c28ba94a02"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
