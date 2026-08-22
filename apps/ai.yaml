@@ -567,7 +567,10 @@ spec:
     # 22-08: vLLM 0.27.1 + DSpark k=7 NO pasa el gate: 14.61 tok/s de mediana
     # y 11.1% de acceptance en tres muestras limpias de 256 tokens. Se mantiene
     # el MTP estable; el candidato queda en 8e35d6e para diagnostico offline.
-    targetRevision: "2ff0c3c78f62817a7a6a903a070dc0bb740fb455"
+    # 22-08: 8839aea prueba aislada: misma configuracion MTP k=3, KV, contexto,
+    # concurrencia y modelo de 2ff0c3c; solo cambia la imagen a vLLM 0.27.1.
+    # ROLLBACK: 2ff0c3c78f62817a7a6a903a070dc0bb740fb455.
+    targetRevision: "8839aea53725decaceb03feb7048c49b679767fa"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
