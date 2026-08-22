@@ -564,10 +564,10 @@ spec:
     # ROLLBACK: 4236254f84d228623e7e08c202e4e801f174637c.
     # 22-08: el ensayo 4ab7702 con DSpark k=7 sobre vLLM 0.25.2-dev se revierte:
     # 0.33-1.30% de acceptance y 8.01-8.84 tok/s limpios frente al MTP estable.
-    # 22-08: candidato Qwen DSpark k=7 portado a vLLM 0.27.1; promover solo si
-    # la prueba local supera el gate de velocidad, acceptance y correccion.
-    # ROLLBACK: 2ff0c3c78f62817a7a6a903a070dc0bb740fb455.
-    targetRevision: "8e35d6e0fdfa06105238d020834b29c21b632ca2"
+    # 22-08: vLLM 0.27.1 + DSpark k=7 NO pasa el gate: 14.61 tok/s de mediana
+    # y 11.1% de acceptance en tres muestras limpias de 256 tokens. Se mantiene
+    # el MTP estable; el candidato queda en 8e35d6e para diagnostico offline.
+    targetRevision: "2ff0c3c78f62817a7a6a903a070dc0bb740fb455"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
