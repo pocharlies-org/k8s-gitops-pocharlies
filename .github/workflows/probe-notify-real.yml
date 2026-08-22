@@ -1,0 +1,35 @@
+name: probe-notify-real
+# Sonda TEMPORAL: falla a proposito para comprobar que el job notify del
+# reusable dispara de verdad. Se borra en cuanto se verifique.
+on: { workflow_dispatch: {} }
+permissions: { contents: read }
+jobs:
+  fallar:
+    runs-on: arc-k8s
+    timeout-minutes: 5
+    steps:
+      - run: |
+          echo "fallo deliberado para probar el notificador"
+          exit 1
+  notify:
+    needs: [fallar]
+    if: ${{ always() && contains(needs.*.result, 'failure') }}
+    runs-on: arc-k8s
+    timeout-minutes: 5
+    steps:
+      - name: Componer
+        id: msg
+        run: |
+          { echo "texto<<E"; \
+            echo "PRUEBA del notificador migrado (fallo deliberado, no es real)"; \
+            echo "run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"; \
+            echo E; } >> "$GITHUB_OUTPUT"
+      - name: Avisar
+        uses: pocharlies-org/k8s-gitops-pocharlies/.github/actions/notify-telegram@main
+        with:
+          token:   ${{ secrets.TELEGRAM_CI_BOT_TOKEN || secrets.OPENCLAW_TELEGRAM_BOT_TOKEN }}
+          chat_id: ${{ secrets.TELEGRAM_CI_CHAT_ID  || secrets.OPENCLAW_TELEGRAM_TARGET }}
+          thread_id: ${{ secrets.TELEGRAM_CI_THREAD_ID || '69' }}
+          state: audit_fail
+          text: ${{ steps.msg.outputs.texto }}
+          strict: 'true'
