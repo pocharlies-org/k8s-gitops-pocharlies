@@ -20,6 +20,7 @@ las ausencias fallan MUDAS.
 """
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -111,6 +112,176 @@ def resolver_thread(token, chat, topic, mapa, fichero, crear):
     return str(tid), None
 
 
+# ---------------------------------------------------------------------------
+# TITULARES: que significa cada estado, en castellano y sin jerga.
+#
+# Existe porque los avisos decian cosas como "auditoria success", "modo:
+# notify_only" o "bump=failure": exacto para quien escribio el workflow e
+# ilegible para quien lo lee en el movil un domingo. Cada aviso responde ahora
+# a tres preguntas — QUE ha pasado, QUE significa, y SI hay que hacer algo.
+#
+# El detalle tecnico (commit, rama, resultados por job) no se pierde: baja al
+# pie, detras de una linea separadora, y solo lo que sirve para copiar y pegar.
+TITULARES = {
+    'detectada':   ('{prog} tiene una versión nueva',
+                    'Sus autores han publicado cambios.'),
+    'rebase':      ('{prog}: nuestros cambios encajan con la versión nueva',
+                    'Se han recolocado sobre ella sin conflictos.'),
+    'audit_ok':    ('{prog}: la revisión ha salido bien',
+                    'Compila, pasa los tests y conserva nuestras funciones.'),
+    'audit_fail':  ('{prog}: la revisión ha fallado',
+                    'No se despliega nada hasta que se mire.'),
+    'canary':      ('{prog} está en pruebas',
+                    'Desplegado en el entorno de pruebas, sin tocar producción.'),
+    'e2e_ok':      ('{prog}: las pruebas automáticas pasan',
+                    'Se ha comprobado que la aplicación funciona de verdad.'),
+    'promovido':   ('{prog} ya está en producción',
+                    'La versión nueva es la que se está usando.'),
+    'rollback':    ('{prog}: se ha vuelto a la versión anterior',
+                    'Algo falló al desplegar y se revirtió solo.'),
+    'sin_cambios': ('{prog}: sin novedades', ''),
+    'lanzado':     ('{prog}: empieza el despliegue',
+                    'Se está construyendo y luego se desplegará.'),
+    'build':       ('{prog}: construyendo',
+                    'Solo se construye; producción no se toca.'),
+    'ok':          ('{prog}: todo correcto', ''),
+    'fallo':       ('{prog}: algo ha fallado',
+                    'Conviene mirarlo.'),
+    'notas':       ('{prog}: cambios de esta versión', ''),
+    'esperando':   ('{prog} espera tu visto bueno',
+                    'Está listo, pero no continúa sin que alguien lo apruebe.'),
+}
+
+# Que hacer. Vacio = no hay que hacer nada, y eso TAMBIEN se dice: el silencio
+# deja al lector preguntandose si le tocaba algo.
+ACCIONES = {
+    'audit_fail': 'Hay que revisar el fallo antes de seguir.',
+    'fallo':      'Hay que revisar el fallo antes de seguir.',
+    'rollback':   'Producción está estable en la versión anterior. Conviene mirar qué pasó.',
+    'esperando':  'Hace falta que alguien lo apruebe para que continúe.',
+}
+
+
+def componer(estado, texto, programa):
+    """Titular + explicacion + que hacer + detalle tecnico al pie."""
+    if estado not in TITULARES:
+        return f'{ICONOS.get(estado, "")} {texto}'.strip()
+
+    titular, explicacion = TITULARES[estado]
+    prog = programa or 'El proyecto'
+    partes = [f'{ICONOS[estado]} {titular.format(prog=prog)}']
+
+    cuerpo = [l for l in texto.strip().split('\n') if l.strip()]
+
+    # El pie son las lineas que ya vienen como `clave: valor` o un enlace: eso
+    # es detalle, no narracion.
+    def es_detalle(l):
+        low = l.strip().lower()
+        return (low.startswith(('run:', 'rama:', 'commit:', 'sha:', 'upstream:',
+                                'modo:', 'web:', 'mac:', 'canario', 'promocion',
+                                'ref:', 'log:', 'branch:'))
+                or low.startswith('http'))
+
+    # Y se tira lo que el titular YA dice. Sin esto el aviso repite en medio la
+    # linea vieja ("shield master@abc: auditoria success"), que es justo la
+    # jerga que se venia a quitar. Tambien caen los SHA de 40 caracteres: nadie
+    # lee eso, y los 12 primeros ya salen en el pie.
+    RUIDO = ('auditoria success', 'auditoria failure', 'auditoria ', 'sin rama',
+             'notify_only', 'audit_only', 'rebase limpio')
+
+    def es_ruido(l):
+        low = l.strip().lower()
+        if any(r in low for r in RUIDO):
+            return True
+        # una linea que es solo el nombre del programa + un identificador
+        if re.fullmatch(r'[\w.-]+ [0-9a-f]{7,40}', l.strip()):
+            return True
+        if re.fullmatch(r'[\w.-]+ [\w./@-]+ \([0-9a-f]{40}\)', l.strip()):
+            return True
+        return False
+
+    # La narracion tambien se limpia de `clave=valor`: openclaw mandaba cosas
+    # como "deploy_solicitado=false build=success bump=failure", que es un
+    # volcado de variables, no una frase.
+    JERGA = {
+        'deploy_solicitado': 'despliegue pedido', 'build': 'construcción',
+        'bump': 'subida de versión', 'true': 'sí', 'false': 'no',
+        'success': 'bien', 'failure': 'ha fallado', 'skipped': 'no aplicaba',
+    }
+
+    def limpiar_jerga(l):
+        if '=' not in l:
+            return l
+        # Se separan con coma: encadenar "a: b c: d" sin puntuacion se lee
+        # peor que el original.
+        def sust(m):
+            k, v = m.group(1), m.group(2)
+            return f'{JERGA.get(k, k)}: {JERGA.get(v, v)},'
+        salida_l = re.sub(r'(\w+)=(\w+)', sust, l)
+        return re.sub(r',\s*$', '', salida_l).replace(', ·', ' ·')
+
+    narracion = [limpiar_jerga(l.strip()) for l in cuerpo
+                 if not es_detalle(l) and not es_ruido(l)]
+    detalle   = [l.strip() for l in cuerpo if es_detalle(l)]
+
+    # El pie tambien se traduce: `modo: notify_only` no significa nada para
+    # quien lee, y `rama: sin rama` es literalmente una linea sin sentido que
+    # salia cuando no habia rama que empujar.
+    ETIQUETAS = {
+        'run:': 'ver detalle:', 'rama:': 'rama:', 'commit:': 'commit:',
+        'upstream:': 'proyecto original:', 'modo:': 'seguimiento:',
+        'log:': 'ver detalle:', 'ref:': 'rama:',
+    }
+    VALORES = {
+        'notify_only': 'solo avisar',
+        'audit_only':  'avisar y revisar',
+        'full':        'revisar y desplegar',
+        'success':     'bien',
+        'failure':     'ha fallado',
+        'skipped':     'no aplicaba',
+        'cancelled':   'cancelado',
+        'sin rama':    None,   # None = se quita la linea entera
+    }
+
+    def traducir(linea):
+        low = linea.strip().lower()
+        for k, v in ETIQUETAS.items():
+            if low.startswith(k):
+                resto = linea.strip()[len(k):].strip()
+                if resto.lower() in VALORES:
+                    nv = VALORES[resto.lower()]
+                    if nv is None:
+                        return None
+                    resto = nv
+                return f'{v} {resto}'
+        for k, v in VALORES.items():
+            if v and k in low:
+                linea = re.sub(rf'\b{re.escape(k)}\b', v, linea)
+        return linea
+
+    detalle = [x for x in (traducir(l) for l in detalle) if x]
+
+    # Los SHA largos del pie se recortan a 12: el resto es ruido visual.
+    detalle = [re.sub(r'\b([0-9a-f]{12})[0-9a-f]{8,28}\b', r'\1', l) for l in detalle]
+
+    if explicacion:
+        partes.append('')
+        partes.append(explicacion)
+    if narracion:
+        partes.append('')
+        partes.extend(narracion)
+
+    accion = ACCIONES.get(estado)
+    partes.append('')
+    partes.append(accion if accion else 'No hay que hacer nada.')
+
+    if detalle:
+        partes.append('')
+        partes.append('─────────')
+        partes.extend(detalle)
+    return '\n'.join(partes)
+
+
 def salida(nombre, valor):
     destino = os.environ.get('GITHUB_OUTPUT')
     if destino:
@@ -147,8 +318,9 @@ def main():
         mapa = cargar_mapa(fichero, en_linea)
         thread, aviso = resolver_thread(token, chat, topic, mapa, fichero, crear)
 
+    programa = env('NOTIFY_PROGRAM') or topic
     if estado:
-        texto = f'{ICONOS[estado]} {texto}'
+        texto = componer(estado, texto, programa)
     if aviso:
         # Caer al topic General con marca explicita, NUNCA tragarse el mensaje
         # ni crear un duplicado.
