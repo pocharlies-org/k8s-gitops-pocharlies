@@ -10,7 +10,7 @@
 
 - Velero CLI installed on workstation (`brew install velero` or from releases).
 - `kubectl` context pointing at the cluster.
-- MinIO/S3 backend accessible (`s3.lan.e-dani.com`).
+- MinIO/S3 backend accessible (`minio-s3.e-dani.com`).
 
 ---
 
