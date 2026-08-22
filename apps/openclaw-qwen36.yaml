@@ -808,7 +808,14 @@ metadata:
     # pero la verificacion efectiva detecto que el tag nuevo seguia fijado al
     # digest anterior. Ningun pod cargo el parche y models.list siguio ocultando
     # el catalogo dinamico. El follow-up fija el digest escaneado correcto.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # APPROVAL OPEN para 765ed79: follow-up con los seis pins y el digest de
+    # capacidad fijados al candidato ae4c6ce, escaneado y promovido por la
+    # release 32580153411. Render default/Synapse y guards verdes; prune=false.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 765ed7935ccff3f1113065730b8cc4a24862f921
+    operations.pocharlies.org/approval-id: openclaw-dynamic-catalog-digest-765ed79
+    operations.pocharlies.org/approval-sequence: "20260822163519"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
