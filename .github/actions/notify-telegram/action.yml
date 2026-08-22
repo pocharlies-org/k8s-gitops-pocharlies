@@ -19,6 +19,13 @@ inputs:
       Cuerpo del aviso, ya compuesto por quien llama. Aqui solo se le antepone
       el icono del estado y se recorta a 3900 caracteres.
     required: true
+  program:
+    description: >
+      Nombre del proyecto para el titular ("shield tiene una versión nueva").
+      Si se omite se usa `topic`. Sirve para poner un nombre legible donde el
+      topic es un identificador.
+    required: false
+    default: ""
   state:
     description: >
       Estado a iconizar. Del release-bot - detectada, rebase, audit_ok,
@@ -89,6 +96,7 @@ runs:
         NOTIFY_CHAT_ID: ${{ inputs.chat_id }}
         NOTIFY_TEXT: ${{ inputs.text }}
         NOTIFY_STATE: ${{ inputs.state }}
+        NOTIFY_PROGRAM: ${{ inputs.program }}
         NOTIFY_THREAD_ID: ${{ inputs.thread_id }}
         NOTIFY_TOPIC: ${{ inputs.topic }}
         NOTIFY_TOPICS_FILE: ${{ inputs.topics_file }}

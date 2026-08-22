@@ -47,6 +47,8 @@ ICONOS = {
     'fallo':       '❌',
     'notas':       '🔖',
     'esperando':   '⏸️',
+    # El parte diario: es una lista, no un suceso.
+    'parte':       '📋',
 }
 
 # Telegram corta en 4096; se deja margen para el icono y el aviso de recorte.
@@ -148,6 +150,7 @@ TITULARES = {
     'fallo':       ('{prog}: algo ha fallado',
                     'Conviene mirarlo.'),
     'notas':       ('{prog}: cambios de esta versión', ''),
+    'parte':       ('Parte de la mañana', ''),
     'esperando':   ('{prog} espera tu visto bueno',
                     'Está listo, pero no continúa sin que alguien lo apruebe.'),
 }
@@ -164,6 +167,12 @@ ACCIONES = {
 
 def componer(estado, texto, programa):
     """Titular + explicacion + que hacer + detalle tecnico al pie."""
+    # El parte diario ya viene compuesto por quien lo genera: es una LISTA de
+    # tickets, no un suceso. Trocearlo en narracion/pie separaria cada enlace
+    # de su linea, y anadirle "no hay que hacer nada" contradiria justo lo que
+    # el parte viene a decir.
+    if estado == 'parte':
+        return f'{ICONOS[estado]} {TITULARES[estado][0]}\n\n{texto.strip()}'
     if estado not in TITULARES:
         return f'{ICONOS.get(estado, "")} {texto}'.strip()
 
