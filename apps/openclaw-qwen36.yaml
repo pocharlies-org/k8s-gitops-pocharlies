@@ -822,7 +822,13 @@ metadata:
     # APPROVAL CERRADO: ee33d439 termino Succeeded/Synced/Healthy en main y
     # Synapse; ambos normalizadores encontraron cero pines obsoletos y el
     # catalogo principal identifica Qwen3.8 27B como residente Ready.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Approval 2026-08-23: retira del catalogo de herramientas el feed F8 de
+    # cambios de proveedor. Config-only, sin poda y sin cambios de estado/PVC.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 18028651fc9fda2052759493c1e20e593578f0c1
+    operations.pocharlies.org/approval-id: retire-provider-changes-20260823
+    operations.pocharlies.org/approval-sequence: "20260823051616"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
