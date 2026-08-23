@@ -120,10 +120,17 @@ jobs:
       - name: Skip pull requests from forks
         id: guarda
         env:
-          ES_FORK: ${{ github.event.pull_request.head.repo.fork }}
+          # `head.repo.fork` es cierto cuando el repo de la rama ES un fork —
+          # incluso si el PR es INTERNO de ese mismo repo. Con el, en nuestros
+          # propios forks (aurora, openchamber, opencode-claude, shield,
+          # loki...) toda review se saltaba como si viniera de fuera: run en
+          # verde, aviso en verde y ningun comentario. Lo que de verdad
+          # distingue un PR ajeno es que la rama viva en OTRO repositorio.
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          ESTE_REPO: ${{ github.repository }}
         run: |
           set -uo pipefail
-          if [ "${ES_FORK}" = "true" ]; then
+          if [ -n "${HEAD_REPO}" ] && [ "${HEAD_REPO}" != "${ESTE_REPO}" ]; then
             echo "::notice::PR desde un fork: sin secretos y con token de solo lectura; review omitida"
             echo "fork=true" >> "$GITHUB_OUTPUT"
             echo "motivo=PR desde un fork: sin secretos, review omitida" >> "$GITHUB_OUTPUT"
