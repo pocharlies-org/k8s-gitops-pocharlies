@@ -615,50 +615,7 @@ spec:
     # (vllm-project/vllm#48645 recoge la familia; el nuestro es el caso
     # inverso: reasoning vacio y respuesta en content).
     # ROLLBACK: 152f55eb70f2fa29d82742f5568cdb796d7dd9f6.
-    targetRevision: "565265dcd64e21c25aaa193750332679825a479d"
-    path: overlays/ornith-sm121v5-lmheadw4-20260721
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: llm
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
-      - ServerSideApply=true
-      - RespectIgnoreDifferences=true
-      # Avoid re-applying otherwise in-sync profile workloads during an unrelated
-      # AI sync; replica ownership remains exclusively with compute-mode.
-      - ApplyOutOfSyncOnly=true
-  ignoreDifferences:
-    # Pre-existing: ignore apiserver-defaulted ESO/cnpg fields (kept to avoid regressing
-    # the ai app's sync — these match the live state applied previously).
-    - group: external-secrets.io
-      kind: ExternalSecret
-      jqPathExpressions:
-        - .spec.data[]?.remoteRef.conversionStrategy
-        - .spec.data[]?.remoteRef.decodingStrategy
-        - .spec.data[]?.remoteRef.metadataPolicy
-        - .spec.data[]?.remoteRef.nullBytePolicy
-        - .spec.dataFrom[]?.extract.conversionStrategy
-        - .spec.dataFrom[]?.extract.decodingStrategy
-        - .spec.dataFrom[]?.extract.metadataPolicy
-        - .spec.dataFrom[]?.extract.nullBytePolicy
-    - group: postgresql.cnpg.io
-      kind: Cluster
-      managedFieldsManagers:
-        - manager
-    # Replicas of controller-managed Deployments are ignored so ArgoCD doesn't fight the
-    # controller: KEDA owns the 6 BGE replicas (VRAM/load-gated autoscaling); the gpu_arbiter
-    # owns the resident vLLM replica (on-demand GPU eviction — see the vllm entry below).
-    # Scoped by name — NOT cluster-wide apps/Deployment — so any OTHER Deployment still gets
-    # its replica drift healed.
-    - group: apps
-      kind: Deployment
-      name: bge-m3-embedding
-      namespace: llm
-      jsonPointers: ["/spec/replicas"]
+    targetRevision: "46bcde52199a431b8fafecf62ffa319bf1785617"/spec/replicas"]
     - group: apps
       kind: Deployment
       name: qwen3-embedding-4b-nvfp4-dgx2
