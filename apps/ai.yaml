@@ -608,8 +608,14 @@ spec:
     # max_num_seqs y el propio parser, que offline separa bien el mismo
     # texto crudo. Es un swap de imagen puro: el launch.sh no cambia y las
     # dos imagenes estan cacheadas en los dos Sparks (IfNotPresent).
-    # ROLLBACK: 5b20253bc898b3a7fdbe61e1bc63fe90ce83bc79.
-    targetRevision: "152f55eb70f2fa29d82742f5568cdb796d7dd9f6"
+    # 24-08: b27ae62 revierte ese rollback. El downgrade se probo en vivo y NO
+    # arregla el reasoning_content: mismo resultado exacto sobre la imagen
+    # previa, asi que vLLM 0.27.1 queda descartado por experimento. Quedarse
+    # atras solo perdia B12X, DeepGEMM y vision. El fallo sigue abierto
+    # (vllm-project/vllm#48645 recoge la familia; el nuestro es el caso
+    # inverso: reasoning vacio y respuesta en content).
+    # ROLLBACK: 152f55eb70f2fa29d82742f5568cdb796d7dd9f6.
+    targetRevision: "b27ae62880bd27f722098eaba84d3024bdec75f7"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
