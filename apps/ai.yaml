@@ -591,7 +591,13 @@ spec:
     # sello de los alias `-uncensored` no hacia NADA (salida byte a byte identica a
     # temperatura 0 con cache_salt refusal:0/1.0/2.5/4.0). Cuesta un reinicio del
     # residente de `creative`. No toca replicas, selectors, pesos ni compute mode.
-    targetRevision: "dd339ed02ec110b35df4b56d0774fd5782008038"
+    # 23-08: 287f43c protege los decodes del Qwen frente a prefills largos. La
+    # linea base con 4 decodes + 123663 tokens cayo 30.8 -> 0.4 tok/s (ratio
+    # 0.013). long-prefill-token-threshold=2048 limita cada prefill al 12.5% del
+    # step de 16384. KV 10->12 GiB tras medir 22.7 GiB minimos de MemAvailable;
+    # mem-cost 35->37. Mantiene seqs=6, MTP k=3, graph 24 y Model Runner V2.
+    # ROLLBACK: dd339ed02ec110b35df4b56d0774fd5782008038.
+    targetRevision: "287f43cf3a13b18f4241ed330fe4305be0feecdb"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
