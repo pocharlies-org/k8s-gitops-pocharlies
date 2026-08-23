@@ -596,9 +596,12 @@ spec:
     # 0.013). 287f43c probo threshold=2048 y KV 10->12 GiB tras medir 22.7 GiB
     # minimos de MemAvailable. Bajo dos prefills reales concurrentes, 2048 aun
     # dejo una peticion corta bloqueada varios minutos; f4ec2cb lo baja a 1024
-    # (6.25% del step). Mantiene seqs=6, MTP k=3, graph 24 y Model Runner V2.
+    # (6.25% del step). La carga real posterior mantuvo KV al 90-100% y decode
+    # agregado en 0.2-1.3 tok/s con 3-6 contextos largos incluso sin prefill;
+    # 5b20253 limita los slots activos a 4 (~84K tokens medios por slot). Conserva
+    # MTP k=3, cuyo batch lleno usa el graph 16 ya capturado, y Model Runner V2.
     # ROLLBACK: dd339ed02ec110b35df4b56d0774fd5782008038.
-    targetRevision: "f4ec2cbe06f6fa9964def378d5f288356f1d165e"
+    targetRevision: "5b20253bc898b3a7fdbe61e1bc63fe90ce83bc79"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
