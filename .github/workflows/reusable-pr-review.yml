@@ -34,14 +34,20 @@ on:
         type: string
         default: arc-k8s
       model:
-        # Medido desde un pod del scale set en `arc-runners`. Alias de MODELO,
-        # no de capacidad: los de capacidad (`tooling`, `agent`) NO fallan,
-        # degradan a `content` vacio con finish_reason=length, que es peor que
-        # un error porque parece una respuesta. Existe `-uncensored` sobre el
-        # mismo backend; no es el de por defecto.
+        # `tooling` y no un alias de modelo concreto: es AGNOSTICO del perfil de
+        # computo. Los Sparks sirven un perfil a la vez —`llm-tp` (DeepSeek) o
+        # `creative` (Qwen38-27b dense)— y LOS DOS tienen un LLM capaz detras.
+        # Apuntar a `deepseek-v4-flash-0731` ataba el review a UN perfil: con el
+        # cluster en `creative` devolvia 503 "local LLM target is not ready" y
+        # el review se saltaba, aunque habia un modelo perfectamente disponible.
+        #
+        # Medido el 23-08-2026 con el cluster en `creative`:
+        #   tooling                -> HTTP 200 en 0s, finish stop, "OK"
+        #   qwen38-27b             -> HTTP 200 en 1s, finish stop, "OK"
+        #   deepseek-v4-flash-0731 -> HTTP 503
         description: Alias del modelo en LiteLLM.
         type: string
-        default: deepseek-v4-flash-0731
+        default: tooling
       litellm_url:
         # Servicio interno del cluster: el namespace es `litellm`, no `llm`.
         # Desde CI NO se usa litellm.lan.e-dani.com. Medido: sin key devuelve
@@ -333,19 +339,29 @@ jobs:
             echo "hay=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # `omitido` NO es "sin novedades": es que la review NO SE HIZO. Con
+          # `sin_cambios` el aviso salia "sin novedades / no hay que hacer
+          # nada" encima de un 503, que es mentir en dos lineas seguidas.
           case "${VEREDICTO}" in
             ok)        estado=ok ;;
             hallazgos) estado=fallo ;;
-            omitido)   estado=sin_cambios ;;
+            omitido)   estado=no_hecho ;;
             *)         estado=fallo; VEREDICTO="sin veredicto (review no ejecutada)" ;;
           esac
           destino="commit ${GITHUB_SHA:0:12}"
           [ -n "${PR_NUMERO}" ] && destino="PR #${PR_NUMERO}"
+          # El RESUMEN puede ser un volcado JSON de LiteLLM. Se recorta a lo
+          # que se entiende: el resto esta en el run.
+          motivo="$(printf '%s' "${RESUMEN}" | head -c 300 | tr '\n' ' ')"
           {
-            echo "Review de ${GITHUB_REPOSITORY} - ${destino}"
-            echo "veredicto: ${VEREDICTO} (${N_HALLAZGOS:-0} hallazgos)"
-            [ -n "${RESUMEN}" ] && echo "${RESUMEN}"
-            echo "${RUN_URL}"
+            case "${VEREDICTO}" in
+              ok)        echo "He revisado ${destino} y no he visto nada que corregir." ;;
+              hallazgos) echo "He revisado ${destino} y hay ${N_HALLAZGOS:-0} cosa(s) que mirar." ;;
+              omitido)   echo "No he podido revisar ${destino}." ;;
+              *)         echo "La revisión de ${destino} no llegó a hacerse." ;;
+            esac
+            [ -n "${motivo}" ] && echo "${motivo}"
+            echo "run: ${RUN_URL}"
           } > "$RUNNER_TEMP/aviso.txt"
           echo "hay=true" >> "$GITHUB_OUTPUT"
           echo "estado=${estado}" >> "$GITHUB_OUTPUT"

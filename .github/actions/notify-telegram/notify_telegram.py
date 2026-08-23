@@ -49,6 +49,8 @@ ICONOS = {
     'esperando':   '⏸️',
     # El parte diario: es una lista, no un suceso.
     'parte':       '📋',
+    # No se pudo hacer: ni exito ni fallo del codigo.
+    'no_hecho':    '🤷',
 }
 
 # Telegram corta en 4096; se deja margen para el icono y el aviso de recorte.
@@ -151,6 +153,8 @@ TITULARES = {
                     'Conviene mirarlo.'),
     'notas':       ('{prog}: cambios de esta versión', ''),
     'parte':       ('Parte de la mañana', ''),
+    'no_hecho':    ('{prog}: esto no se ha llegado a hacer',
+                    'No es que fallara: no se pudo ejecutar.'),
     'esperando':   ('{prog} espera tu visto bueno',
                     'Está listo, pero no continúa sin que alguien lo apruebe.'),
 }
@@ -158,6 +162,7 @@ TITULARES = {
 # Que hacer. Vacio = no hay que hacer nada, y eso TAMBIEN se dice: el silencio
 # deja al lector preguntandose si le tocaba algo.
 ACCIONES = {
+    'no_hecho':   'Se reintenta solo la próxima vez. Si se repite, conviene mirarlo.',
     'audit_fail': 'Hay que revisar el fallo antes de seguir.',
     'fallo':      'Hay que revisar el fallo antes de seguir.',
     'rollback':   'Producción está estable en la versión anterior. Conviene mirar qué pasó.',
