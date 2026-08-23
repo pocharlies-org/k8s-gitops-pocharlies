@@ -600,8 +600,16 @@ spec:
     # agregado en 0.2-1.3 tok/s con 3-6 contextos largos incluso sin prefill;
     # 5b20253 limita los slots activos a 4 (~84K tokens medios por slot). Conserva
     # MTP k=3, cuyo batch lleno usa el graph 16 ya capturado, y Model Runner V2.
-    # ROLLBACK: dd339ed02ec110b35df4b56d0774fd5782008038.
-    targetRevision: "5b20253bc898b3a7fdbe61e1bc63fe90ce83bc79"
+    # 24-08: 152f55e devuelve DeepSeek a la imagen previa al port de vLLM
+    # 0.27.1. Con 0.27.1 las respuestas con `thinking: true` pierden SIEMPRE
+    # el `reasoning_content`, y si el razonamiento no cierra dentro de
+    # max_tokens la respuesta sale entera vacia con los tokens facturados.
+    # Descartados por medicion min_p, el acceptance del drafter (68,8%),
+    # max_num_seqs y el propio parser, que offline separa bien el mismo
+    # texto crudo. Es un swap de imagen puro: el launch.sh no cambia y las
+    # dos imagenes estan cacheadas en los dos Sparks (IfNotPresent).
+    # ROLLBACK: 5b20253bc898b3a7fdbe61e1bc63fe90ce83bc79.
+    targetRevision: "152f55eb70f2fa29d82742f5568cdb796d7dd9f6"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
