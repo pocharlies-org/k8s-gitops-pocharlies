@@ -425,3 +425,44 @@ patches:
       - op: add
         path: /spec/syncPolicy/syncOptions/-
         value: RespectIgnoreDifferences=true
+  # Synapse: los tres adapters multimodales consumen SOLO en la ventana
+  # nocturna del lote creative (03:30-07:30 Europe/Madrid). Sus ScaledObjects
+  # de KEDA viven en k8s-synapse-pocharlies (k8s/keda/, commit d44dcd4) y
+  # pasan a poseer /spec/replicas; en git siguen declarados a 0, que es su
+  # estado FUERA de ventana. Sin estas entradas, un sync completo a mitad de
+  # madrugada los apaga en silencio y el trabajo de vision se queda otro dia
+  # en la cola. Mismo motivo que el bloque de `ai`, distinto dueño: alli el
+  # gpu_arbiter, aqui KEDA.
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+      name: synapse
+    patch: |-
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: synapse-adapter-expenses
+          namespace: synapse
+          jsonPointers:
+            - /spec/replicas
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: synapse-adapter-messaging-media
+          namespace: synapse
+          jsonPointers:
+            - /spec/replicas
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: synapse-adapter-messaging-contact-sync
+          namespace: synapse
+          jsonPointers:
+            - /spec/replicas
