@@ -614,8 +614,23 @@ spec:
     # atras solo perdia B12X, DeepGEMM y vision. El fallo sigue abierto
     # (vllm-project/vllm#48645 recoge la familia; el nuestro es el caso
     # inverso: reasoning vacio y respuesta en content).
-    # ROLLBACK: 152f55eb70f2fa29d82742f5568cdb796d7dd9f6.
-    targetRevision: "5720e88da621a71da1f79bb961dc9e65a1a0d882"
+    # 25-08: 7c918e2 revierte el fichero ENTERO de DeepSeek al 21-08 (0d69ab0),
+    # no solo la imagen. Prueba pedida por Dani: volver al ultimo punto en que
+    # el perfil iba bien y relanzar sesiones opencode reales encima. Diferencia
+    # con 152f55e, que fue swap de imagen puro con los args de la era 0.27.1:
+    # esto revierte TAMBIEN los args, o sea --reasoning-config con el parser
+    # deepseek_v4, --chat-template, --default-chat-template-kwargs,
+    # --generation-config vllm, --override-generation-config min_p 0.01 y
+    # DEFAULT_THINKING=low; y quita --attention_config.use_fp4_indexer_cache.
+    # Los cinco primeros los borro 4551d99 el 24-08 a las 16:05, asi que ahora
+    # mismo no hay parser de razonamiento cableado en el servidor.
+    # OJO con la expectativa: 152f55e ya demostro que la imagen previa por si
+    # sola NO arregla el reasoning_content, y cuando se probo el parser todavia
+    # estaba puesto. Lo que se busca aqui es el perfil de concurrencia (seqs 6,
+    # DSpark) y una linea base limpia, no una cura del reasoning.
+    # La lambda de la proyeccion rank-1 sigue a 0.0 en los dos ranks: inerte.
+    # ROLLBACK: 5720e88da621a71da1f79bb961dc9e65a1a0d882.
+    targetRevision: "7c918e2d09c2ca6de22fec371be94f1a3ff9bc42"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
