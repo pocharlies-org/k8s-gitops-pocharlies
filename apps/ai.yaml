@@ -615,7 +615,7 @@ spec:
     # (vllm-project/vllm#48645 recoge la familia; el nuestro es el caso
     # inverso: reasoning vacio y respuesta en content).
     # ROLLBACK: 152f55eb70f2fa29d82742f5568cdb796d7dd9f6.
-    targetRevision: "46bcde52199a431b8fafecf62ffa319bf1785617"
+    targetRevision: "8ae9a4ecad66b7ef242476b367b1ec7157bb4cbb"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
