@@ -629,8 +629,23 @@ spec:
     # estaba puesto. Lo que se busca aqui es el perfil de concurrencia (seqs 6,
     # DSpark) y una linea base limpia, no una cura del reasoning.
     # La lambda de la proyeccion rank-1 sigue a 0.0 en los dos ranks: inerte.
-    # ROLLBACK: 5720e88da621a71da1f79bb961dc9e65a1a0d882.
-    targetRevision: "7c918e2d09c2ca6de22fec371be94f1a3ff9bc42"
+    # 25-08: 6219f1c devuelve vLLM 0.27.1 con B12X, DeepGEMM y el visionfix,
+    # pero SIN la reescritura de args del 24-08 — o sea el ultimo 0.27.1 sano.
+    # Frente a 7c918e2 (21-08) cambia UNA sola cosa, la imagen: mismos
+    # --reasoning-config, --reasoning-parser, --chat-template de Unsloth,
+    # --default-chat-template-kwargs, --override-generation-config min_p 0.01,
+    # --moe-backend flashinfer_b12x y --speculative-config k=5. Sin
+    # --enable-expert-parallel (incompatible con B12X) y sin
+    # --attention_config.use_fp4_indexer_cache. Comparacion de una variable.
+    # CERRADO por el camino: el `reasoning_content` NUNCA estuvo roto. vLLM
+    # emite el campo como `reasoning`; `reasoning_content` es el nombre viejo y
+    # ya no existe en la respuesta directa del motor. LiteLLM lo normaliza, asi
+    # que opencode/OpenClaw/Codex/brain siempre lo recibieron bien. El `content`
+    # vacio tampoco era fallo: con DEFAULT_THINKING=low el razonamiento agota
+    # max_tokens antes de cerrar </think> y no queda presupuesto para responder.
+    # Quedan sin sustento las notas del 24-08 que atribuian el fallo a 0.27.1.
+    # ROLLBACK: 7c918e2d09c2ca6de22fec371be94f1a3ff9bc42.
+    targetRevision: "6219f1c73a40cced4d564117896d7697a11a74bb"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
