@@ -649,7 +649,7 @@ spec:
     # degradacion recurrente. Conserva async scheduling, FlashInfer autotune,
     # B12X, limites, pesos y topologia TP=2. ROLLBACK:
     # 77a4889e572b07cab5dfa01d2f381ffe58ff55a3.
-    targetRevision: "ae399465b8d17a87817a4d93c420fa104c80abb4"
+    targetRevision: "dbec10fb65dad2c3aba49574b8bf4acff69b82ad"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
