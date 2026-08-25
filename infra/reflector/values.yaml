@@ -4,12 +4,20 @@
 rbac:
   enabled: false
 
+# 2026-08-25: 128Mi lo mataba por OOM (exit 137) cada ~1 h — 41 reinicios en
+# 3 dias. Reflector vigila TODOS los Secrets, ConfigMaps y Namespaces del
+# cluster, y aqui hay 215+ ExternalSecrets: la cache no cabe. Al reiniciar
+# pierde la cache, cree que el destino no existe y toma la ruta
+# OnResourceCreate, que choca con un 403 porque el Role solo da get/patch.
+# Eso dejo el wildcard *.lan sin propagar a los 7 namespaces replicados.
+# NO se arregla dando `create`: RBAC ignora resourceNames para create, asi que
+# habria que permitir crear CUALQUIER secret en argocd, harbor y vault.
 resources:
   requests:
     cpu: 10m
-    memory: 32Mi
-  limits:
     memory: 128Mi
+  limits:
+    memory: 512Mi
 
 nodeSelector:
   node-pool: ks5-nvme
