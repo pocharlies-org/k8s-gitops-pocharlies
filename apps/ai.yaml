@@ -645,7 +645,7 @@ spec:
     # max_tokens antes de cerrar </think> y no queda presupuesto para responder.
     # Quedan sin sustento las notas del 24-08 que atribuian el fallo a 0.27.1.
     # ROLLBACK: 7c918e2d09c2ca6de22fec371be94f1a3ff9bc42.
-    targetRevision: "1bdd49779aa9445478698d323f04f5cda785cd07"
+    targetRevision: "a3f2344020294fef9fb7f6c1b6e28086de7175ee"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
