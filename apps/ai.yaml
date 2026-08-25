@@ -5,7 +5,7 @@ metadata:
   namespace: argocd
   annotations:
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-ai-pocharlies
-    e-dani.com/rho-pin-purpose: perfiles globales LLM TP / Creative con DeepSeek seqs 6, DSpark y autotune activos
+    e-dani.com/rho-pin-purpose: DeepSeek TP stability A/B with DSpark off and FlashInfer autotune retained
     e-dani.com/rho-rollback-revision: 8f82bec0a51536a7c7308d2dfd275d3de337d345
     e-dani.com/rho-restore-target-revision: codex/restore-official-global-profile-20260811
   labels:
@@ -18,9 +18,9 @@ spec:
     repoURL: https://github.com/pocharlies-org/k8s-ai-pocharlies
     # RHO pin: Ornith MTP graft profile. Same audited image and weights; the
     # overlay serves a locally grafted checkpoint (base-model BF16 mtp.* head,
-    # fail-closed SHA verify in the init container) and turns speculative
-    # decoding on. Roll back to the annotated immutable revision (path k8s) to
-    # return to the exact baseline identity.
+    # fail-closed SHA verify in the init container) and supports speculative
+    # decoding behind an explicit switch. Roll back to the annotated immutable
+    # revision (path k8s) to return to the exact baseline identity.
     #
     # Rolled forward 758cd27 -> ac27f46 -> c84b699 on 2026-07-22, dismantling the
     # abandoned "RHO 256K benchmark isolation" in two steps: ac27f46 restored
@@ -645,7 +645,11 @@ spec:
     # max_tokens antes de cerrar </think> y no queda presupuesto para responder.
     # Quedan sin sustento las notas del 24-08 que atribuian el fallo a 0.27.1.
     # ROLLBACK: 7c918e2d09c2ca6de22fec371be94f1a3ff9bc42.
-    targetRevision: "77a4889e572b07cab5dfa01d2f381ffe58ff55a3"
+    # 25-08: 6cb1012 desactiva SOLO DSpark speculative decode para aislar la
+    # degradacion recurrente. Conserva async scheduling, FlashInfer autotune,
+    # B12X, limites, pesos y topologia TP=2. ROLLBACK:
+    # 77a4889e572b07cab5dfa01d2f381ffe58ff55a3.
+    targetRevision: "6cb10123518c5cabbb22b793f7796cf7ab27545b"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
