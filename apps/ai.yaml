@@ -661,7 +661,12 @@ spec:
     # primer arranque (GPU 0%, spin-wait; mismo fallo que el warmup de DeepSeek
     # en su dia) — y bumpea launch-revision para el Recreate de ambos ranks.
     # ROLLBACK: 8300695aea9c2c88aaf7526bb4b0082a2c404651.
-    targetRevision: "a6a0c24dab28c30cc73c7771018c096f1faa4144"
+    # 26-08 (noche, 2): 72b4c8e baja mem-fraction-static 0.85 -> 0.80 en head y
+    # worker qwen38: con 0.85 el arranque murio OOMKilled (cgroup 112Gi) 3/3
+    # veces a los 30-90s de la captura de CUDA graphs (pico host-side de la
+    # compilacion inductor sobre memoria unificada GB10).
+    # ROLLBACK: a6a0c24dab28c30cc73c7771018c096f1faa4144.
+    targetRevision: "72b4c8efd03c0313577cc22b69b48f6d5ca8d3f1"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
