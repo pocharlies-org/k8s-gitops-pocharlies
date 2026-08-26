@@ -221,6 +221,15 @@ patches:
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *compute-replicas, name: deepseek-v4-flash-0731-worker }
+      # 26-08: Qwen3.8-Flash-Next NVFP4/SGLang, candidato a residente llm-tp
+      # (k8s-ai PR #3, inerte hasta la fase 2). Se registran ya para que el
+      # primer flip de replicas del controlador no pelee con selfHeal.
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: qwen38-flash-next-head }
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: qwen38-flash-next-worker }
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *compute-replicas, name: bge-m3-embedding }
