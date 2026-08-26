@@ -649,7 +649,15 @@ spec:
     # degradacion recurrente. Conserva async scheduling, FlashInfer autotune,
     # B12X, limites, pesos y topologia TP=2. ROLLBACK:
     # 77a4889e572b07cab5dfa01d2f381ffe58ff55a3.
-    targetRevision: "4dfc8bcad0728457cdac6a5f7c6f3cb3747c3bca"
+    # 26-08: 8300695 = 4dfc8bc (DeepSeek 1M intacto) + los manifiestos de
+    # Qwen3.8-Flash-Next NVFP4/SGLang (k8s-ai#3 cherry-picked al linaje vivo).
+    # INERTE a proposito: render verificado con DeepSeek head/worker a 1 y los
+    # dos deploys qwen a 0, sin patch de replicas en el overlay — el switch de
+    # residente lo ejecuta el selector del dashboard cuando se mergeen
+    # dgx-infra#194 + litellm#34 (ventana de despliegue). Las replicas de los
+    # deploys qwen ya estan en ignoreDifferences (este repo, PR #168).
+    # ROLLBACK: 4dfc8bcad0728457cdac6a5f7c6f3cb3747c3bca.
+    targetRevision: "8300695aea9c2c88aaf7526bb4b0082a2c404651"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
