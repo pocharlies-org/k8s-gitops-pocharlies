@@ -657,7 +657,11 @@ spec:
     # dgx-infra#194 + litellm#34 (ventana de despliegue). Las replicas de los
     # deploys qwen ya estan en ignoreDifferences (este repo, PR #168).
     # ROLLBACK: 4dfc8bcad0728457cdac6a5f7c6f3cb3747c3bca.
-    targetRevision: "8300695aea9c2c88aaf7526bb4b0082a2c404651"
+    # 26-08 (noche): a6a0c24 desactiva el autotune de FlashInfer — colgo el
+    # primer arranque (GPU 0%, spin-wait; mismo fallo que el warmup de DeepSeek
+    # en su dia) — y bumpea launch-revision para el Recreate de ambos ranks.
+    # ROLLBACK: 8300695aea9c2c88aaf7526bb4b0082a2c404651.
+    targetRevision: "a6a0c24dab28c30cc73c7771018c096f1faa4144"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
