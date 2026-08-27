@@ -708,7 +708,11 @@ spec:
     # ROLLBACK: 740dd114f13f152c1cc8320ca41ed0219456608d.
     # 27-08 (11): 2edf52f — imagen v0.2.0 con los dos parches horneados;
     # launch.sh limpio. ROLLBACK: f1ff3f9d00dd60c6bb7886bc4b4ab9351b635db2.
-    targetRevision: "2edf52fa2c7bf6f37c4909f0191b76411a15aa41"
+    # 27-08 (12, prueba del operador): d00e26d — 16 concurrentes (mamba 80,
+    # fraccion 0.86). La captura GPU solo come 1.3 GB (bs<=6->16); el pico
+    # host-side ya esta capado. Vigilar margen >6 GB en el arranque.
+    # ROLLBACK: 2edf52fa2c7bf6f37c4909f0191b76411a15aa41 (6cc/0.85/KV 1M).
+    targetRevision: "d00e26d51cb2a8c50a86c264ab21cae9bffa7dbe"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
