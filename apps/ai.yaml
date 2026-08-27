@@ -698,7 +698,11 @@ spec:
     # (antes capado a 8). El coste sale del pool de KV, no del margen del
     # nodo (mem-fraction sigue en 0.78).
     # ROLLBACK: aef80ce94ab97da432e8dd12692324cb83dfc047.
-    targetRevision: "759426223877bb8e6d20f517d877e0a836cd6102"
+    # 27-08 (9): 740dd11 — mem-fraction 0.80: con mamba 80 la KV quedo en
+    # 66944 tokens (< contexto 262144). +2.4 GB la devuelven a ~266K
+    # manteniendo 16 concurrentes; margen del nodo ~21.8 GB.
+    # ROLLBACK: 759426223877bb8e6d20f517d877e0a836cd6102.
+    targetRevision: "740dd114f13f152c1cc8320ca41ed0219456608d"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
