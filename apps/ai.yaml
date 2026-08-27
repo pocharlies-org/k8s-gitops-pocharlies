@@ -720,7 +720,11 @@ spec:
     # autotune de flashinfer se quedaba colgado ~27 min sin memoria para sus
     # buffers. El KV (1.7M tokens) se asigna bien; solo estorbaba el autotune.
     # ROLLBACK: d00e26d (16cc/737K, con autotune, config estable).
-    targetRevision: "ca73f32c31f61d5c88e95f4e31ea891bcf53a19b"
+    # 27-08 (15, config final): 73ccab5 — 8cc a fraccion 0.90 con autotune
+    # reactivado: ~1.3M de KV (~5 sesiones de 262K) y ~7 GB de margen. La de
+    # 0.94/1.7M dejaba el nodo con 2 GB y colgaba el autotune.
+    # ROLLBACK: d00e26d (16cc/737K).
+    targetRevision: "73ccab5b823f25c386295bc55103f2b8ef2419ca"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
