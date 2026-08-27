@@ -947,7 +947,23 @@ metadata:
     operations.pocharlies.org/state-writer-lease: active
     operations.pocharlies.org/approved-revision: ec0310f850510eac802badbfe741a381c559b64d
     operations.pocharlies.org/approval-id: retirar-plano-codex-20260827
-    operations.pocharlies.org/approval-sequence: "20260827211104"
+    # REINTENTO r2. El r1 (21:13Z) fallo en la tarea de Sync del Deployment:
+    #
+    #   Deployment.apps "openclaw-qwen36-openclaw" is invalid:
+    #   spec.template.spec.initContainers[13].image: Required value
+    #
+    # El indice 13 era `codex-app-server`. No es un fallo del manifiesto —el
+    # render no tiene 14 initContainers— sino un CAMPO HUERFANO de Server-Side
+    # Apply: dos field managers muertos del 10-07 (`kubectl-replace` y
+    # `argocd-application-controller`, ambos `Update`) seguian poseyendo campos
+    # DENTRO de ese contenedor. Argo borro lo suyo y el cascaron sobrevivio sin
+    # `image`, que es invalido. Corregido quitando esas dos entradas de
+    # `metadata.managedFields` (impersonando al controlador, que es el unico que
+    # el gate de escritura del Deployment admite); ahora solo lo posee
+    # `argocd-controller`, asi que el apply si puede retirarlo.
+    #
+    # El fallo fue SEGURO: tarea de Sync, nada rodo, el pod siguio con su edad.
+    operations.pocharlies.org/approval-sequence: "20260827211550"
     operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
