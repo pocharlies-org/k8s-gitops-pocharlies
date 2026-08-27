@@ -716,7 +716,11 @@ spec:
     # KV (mamba 40, fraccion 0.94). Punto mas agresivo probado; margen de
     # captura ~7 GB. Vigilar arranque, si <6 GB revertir.
     # ROLLBACK: d00e26d51cb2a8c50a86c264ab21cae9bffa7dbe (16cc/737K).
-    targetRevision: "cae4a76f7097d0860c83156377e41a598ba561e3"
+    # 27-08 (14): ca73f32 — 8cc/1.5M con autotune DESACTIVADO: a 0.94 el
+    # autotune de flashinfer se quedaba colgado ~27 min sin memoria para sus
+    # buffers. El KV (1.7M tokens) se asigna bien; solo estorbaba el autotune.
+    # ROLLBACK: d00e26d (16cc/737K, con autotune, config estable).
+    targetRevision: "ca73f32c31f61d5c88e95f4e31ea891bcf53a19b"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
