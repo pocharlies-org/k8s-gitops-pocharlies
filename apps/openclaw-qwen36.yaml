@@ -848,11 +848,21 @@ metadata:
     # PENDIENTE tras el rollout: el perfil OAuth `openai:k8s-club-bot` esta
     # EXPIRADO (me@e-dani.com) y la cuenta nueva es pocharlies@gmail.com. Hasta
     # rehacer el login, toda llamada de imagen de nube sale 401.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 27723e7f93aaf9adfdb41c3acec75ebe28fac5f6
-    operations.pocharlies.org/approval-id: image-cloud-back-and-pvc-migrations-20260827
-    operations.pocharlies.org/approval-sequence: "20260827153541"
-    operations.pocharlies.org/approved-prune: "false"
+    #
+    # APPROVAL CERRADO para 27723e7: operacion Succeeded a las 15:43Z, las dos
+    # apps Synced/Healthy y el pod principal 5/5. Comprobado EN EL PVC vivo, que
+    # es lo unico que prueba que una migracion corrio: provider `openai` con
+    # `models: []`, `auth.order` y el perfil repuestos, `imageGenerationModel:
+    # openai/gpt-image-2`, `codex-auth` fuera, roster en cuatro (`main`,
+    # `skirmshop`, `image-cloud`, `culturismo`) y `autoSaveAgents` en
+    # ["main","skirmshop"]. Los tres markers sellados y `openclaw agent --agent
+    # main` contesta `vivo`. `openclaw-synapse` se sincronizo a la misma revision
+    # y conserva sus 11 agentes, que es lo que su source declara.
+    #
+    # Los cinco objetos que `prune: false` dejo huerfanos —ConfigMaps de
+    # codex-auth (dos planos), dgx-charla y programador, y el ExternalSecret de
+    # GitHub del programador— se borraron a mano; las dos apps quedaron Synced.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
