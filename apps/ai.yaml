@@ -712,7 +712,11 @@ spec:
     # fraccion 0.86). La captura GPU solo come 1.3 GB (bs<=6->16); el pico
     # host-side ya esta capado. Vigilar margen >6 GB en el arranque.
     # ROLLBACK: 2edf52fa2c7bf6f37c4909f0191b76411a15aa41 (6cc/0.85/KV 1M).
-    targetRevision: "d00e26d51cb2a8c50a86c264ab21cae9bffa7dbe"
+    # 27-08 (13, prueba del operador): cae4a76 — 8 concurrentes con ~1.5M de
+    # KV (mamba 40, fraccion 0.94). Punto mas agresivo probado; margen de
+    # captura ~7 GB. Vigilar arranque, si <6 GB revertir.
+    # ROLLBACK: d00e26d51cb2a8c50a86c264ab21cae9bffa7dbe (16cc/737K).
+    targetRevision: "cae4a76f7097d0860c83156377e41a598ba561e3"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
