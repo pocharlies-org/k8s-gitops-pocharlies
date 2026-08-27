@@ -872,10 +872,37 @@ metadata:
     # estaba escrito en models.json de main y skirmshop y no salia en el
     # selector. Sync completo, prune false: solo cambian el ConfigMap del
     # plugin y el checksum del Deployment que lo monta.
+    # APPROVAL CERRADO para 0e2aef5: la operacion termino Succeeded a las 17:46Z
+    # y el pod de main rodo con ella (ReplicaSet 659ccb779b). El lease se quedo
+    # abierto; se cierra aqui al abrir el siguiente, que incluye esa revision.
+    #
+    # Approval 2026-08-27 (tarde) para 8432518: el owner revierte la via de
+    # imagen de nube aprobada esta misma manana — «en openclaw no tiene que haber
+    # posibilidad de usar la cuenta de chatgpt, solo la de dgx local». Salen el
+    # provider `openai`, `auth.order`/`auth.profiles`, `imageGenerationModel`, el
+    # agente `image-cloud` y su sidecar. Roster a cuatro.
+    #
+    # Lo que hace que esto NO sea un Succeeded vacio son los markers a **v2**:
+    # `openai-retired-v1` se sello a las 15:43Z de hoy y un gate con el mismo
+    # nombre no vuelve a disparar nunca. El PVC vivo tiene el transporte DENTRO,
+    # medido: `readyz` del sidecar decia `openai image provider configured` y una
+    # llamada real moria en `HTTP 401 token_invalidated`.
+    #
+    # Esto NO toca el codex-bridge de LiteLLM (`litellm-codex`), que sigue
+    # sirviendo `gpt-5.*` con la cuenta nueva a otros clientes: `gpt-5.6-sol`
+    # llevaba 141 llamadas el 26-08 en SpendLogs. La regla es de OpenClaw.
+    #
+    # Verificado antes de abrir: `scripts/validate.sh` en verde (547 + 105) y un
+    # test que siembra el PVC tal y como lo dejo el despliegue de las 15:43Z —con
+    # el transporte dentro y los v1 sellados— y corre el init de verdad.
+    #
+    # prune false: no se borra ningun recurso. Quedan huerfanos a proposito el
+    # ConfigMap y el ExternalSecret de `image-cloud-api`; se retiran a mano tras
+    # verificar el rollout, y el lease se cierra en la misma sesion.
     operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 0e2aef555da11d56a9b24a3ce38f1c6c8c026898
-    operations.pocharlies.org/approval-id: fix-models-json-input-document-20260827
-    operations.pocharlies.org/approval-sequence: "20260827174110"
+    operations.pocharlies.org/approved-revision: 8432518aa9eab459102f71b1ed3400061a7d6617
+    operations.pocharlies.org/approval-id: openclaw-sin-chatgpt-20260827
+    operations.pocharlies.org/approval-sequence: "20260827192920"
     operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
