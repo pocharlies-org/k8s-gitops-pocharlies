@@ -824,7 +824,35 @@ metadata:
     # catalogo principal identifica Qwen3.8 27B como residente Ready.
     # APPROVAL CERRADO: 1802865 termino Succeeded/Synced/Healthy en los dos
     # planos; los ConfigMaps vivos ya no publican offer_changes.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Approval 2026-08-27 para 27723e7: es la PRIMERA operacion desde 1802865, o
+    # sea que arrastra ocho dias de trabajo que hasta hoy solo existia en git y en
+    # el PVC tocado a mano. Contenido: OpenAI fuera del chat, thinking `off`
+    # explicito, retirada de `programador`/`dgx-charla`/`local`/`synapse-ops-analyst`/
+    # `qwen4b`, `toolSearch mode: tools`, y la VUELTA de la ruta de imagen de nube
+    # (provider `openai` con `models: []` como puro transporte de `gpt-image-2`).
+    #
+    # Lo que hace que esta operacion no sea un Succeeded vacio son las tres
+    # migraciones nuevas del initContainer: el PVC gana al ConfigMap y ninguna de
+    # las anteriores se habia sellado. `retireOpenAI` corre con `keepTransport` en
+    # este plano —barre la nube del CHAT y respeta provider/auth/imagen—, y
+    # `image-cloud-restored-v1` repone las cuatro claves del transporte.
+    #
+    # Verificado antes de abrir: `scripts/validate.sh` en verde (548 + 105 tests),
+    # `helm template` OK para las DOS apps del chart, y el test nuevo ejecuta el
+    # bloque node del init contra un PVC sembrado con el estado MEDIDO en el pod.
+    #
+    # prune false: no se borra ningun recurso. Quedan huerfanos a proposito los
+    # ConfigMaps de `programador`/`dgx-charla` y el ExternalSecret de GitHub del
+    # programador; se retiran a mano tras verificar el rollout.
+    #
+    # PENDIENTE tras el rollout: el perfil OAuth `openai:k8s-club-bot` esta
+    # EXPIRADO (me@e-dani.com) y la cuenta nueva es pocharlies@gmail.com. Hasta
+    # rehacer el login, toda llamada de imagen de nube sale 401.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 27723e7f93aaf9adfdb41c3acec75ebe28fac5f6
+    operations.pocharlies.org/approval-id: image-cloud-back-and-pvc-migrations-20260827
+    operations.pocharlies.org/approval-sequence: "20260827153541"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
