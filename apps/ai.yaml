@@ -694,7 +694,11 @@ spec:
     # contra el registry de la build y el template XML del checkpoint; la
     # recipe de vLLM usa los equivalentes). Riesgo vigilado: sglang#36537.
     # ROLLBACK: cd1fbb77f9e0c0e742459f4d07386b384f746858.
-    targetRevision: "aef80ce94ab97da432e8dd12692324cb83dfc047"
+    # 27-08 (8): 7594262 — mamba cache explicita a 80 slots: 16 concurrentes
+    # (antes capado a 8). El coste sale del pool de KV, no del margen del
+    # nodo (mem-fraction sigue en 0.78).
+    # ROLLBACK: aef80ce94ab97da432e8dd12692324cb83dfc047.
+    targetRevision: "759426223877bb8e6d20f517d877e0a836cd6102"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
