@@ -690,7 +690,11 @@ spec:
     # esta templada; el cuelgue de v1 era con cache fria). Baseline sin
     # autotune: 42 tok/s single, 149-158 tok/s x8, accept_len 2.0-2.5.
     # ROLLBACK: 969f3c22775c03b973c4fdb23bd3ac7d01d66527.
-    targetRevision: "cd1fbb77f9e0c0e742459f4d07386b384f746858"
+    # 27-08 (7): aef80ce — parsers qwen3/qwen3_coder activados (validados
+    # contra el registry de la build y el template XML del checkpoint; la
+    # recipe de vLLM usa los equivalentes). Riesgo vigilado: sglang#36537.
+    # ROLLBACK: cd1fbb77f9e0c0e742459f4d07386b384f746858.
+    targetRevision: "aef80ce94ab97da432e8dd12692324cb83dfc047"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
