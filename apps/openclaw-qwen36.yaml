@@ -862,7 +862,21 @@ metadata:
     # Los cinco objetos que `prune: false` dejo huerfanos —ConfigMaps de
     # codex-auth (dos planos), dgx-charla y programador, y el ExternalSecret de
     # GitHub del programador— se borraron a mano; las dos apps quedaron Synced.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Approval 2026-08-27: el plugin litellm-context-sync dejaba de declarar
+    # "document" en models.json. El schema de OpenClaw es
+    # input: Array(Union([Literal("text"), Literal("image")])), asi que ese
+    # tercer valor —que traian los seis gpt-5.x del puente Codex por
+    # supports_pdf_input— invalidaba el fichero ENTERO y el model-registry se
+    # quedaba con el catalogo anterior ("Invalid models.json schema", pod de
+    # main 15:50:42Z). Sintoma: qwen38-flash-next, residente llm-tp desde hoy,
+    # estaba escrito en models.json de main y skirmshop y no salia en el
+    # selector. Sync completo, prune false: solo cambian el ConfigMap del
+    # plugin y el checksum del Deployment que lo monta.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: 0e2aef555da11d56a9b24a3ce38f1c6c8c026898
+    operations.pocharlies.org/approval-id: fix-models-json-input-document-20260827
+    operations.pocharlies.org/approval-sequence: "20260827174110"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
