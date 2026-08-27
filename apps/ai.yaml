@@ -670,7 +670,11 @@ spec:
     # worker siguio muriendo OOMKilled a los 89s de la captura (pico host-side
     # de ~20 compiladores paralelos en GB10).
     # ROLLBACK: 72b4c8efd03c0313577cc22b69b48f6d5ca8d3f1.
-    targetRevision: "32b8cff37cc69fe2e24f740540c44db00e24f984"
+    # 27-08 (2): 526e720 — el OOM de las 00:33Z fue GLOBAL de nvidia-dgx, no
+    # del cgroup: ~200 cicc (nvcc del JIT de flashinfer) en dmesg. MAX_JOBS=4
+    # capa el ninja; mem-fraction 0.78 simetrico da aire al nodo.
+    # ROLLBACK: 32b8cff37cc69fe2e24f740540c44db00e24f984.
+    targetRevision: "526e7206ede27fcec07ce839fb1e50af47b63254"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
