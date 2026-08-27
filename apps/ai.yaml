@@ -702,7 +702,11 @@ spec:
     # 66944 tokens (< contexto 262144). +2.4 GB la devuelven a ~266K
     # manteniendo 16 concurrentes; margen del nodo ~21.8 GB.
     # ROLLBACK: 759426223877bb8e6d20f517d877e0a836cd6102.
-    targetRevision: "740dd114f13f152c1cc8320ca41ed0219456608d"
+    # 27-08 (10, prueba del operador): f1ff3f9 — 6 concurrentes (mamba 30) y
+    # fraccion 0.85: KV ~1.1M tokens (~4 sesiones de 262K en paralelo). Los
+    # OOM historicos de 0.85 eran pre-MAX_JOBS=1 con JIT fria.
+    # ROLLBACK: 740dd114f13f152c1cc8320ca41ed0219456608d.
+    targetRevision: "f1ff3f9d00dd60c6bb7886bc4b4ab9351b635db2"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
