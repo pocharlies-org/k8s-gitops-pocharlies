@@ -916,7 +916,39 @@ metadata:
     # `codex-app-server` sigue teniendo una credencial viva de ChatGPT
     # (`info@e-dani.com`, plan Pro, refrescada el 21-08). `model_provider =
     # "litellm"` es un pin, no un muro. Borrar una credencial lo decide el owner.
-    operations.pocharlies.org/state-writer-lease: inactive
+    # Approval 2026-08-27 (noche) para ec0310f: se retira el plano Codex ENTERO
+    # del gateway — sidecar, ConfigMap, ExternalSecret de cripto, PVC
+    # `codex-state`, hook `codex-provider-gate`, el objetivo `codex` de la
+    # migracion RWOP, el plugin `codex-supervisor` y las seis tools `codex_*`.
+    # Detonante: su `auth.json` guardaba una credencial de ChatGPT en un PVC
+    # fuera de GitOps.
+    #
+    # DOS COSAS QUE NO SE VAN. El Secret `openclaw-qwen36-codex-litellm` se queda:
+    # pese al nombre lo consumen el controlador de borradores y el de SRE, y
+    # estaba gateado en `codexAppServer.enabled` — retirarlo habria dejado a esos
+    # dos apuntando a un Secret sin ExternalSecret que lo refresque. Y el puente
+    # `litellm-codex` del ns `litellm` es otro componente: no se toca.
+    #
+    # UNA QUE CAE CON EL PLANO: `correosFuelCron.enabled: false`. Su prompt es
+    # Codex de punta a punta y ya estaba en `error (4x)`. Mantenia el recargo de
+    # carburante de la matriz de Correos, que entra en el precio de las etiquetas.
+    # Hay que reescribirlo sin Codex o asumir que no corre.
+    #
+    # Verificado antes de abrir: `scripts/validate.sh` en verde (540 + 105) y el
+    # workflow `validate` del PR #278 en pass. El render deja de traer un solo
+    # objeto `codex-*` salvo ese Secret compartido, y el pod baja a 3 (gateway,
+    # proxy y el lease de escritura).
+    #
+    # prune false: no se borra ningun recurso. El PVC `codex-state`, su Secret de
+    # cifrado, el ConfigMap y el ExternalSecret de cripto se retiran A MANO tras
+    # verificar el rollout — el PV es `Retain`, asi que hay que borrarlo tambien.
+    # Se van con ellos 733 transcripts de sesion y cuatro sqlite, sin copia: lo
+    # autorizo el owner en esos terminos («eliminalo todo»).
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: ec0310f850510eac802badbfe741a381c559b64d
+    operations.pocharlies.org/approval-id: retirar-plano-codex-20260827
+    operations.pocharlies.org/approval-sequence: "20260827211104"
+    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
