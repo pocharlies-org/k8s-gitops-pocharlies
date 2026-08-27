@@ -944,9 +944,27 @@ metadata:
     # verificar el rollout — el PV es `Retain`, asi que hay que borrarlo tambien.
     # Se van con ellos 733 transcripts de sesion y cuatro sqlite, sin copia: lo
     # autorizo el owner en esos terminos («eliminalo todo»).
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: ec0310f850510eac802badbfe741a381c559b64d
-    operations.pocharlies.org/approval-id: retirar-plano-codex-20260827
+    # APPROVAL CERRADO para ec0310f (r2): operacion Succeeded a las 21:20Z, las
+    # dos apps Synced/Healthy. Comprobado EN EL PVC vivo: sin plugin
+    # `codex-supervisor`, cero tools `codex_*` en el `alsoAllow` global, en el de
+    # cada agente y en el `allow` de `skirmshop`, y el marcador
+    # `codex-plane-retired-v1` sellado. El pod baja de 4/4 a 3/3 y sus
+    # initContainers ya no incluyen `codex-app-server`.
+    #
+    # Retirado a mano tras verificar: PVC `codex-state`, su PV (era `Retain`), el
+    # volumen de Longhorn, el Secret de cifrado, el ConfigMap `codex-config`, el
+    # ExternalSecret `codex-crypto`, el ConfigMap del cron de Correos y la
+    # NetworkPolicy del gate. Se fueron con ellos 733 transcripts y cuatro
+    # sqlite, sin copia, en los terminos que autorizo el owner.
+    #
+    # SOBREVIVE a proposito el Secret `openclaw-qwen36-codex-litellm`: pese al
+    # nombre lo consumen el controlador de borradores y el de SRE, los dos
+    # comprobados Running despues.
+    #
+    # El cron `skirmshop-correos-fuel-codex-v1` se borro tambien del PVC con
+    # `openclaw cron rm`: apagarlo en el chart no retira el que ya estaba
+    # declarado, y llevaba `error (4x)`.
+    operations.pocharlies.org/state-writer-lease: inactive
     # REINTENTO r2. El r1 (21:13Z) fallo en la tarea de Sync del Deployment:
     #
     #   Deployment.apps "openclaw-qwen36-openclaw" is invalid:
@@ -963,8 +981,6 @@ metadata:
     # `argocd-controller`, asi que el apply si puede retirarlo.
     #
     # El fallo fue SEGURO: tarea de Sync, nada rodo, el pod siguio con su edad.
-    operations.pocharlies.org/approval-sequence: "20260827211550"
-    operations.pocharlies.org/approved-prune: "false"
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
