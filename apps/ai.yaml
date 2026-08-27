@@ -686,7 +686,11 @@ spec:
     # decode trtllm de QSA a sm120+ (import verificado en la imagen): con
     # trtllm resuelto el backend no llama al varlen roto.
     # ROLLBACK: e96ae7b75ba11e4ee35337d245256cadbf915f28.
-    targetRevision: "969f3c22775c03b973c4fdb23bd3ac7d01d66527"
+    # 27-08 (6): cd1fbb7 — v3 re-activa el autotune de flashinfer (la JIT ya
+    # esta templada; el cuelgue de v1 era con cache fria). Baseline sin
+    # autotune: 42 tok/s single, 149-158 tok/s x8, accept_len 2.0-2.5.
+    # ROLLBACK: 969f3c22775c03b973c4fdb23bd3ac7d01d66527.
+    targetRevision: "cd1fbb77f9e0c0e742459f4d07386b384f746858"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
