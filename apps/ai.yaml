@@ -666,7 +666,11 @@ spec:
     # veces a los 30-90s de la captura de CUDA graphs (pico host-side de la
     # compilacion inductor sobre memoria unificada GB10).
     # ROLLBACK: a6a0c24dab28c30cc73c7771018c096f1faa4144.
-    targetRevision: "72b4c8efd03c0313577cc22b69b48f6d5ca8d3f1"
+    # 27-08: 32b8cff acota inductor a 4 workers de compilacion — con 0.80 el
+    # worker siguio muriendo OOMKilled a los 89s de la captura (pico host-side
+    # de ~20 compiladores paralelos en GB10).
+    # ROLLBACK: 72b4c8efd03c0313577cc22b69b48f6d5ca8d3f1.
+    targetRevision: "32b8cff37cc69fe2e24f740540c44db00e24f984"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
