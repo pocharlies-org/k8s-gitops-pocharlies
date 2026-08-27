@@ -899,11 +899,24 @@ metadata:
     # prune false: no se borra ningun recurso. Quedan huerfanos a proposito el
     # ConfigMap y el ExternalSecret de `image-cloud-api`; se retiran a mano tras
     # verificar el rollout, y el lease se cierra en la misma sesion.
-    operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: 8432518aa9eab459102f71b1ed3400061a7d6617
-    operations.pocharlies.org/approval-id: openclaw-sin-chatgpt-20260827
-    operations.pocharlies.org/approval-sequence: "20260827192920"
-    operations.pocharlies.org/approved-prune: "false"
+    # APPROVAL CERRADO para 8432518: operacion Succeeded a las 19:35Z, las dos
+    # apps Synced/Healthy. Comprobado EN EL PVC vivo, que es lo unico que prueba
+    # que los markers v2 corrieron: `models.providers` = [anthropic, litellm],
+    # `auth` = {order:{},profiles:{}}, sin `imageGenerationModel`, roster en tres
+    # (`main`, `skirmshop`, `culturismo`; `social` corre en su propio Deployment)
+    # y los dos markers v2 sellados. El pod baja de 5/5 a 4/4: se va el contenedor
+    # `image-cloud-api` y `codex-app-server` sigue como sidecar nativo. `openclaw
+    # agent --agent main` contesta `vivo`. Synapse a la misma revision, con sus 11
+    # agentes y sin provider de nube.
+    #
+    # El ConfigMap y el ExternalSecret de `image-cloud-api` que dejo `prune:false`
+    # se borraron a mano; la app quedo Synced.
+    #
+    # PENDIENTE, y NO es config: `/codex-home/auth.json` del sidecar
+    # `codex-app-server` sigue teniendo una credencial viva de ChatGPT
+    # (`info@e-dani.com`, plan Pro, refrescada el 21-08). `model_provider =
+    # "litellm"` es un pin, no un muro. Borrar una credencial lo decide el owner.
+    operations.pocharlies.org/state-writer-lease: inactive
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
