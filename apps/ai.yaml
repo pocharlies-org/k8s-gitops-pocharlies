@@ -677,7 +677,11 @@ spec:
     # 27-08 (3): 78ddc73 — MAX_JOBS 4->1: un solo cicc de los fused_moe FP4
     # llega a 7.7 GB de RSS; 4 en paralelo (~32 GB) tumbaron nvidia-dgx otra
     # vez a las 01:15Z. ROLLBACK: 526e7206ede27fcec07ce839fb1e50af47b63254.
-    targetRevision: "78ddc735684147f1a88bbccc694dcc2e6b071e15"
+    # 27-08 (4): e96ae7b — ya sin OOM (exit 0): el crash restante era el .so
+    # de FA2 con ABI rota que tumbaba tambien el path cute de QSA. launch.sh
+    # ahora stubea flash_attn/__init__ (verificado en contenedor).
+    # ROLLBACK: 78ddc735684147f1a88bbccc694dcc2e6b071e15.
+    targetRevision: "e96ae7b75ba11e4ee35337d245256cadbf915f28"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
