@@ -815,7 +815,31 @@ spec:
     #      (#35936). Si salen, se aplica despues -- decision del operador.
     #   3) evals/niah_sm121.sh: NIAH a 128k, la prueba que discrimina.
     # ROLLBACK: d5614568eeb9fdf0020ed2e4ab07750ffc851ec5 (v0.5.0-rank1, nuestra cadena).
-    targetRevision: "623f90700cb47f9ec74cbf289b8eba2fff06dae8"
+    # 28-08 (21): c5552ab — cierra las TRES desviaciones que quedaban frente
+    # a la receta de MiaAI-Lab. Comparados los server_args vivos contra su
+    # build_sglang_args, todo lo demas ya coincidia.
+    #
+    #   1. fuera --disable-flashinfer-autotune (era nuestro; la hipotesis de
+    #      que el autotune corrompia quedo falsada y la bandera se habia
+    #      quedado por inercia). Ellos publican 64.4 tok/s CON autotune;
+    #      nosotros mediamos 19.7 -> 117 ms/paso contra sus 61.
+    #   2. MAMBA_FULL_MEMORY_RATIO 0.9 (default) -> 0.3 (el suyo). Libera
+    #      ~3.4 GB de los 5.10 que se comian 103 slots; el KV deberia subir
+    #      de 1.38M a ~2.4-2.6M tokens SIN tocar mem-fraction, que es el
+    #      lever que congela el GB10.
+    #   3. fuera el interruptor QSA_TRTLLM_SM120: inerte desde la migracion y
+    #      encima mentia en el log ("trtllm abierto a sm120+") cuando la
+    #      imagen excluye SM121 por dentro.
+    #
+    # Se queda --strip-thinking-cache, unica desviacion deliberada: opencode
+    # reenvia el historial con los bloques de thinking y sin el se re-prefillea
+    # entero. Con thinking ENCENDIDO importa mas, no menos.
+    #
+    # QUE MEDIR tras el arranque (~70 min, 39 son captura de graphs):
+    #   pool KV (esperado ~2.4-2.6M), single-stream tok/s (objetivo 64.4),
+    #   accept len (objetivo 3.95, ahora 2.30).
+    # ROLLBACK: 623f90700cb47f9ec74cbf289b8eba2fff06dae8
+    targetRevision: "c5552ab22c5a2935589a6ebd67d69f77e48cfbc0"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
