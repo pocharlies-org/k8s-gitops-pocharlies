@@ -789,7 +789,33 @@ spec:
     # la ventana de transicion de batch que describe sglang#36876 (abierta, sin
     # parche upstream) -- y eso seria la evidencia que a ese issue le falta.
     # ROLLBACK: 18b3d6d6df37d30c05f725f7481aecd442849990 (v0.3.0).
-    targetRevision: "d5614568eeb9fdf0020ed2e4ab07750ffc851ec5"
+    # 28-08 (20): 623f907 — MIGRACION COMPLETA a la receta de MiaAI-Lab
+    # (github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Dual-DGX-Sparks, MIT).
+    # Se abandona nuestra cadena de imagenes v0.2.0..v0.5.0 y sus parches
+    # propios: hoy se falsaron CUATRO hipotesis nuestras y la unica
+    # explicacion que sobrevivio vino de su changelog.
+    #
+    # Imagen dspark-v1 (sha256:030f446bd6dea479...): su base
+    # lmsysorg/sglang:qwen38flashnext arm64 + sus tres ficheros verbatim
+    # (sm121_varlen.py, qsa_nvfp4_kv.py, apply_nvfp4_patches.py) + su bloque
+    # de Dockerfile: trtllm -> None en SM121 (#36806), varlen -> Triton
+    # (#36845). Sus 11 anclas aplicaron a la primera.
+    #
+    # Config suya: contexto 1M con YaRN + max-prefill-tokens 2048,
+    # max-running-requests 28, mem-fraction 0.80, chunked-prefill 1024,
+    # KV nvfp4, parsers en auto, cuda-graph-bs 1..16.
+    #
+    # CAMBIA MUCHO A LA VEZ (base, KV, contexto, concurrencia). No se podra
+    # atribuir que pieza arregla que; a cambio es su configuracion probada.
+    #
+    # QUE VIGILAR AL ARRANCAR, en este orden:
+    #   1) grep "tool_call_parser='" en el log: si "auto" resuelve a
+    #      qwen3_coder, vuelve el bucle de sglang#36537 (thinking queda ON).
+    #   2) grep -c "state was deleted": su base NO lleva el parche de zombis
+    #      (#35936). Si salen, se aplica despues -- decision del operador.
+    #   3) evals/niah_sm121.sh: NIAH a 128k, la prueba que discrimina.
+    # ROLLBACK: d5614568eeb9fdf0020ed2e4ab07750ffc851ec5 (v0.5.0-rank1, nuestra cadena).
+    targetRevision: "623f90700cb47f9ec74cbf289b8eba2fff06dae8"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
