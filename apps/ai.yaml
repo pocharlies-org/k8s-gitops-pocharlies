@@ -743,7 +743,15 @@ spec:
     #   accept len > 1.00  -> #36556 hizo su trabajo. Si sigue en 1.00,
     #   ENABLE_MTP a "false" otra vez: es un env var y se mide en minutos.
     # ROLLBACK: 73ccab5b823f25c386295bc55103f2b8ef2419ca (v0.2.0, NEXTN off).
-    targetRevision: "d6313fb39f96d588ba3b0cfec2861a649d559761"
+    # 28-08 (17): c8c7ea5 — QSA_TRTLLM_SM120 a "closed". Con v0.3.0 y el gate
+    # ABIERTO el accept len siguio en 1.00 (277 de 279 batches) y 19 tok/s,
+    # identico a v0.2.0: con el gate abierto el fallback varlen no se llama
+    # nunca, asi que el segundo edit de #36556 era codigo muerto aqui.
+    # Se prueba la hipotesis contraria (trtllm-gen SM100-only emitiendo basura
+    # en SM121), que hasta v0.3.0 no era ejecutable porque el fallback estaba
+    # roto. ENABLE_MTP sigue en true: el accept rate es la medida.
+    # ROLLBACK: d6313fb39f96d588ba3b0cfec2861a649d559761 (gate abierto).
+    targetRevision: "c8c7ea5868f1ed37e8528e9ee6a42060c36891b2"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
