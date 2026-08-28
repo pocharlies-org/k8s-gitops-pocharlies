@@ -751,7 +751,26 @@ spec:
     # en SM121), que hasta v0.3.0 no era ejecutable porque el fallback estaba
     # roto. ENABLE_MTP sigue en true: el accept rate es la medida.
     # ROLLBACK: d6313fb39f96d588ba3b0cfec2861a649d559761 (gate abierto).
-    targetRevision: "c8c7ea5868f1ed37e8528e9ee6a42060c36891b2"
+    # 28-08 (18): 18b3d6d — autotune de flashinfer APAGADO, que es la causa
+    # real del accept rate 0.00, y QSA_TRTLLM_SM120 de vuelta a "open" (el A/B
+    # del gate quedo falsado: cerrado da exactamente lo mismo que abierto).
+    #
+    # La especulacion no estaba rota. En el historico de VictoriaMetrics el
+    # 27-08 sirvio todo el dia entre 1.5 y 3.9 en seis pods. El pod del 28-08
+    # arranco sano a las 01:30 y a las 08:30 el accept_rate cayo de 0.289 a
+    # 0.000 sin recuperarse en 6 h -- en el mismo punto en que
+    # num_running_reqs llego a 8, el techo de max_running_requests. Satura la
+    # concurrencia, se atasca, y no vuelve hasta reiniciar.
+    #
+    # Es lo que midio knapcio en sglang#36537 hoy: concurrencia >=4 degrada de
+    # forma no determinista; con el autotune apagado, 30/30 limpio. Coste
+    # declarado ~66 -> ~41 tok/s de decode single-stream; se acepta, porque
+    # atascado nos dejaba en 19.
+    #
+    # QUE VIGILAR: sglang:spec_accept_length tras saturar los 8 concurrentes.
+    # Si vuelve a caer a 1.00 y quedarse, el autotune no era (o no era solo).
+    # ROLLBACK: c8c7ea5868f1ed37e8528e9ee6a42060c36891b2.
+    targetRevision: "18b3d6d6df37d30c05f725f7481aecd442849990"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
