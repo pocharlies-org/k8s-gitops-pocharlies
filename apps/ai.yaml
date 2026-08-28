@@ -839,7 +839,23 @@ spec:
     #   pool KV (esperado ~2.4-2.6M), single-stream tok/s (objetivo 64.4),
     #   accept len (objetivo 3.95, ahora 2.30).
     # ROLLBACK: 623f90700cb47f9ec74cbf289b8eba2fff06dae8
-    targetRevision: "c5552ab22c5a2935589a6ebd67d69f77e48cfbc0"
+    # 28-08 (22): 320f8bf — KV nvfp4 -> fp8_e4m3. UNA variable.
+    #
+    # Con autotune ON y mamba 0.3 el paso de decode ya esta casi en su numero
+    # (70 ms contra sus 61), pero el accept del MTP no se movio:
+    #     KV nvfp4       accept 1.85-2.50   29.7 tok/s
+    #     KV bf16 (am)   accept 3.02-3.89   52.0 tok/s
+    #     ellos          accept 3.95        64.4 tok/s
+    # Con el paso ya rapido, el deficit que queda es casi todo accept.
+    #
+    # Precedente para ESTE modelo y arquitectura (hibrida GDN): vllm#52475 --
+    # con KV fp8 el MTP va limpio, con KV de 4 bit degenera 12/12. Su firma es
+    # la nuestra: arranca sano, prompts cortos bien, se rompe en largo.
+    #
+    # COSTE: el pool baja de 2.02M. REVERSION: si el accept no mejora, no era
+    # el KV y se vuelve a nvfp4, que da 3.5x mas pool.
+    # ROLLBACK: c5552ab22c5a2935589a6ebd67d69f77e48cfbc0
+    targetRevision: "320f8bf36bcbdce3d39a5f47429cfec8897ca697"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
