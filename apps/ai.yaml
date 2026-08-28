@@ -770,7 +770,26 @@ spec:
     # QUE VIGILAR: sglang:spec_accept_length tras saturar los 8 concurrentes.
     # Si vuelve a caer a 1.00 y quedarse, el autotune no era (o no era solo).
     # ROLLBACK: c8c7ea5868f1ed37e8528e9ee6a42060c36891b2.
-    targetRevision: "18b3d6d6df37d30c05f725f7481aecd442849990"
+    # 28-08 (19): d561456 — imagen v0.4.0 (= v0.3.0 + sglang#35936) contra las
+    # peticiones ZOMBI. Es la causa real, y con evidencia por fin: al cancelar
+    # un turno el TokenizerManager borra rid_to_state SIN avisar al scheduler,
+    # que sigue decodificando esa peticion hasta max_new_tokens ocupando su
+    # slot para siempre. Medido en el head: 11.899 de 12.850 lineas de log
+    # (92.6%) eran el error del zombi, de tres rids; el primero nace a las
+    # 16:05:57 y el accept rate colapsa a las 16:10 -- la causa VA ANTES.
+    #
+    # Reordena la causalidad: no es que saturar rompa la especulacion; cada
+    # zombi ocupa un slot, y con tres el #running-req se queda en 8 sin que
+    # nadie pida nada. El accept len 1.00 era el termometro, no el fuego --
+    # por eso las tres hipotesis anteriores (#36556, gate trtllm, autotune) no
+    # movieron nada.
+    #
+    # QUE VIGILAR: `kubectl logs ... | grep -c "state was deleted"` debe
+    # quedarse en 0. Si vuelve a aparecer, el abort SI se envio y se perdio en
+    # la ventana de transicion de batch que describe sglang#36876 (abierta, sin
+    # parche upstream) -- y eso seria la evidencia que a ese issue le falta.
+    # ROLLBACK: 18b3d6d6df37d30c05f725f7481aecd442849990 (v0.3.0).
+    targetRevision: "d5614568eeb9fdf0020ed2e4ab07750ffc851ec5"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
