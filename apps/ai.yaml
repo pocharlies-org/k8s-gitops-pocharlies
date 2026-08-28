@@ -724,7 +724,26 @@ spec:
     # reactivado: ~1.3M de KV (~5 sesiones de 262K) y ~7 GB de margen. La de
     # 0.94/1.7M dejaba el nodo con 2 GB y colgaba el autotune.
     # ROLLBACK: d00e26d (16cc/737K).
-    targetRevision: "73ccab5b823f25c386295bc55103f2b8ef2419ca"
+    # 28-08 (16): d6313fb — imagen v0.3.0 (= v0.2.0 + sglang#36556) y NEXTN
+    # de vuelta a true. El accept rate 0.00 que motivo apagarlo no era
+    # sglang#36532: el resolver del decode disperso de QSA solo miraba
+    # is_sm100_supported(), asi que en sm_121 caia al varlen del flash_attn de
+    # pip (kernel CUTE generico/SM100, inservible para la forma varlen de QSA)
+    # y draft/verify no coincidian. Medido antes: 844 de ~850 batches con
+    # accept len 1.00, 18.9 tok/s frente a 41. Los dos despliegues de DGX
+    # Spark que confirman la PR miden accept len 1.6-2.8 y 3.95-4.00.
+    #
+    # ARRASTRA los cuatro commits intermedios, que no se habian desplegado:
+    #   cc62e95  apagar NEXTN            (lo revierte d6313fb, queda en true)
+    #   23616bb  chunked-prefill 2048 -> 4096
+    #   8d16759  --strip-thinking-cache
+    #   c72dfe4  interruptor QSA_TRTLLM_SM120 (default `open` = sin cambio)
+    #
+    # QUE VIGILAR tras el rollout, en el log del head:
+    #   accept len > 1.00  -> #36556 hizo su trabajo. Si sigue en 1.00,
+    #   ENABLE_MTP a "false" otra vez: es un env var y se mide en minutos.
+    # ROLLBACK: 73ccab5b823f25c386295bc55103f2b8ef2419ca (v0.2.0, NEXTN off).
+    targetRevision: "d6313fb39f96d588ba3b0cfec2861a649d559761"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
