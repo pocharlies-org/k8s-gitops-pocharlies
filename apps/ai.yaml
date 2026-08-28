@@ -789,7 +789,15 @@ spec:
     # la ventana de transicion de batch que describe sglang#36876 (abierta, sin
     # parche upstream) -- y eso seria la evidencia que a ese issue le falta.
     # ROLLBACK: 18b3d6d6df37d30c05f725f7481aecd442849990 (v0.3.0).
-    targetRevision: "d5614568eeb9fdf0020ed2e4ab07750ffc851ec5"
+    #
+    # 28-08 (37da565): imagen v0.4.0-rank1 = la v0.4.0 de arriba + un parche que
+    # mete una proyeccion rank-1 de refusal en el forward de qwen4_exp. INERTE
+    # de momento: arranca con SGLANG_REFUSAL_LAMBDA=0 y con lambda=0 la
+    # correccion es cero, o sea bit a bit la v0.4.0. Todo lo de arriba
+    # (peticiones zombi, accept len, "state was deleted") se sigue midiendo
+    # igual y sigue siendo comparable.
+    # ROLLBACK de SOLO esta capa: d5614568eeb9fdf0020ed2e4ab07750ffc851ec5.
+    targetRevision: "37da5652da45508d299651750125666de2fdf24e"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
