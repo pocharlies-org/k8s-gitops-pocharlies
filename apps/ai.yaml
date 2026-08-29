@@ -863,7 +863,21 @@ spec:
     # log y no lo mire). Se limpian ademas FP4_GEMM_BACKEND forzado y
     # MAX_MAMBA_CACHE_SIZE vestigial.
     # ROLLBACK: 320f8bf36bcbdce3d39a5f47429cfec8897ca697
-    targetRevision: "6fe9112172555b33048c58fb40b37117a65086c4"
+    # 29-08 (24): fdc3d13 — NCCL 2.30.7, la pieza de su receta que faltaba.
+    # Su start.sh: "image bundles 2.29.7; the house GLM-5.2 runbook pins
+    # >= 2.30.7 for CUDA-graph + TP on GB10+CX7", y USE_HOST_NCCL=1 es su
+    # DEFAULT. Nosotros corriamos la 2.29.7 de su imagen (verificado en el
+    # log: "sglang is using nccl==2.29.7"). Se hornea en la imagen en vez de
+    # montarla del host, que no depende de staging manual en los Sparks.
+    #
+    # Encaja con la forma de los datos: TTFT 110 ms (ellos 117, igual) pero
+    # single-stream 31.9 vs 64.4, y a x4 91.9 vs 114.1 (solo 19 por ciento
+    # por debajo). Eso es latencia por paso de decode --el all-reduce de
+    # TP-- no computo ni accept, y es justo lo que arregla ese pin.
+    #
+    # QUE MEDIR: single-stream tok/s (objetivo 64.4) y accept len.
+    # ROLLBACK: 6fe9112172555b33048c58fb40b37117a65086c4
+    targetRevision: "fdc3d13883f8d92210f1448130616c442e9bedb7"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
