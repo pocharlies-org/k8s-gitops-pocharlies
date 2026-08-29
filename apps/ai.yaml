@@ -855,7 +855,15 @@ spec:
     # COSTE: el pool baja de 2.02M. REVERSION: si el accept no mejora, no era
     # el KV y se vuelve a nvfp4, que da 3.5x mas pool.
     # ROLLBACK: c5552ab22c5a2935589a6ebd67d69f77e48cfbc0
-    targetRevision: "320f8bf36bcbdce3d39a5f47429cfec8897ca697"
+    # 28-08 (23): 6fe9112 — su .env.example EXACTO, contexto a 262144.
+    # Revierte dos ajustes mios: KV vuelve a nvfp4 (el A/B con fp8 salio peor
+    # en accept y costaba 780k de pool) y MAMBA_FULL_MEMORY_RATIO fuera --
+    # bajarlo a 0.3 capaba max_running_requests a 9, porque el cache de mamba
+    # consume 5 slots POR PETICION (su issue #8; el servidor lo avisa en el
+    # log y no lo mire). Se limpian ademas FP4_GEMM_BACKEND forzado y
+    # MAX_MAMBA_CACHE_SIZE vestigial.
+    # ROLLBACK: 320f8bf36bcbdce3d39a5f47429cfec8897ca697
+    targetRevision: "6fe9112172555b33048c58fb40b37117a65086c4"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
