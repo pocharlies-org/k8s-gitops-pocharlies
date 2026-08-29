@@ -877,7 +877,7 @@ spec:
     #
     # QUE MEDIR: single-stream tok/s (objetivo 64.4) y accept len.
     # ROLLBACK: 6fe9112172555b33048c58fb40b37117a65086c4
-    targetRevision: "f77642f27741bd910384d51b4442a332c557a48e"
+    targetRevision: "8c106ef3dd07dd796c735d22748802847acb42cd"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
