@@ -877,7 +877,21 @@ spec:
     #
     # QUE MEDIR: single-stream tok/s (objetivo 64.4) y accept len.
     # ROLLBACK: 6fe9112172555b33048c58fb40b37117a65086c4
-    targetRevision: "66741fd1586e5d9581413d65531e79e70b4ddbb8"
+    #
+    # 29-08: 6dcdb09 = 66741fd (lo que corre AHORA, la cadena de qwen38-flash-next
+    # de la otra sesion) + el cambio de motor del residente `creative`:
+    # `vllm-qwen38-27b-uncensored` pasa de vLLM 0.27.1 a SGLang + DSpark (receta
+    # MiaAI-Lab) con el port del dial rank-1 de refusal. La imagen va por DIGEST:
+    #   homelab/sglang-qwen38-27b-rank1-arm64:v0.1.0@sha256:2323a403...
+    #
+    # Se rebasa sobre SU pin, no sobre main: main no contiene la cadena
+    # qwen38-flash-next y pinear ahi la revertiria. Verificado con `kubectl diff`
+    # contra el cluster vivo: el UNICO objeto con cambios reales es
+    # `vllm-qwen38-27b-uncensored` (66 lineas); en deepseek head/worker, omnivoice
+    # y qwen38-flash-next head/worker la diferencia es cero fuera de
+    # `generation`/`replicas`, que ya estan en `ignoreDifferences`.
+    # ROLLBACK: 66741fd1586e5d9581413d65531e79e70b4ddbb8.
+    targetRevision: "6dcdb09858e1f74a7e6b27313fc341ec08484fd4"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
