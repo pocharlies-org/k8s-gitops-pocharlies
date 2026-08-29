@@ -878,7 +878,7 @@ spec:
     # QUE MEDIR: single-stream tok/s (objetivo 64.4) y accept len.
     # ROLLBACK: 6fe9112172555b33048c58fb40b37117a65086c4
     #
-    # 29-08: 82670c4 = 66741fd (lo que corre AHORA, la cadena de qwen38-flash-next
+    # 29-08: d7ede31 = 66741fd (lo que corre AHORA, la cadena de qwen38-flash-next
     # de la otra sesion) + el cambio de motor del residente `creative`:
     # `vllm-qwen38-27b-uncensored` pasa de vLLM 0.27.1 a SGLang + DSpark (receta
     # MiaAI-Lab) con el port del dial rank-1 de refusal. La imagen va por DIGEST:
@@ -891,7 +891,7 @@ spec:
     # y qwen38-flash-next head/worker la diferencia es cero fuera de
     # `generation`/`replicas`, que ya estan en `ignoreDifferences`.
     # ROLLBACK: 66741fd1586e5d9581413d65531e79e70b4ddbb8.
-    targetRevision: "82670c4eb074e09920b14c6beee8f208f3cb01f8"
+    targetRevision: "d7ede318fd2a823cbac74f9a36ecddee7ca2a6de"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
