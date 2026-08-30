@@ -891,7 +891,7 @@ spec:
     # y qwen38-flash-next head/worker la diferencia es cero fuera de
     # `generation`/`replicas`, que ya estan en `ignoreDifferences`.
     # ROLLBACK: 66741fd1586e5d9581413d65531e79e70b4ddbb8.
-    targetRevision: "09b4f5632a46ed2d964f218444eecd990eb97c9e"
+    targetRevision: "3dbe9c9d09b5de8f90bb30a4349b597878145735"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
