@@ -891,7 +891,30 @@ spec:
     # y qwen38-flash-next head/worker la diferencia es cero fuera de
     # `generation`/`replicas`, que ya estan en `ignoreDifferences`.
     # ROLLBACK: 66741fd1586e5d9581413d65531e79e70b4ddbb8.
-    targetRevision: "4309c1a416bc7221c61936d4c8e7148975984110"
+    #
+    # 01-09 (23): e8c352c — MAX_NUM_BATCHED_TOKENS 8192 -> 2048 en los dos ranks
+    # de qwen38-flash-next. El agregado en produccion se queda en ~60 tok/s con 8
+    # peticiones en vuelo (SGLang daba ~200), pero la causa NO es vLLM ni el
+    # speculative decoding: en benchmark aislado (prefijo compartido para que el
+    # prefill no contamine, 256 tok con ignore_eos) escala 29.1 -> 53.3 -> 120.5
+    # -> 177.5 tok/s de C=1 a C=8, x6.1, y encima con accept 2.66, peor que el
+    # 3.4 del trafico real. La hipotesis del "impuesto del MTP con batch" queda
+    # falsada midiendo.
+    #
+    # Lo que pasa es que las 8 concurrentes no decodifican a la vez: hacen
+    # prefill. Las ventanas con run>=4 son EXACTAMENTE las del prefill disparado
+    # (1700-4400 tok/s, picos de 16.6k) y la cola llego a 28. Con chunked prefill,
+    # prefill y decode comparten el presupuesto de step, asi que un step cargado
+    # de prefill le deja al decode 1 token por secuencia -- y los tok/s de decode
+    # son basicamente steps/s. Trozos mas pequenos = mas steps/s = el decode se
+    # sirve mas a menudo bajo carga mixta.
+    #
+    # QUE MEDIR: el agregado en el log del engine con run>=4. Hoy hace pico en
+    # run=3 (57.6 tok/s) y se desploma por encima; el objetivo es que deje de
+    # caer. 2048 es hipotesis razonada, no medida -- lo medido es la causa.
+    # COSTE esperado: TTFT peor en prompts largos (MAX_MODEL_LEN=262144).
+    # ROLLBACK: 4309c1a416bc7221c61936d4c8e7148975984110
+    targetRevision: "e8c352c74e16aaf55a55710f030919888009cff5"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
