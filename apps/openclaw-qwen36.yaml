@@ -964,7 +964,31 @@ metadata:
     # El cron `skirmshop-correos-fuel-codex-v1` se borro tambien del PVC con
     # `openclaw cron rm`: apagarlo en el chart no retira el que ya estaba
     # declarado, y llevaba `error (4x)`.
-    operations.pocharlies.org/state-writer-lease: inactive
+    #
+    # Approval 2026-09-02 (noche) para ba756c9 — SC-131 F0, ACTIVACION del plano
+    # Hermes. El commit ya esta fusionado en deploy/prod del repo de la app
+    # (PR #282, CI `validate` en verde); la app lleva OutOfSync desde entonces
+    # porque `syncPolicy.automated.enabled: false` es a proposito.
+    #
+    # QUE CAMBIA: `hermes.enabled: true` + los 3 perfiles (skirmshop/main/
+    # culturismo) en el values del chart. Anade al pod el initContainer
+    # `hermes-config-seed`, el sidecar `hermes-acp`, el volumen del seed y la
+    # NetworkPolicy `openclaw-qwen36-hermes-acp`. La imagen del gateway NO
+    # cambia de digest respecto a 3ab8c73 (SC-128 ya la dejo preparada), asi
+    # que no se rueda binario nuevo: solo el plano.
+    #
+    # ADITIVO: `approved-prune: "false"` — no se borra ningun recurso. El
+    # runbook (docs/hermes-e2e-runbook.md, F0/F1) exige comprobar tras el
+    # rollout que el pod trae `hermes-acp` y que el seed creo los tres
+    # `config.yaml` en /data/hermes antes de tocar nada mas.
+    #
+    # Revertir = PR con `hermes.enabled: false` + `profiles: {}` y su propio
+    # approval; no se hace poda a mano.
+    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/approved-revision: ba756c9785c2bfb864a6a4034be0acb0f56cb4f9
+    operations.pocharlies.org/approval-id: activar-hermes-sc131-20260902
+    operations.pocharlies.org/approval-sequence: "20260902213700"
+    operations.pocharlies.org/approved-prune: "false"
     # REINTENTO r2. El r1 (21:13Z) fallo en la tarea de Sync del Deployment:
     #
     #   Deployment.apps "openclaw-qwen36-openclaw" is invalid:
