@@ -914,7 +914,28 @@ spec:
     # caer. 2048 es hipotesis razonada, no medida -- lo medido es la causa.
     # COSTE esperado: TTFT peor en prompts largos (MAX_MODEL_LEN=262144).
     # ROLLBACK: 4309c1a416bc7221c61936d4c8e7148975984110
-    targetRevision: "e8c352c74e16aaf55a55710f030919888009cff5"
+    #
+    # 02-09 (25): 57778a4 — KV cache en fp8_e4m3 por el camino QSA. Se hace por
+    # CAPACIDAD, no por velocidad: hacia falta mas memoria libre y cache. El pool
+    # sube ~x1,79 (hoy 1.791.081 tokens con BF16). El A/B controlado de Jordi
+    # sobre este mismo modelo --28 celdas x 3 pasadas, unica variable el KV-- da
+    # fp8 ganando 13 celdas y bf16 15, ratio mediano de decode 0,9837: fp8 es un
+    # 1,6% MAS LENTO. Prefill empatado. Se acepta el cambio a sabiendas.
+    #
+    # La QSA de esta build rechaza cualquier KV que no sea BF16 (vllm#54426
+    # abierto). Se montan los dos ficheros parcheados igual que el parche PLE:
+    # 17/17 hunks con fuzz=0 sobre los ficheros del contenedor vivo, py_compile
+    # OK y round-trip del ConfigMap verificado byte a byte.
+    #
+    # NO se construyo imagen derivada: buildkitd-arm64 corre en gx10-ec3d --el
+    # Spark del head-- y el build murio extrayendo 9,7 GB contra su tmpfs de
+    # 12 GB con el nodo a 111/119 GB de RAM. Escenario del 19-08.
+    #
+    # QUE MEDIR: "GPU KV cache size" en el arranque (se espera ~x1,79) y la
+    # CALIDAD de las salidas -- el A/B mide rendimiento, no degradacion
+    # numerica, y eso sigue sin verificar.
+    # ROLLBACK: e8c352c74e16aaf55a55710f030919888009cff5
+    targetRevision: "57778a43eb7f27037e667d17c56f3d7b3c18862f"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
