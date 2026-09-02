@@ -955,7 +955,23 @@ spec:
     # y nosotros con 8. El colapso x4 no es ruido; los +-5-10% puede que si.
     # PENDIENTE: medirlo en nuestro despliegue.
     # ROLLBACK: 57778a43eb7f27037e667d17c56f3d7b3c18862f
-    targetRevision: "d0c59618c6c1c7c1d35e4b3053161df5be337c76"
+    #
+    # 02-09 (27): 6eb4542 — MAX_NUM_BATCHED_TOKENS a 4096, el intermedio. Jordi
+    # lo corrio y gana en las dos puntas a la vez. En la celda que decidio el
+    # 8192 (100K de contexto, 10 concurrentes): pp2048 661,8 tok/s contra 548,8
+    # de 8192 y 140,2 de 2048; tg128 37,73 contra 34,77 y 8,65; TTFR 19,7 s
+    # contra 23,9 y 67,4. Global frente a 2048: mediana +4,91%, gana 63/104
+    # celdas, c10 +11,75%.
+    #
+    # El usa 4098 exactos; aqui 4096 a proposito, porque con MTP=3 cada
+    # secuencia mete 4 tokens por paso y el batch deberia ser multiplo de 4
+    # (vLLM le avisa de que 4098 no alinea).
+    #
+    # CAVEATS suyos: las variantes EP tienen UNA pasada por celda, hay
+    # outliers, y mueven EP/all-to-all/FlashInfer junto con el batch. El va con
+    # 10 secuencias y nosotros con 8. PENDIENTE medirlo aqui.
+    # ROLLBACK: d0c59618c6c1c7c1d35e4b3053161df5be337c76
+    targetRevision: "6eb454266222ba36f5d5bfa51c1aa88dbaabe633"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
