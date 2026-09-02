@@ -935,7 +935,27 @@ spec:
     # CALIDAD de las salidas -- el A/B mide rendimiento, no degradacion
     # numerica, y eso sigue sin verificar.
     # ROLLBACK: e8c352c74e16aaf55a55710f030919888009cff5
-    targetRevision: "57778a43eb7f27037e667d17c56f3d7b3c18862f"
+    #
+    # 02-09 (26): d0c5961 — MAX_NUM_BATCHED_TOKENS vuelve a 8192. Se revierte
+    # el batch de esta manana; el KV en fp8_e4m3 SE QUEDA. Lo que medi para
+    # bajar a 2048 era cierto en su regimen (concurrencia media, prompts
+    # normales) pero medi el regimen equivocado: Jordi Ibanez corrio 100K de
+    # contexto con 10 concurrentes y ahi 2048 colapsa a un cuarto --
+    # pp2048 140,2 tok/s contra 548,8 con 8192, tg128 8,65 contra 34,77, TTFR
+    # 67,4 s contra 23,9. Su sospechoso es el warning que vLLM YA escupe en
+    # nuestro arranque: "max_num_scheduled_tokens is set to 2048 based on the
+    # speculative decoding settings", o sea 2048 con MTP=3.
+    #
+    # No es gratis: 8192 pierde a baja concurrencia (c1 -19,3%) y gana a alta
+    # (c10 +11,4%); sobre 104 escenarios 2K gana 38 y 8K 35. Se elige 8192
+    # porque nuestro trafico lleva sesiones de OpenCode de ~111k de contexto.
+    #
+    # CAVEATS: sus corridas de 2K/8K son de UNA pasada, cambian
+    # EP/all-to-all/FlashInfer a la vez que el batch, y el va con 10 secuencias
+    # y nosotros con 8. El colapso x4 no es ruido; los +-5-10% puede que si.
+    # PENDIENTE: medirlo en nuestro despliegue.
+    # ROLLBACK: 57778a43eb7f27037e667d17c56f3d7b3c18862f
+    targetRevision: "d0c59618c6c1c7c1d35e4b3053161df5be337c76"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
