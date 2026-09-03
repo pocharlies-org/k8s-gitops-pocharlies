@@ -996,7 +996,7 @@ spec:
     # fusiona hasta verificar este control lambda=0: publicado antes seria una
     # mentira en el panel.
     # ROLLBACK de esta linea: 557e6e6f2ebf3b07e5f77670b8a1361f796f8d07
-    targetRevision: "45f42ebc1e8f851690d8072718ae49acce97f4ad"
+    targetRevision: "f780f49ab14f5d059fdd170539e693a2f1cc38cc"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
