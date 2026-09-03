@@ -971,7 +971,18 @@ spec:
     # outliers, y mueven EP/all-to-all/FlashInfer junto con el batch. El va con
     # 10 secuencias y nosotros con 8. PENDIENTE medirlo aqui.
     # ROLLBACK: d0c59618c6c1c7c1d35e4b3053161df5be337c76
-    targetRevision: "6eb454266222ba36f5d5bfa51c1aa88dbaabe633"
+    #
+    # 03-09-2026 (557e6e6, k8s-ai#29): --enable-prompt-tokens-details. vLLM YA
+    # cachea prefijos —94,4 % de acierto medido sobre 24 h— pero con la flag a
+    # su default (False) devuelve `usage.prompt_tokens_details: null`, LiteLLM
+    # no puede inventarse el campo y SpendLogs guarda null en las 8.390 filas
+    # del dia. Consecuencia: los clientes cuentan cache_read=0 (el run STA-7 de
+    # Paperclip reporto 52,6 M de "input" que eran prefijo cacheado) y el
+    # dashboard tiene que sacar la cuota de las metricas del motor en vez de por
+    # peticion. Solo cambia el JSON de `usage`: no toca scheduling, ni KV, ni
+    # memoria.
+    # ROLLBACK de esta linea: 6eb454266222ba36f5d5bfa51c1aa88dbaabe633
+    targetRevision: "557e6e6f2ebf3b07e5f77670b8a1361f796f8d07"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
