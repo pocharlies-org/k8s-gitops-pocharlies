@@ -981,8 +981,22 @@ spec:
     # dashboard tiene que sacar la cuota de las metricas del motor en vez de por
     # peticion. Solo cambia el JSON de `usage`: no toca scheduling, ni KV, ni
     # memoria.
-    # ROLLBACK de esta linea: 6eb454266222ba36f5d5bfa51c1aa88dbaabe633
-    targetRevision: "557e6e6f2ebf3b07e5f77670b8a1361f796f8d07"
+    # 03-09-2026 (06a023f, k8s-ai#30): ablacion rank-1 con dial lambda por
+    # peticion en qwen38-flash-next. Estrena con lambda=0, que es IDENTIDAD
+    # exacta: el kernel es y - lambda*r*(r.y), y max|delta|==0.0 verificado
+    # bit-exact en bfloat16/float16/float32 dentro de la imagen construida
+    # (7 gates verdes en el build). El residente cambia de imagen a
+    # harbor.lan.e-dani.com/homelab/vllm-qwen38next-rank1, que deriva 1:1 de
+    # vllm/vllm-openai:qwen38-flash-next y solo anade la capa de proyeccion.
+    # Con VLLM_REFUSAL_LAMBDA="0" el modelo responde igual que hoy; lo unico
+    # que se gana es que /admin/refusal_lambda existe y el A/B se hace luego
+    # sin reiniciar y sin tocar git:
+    #   curl -XPOST <head>:8000/admin/refusal_lambda -d '{"lambda":1.5}'
+    # El PR de litellm que publica el alias -uncensored (k8s-litellm#52) NO se
+    # fusiona hasta verificar este control lambda=0: publicado antes seria una
+    # mentira en el panel.
+    # ROLLBACK de esta linea: 557e6e6f2ebf3b07e5f77670b8a1361f796f8d07
+    targetRevision: "06a023fc4ab9e1527ef8bf10bf682f68d161ba2d"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
