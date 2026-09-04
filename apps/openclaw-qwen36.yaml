@@ -997,9 +997,17 @@ metadata:
     # el id y la secuencia APROBADOS en las anotaciones del propio Application.
     # Mismo commit f0b5715, misma decision (prune false), secuencia nueva.
     operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: f0b57154c79d4a9e3561ff25b07468f607505d14
-    operations.pocharlies.org/approval-id: thinking-default-off-20260904-r3
-    operations.pocharlies.org/approval-sequence: "20260904071500"
+    # REINTENTO r4. El r3 (secuencia 20260904071500) se aplico pero la
+    # operacion quedo Failed a las 08:29Z: el Deployment abrio con el
+    # sidecar hermes-acp SIN el mount hermes-seed-script (husk SSA: dos
+    # managers muertos del plano gateway poseen el array de volumeMounts y
+    # Argo no puede borrar lo que no posee) -> CrashLoopBackOff con
+    # 'cannot open /opt/hermes-seed/hermes-warm-daemon.sh'. Fix en PR #290
+    # (reordenar el array). Revision aprobada: d9aa4ff. Misma decision,
+    # ADITIVO, approved-prune false, secuencia nueva.
+    operations.pocharlies.org/approved-revision: d9aa4ff3237c3a0f55c2cbf782227bbd9adab11e
+    operations.pocharlies.org/approval-id: thinking-default-off-20260904-r4
+    operations.pocharlies.org/approval-sequence: "20260904104500"
     operations.pocharlies.org/approved-prune: "false"
     # REINTENTO r2. El r1 (21:13Z) fallo en la tarea de Sync del Deployment:
     #
