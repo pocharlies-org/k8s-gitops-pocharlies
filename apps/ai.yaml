@@ -982,21 +982,40 @@ spec:
     # peticion. Solo cambia el JSON de `usage`: no toca scheduling, ni KV, ni
     # memoria.
     # 03-09-2026 (06a023f, k8s-ai#30): ablacion rank-1 con dial lambda por
-    # peticion en qwen38-flash-next. Estrena con lambda=0, que es IDENTIDAD
-    # exacta: el kernel es y - lambda*r*(r.y), y max|delta|==0.0 verificado
-    # bit-exact en bfloat16/float16/float32 dentro de la imagen construida
-    # (7 gates verdes en el build). El residente cambia de imagen a
+    # peticion en qwen38-flash-next. El residente cambia de imagen a
     # harbor.lan.e-dani.com/homelab/vllm-qwen38next-rank1, que deriva 1:1 de
     # vllm/vllm-openai:qwen38-flash-next y solo anade la capa de proyeccion.
-    # Con VLLM_REFUSAL_LAMBDA="0" el modelo responde igual que hoy; lo unico
-    # que se gana es que /admin/refusal_lambda existe y el A/B se hace luego
-    # sin reiniciar y sin tocar git:
-    #   curl -XPOST <head>:8000/admin/refusal_lambda -d '{"lambda":1.5}'
-    # El PR de litellm que publica el alias -uncensored (k8s-litellm#52) NO se
-    # fusiona hasta verificar este control lambda=0: publicado antes seria una
-    # mentira en el panel.
-    # ROLLBACK de esta linea: 557e6e6f2ebf3b07e5f77670b8a1361f796f8d07
-    targetRevision: "8cafddafaa1cdecf93265e9c6acb240529968291"
+    #
+    # 04-09-2026 (a89cff0, k8s-ai#42): el lambda GLOBAL vuelve a 0.
+    #
+    # No es el mismo 0 que el de #30. Aquel era "no toques nada todavia":
+    # identidad bit-exact mientras se estrenaba la imagen. Este es una
+    # POLITICA — el defecto del servidor es el checkpoint base, y la ruta
+    # ablada viaja en el sello por peticion (`cache_salt: refusal:1.0`) que
+    # llevan los alias -uncensored.
+    #
+    # Lo que hubo en medio: #38 subio el global a 1.0 y con eso el residente
+    # quedaba ablado por defecto para TODO lo que no sellara -- Codex,
+    # OpenClaw, el brain, el panel. k8s-litellm#54 lo encontro por el otro
+    # lado: `tooling` y `qwen38-flash-next`, los dos alias "censurados", no
+    # llevaban sello y por tanto no censuraban nada. Con el global en 0 el
+    # descuido abre hacia el checkpoint base en vez de hacia el ablado.
+    #
+    # DEPENDE de la imagen -g (#40, ya pineada aqui desde el 03-09): en la -f
+    # el sello se borraba un `fill_*` despues de escribirse y el global mandaba
+    # sobre todo. Con esa imagen, este repin dejaria al residente sin ninguna
+    # ruta ablada. Verificado en vivo antes de repinear que corre la -g
+    # (@sha256:a95aff6c) y que el sello manda: mismo prompt, temp 0, logprob del
+    # primer token -- sin sello -0.690 'There', refusal:0 -0.125 'I',
+    # refusal:1.0 -0.876 'The'.
+    #
+    # ESTE REPIN SI DESPLIEGA, y no es barato: el env vive en el pod template,
+    # asi que rueda el par TP=2 entero repartido entre los dos Sparks. ~10-15
+    # min sin residente, y el worker puede quedarse con el TCPStore muerto
+    # ocupando ~100 GiB, pidiendo un `kubectl scale` a mano (grace 120 s).
+    #
+    # ROLLBACK de esta linea: 8cafddafaa1cdecf93265e9c6acb240529968291
+    targetRevision: "a89cff0fc8a833a3bf98000495989f724023c62e"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
