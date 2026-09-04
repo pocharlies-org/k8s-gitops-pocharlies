@@ -990,10 +990,16 @@ metadata:
     # orden deliberada que el hook pasa-crudo al motor, no un default neutro.
     # Solo cambian los ConfigMaps de configs de agente; la imagen no cambia de
     # digest. ADITIVO: approved-prune false.
+    # REINTENTO r3 del approval thinking-default-off. El r2 (secuencia
+    # 20260904070500) quedo registrado en GitOps pero el executor nunca llego a
+    # consumirlo: el Application seguia con las anotaciones del approval anterior
+    # (ba756c9) en el clúster, y el gate exige que el PATCH lleve la revision,
+    # el id y la secuencia APROBADOS en las anotaciones del propio Application.
+    # Mismo commit f0b5715, misma decision (prune false), secuencia nueva.
     operations.pocharlies.org/state-writer-lease: active
     operations.pocharlies.org/approved-revision: f0b57154c79d4a9e3561ff25b07468f607505d14
-    operations.pocharlies.org/approval-id: thinking-default-off-20260904
-    operations.pocharlies.org/approval-sequence: "20260904070500"
+    operations.pocharlies.org/approval-id: thinking-default-off-20260904-r3
+    operations.pocharlies.org/approval-sequence: "20260904071500"
     operations.pocharlies.org/approved-prune: "false"
     # REINTENTO r2. El r1 (21:13Z) fallo en la tarea de Sync del Deployment:
     #
