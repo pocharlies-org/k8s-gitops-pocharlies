@@ -984,10 +984,16 @@ metadata:
     #
     # Revertir = PR con `hermes.enabled: false` + `profiles: {}` y su propio
     # approval; no se hace poda a mano.
+    # Approval 2026-09-04 para f0b5715 — PR #288: thinkingDefault 'off' en
+    # todos los perfiles de agente. Con la receta oficial de Qwen3.8 publicada
+    # en LiteLLM (k8s-litellm#55), un low/medium/high en thinkingDefault es una
+    # orden deliberada que el hook pasa-crudo al motor, no un default neutro.
+    # Solo cambian los ConfigMaps de configs de agente; la imagen no cambia de
+    # digest. ADITIVO: approved-prune false.
     operations.pocharlies.org/state-writer-lease: active
-    operations.pocharlies.org/approved-revision: ba756c9785c2bfb864a6a4034be0acb0f56cb4f9
-    operations.pocharlies.org/approval-id: activar-hermes-sc131-20260902
-    operations.pocharlies.org/approval-sequence: "20260902213700"
+    operations.pocharlies.org/approved-revision: f0b57154c79d4a9e3561ff25b07468f607505d14
+    operations.pocharlies.org/approval-id: thinking-default-off-20260904
+    operations.pocharlies.org/approval-sequence: "20260904070500"
     operations.pocharlies.org/approved-prune: "false"
     # REINTENTO r2. El r1 (21:13Z) fallo en la tarea de Sync del Deployment:
     #
