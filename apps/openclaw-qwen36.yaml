@@ -1005,9 +1005,18 @@ metadata:
     # 'cannot open /opt/hermes-seed/hermes-warm-daemon.sh'. Fix en PR #290
     # (reordenar el array). Revision aprobada: d9aa4ff. Misma decision,
     # ADITIVO, approved-prune false, secuencia nueva.
-    operations.pocharlies.org/approved-revision: d9aa4ff3237c3a0f55c2cbf782227bbd9adab11e
-    operations.pocharlies.org/approval-id: thinking-default-off-20260904-r4
-    operations.pocharlies.org/approval-sequence: "20260904104500"
+    # Approval 2026-09-05 para 57b57e5 — SC-230: el Service de plano de admission
+    # del gateway con publishNotReadyAddresses, para que el pod deje de crashear
+    # y la app salga de Degraded (PR #292, merge commit no-squash, base
+    # deploy/prod). El pin es el MERGE COMMIT literal, no 18846e1 ni ninguna ref
+    # movil: el gate de admission compara
+    # operation.sync.revision == approved-revision al INICIO de la operacion.
+    # El approval anterior (thinking-default-off r4, secuencia 20260904104500,
+    # hacia d9aa4ff) queda sustituido: su operacion ya no es la pendiente.
+    # ADITIVO: approved-prune false — no se poda nada.
+    operations.pocharlies.org/approved-revision: 57b57e562989ba5703d87e3073e5b4eddaf36992
+    operations.pocharlies.org/approval-id: sc230-admission-service-20260905
+    operations.pocharlies.org/approval-sequence: "20260905012232"
     operations.pocharlies.org/approved-prune: "false"
     # REINTENTO r2. El r1 (21:13Z) fallo en la tarea de Sync del Deployment:
     #
