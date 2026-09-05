@@ -1014,8 +1014,15 @@ spec:
     # min sin residente, y el worker puede quedarse con el TCPStore muerto
     # ocupando ~100 GiB, pidiendo un `kubectl scale` a mano (grace 120 s).
     #
-    # ROLLBACK de esta linea: 8cafddafaa1cdecf93265e9c6acb240529968291
-    targetRevision: "a89cff0fc8a833a3bf98000495989f724023c62e"
+    # ROLLBACK de esta linea: a89cff0fc8a833a3bf98000495989f724023c62e
+    #
+    # 05-09 (SC-172): a89cff0 servia el Service `tooling` con `targetPort: 8888`
+    # mientras el unico residente del pool (`qwen38-flash-next-head`) escucha en
+    # 8000. kube-proxy DNATaba a un puerto cerrado: ECONNREFUSED en 0,136 s, no
+    # un cuelgue. 0063e2f lo pasa a `targetPort: http`, que resuelve por nombre
+    # contra el containerPort del residente que toque en cada perfil. Es un
+    # cambio de Service: no reinicia ningun pod ni toca los Sparks.
+    targetRevision: "0063e2f2d55f5f403d2906f38d72bf94825377bb"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
