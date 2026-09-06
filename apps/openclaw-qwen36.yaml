@@ -1020,9 +1020,22 @@ metadata:
     # operacion. El approval anterior (sc230-admission-service-20260905,
     # secuencia 20260905012232, hacia 57b57e5) queda sustituido: su operacion
     # ya no es la pendiente. ADITIVO: approved-prune false — no se poda nada.
-    operations.pocharlies.org/approved-revision: c4841ac1a4814d3f8d6a7f30b4dcdfb79871bda8
-    operations.pocharlies.org/approval-id: sc230-admission-service-20260905-r2
-    operations.pocharlies.org/approval-sequence: "20260905205722"
+    # Approval 2026-09-06 para 3b3646d -- SC-230. Lo que debe rodar ahora es el
+    # merge (squash) del PR #296 sobre deploy/prod: siembra el ancla raiz de
+    # hermes-acp cuando hay perfiles activos. Ese es el DISPARADOR del corte:
+    # sin ancla, el sidecar hermes-acp nunca queda Ready, y como un pod solo
+    # entra en los endpoints si TODOS sus contenedores lo estan, su
+    # readinessProbe sacaba al pod entero del Service principal -- OpenClaw sin
+    # servir desde el 02-09 con el contenedor principal sano.
+    # El approval anterior (sc230-admission-service-20260905-r2, secuencia
+    # 20260905205722, hacia c4841ac1) queda consumido: su operacion termino
+    # Failed a las 09:52:52Z. El gate exige secuencia estrictamente mayor, asi
+    # que un retry es un approval NUEVO, no un reintento del viejo.
+    # El pin es el commit literal 3b3646d, no una ref movil. ADITIVO:
+    # approved-prune false -- no se poda nada.
+    operations.pocharlies.org/approved-revision: 3b3646ddd52d70c7216c4568bc94cb1939e87212
+    operations.pocharlies.org/approval-id: sc230-hermes-seed-anchor-20260906
+    operations.pocharlies.org/approval-sequence: "20260906221155"
     operations.pocharlies.org/approved-prune: "false"
     # REINTENTO r2. El r1 (21:13Z) fallo en la tarea de Sync del Deployment:
     #
