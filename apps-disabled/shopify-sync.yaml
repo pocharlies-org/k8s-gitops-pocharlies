@@ -19,6 +19,9 @@ spec:
     server: https://kubernetes.default.svc
     namespace: skirmshop
   syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
