@@ -1022,7 +1022,7 @@ spec:
     # un cuelgue. 0063e2f lo pasa a `targetPort: http`, que resuelve por nombre
     # contra el containerPort del residente que toque en cada perfil. Es un
     # cambio de Service: no reinicia ningun pod ni toca los Sparks.
-    targetRevision: "0063e2f2d55f5f403d2906f38d72bf94825377bb"
+    targetRevision: "cbe9cd29309144343e21bc1fee68bbb24ce16f43"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
