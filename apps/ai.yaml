@@ -1022,7 +1022,41 @@ spec:
     # un cuelgue. 0063e2f lo pasa a `targetPort: http`, que resuelve por nombre
     # contra el containerPort del residente que toque en cada perfil. Es un
     # cambio de Service: no reinicia ningun pod ni toca los Sparks.
-    targetRevision: "0063e2f2d55f5f403d2906f38d72bf94825377bb"
+    #
+    # 08-09-2026 (MAX_NUM_SEQS 8 -> 16, k8s-ai#47): el TTFT disparado no era
+    # falta de KV cache. El engine esta saturado el 94,1% del tiempo -- running
+    # clavado en 8, que es el cap -- con 45,6 peticiones de media en cola y
+    # `waiting_by_reason` 100% "capacity", mientras `kv_cache_usage_perc` va al
+    # 21-25% y `num_preemptions_total` sigue a 0 tras 2d22h. El
+    # `cache_config_info` del propio engine da kv_cache_max_concurrency = 11,37
+    # sobre 2.980.297 tokens de pool: el 8 era mas estricto que el limite de
+    # memoria incluso con la ventana de 262k entera. Queue 38,6 s de media
+    # contra prefill 4,15 s.
+    #
+    # 14eb174 SALE DE 0063e2f, NO DE main. main va 3 commits por delante con
+    # SC-312 x2 y SC-315 (extraer los BGE del app `ai`) sin desplegar, y no
+    # entran en esta ventana. El delta renderizado con `kustomize build` contra
+    # 0063e2f son DOS lineas: el env del head y el del worker.
+    #
+    # ESTE REPIN SI DESPLIEGA, y con el mismo coste que el de arriba: el env
+    # vive en el pod template, asi que rueda el par TP=2 entero. ~10-15 min sin
+    # residente, y el worker puede quedarse con el TCPStore muerto ocupando
+    # ~100 GiB, pidiendo un `kubectl scale` a mano (grace 120 s).
+    #
+    # OJO al sincronizar: el app `ai` NO tiene `automated`, y arrastra 9
+    # recursos `bge-*` en OutOfSync porque main ya los extrajo a la app `bge`
+    # (que si tiene selfHeal) y este pin todavia los renderiza. El sync tiene
+    # que ser SELECTIVO a los dos Deployments de qwen38-flash-next, o se aplica
+    # esa deriva de paso.
+    #
+    # ACEPTACION: agregado a run=16 por encima de 160 tok/s. Base a run=8:
+    # 138,4 tok/s agregados, 17,30 por stream (n=355). Vigilar
+    # `num_preemptions_total` (hibrido: el estado mamba se reserva por ranura,
+    # asi que 16 recorta algo el pool -- releer kv_cache_size_tokens al
+    # arrancar).
+    #
+    # ROLLBACK de esta linea: 0063e2f2d55f5f403d2906f38d72bf94825377bb
+    targetRevision: "14eb174aefa9083cd07a598d16db671004ee0468"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
