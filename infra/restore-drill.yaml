@@ -1,0 +1,56 @@
+# Ensayo de restore SC-80 (epica SC-104, decision del CTO 09-09-2026).
+#
+# Mismo patron que backup-logical-dumps: los manifiestos viven en dgx-infra
+# (k8s/ops/restore-drill/) y AQUI solo se declara la Application. NO en
+# dgx-infra/k8s/argocd/apps/: ese directorio no lo sincroniza nada (los
+# Applications vivos de ahi no llevan tracking-id — se aplicaron a mano, el
+# mismo trapo de deriva que k8s/backup/longhorn-recurring/).
+#
+# prune:false a proposito: el ensayo es ruta de backups (snapshots, backups
+# NFS, RecurringJob sc80-drill-snap). Que un fichero salga del repo no puede
+# traducirse en que ArgoCD borre artefactos de backup (limite CEO 3: no borrar
+# snapshots ni backups). La limpieza del ensayo es decision manual del CTO
+# tras leer la evidencia, no un sync.
+#
+# CreateNamespace=true: `restore-drill` es el namespace de pruebas de nueva
+# creacion (limite CEO 1: todo el ensayo vive dentro). El RecurringJob y los
+# CRs que el driver Longhorn genera declaran longhorn-system a proposito, como
+# los CronJobs de backup-logical-dumps declaran los suyos.
+#
+# ORDEN DE FUSION: primero el PR de dgx-infra (feat/sc80-restore-drill-
+# opencode -> master); hasta que ese path no exista en master, esta app da
+# error de resolucion de path.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: restore-drill
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/dgx-infra/tree/master/k8s/ops/restore-drill
+  labels:
+    e-dani.com/tier: infra
+    app.kubernetes.io/part-of: dgx-infra
+  finalizers: [resources-finalizer.argocd.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/dgx-infra
+    targetRevision: master
+    path: k8s/ops/restore-drill
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: restore-drill
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+  revisionHistoryLimit: 10
