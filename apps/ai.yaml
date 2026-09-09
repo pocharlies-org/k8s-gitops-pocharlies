@@ -1056,7 +1056,7 @@ spec:
     # arrancar).
     #
     # ROLLBACK de esta linea: 0063e2f2d55f5f403d2906f38d72bf94825377bb
-    targetRevision: "14eb174aefa9083cd07a598d16db671004ee0468"
+    targetRevision: "38d7d4eb2664a376806e1b18023419bc35f2d056"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
