@@ -1062,14 +1062,13 @@ spec:
     server: https://kubernetes.default.svc
     namespace: llm
   syncPolicy:
-    # SC-315 puerta 5': auto-sync REACTIVADO tras el repin #305 (38d7d4e ya no
-    # renderiza los 9 bge-* extraidos a la app `bge`, asi que ya no hay carrera
-    # de re-estampado del tracking-id `ai:`). Con prune:false lo marcado para
-    # podar queda en PruneSkipped y nunca se borra; con selfHeal:false la deriva
-    # manual se tolera hasta la puerta 6' (prune:true/selfHeal:true, PR posterior).
+    # SC-315 puerta 6': restore del estado previo a la pausa #300 tras validar
+    # la puerta 5' en vivo (sync Succeeded sobre 38d7d4e, requiresPruning=[],
+    # los dos rollouts de requests Ready, par TP=2 intacto, bge Synced/Healthy
+    # con sus 9 recursos). Cierra la ventana de ~2 dias sin selfHeal.
     automated:
-      prune: false
-      selfHeal: false
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
