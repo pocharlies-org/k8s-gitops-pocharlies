@@ -1056,7 +1056,11 @@ spec:
     # arrancar).
     #
     # ROLLBACK de esta linea: 0063e2f2d55f5f403d2906f38d72bf94825377bb
-    targetRevision: "38d7d4eb2664a376806e1b18023419bc35f2d056"
+    # 09-09-2026: TEST de la receta "ursucipian" de Jordi Ibanez para qwen38-flash-next
+    # (k8s-ai PR #53): nightly vLLM 8a728663 + 6 overlays + disable_eagle_block_drop +
+    # runner V2. Reinicia head y worker (Recreate, ~10-15 min sin residente llm-tp).
+    # ROLLBACK: targetRevision: "38d7d4eb2664a376806e1b18023419bc35f2d056"
+    targetRevision: "db333437b5e38eee29deb307890fbe66cd85e794"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
