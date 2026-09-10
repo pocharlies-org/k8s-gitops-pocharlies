@@ -1067,7 +1067,9 @@ spec:
     # 10-09-2026: qwen38-flash-next queda en max_num_batched_tokens 4096 + long-prefill-token-
     # threshold 1024 (A/B del presupuesto del paso: k8s-ai PR #59, no compensa bajarlo).
     # Mismo render que la rama al cerrar: repin sin reinicio.
-    targetRevision: "872a4f6164bbbde59ad61b18a88e7b72cb127d1e"
+    # 10-09-2026 noche: `ai` sigue la rama del A/B inverso (T=0 con trafico vivo).
+    # Al cerrar el A/B: repin al SHA del merge de k8s-ai. ROLLBACK: 872a4f6164bbbde59ad61b18a88e7b72cb127d1e
+    targetRevision: test/qwen38fn-long-prefill-t0-live-20260910
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
