@@ -1064,10 +1064,10 @@ spec:
     # prefill; A/B 0/512/1024/2048 en k8s-ai docs/qwen38-flash-next-prefill-fairness-20260910.md,
     # PR #58). Es el mismo render que tenia la rama de test al cerrar: repin sin reinicio.
     # ROLLBACK a la receta ursucipian sin T: "db333437b5e38eee29deb307890fbe66cd85e794"
-    # 10-09-2026: A/B TEMPORAL del presupuesto del paso (max_num_batched_tokens) en
-    # qwen38-flash-next, en mantenimiento. Sigue la rama de test; un commit por variante.
-    # AL ACABAR: volver a un SHA de main. ROLLBACK: "0c431121f34cfc5b523cdb3d81f6207fba1cbe18"
-    targetRevision: test/qwen38fn-batched-tokens-20260910
+    # 10-09-2026: qwen38-flash-next queda en max_num_batched_tokens 4096 + long-prefill-token-
+    # threshold 1024 (A/B del presupuesto del paso: k8s-ai PR #59, no compensa bajarlo).
+    # Mismo render que la rama al cerrar: repin sin reinicio.
+    targetRevision: "872a4f6164bbbde59ad61b18a88e7b72cb127d1e"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
