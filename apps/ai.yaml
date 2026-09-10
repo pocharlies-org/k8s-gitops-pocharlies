@@ -1060,13 +1060,11 @@ spec:
     # (k8s-ai PR #53): nightly vLLM 8a728663 + 6 overlays + disable_eagle_block_drop +
     # runner V2. Reinicia head y worker (Recreate, ~10-15 min sin residente llm-tp).
     # ROLLBACK: targetRevision: "38d7d4eb2664a376806e1b18023419bc35f2d056"
-    # 10-09-2026: A/B TEMPORAL de equidad del prefill (--long-prefill-token-threshold)
-    # en qwen38-flash-next. Apunta a la RAMA de test a proposito: cada variante es un
-    # commit en ella y ArgoCD la despliega sola (automated). Mantenimiento acordado
-    # con Dani: el residente se reinicia varias veces. AL ACABAR: volver a un SHA
-    # de main (la variante ganadora) — nunca dejar una Application siguiendo una rama.
-    # ROLLBACK inmediato: targetRevision: "db333437b5e38eee29deb307890fbe66cd85e794"
-    targetRevision: test/qwen38fn-long-prefill-threshold-20260910
+    # 10-09-2026: qwen38-flash-next con --long-prefill-token-threshold 1024 (equidad del
+    # prefill; A/B 0/512/1024/2048 en k8s-ai docs/qwen38-flash-next-prefill-fairness-20260910.md,
+    # PR #58). Es el mismo render que tenia la rama de test al cerrar: repin sin reinicio.
+    # ROLLBACK a la receta ursucipian sin T: "db333437b5e38eee29deb307890fbe66cd85e794"
+    targetRevision: "0c431121f34cfc5b523cdb3d81f6207fba1cbe18"
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
