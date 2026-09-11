@@ -1071,7 +1071,10 @@ spec:
     # Al cerrar el A/B: repin al SHA del merge de k8s-ai. ROLLBACK: 872a4f6164bbbde59ad61b18a88e7b72cb127d1e
     # 11-09-2026 02:50Z: nightly vLLM 2a02f6ef + mod ursucipian v2 + VLLM_SPARSE_INDEXER_MAX_LOGITS_MB=64
     # + gdn triton, T=0 (decision de Dani). k8s-ai #61. Rollback: "872a4f6164bbbde59ad61b18a88e7b72cb127d1e".
-    targetRevision: 221bc2354eef7ce0f9fe9250757d381836038ed8
+    # 11-09-2026 12:50Z: PASADA TEMPORAL T=1024 de la nightly (k8s-ai rama test/qwen38fn-nightly-t1024-20260911)
+    # para que Jordi compare con su referencia. AL ACABAR vuelve a:
+    #   targetRevision: 221bc2354eef7ce0f9fe9250757d381836038ed8
+    targetRevision: test/qwen38fn-nightly-t1024-20260911
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
