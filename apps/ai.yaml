@@ -1069,7 +1069,12 @@ spec:
     # Mismo render que la rama al cerrar: repin sin reinicio.
     # 10-09-2026 noche: `ai` sigue la rama del A/B inverso (T=0 con trafico vivo).
     # Al cerrar el A/B: repin al SHA del merge de k8s-ai. ROLLBACK: 872a4f6164bbbde59ad61b18a88e7b72cb127d1e
-    targetRevision: test/qwen38fn-long-prefill-t0-live-20260910
+    # 11-09-2026 00:20Z: TEST de la nightly vLLM 2a02f6ef con el mod rebasado (k8s-ai rama
+    # test/qwen38fn-nightly-2a02f6ef-20260911), con T=0 tal como lo dejo el A/B de opencode
+    # (k8s-ai #60, pendiente de decision). AL ACABAR se devuelve el pin a
+    #   targetRevision: test/qwen38fn-long-prefill-t0-live-20260910
+    # salvo que Dani decida otra cosa. Rollback total: "872a4f6164bbbde59ad61b18a88e7b72cb127d1e".
+    targetRevision: test/qwen38fn-nightly-2a02f6ef-20260911
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
