@@ -1069,14 +1069,9 @@ spec:
     # Mismo render que la rama al cerrar: repin sin reinicio.
     # 10-09-2026 noche: `ai` sigue la rama del A/B inverso (T=0 con trafico vivo).
     # Al cerrar el A/B: repin al SHA del merge de k8s-ai. ROLLBACK: 872a4f6164bbbde59ad61b18a88e7b72cb127d1e
-    # 11-09-2026 ~01:00Z: REINTENTO del test de la nightly vLLM 2a02f6ef (k8s-ai rama
-    # test/qwen38fn-nightly-2a02f6ef-20260911) con gdn_prefill_backend=triton: el primer intento
-    # murio por el kernel FlashInfer del prefill GDN en GB10 (NV_ERR_NO_MEMORY, EngineCore muerto).
-    # T=0 como lo dejo el A/B de opencode (k8s-ai #60, pendiente de decision). AL ACABAR se
-    # devuelve el pin a:
-    #   targetRevision: test/qwen38fn-long-prefill-t0-live-20260910
-    # salvo que Dani decida otra cosa. Rollback total: "872a4f6164bbbde59ad61b18a88e7b72cb127d1e".
-    targetRevision: test/qwen38fn-nightly-2a02f6ef-20260911
+    # 11-09-2026 02:50Z: nightly vLLM 2a02f6ef + mod ursucipian v2 + VLLM_SPARSE_INDEXER_MAX_LOGITS_MB=64
+    # + gdn triton, T=0 (decision de Dani). k8s-ai #61. Rollback: "872a4f6164bbbde59ad61b18a88e7b72cb127d1e".
+    targetRevision: 221bc2354eef7ce0f9fe9250757d381836038ed8
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
