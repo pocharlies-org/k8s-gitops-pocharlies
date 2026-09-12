@@ -996,7 +996,7 @@ metadata:
     # (ba756c9) en el clúster, y el gate exige que el PATCH lleve la revision,
     # el id y la secuencia APROBADOS en las anotaciones del propio Application.
     # Mismo commit f0b5715, misma decision (prune false), secuencia nueva.
-    operations.pocharlies.org/state-writer-lease: inactive
+    operations.pocharlies.org/state-writer-lease: active
     # REINTENTO r4. El r3 (secuencia 20260904071500) se aplico pero la
     # operacion quedo Failed a las 08:29Z: el Deployment abrio con el
     # sidecar hermes-acp SIN el mount hermes-seed-script (husk SSA: dos
@@ -1047,6 +1047,31 @@ metadata:
     # PR #302, que mueve los ExternalSecrets al ClusterSecretStore `onepassword`
     # (NotReady desde 05:01Z por rate limit de vault) y lo aprobara SC-496 aparte.
     # ADITIVO: approved-prune false — no se poda nada.
+    # Approval 2026-09-12 (DGX-84) para el merge del bump del chart a la release
+    # 2026.7.1-2-opencode-20260912 — ventana opencode-ACP. Lo que debe rodar
+    # ahora es esa release: imagen con acpx@0.13.2 y opencode-ai@1.18.30, plano
+    # hermes retirado (sidecar hermes-acp, initContainer hermes-config-seed, CM
+    # hermes-seed, NetworkPolicy hermes-acp y VMRule hermes-acp fuera del render;
+    # initContainer opencode-config-seed y su CM dentro — diff del body del
+    # PR #308).
+    # El approval anterior (sc230-hermes-readiness-veto-20260912, secuencia
+    # 20260912080503, hacia 1b2d7b0) queda CONSUMIDO: su operacion termino
+    # Succeeded y la ventana SC-230 se cerro en e097b55 (lease a inactive). El
+    # gate exige secuencia estrictamente mayor: 20260912195500.
+    # approved-prune TRUE segun el plan SSA (PR #308, paso 4): con prune false el
+    # CM openclaw-qwen36-hermes-seed, la NetworkPolicy openclaw-qwen36-hermes-acp
+    # y la VMRule openclaw-qwen36-hermes-acp quedarian como husks sin dueno —
+    # esta operacion SI poda esos tres recursos, y solo esos tres (el resto del
+    # render no pierde recursos).
+    # dry-run=server EXIMIDO por ruling del CTO (DGX-84): cubierto por el
+    # analisis managedFields del paso 1 del plan (com. 12184) y porque el sync
+    # real corre con ServerSideApply=true (falla atomico y a la vista).
+    # El pin es el MERGE COMMIT literal del bump sobre deploy/prod, no una ref
+    # movil: el gate compara operation.sync.revision == approved-revision.
+    operations.pocharlies.org/approved-revision: PENDING-BUMP-MERGE-SHA
+    operations.pocharlies.org/approval-id: dgx84-opencode-acp-20260912
+    operations.pocharlies.org/approval-sequence: "20260912195500"
+    operations.pocharlies.org/approved-prune: "true"
     # REINTENTO r2. El r1 (21:13Z) fallo en la tarea de Sync del Deployment:
     #
     #   Deployment.apps "openclaw-qwen36-openclaw" is invalid:
