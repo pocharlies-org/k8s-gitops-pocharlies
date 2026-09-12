@@ -1068,7 +1068,7 @@ metadata:
     # real corre con ServerSideApply=true (falla atomico y a la vista).
     # El pin es el MERGE COMMIT literal del bump sobre deploy/prod, no una ref
     # movil: el gate compara operation.sync.revision == approved-revision.
-    operations.pocharlies.org/approved-revision: PENDING-BUMP-MERGE-SHA
+    operations.pocharlies.org/approved-revision: dd3cf49c62a722d579642196a3ff0268f0b53f43
     operations.pocharlies.org/approval-id: dgx84-opencode-acp-20260912
     operations.pocharlies.org/approval-sequence: "20260912195500"
     operations.pocharlies.org/approved-prune: "true"
