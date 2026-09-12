@@ -1,0 +1,62 @@
+# opencode en contenedor (SC-70, epica SC-104, decision del CTO 09-09-2026).
+#
+# Mismo patron que backup-logical-dumps y restore-drill: los manifiestos viven
+# en dgx-infra (k8s/apps/opencode/) y AQUI solo se declara la Application. NO
+# en dgx-infra/k8s/argocd/apps/: ese directorio no lo sincroniza nada (los
+# Applications vivos de ahi no llevan tracking-id — se aplicaron a mano).
+#
+# prune:false a proposito, y este es el motivo de fondo: aqui vive ESTADO. El
+# PVC del StatefulSet es una SQLite con la historia de sesiones, y un
+# `prune:true` convertiria un `git rm` equivocado (o un simple mover de fichero)
+# en el borrado del StatefulSet y su Service por un sync. Con selfHeal:true el
+# cluster sigue reconciliandose hacia git (nadie puede editar a mano y que
+# quede), pero borrar es decision manual y mirando — igual que en la ruta de
+# backups. El `resources-finalizer` refuerza lo mismo por el otro lado: si alguien
+# borra la Application, ArgoCD barre los recursos, asi que la Application
+# tampoco se borra a la ligera.
+#
+# CreateNamespace=true: `opencode` es un namespace de nueva creacion (el
+# manifiesto k8s/apps/opencode/namespace.yaml lo declara tambien; el syncOption
+# es el respaldo, como en restore-drill). El CronJob del dump logico vive en
+# ESTE namespace y lo sincroniza la app `backup-logical-dumps`, no esta.
+#
+# ORDEN DE FUSION: primero el PR de dgx-infra (sc70-opencode-deploy -> master);
+# hasta que ese path no exista en master, esta app da error de resolucion.
+#
+# SIN Ingress: el servidor es cluster-internal (http://opencode.opencode.svc:4096).
+# Y NO es el cutover: el opencode de la empresa sigue siendo
+# opencode-web.service en el nodo ubuntu. Ver README del directorio.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: opencode
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/dgx-infra/tree/master/k8s/apps/opencode
+  labels:
+    e-dani.com/tier: app
+    app.kubernetes.io/part-of: dgx-infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/dgx-infra
+    targetRevision: master
+    path: k8s/apps/opencode
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: opencode
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+  revisionHistoryLimit: 10

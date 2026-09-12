@@ -9,6 +9,7 @@ resources:
   - infra/backup-hub.yaml
   - infra/backup-logical-dumps.yaml
   - infra/restore-drill.yaml
+  - infra/opencode.yaml
   - infra/traefik-lan.yaml
   - infra/traefik-edge.yaml
   - infra/arc.yaml
