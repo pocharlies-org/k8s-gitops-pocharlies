@@ -1033,9 +1033,23 @@ metadata:
     # que un retry es un approval NUEVO, no un reintento del viejo.
     # El pin es el commit literal 3b3646d, no una ref movil. ADITIVO:
     # approved-prune false -- no se poda nada.
-    operations.pocharlies.org/approved-revision: 3b3646ddd52d70c7216c4568bc94cb1939e87212
-    operations.pocharlies.org/approval-id: sc230-hermes-seed-anchor-20260906
-    operations.pocharlies.org/approval-sequence: "20260906221155"
+    # Approval 2026-09-12 para 1b2d7b0 — SC-230 Parte A. Lo que debe rodar ahora
+    # es el merge del PR #300 sobre deploy/prod de k8s-openclaw-qwen36-pocharlies,
+    # cuyo chart es identico al del PR #298: ese PR RETIRA el veto de la
+    # readinessProbe de hermes-acp — el binario `hermes` no existe en la imagen,
+    # la probe exigia un fichero ausente y el pod NUNCA podia estar Ready, con lo
+    # que el sidecar sacaba al pod entero del Service principal.
+    # El approval anterior (sc230-hermes-seed-anchor-20260906, secuencia
+    # 20260906221155, hacia 3b3646d) queda CONSUMIDO: su operacion termino Failed
+    # precisamente por esa probe. El gate exige secuencia estrictamente mayor, asi
+    # que esto es un approval NUEVO, no un reintento del viejo.
+    # Se aprueba el commit literal 1b2d7b0, NO la punta d89b271: esta incluye el
+    # PR #302, que mueve los ExternalSecrets al ClusterSecretStore `onepassword`
+    # (NotReady desde 05:01Z por rate limit de vault) y lo aprobara SC-496 aparte.
+    # ADITIVO: approved-prune false — no se poda nada.
+    operations.pocharlies.org/approved-revision: 1b2d7b098c0424cd1f2f0418c95158cdf886ad0d
+    operations.pocharlies.org/approval-id: sc230-hermes-readiness-veto-20260912
+    operations.pocharlies.org/approval-sequence: "20260912080503"
     operations.pocharlies.org/approved-prune: "false"
     # REINTENTO r2. El r1 (21:13Z) fallo en la tarea de Sync del Deployment:
     #
