@@ -996,7 +996,7 @@ metadata:
     # (ba756c9) en el clúster, y el gate exige que el PATCH lleve la revision,
     # el id y la secuencia APROBADOS en las anotaciones del propio Application.
     # Mismo commit f0b5715, misma decision (prune false), secuencia nueva.
-    operations.pocharlies.org/state-writer-lease: active
+    operations.pocharlies.org/state-writer-lease: inactive
     # REINTENTO r4. El r3 (secuencia 20260904071500) se aplico pero la
     # operacion quedo Failed a las 08:29Z: el Deployment abrio con el
     # sidecar hermes-acp SIN el mount hermes-seed-script (husk SSA: dos
@@ -1047,10 +1047,6 @@ metadata:
     # PR #302, que mueve los ExternalSecrets al ClusterSecretStore `onepassword`
     # (NotReady desde 05:01Z por rate limit de vault) y lo aprobara SC-496 aparte.
     # ADITIVO: approved-prune false — no se poda nada.
-    operations.pocharlies.org/approved-revision: 1b2d7b098c0424cd1f2f0418c95158cdf886ad0d
-    operations.pocharlies.org/approval-id: sc230-hermes-readiness-veto-20260912
-    operations.pocharlies.org/approval-sequence: "20260912080503"
-    operations.pocharlies.org/approved-prune: "false"
     # REINTENTO r2. El r1 (21:13Z) fallo en la tarea de Sync del Deployment:
     #
     #   Deployment.apps "openclaw-qwen36-openclaw" is invalid:
@@ -1067,6 +1063,7 @@ metadata:
     # `argocd-controller`, asi que el apply si puede retirarlo.
     #
     # El fallo fue SEGURO: tarea de Sync, nada rodo, el pod siguio con su edad.
+    # APPROVAL CERRADO 2026-09-12: ventana SC-230 cerrada tras operacion Succeeded (08:55:14Z) y despliegue estable (pod 4/4 >=15 min sin reinicios, endpoints ready); lease a inactive.
   labels:
     e-dani.com/tier: app
   finalizers: [resources-finalizer.argocd.argoproj.io]
