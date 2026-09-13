@@ -1,0 +1,10 @@
+# Carga del test INFRA-41/INFRA-75. application.yaml NO va aqui a proposito:
+# la Application la aplica el kustomization raiz (cuando una PR futura decida
+# activar el test), y el source de aquella apunta a ESTE directorio. Incluir su
+# propio application.yaml aqui causaria autorreferencia.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - pvc.yaml
+  - deployment.yaml

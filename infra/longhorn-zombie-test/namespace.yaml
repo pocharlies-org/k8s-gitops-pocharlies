@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: longhorn-zombie-test
+  labels:
+    e-dani.com/tier: infra
+    pod-security.kubernetes.io/enforce: restricted
