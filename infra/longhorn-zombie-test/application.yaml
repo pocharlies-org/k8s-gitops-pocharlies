@@ -1,0 +1,34 @@
+# Application del pod de prueba del bug longhorn/longhorn#13723 (INFRA-41).
+#
+# ESTE FICHERO NO LO APLICA NADA: no esta en el kustomization.yaml raiz, asi
+# que el merge de su PR no despliega nada. Activarlo (anadir esta linea al
+# kustomization raiz) es decision de la ventana del operador para INFRA-75,
+# con PR aparte y siguiendo el runbook
+# docs/runbook-longhorn-zombie-pods-k3s-restart.md de k8s-infra-pocharlies.
+#
+# syncPolicy SIN automated a proposito: ni siquiera una vez referenciada desde
+# el raiz se sincroniza sola; el sync lo pulsa el operador.
+#
+# Sin resources-finalizer: test desechable; borrar la Application debe dejar
+# los recursos en pie para recoger evidencia.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: longhorn-zombie-test
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/longhorn/longhorn/issues/13723
+  labels:
+    e-dani.com/tier: infra
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-gitops-pocharlies
+    targetRevision: deploy/prod
+    path: infra/longhorn-zombie-test
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: longhorn-zombie-test
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
