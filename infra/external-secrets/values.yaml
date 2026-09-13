@@ -11,3 +11,7 @@
 # `prune: false` no es opinable: un prune borraria esos CRDs y con ellos TODOS los
 # ExternalSecret del cluster, que es como decir todos los secretos.
 installCRDs: true
+
+# TEMPORAL DGX-80/DGX-84: controller a 0 hasta 00:05Z del 14-09 (reset de cuota
+# 1Password Families); se revertira a 1 tras la barrida limpia. Ver DGX-84.
+replicaCount: 0
