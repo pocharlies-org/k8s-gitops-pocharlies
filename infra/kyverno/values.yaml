@@ -69,7 +69,9 @@ reportsController:
     limits:
       memory: 512Mi
     requests:
-      cpu: 50m
+      # 2026-09-13 (INFRA-42): 50m -> 150m. p95 14d 278m en ks5-cp-1
+      # (medicion sre, comentario 12299 en INFRA-42): infra-dotado.
+      cpu: 150m
       memory: 128Mi
   tolerations:
   - effect: NoSchedule

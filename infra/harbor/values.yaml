@@ -42,7 +42,8 @@ core:
     limits:
       memory: 1Gi
     requests:
-      cpu: 100m
+      # 2026-09-13 (INFRA-42): 100m -> 50m. p95 14d 37m (comentario 12299).
+      cpu: 50m
       memory: 256Mi
   secretName: harbor-token-cert
 database:
@@ -77,7 +78,8 @@ jobservice:
     limits:
       memory: 1Gi
     requests:
-      cpu: 100m
+      # 2026-09-13 (INFRA-42): 100m -> 50m. p95 14d 3m (comentario 12299).
+      cpu: 50m
       memory: 128Mi
 nginx:
   nodeSelector:
@@ -163,7 +165,12 @@ registry:
       limits:
         memory: 1Gi
       requests:
-        cpu: 100m
+        # 2026-09-13 (INFRA-42): 100m -> 50m. El pod harbor-registry suma
+        # registry + registryctl (controller): 150m -> 100m, p95 14d 65m del
+        # pod (comentario 12299). El recorte de -50m cae aqui porque
+        # registryctl ya estaba en 50m; sin cpu limit, margen 1.5x sobre el
+        # p95 del pod.
+        cpu: 50m
         memory: 128Mi
   replicas: 1
 trivy:
@@ -175,7 +182,8 @@ trivy:
     limits:
       memory: 1Gi
     requests:
-      cpu: 100m
+      # 2026-09-13 (INFRA-42): 100m -> 50m. p95 14d 2m (comentario 12299).
+      cpu: 50m
       memory: 256Mi
 updateStrategy:
   type: Recreate

@@ -54,7 +54,11 @@ controller:
       # 2026-08-15: 100m -> 400m. Pedia 100m con un p95 de 825m y picos de
       # 287m en reposo: el scheduler no veia su peso en nodos al 92-98% de
       # requests. Sin cpu limit, como estaba.
-      cpu: 400m
+      # 2026-09-13 (INFRA-42): 400m -> 800m. p95 14d 843m (medicion sre,
+      # comentario 12299 en INFRA-42): seguia infra-dotado. Subida EN SITIO
+      # en ks5-cp-3: moverlo desplazaría 843m de uso real a un cp-1 que ya
+      # pinó 5934m reales.
+      cpu: 800m
       memory: 256Mi
     limits:
       memory: 2Gi
