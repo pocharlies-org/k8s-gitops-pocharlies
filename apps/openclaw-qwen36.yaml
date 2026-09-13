@@ -1068,9 +1068,35 @@ metadata:
     # real corre con ServerSideApply=true (falla atomico y a la vista).
     # El pin es el MERGE COMMIT literal del bump sobre deploy/prod, no una ref
     # movil: el gate compara operation.sync.revision == approved-revision.
-    operations.pocharlies.org/approved-revision: dd3cf49c62a722d579642196a3ff0268f0b53f43
-    operations.pocharlies.org/approval-id: dgx84-opencode-acp-20260912
-    operations.pocharlies.org/approval-sequence: "20260912195500"
+    # Approval 2026-09-13 (DGX-80) para el merge del PR #314 sobre deploy/prod de
+    # k8s-openclaw-qwen36-pocharlies — restaurar el ConfigMap hermes-seed TEMPORAL
+    # que el pod vivo de openclaw-qwen36 aun monta (volumen hermes-seed-script, sin
+    # optional). Sin ese ConfigMap en el render, un relevo del pod del ReplicaSet
+    # actual queda en ContainerCreating para siempre: apagon sin relevo. El pin es
+    # el MERGE COMMIT literal del PR #314 sobre deploy/prod, no una ref movil: el
+    # gate compara operation.sync.revision == approved-revision.
+    # El approval anterior (dgx84-opencode-acp-20260912, secuencia 20260912195500,
+    # hacia dd3cf49) queda CONSUMIDO: su operacion termino Failed a las
+    # 2026-09-13T00:03:31Z con cuatro ExternalSecrets en "could not get secret data
+    # from provider" (cuota del proveedor agotada — DGX-84; el controller
+    # external-secrets se puso a 0 despues, PR #325, hasta el reset). Esa misma
+    # operacion PODO el CM openclaw-qwen36-hermes-seed (consta en su syncResult):
+    # de ahi el riesgo de apagon sin relevo que cierra este approval. El gate exige
+    # secuencia estrictamente mayor: 20260913013000.
+    # ESPERADO: el gate de ExternalSecrets volvera a fallar en este ciclo (el
+    # proveedor sigue sin cuota y el controller esta a 0). La wave del ConfigMap se
+    # aplica ANTES del gate, asi que el CM queda restaurado aunque la operacion
+    # termine Failed — es exactamente el objetivo (que el relevo del pod pueda
+    # montar). NO es la ventana completa: la ventana final vendra con
+    # approved-revision a la punta del tronco sin el ConfigMap temporal (retirada
+    # de #314) y aprobacion nueva.
+    # approved-prune TRUE como en el bundle anterior: el render de 76c44e6 solo
+    # re-anade el CM hermes-seed (gate hermesSeedTemp.enabled, default true en el
+    # chart); prune true preserva la semantica del PATCH ya verificado — revision
+    # literal + prune + syncOptions ServerSideApply.
+    operations.pocharlies.org/approved-revision: 76c44e6b3a72c5ee75ab5df78e34a510e7810f5f
+    operations.pocharlies.org/approval-id: dgx80-hermes-seed-restore-20260913
+    operations.pocharlies.org/approval-sequence: "20260913013000"
     operations.pocharlies.org/approved-prune: "true"
     # REINTENTO r2. El r1 (21:13Z) fallo en la tarea de Sync del Deployment:
     #
