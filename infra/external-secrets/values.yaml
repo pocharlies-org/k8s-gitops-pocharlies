@@ -12,6 +12,9 @@
 # ExternalSecret del cluster, que es como decir todos los secretos.
 installCRDs: true
 
-# TEMPORAL DGX-80/DGX-84: controller a 0 hasta 00:05Z del 14-09 (reset de cuota
-# 1Password Families); se revertira a 1 tras la barrida limpia. Ver DGX-84.
-replicaCount: 0
+# DGX-80/DGX-84: del 13-09 01:58Z al reset de cuota del 14-09 (~00:05Z) el
+# controller estuvo a 0 temporal (commit ff862e2, PR #325) para no quemar la
+# cuota diaria de 1Password Families. Restaurado a 1: nota del CTO en DGX-84
+# (12:17Z) -- la recuperacion incluye "el PR del controller a 1" tras el reset.
+# NO fusionar antes del reset de cuota o la cuota nueva se vuelve a agotar.
+replicaCount: 1
