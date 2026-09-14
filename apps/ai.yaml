@@ -1071,7 +1071,9 @@ spec:
     # Al cerrar el A/B: repin al SHA del merge de k8s-ai. ROLLBACK: 872a4f6164bbbde59ad61b18a88e7b72cb127d1e
     # 11-09-2026 02:50Z: nightly vLLM 2a02f6ef + mod ursucipian v2 + VLLM_SPARSE_INDEXER_MAX_LOGITS_MB=64
     # + gdn triton, T=0 (decision de Dani). k8s-ai #61. Rollback: "872a4f6164bbbde59ad61b18a88e7b72cb127d1e".
-    targetRevision: 221bc2354eef7ce0f9fe9250757d381836038ed8
+    # 14-09-2026 11:52Z: DGX-108 — retiro del husk omnivoice-tts-fp16 (sustituido por tts-cpu).
+    # Pin al merge de k8s-ai #63 sobre main. Rollback: "221bc2354eef7ce0f9fe9250757d381836038ed8".
+    targetRevision: af7aed727658566c6aafcdbe446fb597fb0bd16d
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
