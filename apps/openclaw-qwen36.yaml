@@ -1094,9 +1094,28 @@ metadata:
     # re-anade el CM hermes-seed (gate hermesSeedTemp.enabled, default true en el
     # chart); prune true preserva la semantica del PATCH ya verificado — revision
     # literal + prune + syncOptions ServerSideApply.
-    operations.pocharlies.org/approved-revision: 76c44e6b3a72c5ee75ab5df78e34a510e7810f5f
-    operations.pocharlies.org/approval-id: dgx80-hermes-seed-restore-20260913
-    operations.pocharlies.org/approval-sequence: "20260913013000"
+    # Approval 2026-09-14 (DGX-106, epica DGX-104) para el merge del PR #316 sobre
+    # deploy/prod de k8s-openclaw-qwen36-pocharlies — el CM temporal hermes-seed
+    # pasa a wave -50, antes que los ExternalSecrets, para que el executor del
+    # runbook lo aplique ANTES de que el gate pueda fallar. Entre 76c44e6 y
+    # 61ae585 solo esta ese PR (1b0405f + merge): el set de recursos del render no
+    # cambia, solo la wave del CM. El pin es el MERGE COMMIT literal de #316 sobre
+    # deploy/prod (punta del tronco), no una ref movil: el gate compara
+    # operation.sync.revision == approved-revision.
+    # El approval anterior (dgx80-hermes-seed-restore-20260913, secuencia
+    # 20260913013000, hacia 76c44e6) queda CONSUMIDO: su operacion termino Failed
+    # en el gate de ExternalSecrets, como estaba ESPERADO en su propio comentario
+    # (la wave del CM se aplico, el CM quedo restaurado). El gate exige secuencia
+    # estrictamente mayor: 20260914121000.
+    # QUÉ DISPARA EL MERGE: el executor del runbook sincroniza a la revision
+    # aprobada y el CM hermes-seed se aplica en wave -50 antes del gate; el
+    # reinicio forzado del pod NO lo hace esta operacion — lo hace el operador
+    # despues.
+    # approved-prune TRUE como en el bundle anterior: el render de 61ae585 no
+    # pierde recursos frente al de 76c44e6.
+    operations.pocharlies.org/approved-revision: 61ae585d8d8937444316a79f39a4d24f6eb5d563
+    operations.pocharlies.org/approval-id: dgx80-hermes-seed-restore-20260914
+    operations.pocharlies.org/approval-sequence: "20260914121000"
     operations.pocharlies.org/approved-prune: "true"
     # REINTENTO r2. El r1 (21:13Z) fallo en la tarea de Sync del Deployment:
     #
