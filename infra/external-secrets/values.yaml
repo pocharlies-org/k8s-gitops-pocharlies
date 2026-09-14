@@ -18,3 +18,24 @@ installCRDs: true
 # (12:17Z) -- la recuperacion incluye "el PR del controller a 1" tras el reset.
 # NO fusionar antes del reset de cuota o la cuota nueva se vuelve a agotar.
 replicaCount: 1
+
+# DGX-112: el suelo de llamadas era 966/dia contra la cuota Families de 1.000
+# (DGX-84 com. 12523). 288/dia los consumia la revalidacion de cada store, que
+# por defecto corre cada 5 min y cada pasada construye cliente -> VaultsAPI.List.
+# A 1h: 24/dia (-264, ~26% de la cuota). Coste aceptado: un store roto tarda
+# hasta 1h en reflejarse en su condicion Ready en vez de 5 min -- irrelevante
+# con 2 stores.
+extraArgs:
+  store-requeue-interval: "1h"
+
+# DGX-112: el controller ya contaba sus llamadas a proveedores
+# (externalsecret_provider_api_calls_count) escuchando en :8080
+# (--metrics-addr=:8080), pero sin Service delante nadie las recogia. Con esto
+# el chart crea el Service external-secrets-metrics (puerto 8080 -> targetPort
+# metrics). El scrape (VMServiceScrape) y la alerta (VMRule > 700 llamadas/24h)
+# NO van aqui: en este cluster los scrapes de componentes de plataforma viven
+# en k8s-observability-pocharlies/manifests (patron cert-manager-scrape.yaml)
+# y viajan en su PR.
+metrics:
+  service:
+    enabled: true
