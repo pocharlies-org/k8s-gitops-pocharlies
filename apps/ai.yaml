@@ -1073,6 +1073,7 @@ spec:
     # + gdn triton, T=0 (decision de Dani). k8s-ai #61. Rollback: "872a4f6164bbbde59ad61b18a88e7b72cb127d1e".
     # 14-09-2026 11:52Z: DGX-108 — retiro del husk omnivoice-tts-fp16 (sustituido por tts-cpu).
     # Pin al merge de k8s-ai #63 sobre main. Rollback: "221bc2354eef7ce0f9fe9250757d381836038ed8".
+    # 15-09-2026 11:30Z: repin al merge de k8s-ai #66 (voice-preemptible -> preemptible).
     # 15-09-2026 08:00Z: stt-turbo (whisper) vuelve a DGX1 (nvidia-dgx) con la imagen arm64
     # (vuelve pyannote/diarize) + PriorityClass voice-preemptible (-1000: primero que cae si
     # falta memoria) y techo 8Gi. Hueco medido en DGX1: 9.6 GiB MemAvailable, uso del pod
@@ -1082,7 +1083,10 @@ spec:
     # Su alias en LiteLLM ya se retiro (k8s-litellm SC-384, #80). 0 peticiones y pod en
     # crash-loop. prune:true en `ai` borra Deployment y Service al sync.
     # Pin al merge de k8s-ai #65 sobre main. Rollback: "5ae2fadb24264c719944ec72a06a20747ef22091".
-    targetRevision: 11369268ee239ddf9f959f0efcca801809e0ce68
+    # 15-09-2026 13:40Z: repin al merge de k8s-ai #66 (voice-preemptible -> preemptible,
+    # paso previo a que k8s-bge la consuma). ANCESTRO de #66: incluye el retiro de
+    # qwen35-4b-int4 de arriba. Rollback: "11369268ee239ddf9f959f0efcca801809e0ce68".
+    targetRevision: 41ad77bc91eb82ae710672506db8e99dabbddb8b
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
