@@ -60,3 +60,36 @@ spec:
         factor: 2
         maxDuration: 5m
   revisionHistoryLimit: 10
+  # El API server rellena campos en el manifiesto vivo que no existen en git y
+  # ArgoCD no normaliza: en el StatefulSet, el volumeClaimTemplates hereda
+  # apiVersion/kind/volumeMode/status de la PVC (argo-cd #11143), y en el
+  # ExternalSecret ESO añade los defaults del remoteRef. Sin ignorarlos la app
+  # queda OutOfSync permanente con diff vacio (argocd app diff no muestra nada
+  # y el semaforo nunca se pone en verde). ServerSideDiff=true no lo arregla en
+  # v3.4.2; esto si. Los tres grupos son derivas del servidor, no intencion:
+  # si alguien cambia de verdad el tamano del PVC o un remoteRef, eso SI sale
+  # en el diff y se sincroniza.
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jqPathExpressions:
+        - .spec.volumeClaimTemplates[].apiVersion
+        - .spec.volumeClaimTemplates[].kind
+        - .spec.volumeClaimTemplates[].metadata.creationTimestamp
+        - .spec.volumeClaimTemplates[].spec.volumeMode
+        - .spec.volumeClaimTemplates[].status
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.data[]?.remoteRef.conversionStrategy
+        - .spec.data[]?.remoteRef.decodingStrategy
+        - .spec.data[]?.remoteRef.metadataPolicy
+        - .spec.data[]?.remoteRef.nullBytePolicy
+        - .spec.dataFrom[]?.extract.conversionStrategy
+        - .spec.dataFrom[]?.extract.decodingStrategy
+        - .spec.dataFrom[]?.extract.metadataPolicy
+        - .spec.dataFrom[]?.extract.nullBytePolicy
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      managedFieldsManagers:
+        - manager
