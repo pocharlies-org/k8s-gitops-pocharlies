@@ -1077,7 +1077,12 @@ spec:
     # (vuelve pyannote/diarize) + PriorityClass voice-preemptible (-1000: primero que cae si
     # falta memoria) y techo 8Gi. Hueco medido en DGX1: 9.6 GiB MemAvailable, uso del pod
     # 2.3 GiB. k8s-ai #64. Rollback: "af7aed727658566c6aafcdbe446fb597fb0bd16d".
-    targetRevision: 5ae2fadb24264c719944ec72a06a20747ef22091
+    # 15-09-2026 13:20Z: SC-384 — retiro TOTAL de qwen35-4b-int4 (Qwen3.5-4B llama.cpp en
+    # la RTX del x86): Deployment+Service fuera del render (k8s-ai #65, merge sobre main).
+    # Su alias en LiteLLM ya se retiro (k8s-litellm SC-384, #80). 0 peticiones y pod en
+    # crash-loop. prune:true en `ai` borra Deployment y Service al sync.
+    # Pin al merge de k8s-ai #65 sobre main. Rollback: "5ae2fadb24264c719944ec72a06a20747ef22091".
+    targetRevision: 11369268ee239ddf9f959f0efcca801809e0ce68
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
