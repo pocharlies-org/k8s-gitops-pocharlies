@@ -514,3 +514,29 @@ patches:
           namespace: synapse
           jsonPointers:
             - /spec/replicas
+  # opencode (SC-104, 15-09): el API server rellena apiVersion/kind/volumeMode/
+  # status dentro del volumeClaimTemplates del StatefulSet vivo y ArgoCD v3.4.2
+  # no los normaliza: la app nace OutOfSync permanente con diff vacio
+  # (argocd app diff no muestra nada) — argo-cd #11143. Probado en vivo:
+  # ServerSideDiff=true como syncOption NO lo evita. Se ignoran solo los campos
+  # que escribe el servidor; un cambio real de storage size o storageClass en
+  # el vct sigue saliendo en el diff. Va aqui y no en infra/opencode.yaml
+  # porque el patch general de arriba (op: add sin `/-`) reemplaza la lista
+  # entera: lo declarado en el fichero de la app nunca llega vivo.
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+      name: opencode
+    patch: |-
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: StatefulSet
+          jqPathExpressions:
+            - .spec.volumeClaimTemplates[].apiVersion
+            - .spec.volumeClaimTemplates[].kind
+            - .spec.volumeClaimTemplates[].metadata.creationTimestamp
+            - .spec.volumeClaimTemplates[].spec.volumeMode
+            - .spec.volumeClaimTemplates[].status
