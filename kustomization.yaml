@@ -37,8 +37,6 @@ resources:
   - apps/libreplay-staging.yaml
   - apps/litellm.yaml
   - apps/langfuse.yaml
-  - apps/openclaw-qwen36.yaml
-  - apps/openclaw-synapse.yaml
   - apps/offers-mcp.yaml
   - apps/shopify-bundles.yaml
   - apps/shopify-chatbot.yaml
@@ -68,11 +66,6 @@ resources:
   - apps/serpientetool.yaml
   - apps/agentgateway-mcp.yaml
   - argocd/ingressroute.yaml
-  - argocd/project-openclaw-controlled.yaml
-  - argocd/openclaw-synapse-namespace.yaml
-  - argocd/project-openclaw-synapse.yaml
-  - argocd/openclaw-release-verifier-rbac.yaml
-  - argocd/openclaw-operation-admission-gate.yaml
   - argocd/repositories.yaml
 patches:
   - target:
