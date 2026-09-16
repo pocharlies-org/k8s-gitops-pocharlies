@@ -13,39 +13,39 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.openclaw_values = self.manifest.split("name: arc-openclaw", 1)[1].split("---", 1)[0]
         self.shared_values = self.manifest.split("name: arc-k8s", 1)[1]
 
-    def test_shared_runner_is_pinned_to_ks5_with_no_edge_fallback(self) -> None:
-        """arc-k8s se queda en KS5 a proposito, sin caer a sauvage.
+    def test_shared_runner_has_free_amd64_scheduling(self) -> None:
+        """arc-k8s se coloca en cualquier nodo amd64 — sin nodeAffinity.
 
-        Reescrito 2026-08-13. Este test exigia `values: [edge]` como fallback,
-        pero el manifiesto lo habia quitado deliberadamente y nadie actualizo el
-        test: los builds en sauvage compiten con el MinIO de un solo nodo de
-        Harbor sobre md3 y hacen expirar subidas al registry que por lo demas
-        estan sanas. La asimetria es intencionada — arc-openclaw si conserva el
-        fallback — y la fija el test de abajo.
+        Reescrito 2026-09-16 (decision de Dani). Sustituye al pinning a
+        ks5-nvme (2026-08-13): el pool se amplió a 6 y los runners van al
+        nodo amd64 con mas hueco (ks5, sauvage, x86). Se asume a proposito la
+        contencion de I/O con el MinIO de Harbor sobre md3 que motivo la
+        restriccion original. arc-openclaw si conserva su pinning a KS5 con
+        fallback a edge.
         """
         runner_values = self.shared_values.split("runnerScaleSetName: arc-k8s", 1)[1]
         runner_values = runner_values.split("tolerations:", 1)[0]
 
-        self.assertIn("key: node-pool", runner_values)
         self.assertIn("kubernetes.io/arch: amd64", runner_values)
         self.assertIn("preferredDuringSchedulingIgnoredDuringExecution:", runner_values)
-        self.assertIn("requiredDuringSchedulingIgnoredDuringExecution:", runner_values)
-        self.assertIn("values: [ks5-nvme]", runner_values)
-        self.assertNotIn("values: [edge]", runner_values)
+        self.assertNotIn("key: node-pool", runner_values)
+        self.assertNotIn("requiredDuringSchedulingIgnoredDuringExecution:", runner_values)
+        self.assertNotIn("values: [ks5-nvme]", runner_values)
         self.assertNotIn("kubernetes.io/hostname:", runner_values)
         self.assertNotIn("workload: cpu", runner_values)
 
-    def test_edge_fallback_belongs_to_openclaw_only(self) -> None:
-        """Solo arc-openclaw tolera y admite el nodo edge."""
+    def test_edge_node_is_tolerated_by_both_pools(self) -> None:
+        """arc-openclaw conserva el fallback a edge; arc-k8s lo tolera desde 2026-09-16."""
         self.assertIn("key: role", self.openclaw_values)
         self.assertIn("value: edge", self.openclaw_values)
         self.assertIn("values: [edge]", self.openclaw_values)
 
-        self.assertNotIn("key: role", self.shared_values)
-        self.assertNotIn("value: edge", self.shared_values)
+        self.assertIn("key: role", self.shared_values)
+        self.assertIn("value: edge", self.shared_values)
 
-    def test_runner_pool_caps_backlog_drain_at_three(self) -> None:
-        self.assertIn("maxRunners: 3", self.shared_values)
+    def test_runner_pool_caps_backlog_drain_at_six(self) -> None:
+        self.assertIn("maxRunners: 6", self.shared_values)
+        self.assertNotIn("maxRunners: 3", self.shared_values)
         self.assertNotIn("maxRunners: 4", self.manifest)
 
     def test_openclaw_has_dedicated_runner_pool(self) -> None:
@@ -81,6 +81,8 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
             self.shared_values,
         )
         self.assertIn("name: dind", self.shared_values)
+        # 2026-09-16: uploads de registry en paralelo (fuera el cap secuencial).
+        self.assertNotIn("--max-concurrent-uploads", self.shared_values)
         self.assertIn("restartPolicy: Always", self.shared_values)
         self.assertIn('cpu: "50m"', self.shared_values)
         self.assertIn('memory: "512Mi"', self.shared_values)
