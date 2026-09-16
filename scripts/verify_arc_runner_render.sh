@@ -96,22 +96,22 @@ def validate_common(
     assert pod_spec["nodeSelector"] == expected_selector
     assert "kubernetes.io/hostname" not in pod_spec["nodeSelector"]
 
-    # El fallback a edge (sauvage) es solo de arc-openclaw. arc-k8s se queda en
-    # KS5 a proposito: sus builds contienden con el MinIO de un solo nodo de
-    # Harbor sobre md3 y hacen expirar subidas al registry sanas.
-    node_affinity = pod_spec["affinity"]["nodeAffinity"]
     ks5_term = {
         "matchExpressions": [
             {"key": "node-pool", "operator": "In", "values": ["ks5-nvme"]}
         ]
     }
-    edge_term = {
-        "matchExpressions": [{"key": "role", "operator": "In", "values": ["edge"]}]
-    }
-    assert node_affinity["requiredDuringSchedulingIgnoredDuringExecution"] == {
-        "nodeSelectorTerms": [ks5_term, edge_term] if edge_fallback else [ks5_term]
-    }
     if edge_fallback:
+        # arc-openclaw: KS5 fijado, con fallback a edge (sauvage).
+        node_affinity = pod_spec["affinity"]["nodeAffinity"]
+        edge_term = {
+            "matchExpressions": [
+                {"key": "role", "operator": "In", "values": ["edge"]}
+            ]
+        }
+        assert node_affinity["requiredDuringSchedulingIgnoredDuringExecution"] == {
+            "nodeSelectorTerms": [ks5_term, edge_term]
+        }
         node_preferences = node_affinity[
             "preferredDuringSchedulingIgnoredDuringExecution"
         ]
@@ -123,14 +123,17 @@ def validate_common(
             "value": "edge",
         } in pod_spec["tolerations"]
     else:
-        # Sin fallback no hay nada que preferir: el required ya fija KS5, y
-        # tolerar role=edge solo serviria para acabar donde no queremos.
-        assert (
-            "preferredDuringSchedulingIgnoredDuringExecution" not in node_affinity
-        )
-        assert all(
-            toleration["key"] != "role" for toleration in pod_spec["tolerations"]
-        )
+        # arc-k8s (2026-09-16, Dani): scheduling libre sobre todos los nodos
+        # amd64 — sin nodeAffinity, el scheduler coloca el runner donde haya
+        # mas hueco (ks5, sauvage, x86). Se asume a proposito la contencion
+        # de I/O con Harbor/MinIO (md3) que motivo la restriccion original.
+        assert "nodeAffinity" not in pod_spec["affinity"]
+        assert {
+            "effect": "NoSchedule",
+            "key": "role",
+            "operator": "Equal",
+            "value": "edge",
+        } in pod_spec["tolerations"]
 
     pod_anti_affinity = pod_spec["affinity"]["podAntiAffinity"]
     assert "requiredDuringSchedulingIgnoredDuringExecution" not in pod_anti_affinity
@@ -146,9 +149,15 @@ def validate_common(
 def scheduler_eligible(pod_spec: dict, labels: dict[str, str]) -> bool:
     if any(labels.get(key) != value for key, value in pod_spec["nodeSelector"].items()):
         return False
-    terms = pod_spec["affinity"]["nodeAffinity"][
-        "requiredDuringSchedulingIgnoredDuringExecution"
-    ]["nodeSelectorTerms"]
+    node_affinity = pod_spec["affinity"].get("nodeAffinity")
+    if node_affinity is None:
+        # Scheduling libre (arc-k8s): solo el nodeSelector (arch) acota. Las
+        # toleraciones que hacen falta p.ej. en sauvage se verifican aparte
+        # en validate_common.
+        return True
+    terms = node_affinity["requiredDuringSchedulingIgnoredDuringExecution"][
+        "nodeSelectorTerms"
+    ]
     return any(
         all(
             expression["operator"] == "In"
@@ -169,7 +178,7 @@ assert openclaw_runner["imagePullPolicy"] == "IfNotPresent"
 assert not openclaw_runner.get("securityContext", {}).get("privileged", False)
 assert "DOCKER_HOST" not in {item["name"] for item in openclaw_runner.get("env", [])}
 
-_, shared_spec = validate_common("arc-k8s", 3, edge_fallback=False)
+_, shared_spec = validate_common("arc-k8s", 6, edge_fallback=False)
 
 eligibility_matrix = {
     "ks5": {"kubernetes.io/arch": "amd64", "node-pool": "ks5-nvme"},
@@ -185,7 +194,7 @@ eligibility_matrix = {
         "nvidia.com/gpu.present": "true",
     },
 }
-# sauvage solo admite a arc-openclaw; arc-k8s se queda en KS5 (ver validate_common).
+# arc-k8s es elegible en cualquier nodo amd64 desde 2026-09-16 (ver validate_common).
 expected_eligibility = {
     "arc-openclaw": {
         "ks5": True,
@@ -195,8 +204,8 @@ expected_eligibility = {
     },
     "arc-k8s": {
         "ks5": True,
-        "sauvage": False,
-        "ubuntu-gpu": False,
+        "sauvage": True,
+        "ubuntu-gpu": True,
         "arm-gpu": False,
     },
 }
@@ -241,6 +250,12 @@ assert shared_runner["resources"] == {
 dind = shared_spec["initContainers"][1]
 assert dind["image"] == dind_image
 assert dind["imagePullPolicy"] == "IfNotPresent"
+# 2026-09-16: uploads de registry en paralelo (sin --max-concurrent-uploads=1).
+assert dind["args"] == [
+    "dockerd",
+    "--host=unix:///var/run/docker.sock",
+    "--group=$(DOCKER_GROUP_GID)",
+]
 assert dind["restartPolicy"] == "Always"
 assert dind["securityContext"]["privileged"] is True
 assert dind["resources"] == {

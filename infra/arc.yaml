@@ -156,22 +156,16 @@ spec:
           namespace: arc-systems
         githubConfigSecret: arc-github-app
         githubConfigUrl: https://github.com/pocharlies-org
-        # Build runners stay on KS5 NVMe. Scheduling them on sauvage makes
-        # Docker builds contend with Harbor's single-node MinIO on md3 and can
-        # cause otherwise healthy registry uploads to time out.
-        maxRunners: 3
+        # 2026-09-16 dani · pool a 6 y scheduling libre sobre amd64: los runners
+        # van al nodo amd64 con más hueco (ks5, sauvage, x86). Se asume a
+        # propósito la contención de I/O con Harbor/MinIO (md3) que motivó la
+        # restricción original a ks5-nvme.
+        maxRunners: 6
         minRunners: 0
         runnerScaleSetName: arc-k8s
         template:
           spec:
             affinity:
-              nodeAffinity:
-                requiredDuringSchedulingIgnoredDuringExecution:
-                  nodeSelectorTerms:
-                    - matchExpressions:
-                        - key: node-pool
-                          operator: In
-                          values: [ks5-nvme]
               podAntiAffinity:
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
@@ -188,6 +182,12 @@ spec:
                 key: pool
                 operator: Equal
                 value: dev
+              # 2026-09-16: permitir colocación en sauvage (role=edge) tras
+              # quitar la afinidad obligada a ks5-nvme.
+              - effect: NoSchedule
+                key: role
+                operator: Equal
+                value: edge
             # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
             # container. containerMode must stay unset when that sidecar is
             # customized, otherwise Helm silently discards its resources.
@@ -220,9 +220,6 @@ spec:
                   - dockerd
                   - --host=unix:///var/run/docker.sock
                   - --group=$(DOCKER_GROUP_GID)
-                  # Harbor uses MinIO on HDD-backed md3. Keep registry writes
-                  # sequential so slow multipart setup does not multiply I/O.
-                  - --max-concurrent-uploads=1
                 env:
                   - name: DOCKER_GROUP_GID
                     value: "123"
