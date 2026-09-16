@@ -1086,7 +1086,15 @@ spec:
     # 15-09-2026 13:40Z: repin al merge de k8s-ai #66 (voice-preemptible -> preemptible,
     # paso previo a que k8s-bge la consuma). ANCESTRO de #66: incluye el retiro de
     # qwen35-4b-int4 de arriba. Rollback: "11369268ee239ddf9f959f0efcca801809e0ce68".
-    targetRevision: 41ad77bc91eb82ae710672506db8e99dabbddb8b
+    # 15-09-2026 23:30Z: omnivoice-tts-nvfp4 pasa a residente llm-tp en el head
+    # (gx10-ec3d) y GPU_MEM_UTIL del rank baja 0.8 -> 0.785: ~1.8 GiB/nodo
+    # devueltos (pool KV 25.74 -> ~23.9, uso observado 27-35%), MemAvailable del
+    # head 3.74 -> ~5.5 GiB. Ventana de reinicio acordada con el operador: al
+    # sync, head+worker caen juntos (grupo NCCL) y LiteLLM no sirve inferencia
+    # hasta recargar pesos. Controlador (dgx-infra #365) fusionado DESPUES del
+    # manifiesto, como exige _structural_conflicts. k8s-ai #71.
+    # Rollback: "41ad77bc91eb82ae710672506db8e99dabbddb8b".
+    targetRevision: 49d844a15b15e38d6bacd523901bc200f6dbe166
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
