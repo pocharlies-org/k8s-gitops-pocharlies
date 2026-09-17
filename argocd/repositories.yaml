@@ -97,6 +97,19 @@ stringData:
 apiVersion: v1
 kind: Secret
 metadata:
+  name: repo-dgx-messages
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+type: Opaque
+stringData:
+  type: git
+  name: dgx-messages
+  url: https://github.com/pocharlies-org/dgx-messages
+---
+apiVersion: v1
+kind: Secret
+metadata:
   name: repo-k8s-litellm-pocharlies
   namespace: argocd
   labels:
