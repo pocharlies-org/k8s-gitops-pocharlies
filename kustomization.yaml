@@ -63,6 +63,7 @@ resources:
   - apps/stt-mcp.yaml
   - apps/teslamate-mcp.yaml
   - apps/dgx-synapse-mcp.yaml
+  - apps/dgx-messages.yaml
   - apps/serpientetool.yaml
   - apps/agentgateway-mcp.yaml
   - argocd/ingressroute.yaml

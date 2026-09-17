@@ -14,6 +14,7 @@ GIT_PUBLIC = [
     "https://github.com/pocharlies-org/k8s-skirmshop-drive-mirror-pocharlies",
     "https://github.com/pocharlies-org/k8s-skirmbooks-pocharlies",
     "https://github.com/pocharlies-org/k8s-dgx-synapse-mcp-pocharlies",
+    "https://github.com/pocharlies-org/dgx-messages",
     "https://github.com/pocharlies-org/k8s-litellm-pocharlies",
     "https://github.com/pocharlies-org/k8s-langfuse-pocharlies",
     "https://github.com/pocharlies/k8s-adguard-pocharlies",
