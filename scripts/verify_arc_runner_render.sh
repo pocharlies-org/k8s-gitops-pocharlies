@@ -251,10 +251,14 @@ dind = shared_spec["initContainers"][1]
 assert dind["image"] == dind_image
 assert dind["imagePullPolicy"] == "IfNotPresent"
 # 2026-09-16: uploads de registry en paralelo (sin --max-concurrent-uploads=1).
+# 2026-09-17: --mtu=1230 para igualar la MTU de la red de pods. Sin el, dockerd
+# deja el bridge en 1500 y las transferencias grandes del build se cuelgan en
+# los nodos cuyo egress no lo rescata por PMTU discovery.
 assert dind["args"] == [
     "dockerd",
     "--host=unix:///var/run/docker.sock",
     "--group=$(DOCKER_GROUP_GID)",
+    "--mtu=1230",
 ]
 assert dind["restartPolicy"] == "Always"
 assert dind["securityContext"]["privileged"] is True

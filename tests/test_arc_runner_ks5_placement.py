@@ -118,6 +118,25 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
                 "topologyKey: kubernetes.io/hostname", pod_anti_affinity
             )
 
+    def test_dind_bridge_mtu_matches_the_pod_network(self) -> None:
+        """El bridge de DinD baja a 1230 para no exceder la MTU del pod.
+
+        2026-09-17: dockerd deja su bridge en 1500 salvo que se le diga otra
+        cosa, pero la red de pods va a 1230 (overhead de tailnet/WireGuard).
+        El contenedor de build emitia tramas que la ruta del pod no podia
+        cursar: la conexion abre y llegan las cabeceras — asi que las
+        peticiones pequenas parecian sanas — y cualquier transferencia grande
+        se quedaba colgada hasta agotar el timeout del step. Solo se
+        manifestaba en los nodos cuyo egress no lo rescata por PMTU
+        discovery, por lo que parecia un runner inestable y no un fallo de
+        configuracion: 30 min colgado en `apt-get update` sobre ks5 y build
+        limpio sobre sauvage, con el mismo commit.
+        """
+        dind_values = self.shared_values.split("name: dind", 1)[1]
+        dind_values = dind_values.split("env:", 1)[0]
+
+        self.assertIn("--mtu=1230", dind_values)
+
     def test_real_render_gate_is_part_of_ci(self) -> None:
         workflow = (ROOT / ".github/workflows/reusable-ci.yml").read_text()
         verifier = ROOT / "scripts/verify_arc_runner_render.sh"

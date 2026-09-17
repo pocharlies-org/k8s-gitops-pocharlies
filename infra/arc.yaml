@@ -220,6 +220,18 @@ spec:
                   - dockerd
                   - --host=unix:///var/run/docker.sock
                   - --group=$(DOCKER_GROUP_GID)
+                  # dockerd defaults its bridge to 1500, but the pod network
+                  # runs at 1230 (tailnet/WireGuard overhead). Build containers
+                  # then emit frames the pod route cannot carry: the connection
+                  # opens and the headers arrive, so small requests look fine,
+                  # while any large transfer stalls until the step times out.
+                  # It only shows on nodes whose egress does not rescue it with
+                  # PMTU discovery, so it reads as a flaky runner rather than a
+                  # config bug -- a 30 min hang on `apt-get update` on ks5 and a
+                  # clean build on sauvage, same commit. Keep in step with the
+                  # CNI: `kubectl exec -n arc-runners <runner> -c runner --
+                  # cat /sys/class/net/eth0/mtu`.
+                  - --mtu=1230
                 env:
                   - name: DOCKER_GROUP_GID
                     value: "123"
