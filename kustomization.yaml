@@ -246,6 +246,17 @@ patches:
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *compute-replicas, name: vllm-vision-deep }
+      # 18-09: stt-turbo entra en la lista. Era el UNICO consumidor de memoria
+      # unificada de los Sparks que seguia con /spec/replicas gobernado por git,
+      # asi que selfHeal lo devolvia a 1 a los ~10 s de cualquier intento de
+      # pararlo — con el residente llm-tp caido y resetando el nodo cada ~19 min,
+      # sus ~2.3 GiB en nvidia-dgx salen del pool de KV del rank worker (en TP el
+      # pool lo fija el rank mas pequeno). Con esta entrada, sus replicas las
+      # gobierna el arbitro como las de sus 25 vecinos, y la ola 2 de k8s-ai #74
+      # ordena ademas que no se aplique antes que el LLM.
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: stt-turbo }
       # 14-08 F2/F3: twins de rol creative y el 27B fusionado.
       - op: add
         path: /spec/ignoreDifferences/-
