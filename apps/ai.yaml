@@ -1094,7 +1094,23 @@ spec:
     # hasta recargar pesos. Controlador (dgx-infra #365) fusionado DESPUES del
     # manifiesto, como exige _structural_conflicts. k8s-ai #71.
     # Rollback: "41ad77bc91eb82ae710672506db8e99dabbddb8b".
-    targetRevision: 49d844a15b15e38d6bacd523901bc200f6dbe166
+    # 18-09-2026: repin al merge de k8s-ai #74 — la puerta por sync-wave. El
+    # residente (qwen38-flash-next head+worker) pasa a la ola 1 y los dos
+    # consumidores de memoria unificada de los Sparks que viven en ESTA app
+    # (stt-turbo, omnivoice-tts-nvfp4) a la ola 2: Argo no aplica la ola 2 hasta
+    # que la 1 esta Healthy, asi que con el LLM caido no se les da el sitio que
+    # el residente necesita para arrancar. Los 12 GiB de cada uno salen de la
+    # memoria UNIFICADA del nodo, o sea del pool de KV del rank que viva alli.
+    # Diff del render entre los dos SHA = EXACTAMENTE cuatro anotaciones, nada
+    # mas (verificado con kubectl kustomize sobre ambos). Van en el metadata del
+    # Deployment, NO en el pod template: no disparan rollout, asi que el par TP=2
+    # no se reinicia por este repin. Lo que k8s-ai #73/#72 tocaron en k8s-bge/ no
+    # entra aqui: esa ruta la sirve la Application `bge`, que va por rama.
+    # CONSECUENCIA ESPERADA mientras el LLM no levante: la sync de `ai` se para en
+    # la ola 1 y la app queda en fallo. Es el comportamiento pedido, no una
+    # regresion; los pods ya corriendo no se desalojan (esto ordena la sync, no el
+    # runtime). Rollback: "49d844a15b15e38d6bacd523901bc200f6dbe166".
+    targetRevision: e08389d2819511fe148277c1dd0dfabc088463f5
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
