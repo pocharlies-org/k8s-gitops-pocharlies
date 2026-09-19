@@ -1291,7 +1291,28 @@ spec:
     # VERIFICAR: "Available KV cache memory: 22.00 GiB" en LOS DOS rangos.
     # ROLLBACK: "e5d0c81bd1962f179a9bdd75e84b38f4999d9074" — vuelve a 0.8/0.8
     # con el pool por perfilado (20,25/24,37) CONSERVANDO el TTS en nvidia-dgx.
-    targetRevision: bc3babd8f3e32ac060204986f1fba34a6ae5b93c
+    #
+    # 20-09-2026 (k8s-ai #81): disable_eagle_block_drop vuelve a FALSE en head y
+    # worker. La nightly ya trae el arreglo bueno y nuestro workaround del 09-09
+    # lo desactivaba: _is_deepseek_v4_eagle (kv_cache_utils.py:2081) incluye
+    # 'qwen4_exp' con un comentario upstream del 07-09 que nombra
+    # Qwen3.8-Flash-Next, y marca el grupo KV del drafter para que los DEMAS
+    # conserven la reutilizacion de prefijo. Con la bandera en true esa anotacion
+    # no corria nunca (_annotate_eagle_groups sale en la linea 2137 por
+    # 'not use_eagle_block_drop()'), y de ahi el WARNING kv_cache_utils.py:2192.
+    # Ese warning es FALSO POSITIVO: mira use_eagle() pero el dano que describe lo
+    # gobierna use_eagle_block_drop (scheduler.py:305 lo pasa al coordinator, asi
+    # que el "flag all groups" de kv_cache_coordinator.py:111 no entraba).
+    # Medido con la bandera en true, 24 h de trafico: prefix cache 77,9 %, accept
+    # 60,9 % (296.351/486.406), accept length 2,83, por posicion 78,6/59,5/44,6 %.
+    # Reinicia head y worker (~10-15 min sin residente llm-tp). Vale lo de ARRIBA
+    # sobre drop_caches, pero DURANTE el backoff del primer fallo, no antes: el
+    # propio rollout rellena el page cache releyendo los pesos.
+    # VERIFICAR: "Flagged KV cache group N as the drafter's" en el log del head, y
+    # que el accept suba hacia el ~70 % SIN que caiga el hit rate de prefijo.
+    # ROLLBACK: "bc3babd8f3e32ac060204986f1fba34a6ae5b93c" — vuelve la bandera a
+    # true conservando el pool de 22 GiB.
+    targetRevision: 3d853da9a75994c9d6e93df16496b22bb2bfc701
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
