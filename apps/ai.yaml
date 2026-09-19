@@ -1216,7 +1216,39 @@ spec:
     # Lo unico que si cabe es BAJAR el worker a 0.782: su pool quedaria en 22,99,
     # sigue por encima del minimo que manda (21,01) y devuelve 2,16 GiB al SO de
     # nvidia-dgx. Gana margen, no gana KV. Pendiente de decidir.
-    targetRevision: 69e44ce1e5f66a33357f53543978928c7c072c5f
+    #
+    # 19-09-2026 (4a iteracion): repin al merge de k8s-ai #79. PASO 1 DE 2, y
+    # ESTE REPIN NO REINICIA EL LLM a proposito. Cambia una sola cosa viva: el
+    # nodeSelector de omnivoice-tts-nvfp4, de gx10-ec3d (nodo del head) a
+    # nvidia-dgx. #79 devuelve ademas el manifiesto del LLM a 69e44ce, porque
+    # main arrastraba desde el rollback de arriba el 0.817/0.782 que no arranca.
+    #
+    # POR QUE DOS PASOS Y NO UNO: omnivoice es sync-wave 2 y el head sync-wave 1.
+    # En un repin unico ArgoCD reiniciaria el head ANTES de mover el TTS, el gate
+    # de memoria volveria a fallar por los mismos ~2,1 GiB que este paso libera,
+    # y la ola 2 no llegaria a aplicarse nunca. Deadlock. El paso 2 (k8s-ai #80)
+    # fija el pool cuando la memoria YA este libre.
+    #
+    # CORRIGE la frase "2x comfyui" de los bloques de arriba: en gx10-ec3d no hay
+    # generacion de imagen. Lo que hay es comfyui-image-cache y
+    # dgx-model-inventory-dgx2, que son caches de imagenes de contenedor. La
+    # generacion corre en la RTX 3080 Ti del x86. Medido por nodo:
+    #   gx10-ec3d  bge-reranker 1705Mi + omnivoice-tts-nvfp4 2157Mi = 3,86 GiB
+    #   nvidia-dgx bge-m3 2543Mi + stt-turbo 2513Mi              = 4,94 GiB
+    # Es decir, los co-inquilinos NO explican el hueco: el nodo del worker tiene
+    # MAS. La otra mitad es estructural — el rank 0 consume 4,07 GiB mas que el
+    # rank 1 con los mismos pesos (API server, scheduler, sampler, logits,
+    # captura del speculator). Eso no se mueve de sitio.
+    #
+    # Techos medidos en el arranque a 0.8/0.8 que corre ahora:
+    #   head   free  96,08/119,57 -> techo KV 20,42, pool real 20,25 GiB (manda)
+    #   worker free 100,86/119,63 -> techo KV 29,31, pool real 24,37 GiB
+    #
+    # QUE VERIFICAR TRAS ESTE REPIN: omnivoice-tts-nvfp4 Running en nvidia-dgx y
+    # MemAvailable de gx10-ec3d ~2,1 GiB mas alto. El LLM no debe reiniciarse: si
+    # se reinicia, algo mas cambio y hay que mirarlo antes del paso 2.
+    # ROLLBACK: "69e44ce1e5f66a33357f53543978928c7c072c5f" (el TTS vuelve al head).
+    targetRevision: e5d0c81bd1962f179a9bdd75e84b38f4999d9074
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
