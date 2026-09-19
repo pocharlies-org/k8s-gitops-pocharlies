@@ -1196,7 +1196,27 @@ spec:
     # ROLLBACK: "69e44ce1e5f66a33357f53543978928c7c072c5f" — vuelve a 0.8 en ambos
     # ranks (pool asimetrico 21,01/25,15 pero funcionando) CONSERVANDO la fusion
     # del borrador. Reinicia los dos ranks otra vez.
-    targetRevision: 298d72c6ba6388a585d89ebce58e7346d850f17f
+    #
+    # ROLLBACK EJECUTADO (19-09, 19:25Z). Ese repin NO ARRANCO y se revierte:
+    #
+    #   ValueError: Free memory on device cuda:0 (96.03/119.57 GiB) on startup is
+    #   less than desired GPU memory utilization (0.817, 97.69 GiB).
+    #
+    # Y esta vez el cache estaba LIMPIO (drop_caches antes de arrancar dejo 105,15
+    # GiB libres en gx10-ec3d), asi que no es el gotcha del page cache: es que el
+    # head TIENE UN TECHO DURO de ~96 GiB. Los co-inquilinos de gx10-ec3d
+    # (omnivoice-tts-nvfp4, bge-reranker, 2x comfyui) retienen ~23,5 GiB de los
+    # 119,57 y esa memoria NO esta disponible para la reserva del head.
+    #
+    # El error de calculo fue derivar la utilizacion objetivo del CONSUMO medido
+    # (74,69 + 23 = 97,69 GiB) en vez de del TECHO de memoria libre. A 0.8 el head
+    # pide 95,66 GiB con 96,03 disponibles: margen real 0,37 GiB. **El head no
+    # puede subir**, punto. Subir el pool efectivo por encima de 21,01 GiB exige
+    # liberar GPU en gx10-ec3d (mover un co-inquilino), no tocar GPU_MEM_UTIL.
+    # Lo unico que si cabe es BAJAR el worker a 0.782: su pool quedaria en 22,99,
+    # sigue por encima del minimo que manda (21,01) y devuelve 2,16 GiB al SO de
+    # nvidia-dgx. Gana margen, no gana KV. Pendiente de decidir.
+    targetRevision: 69e44ce1e5f66a33357f53543978928c7c072c5f
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
