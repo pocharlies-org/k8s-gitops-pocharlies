@@ -1110,7 +1110,28 @@ spec:
     # la ola 1 y la app queda en fallo. Es el comportamiento pedido, no una
     # regresion; los pods ya corriendo no se desalojan (esto ordena la sync, no el
     # runtime). Rollback: "49d844a15b15e38d6bacd523901bc200f6dbe166".
-    targetRevision: e08389d2819511fe148277c1dd0dfabc088463f5
+    # 19-09-2026: repin al merge de k8s-ai #76 — stt-turbo pasa a tener DUENO de
+    # replicas. Era el unico de los cuatro auxiliares de GPU del perfil llm-tp sin
+    # nadie que lo repusiera: no estaba en COMPONENTS de compute_mode.py ni en el
+    # arbitro, y su `replicas: 1` de git no lo aplica nadie porque /spec/replicas
+    # esta en el ignoreDifferences de ESTA Application. Medido el 19-09: 0 replicas
+    # con `ai` en Synced y el STT por GPU caido sin un solo aviso. La puerta por
+    # sync-wave del repin anterior es real, pero gobierna CUANDO se aplica el
+    # manifiesto, no cuantas replicas corren — por eso no bastaba.
+    # Diff del render entre los dos SHA = EXACTAMENTE una anotacion
+    # (gpu.dgx-infra/mem-cost-gib: "3") y tres etiquetas (compute.dgx-infra/profile,
+    # gpu.dgx-infra/pool, gpu.dgx-infra/role) en el Deployment stt-turbo, nada mas
+    # (verificado con kubectl kustomize sobre ambos SHA). Van en el metadata del
+    # Deployment, NO en el pod template: no disparan rollout ni de stt-turbo ni del
+    # par TP=2. Los 3 GiB son los ~2.3 medidos redondeados arriba y estan
+    # sincronizados con memory_gib de COMPONENTS (regla del 15-08: arbitro y panel
+    # no pueden contar distinto); el limite de cgroup sigue en 8Gi, que es otra cosa.
+    # El controlador (dgx-infra #423, que mete la entrada en COMPONENTS) se fusiona
+    # DESPUES de este manifiesto: al reves, panel y arbitro contarian distinto
+    # durante la ventana. El SHA arrastra ademas k8s-ai #75 (k8s-bge/), que NO entra
+    # en este render: esa ruta la sirve la Application `bge`, que va por rama.
+    # Rollback: "e08389d2819511fe148277c1dd0dfabc088463f5".
+    targetRevision: ddef4b8b853743665ed3c6ffc55e78e2ccbbb001
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
