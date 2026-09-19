@@ -1165,7 +1165,38 @@ spec:
     # hibrido, la aceptacion MTP se hunde desde el 61,7% registrado (longitud
     # media de borrador 2,85 de 4) en minutos — vllm:spec_decode_*.
     # ROLLBACK: "ddef4b8b853743665ed3c6ffc55e78e2ccbbb001" (y reinicia otra vez).
-    targetRevision: 69e44ce1e5f66a33357f53543978928c7c072c5f
+    #
+    # RESULTADO de ese repin (medido, 19-09 tarde): la fusion FUNCIONA — la linea
+    # "not supported by attention backend(s) QWEN4_EXP_EXP_QSA_STATE" desaparecio y
+    # la aceptacion se mantuvo (4610/8145 = 56,6%, decaimiento suave por posicion:
+    # 75,5 / 55,9 / 39,6%). El canario no salto.
+    # Pero la prediccion "el arranque CABE porque la estrategia es Recreate" de
+    # arriba resulto FALSA: el head entro en CrashLoopBackOff, 4 reinicios, con
+    # "Free memory on device cuda:0 (9.62/119.57 GiB)". El pod viejo si suelta su
+    # reserva, pero cada reintento releia 64,5 GiB de pesos por NFS y NVRM no
+    # reclama page cache -- y `Cached` no lo ve: marcaba 4,29 GiB con 91 GiB
+    # liberables, asi que gb10-cache-reclaim.service NO disparo aun estando
+    # `active`. El bucle no converge solo; levanto tras `drop_caches` en ambos
+    # Sparks. VALE PARA ESTE REPIN TAMBIEN: si no arranca, dropea cache antes de
+    # tocar nada mas.
+    #
+    # 19-09-2026 (3a iteracion): repin al merge de k8s-ai #78. Pool KV de los dos
+    # ranks igualado en 23 GiB con utilizacion ASIMETRICA — head 0.817, worker
+    # 0.782. Con 0.8 en ambos el pool salia 21,01 (head) vs 25,15 (worker) y el
+    # TP=2 usa el MINIMO: los 4,14 GiB de mas del worker no los usaba nadie. La
+    # causa no es el modelo (misma reserva, mismos pesos) sino los co-inquilinos:
+    # el head carga con omnivoice-tts-nvfp4, bge-reranker y 2 pods de comfyui; el
+    # worker solo con stt-turbo. Efectivo 21,01 -> 23 GiB (+9,5%).
+    # ESTE REPIN TAMBIEN REINICIA los dos ranks (launch-revision ->
+    # vllm-qwen38fn-20260919-kv23-asimetrico).
+    # Margen de SO del head: 9,71 -> 7,67 GiB. Es el mas estrecho hasta ahora.
+    # VERIFICA ADEMAS si el GPU_MEM_UTIL del worker se respeta: arranca headless
+    # contra el process group del head. Pool del worker ~23 GiB = su env se usa;
+    # ~27 GiB = lo pisa el head y esa variable es muda ahi.
+    # ROLLBACK: "69e44ce1e5f66a33357f53543978928c7c072c5f" — vuelve a 0.8 en ambos
+    # ranks (pool asimetrico 21,01/25,15 pero funcionando) CONSERVANDO la fusion
+    # del borrador. Reinicia los dos ranks otra vez.
+    targetRevision: 298d72c6ba6388a585d89ebce58e7346d850f17f
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
