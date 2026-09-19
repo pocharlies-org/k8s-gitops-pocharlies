@@ -1131,7 +1131,41 @@ spec:
     # durante la ventana. El SHA arrastra ademas k8s-ai #75 (k8s-bge/), que NO entra
     # en este render: esa ruta la sirve la Application `bge`, que va por rama.
     # Rollback: "e08389d2819511fe148277c1dd0dfabc088463f5".
-    targetRevision: ddef4b8b853743665ed3c6ffc55e78e2ccbbb001
+    # 19-09-2026 (noche): repin al merge de k8s-ai #77 — dos cambios de
+    # qwen38-flash-next que comparten el MISMO reinicio, por eso van juntos.
+    # ESTE REPIN SI REINICIA los dos ranks: sube `launch-revision` del pod
+    # template a vllm-qwen38fn-20260919-fuseddraft-memutil08 a proposito. Head y
+    # worker caen JUNTOS (grupo NCCL) y LiteLLM se queda sin inferencia local
+    # mientras recargan pesos. Los ConfigMaps ursucipian llevan
+    # disableNameSuffixHash, asi que sin ese bump el overlay nuevo no rodaria.
+    #
+    # (1) 5o overlay ursucipian, overlays/qsa_cache.py. QSAMetadataBuilder
+    # heredaba supports_draft_decode_metadata_update=False y UNA sola caida apaga
+    # la fusion multi-paso del borrador MTP en TODO el motor (el gate de
+    # speculator.py es `not unsupported_backends`). El propio arranque lo venia
+    # diciendo: "Fused multi-step draft decode is not supported by attention
+    # backend(s) QWEN4_EXP_EXP_QSA_STATE". Con ella el bucle de k=3 entra en UN
+    # CUDA graph en vez de tres lanzamientos con trabajo de host entre medias.
+    # No valia el flag a secas (el metodo por defecto lanza NotImplementedError)
+    # ni un no-op (el indexer escribe el estado K en CADA paso, antes del corte
+    # por skip_topk). install.py sigue fail-closed: 14 SHA de base verificados.
+    #
+    # (2) GPU_MEM_UTIL 0.785 -> 0.8 en head y worker, deshaciendo el recorte del
+    # 15-09 de este mismo fichero. Aquel abrio ~1.8 GiB/nodo para
+    # omnivoice-tts-nvfp4 a costa del pool KV (25.74 -> ~23.9) con el uso medido
+    # entonces al 27-35%; hoy el pool va al 75%.
+    # OJO al precio, que esta en la RAM del HOST y no en la GPU: gx10-ec3d tiene
+    # memoria UNIFICADA y queda en ~2.4 GiB de MemAvailable, por DEBAJO de los
+    # 3.74 que motivaron el recorte, con omnivoice-tts-nvfp4 co-residente ahi.
+    # El arranque CABE porque la estrategia es Recreate: el pod viejo suelta sus
+    # 93.91 GiB antes de que el nuevo pida 95.70. Lo apretado es el margen de
+    # host DESPUES.
+    #
+    # CANARIO: si la fusion fuese incorrecta para las capas GDN/Mamba del
+    # hibrido, la aceptacion MTP se hunde desde el 61,7% registrado (longitud
+    # media de borrador 2,85 de 4) en minutos — vllm:spec_decode_*.
+    # ROLLBACK: "ddef4b8b853743665ed3c6ffc55e78e2ccbbb001" (y reinicia otra vez).
+    targetRevision: 69e44ce1e5f66a33357f53543978928c7c072c5f
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
