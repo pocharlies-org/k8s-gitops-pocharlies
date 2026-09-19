@@ -1248,7 +1248,50 @@ spec:
     # MemAvailable de gx10-ec3d ~2,1 GiB mas alto. El LLM no debe reiniciarse: si
     # se reinicia, algo mas cambio y hay que mirarlo antes del paso 2.
     # ROLLBACK: "69e44ce1e5f66a33357f53543978928c7c072c5f" (el TTS vuelve al head).
-    targetRevision: e5d0c81bd1962f179a9bdd75e84b38f4999d9074
+    #
+    # 19-09-2026 (5a iteracion): repin al merge de k8s-ai #80. PASO 2 DE 2, y
+    # ESTE SI REINICIA los dos ranks (launch-revision ->
+    # vllm-qwen38fn-20260919-kvbytes22gib).
+    #
+    # Verificado del paso 1 antes de lanzar este: omnivoice-tts-nvfp4 Running en
+    # nvidia-dgx, gx10-ec3d se quedo solo con bge-reranker (1705Mi), y el LLM NO
+    # se reinicio. Los 2,11 GiB se movieron donde tocaba.
+    #
+    # El pool KV pasa a fijarse en BYTES con --kv-cache-memory-bytes: 22 GiB
+    # (23622320128) IGUAL en los dos rangos. Perseguirlo con la utilizacion no
+    # servia para igualarlo — el pool se calcula por rango desde la memoria
+    # libre LOCAL, asi que el mismo 0.8 daba 20,25 GiB en el head y 24,37 en el
+    # worker, y el TP=2 usa el MINIMO. Efectivo 20,25 -> 22 GiB (+8,6%).
+    #
+    # OJO AL NOMBRE DEL FLAG: es --kv-cache-memory-bytes, con sufijo
+    # (CacheConfig.kv_cache_memory_bytes). `--kv-cache-memory` a secas NO existe
+    # y el motor muere con "unrecognized arguments". Comprobado enumerando las
+    # opciones de EngineArgs contra el motor vivo, no de memoria.
+    #
+    # LO QUE SE PIERDE: con el pool explicito, determine_available_memory()
+    # devuelve el valor tal cual y se salta el perfilado, asi que la reserva es
+    # CIEGA — un exceso ya no seria un fallo limpio al arrancar sino un OOM en
+    # runtime. Por eso GPU_MEM_UTIL se deja ajustado al total real de cada rango
+    # (head 0.816, worker 0.781): ya no dimensiona nada, pero request_memory()
+    # lo sigue usando como PUERTA de arranque y es lo unico que convierte la
+    # falta de memoria en un ValueError visible.
+    #
+    # Cuentas, del TECHO de memoria libre y no del consumo medido (ese fue el
+    # error de la 2a iteracion):
+    #   head   free ~98,19  necesita 73,99+1,41+0,11+22 = 97,51  puerta 97,57
+    #   worker free ~98,75  necesita 69,92+1,41+0,07+22 = 93,40  puerta 93,43
+    # Margen del head ~0,62 GiB; del worker ~5,32. La asimetria de UTILIZACION
+    # es lo que compra la simetria de POOL.
+    #
+    # ANTES DEL ROLLOUT: drop_caches en AMBOS Sparks. Cada reintento relee 64,5
+    # GiB de pesos por NFS, NVRM no reclama page cache y `Cached` no lo ve, asi
+    # que gb10-cache-reclaim.service no dispara solo. Con el margen del head en
+    # 0,62 GiB esto no es opcional.
+    #
+    # VERIFICAR: "Available KV cache memory: 22.00 GiB" en LOS DOS rangos.
+    # ROLLBACK: "e5d0c81bd1962f179a9bdd75e84b38f4999d9074" — vuelve a 0.8/0.8
+    # con el pool por perfilado (20,25/24,37) CONSERVANDO el TTS en nvidia-dgx.
+    targetRevision: bc3babd8f3e32ac060204986f1fba34a6ae5b93c
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
