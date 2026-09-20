@@ -60,6 +60,7 @@ resources:
   - apps/teslamate.yaml
   - apps/tomorrowland.yaml
   - apps/cv.yaml
+  - apps/blog.yaml
   - apps/agentjake-browser-mcp.yaml
   - apps/stt-mcp.yaml
   - apps/teslamate-mcp.yaml
