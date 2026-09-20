@@ -1320,7 +1320,26 @@ spec:
     # dos nodos, asi que ningun valor fijo sirve a la pareja: ibv_modify_qp fallaba con
     # el GID del otro lado vacio (::). Con ROCE_VERSION_NUM=2 y ADDR_FAMILY=AF_INET ya
     # presentes, "-1" deja que NCCL localice el GID correcto en cada nodo.
-    targetRevision: f8a84df713f48ed448da6828026471f5eaa868fb
+    # 20-09-2026 — repin a d8bf51b (k8s-ai#83): sondas en el worker + allocator.
+    # El worker NO tenia ninguna sonda: se daba por 1/1 Ready por existir. Con el
+    # head reiniciado no volvia a resolver el TCPStore (bucle "sendBytes failed
+    # ... :29501: Broken pipe") pero seguia anunciandose Ready, asi que nadie lo
+    # reemplazaba; el head nuevo agotaba sus 601 s reteniendo ~97 GiB, moria con
+    # "1/2 clients joined" y el driver NVRM no devolvia esa memoria. Desde ahi
+    # todo arranque moria por memoria libre y solo lo limpiaba un reinicio.
+    # Ahora startupProbe 120x30s (60 min, cubre los 431 s de carga de pesos) y
+    # livenessProbe 4x30s (2 min) contra el /health del HEAD (10.0.0.2:8000), no
+    # contra el suyo, que no existe. Medido: worker -> head 200 en 0,02 s.
+    # OJO: sondear el TCPStore del worker NO vale -- en sano hay CERO conexiones
+    # a :29501 (es rendezvous de arranque y se cierra). Esa sonda lo crashlooparia.
+    # Ademas PYTORCH_ALLOC_CONF=expandable_segments:True en los dos rangos, como
+    # HIPOTESIS sobre la retencion del NVRM: el driver 610.57.04 de aqui ya es mas
+    # nuevo que las versiones del bug abierto, no hay a donde actualizar.
+    # Reinicia head y worker (~10-15 min sin residente llm-tp).
+    # VERIFICAR: worker con startupProbe pasado y liveness corriendo; que un
+    # reinicio del head ya NO deje al worker zombi; PYTORCH_ALLOC_CONF en el env.
+    # ROLLBACK: "f8a84df713f48ed448da6828026471f5eaa868fb" — quita sondas y allocator.
+    targetRevision: d8bf51bd45699e8ce96a6a8521e6c43d05136907
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
