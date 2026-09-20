@@ -1312,7 +1312,15 @@ spec:
     # que el accept suba hacia el ~70 % SIN que caiga el hit rate de prefijo.
     # ROLLBACK: "bc3babd8f3e32ac060204986f1fba34a6ae5b93c" — vuelve la bandera a
     # true conservando el pool de 22 GiB.
-    targetRevision: 3d853da9a75994c9d6e93df16496b22bb2bfc701
+    # 20-09-2026 — repin a f8a84df (k8s-ai#82): NCCL_IB_GID_INDEX pasa de "3" a "-1".
+    # Al reiniciar los dos Sparks para soltar ~90 GB que el driver NVIDIA retenia de
+    # rangos de vLLM matados a SIGKILL, la tabla de GIDs de dgx2 se re-registro con un
+    # HUECO en el indice 3 y su entrada RoCE v2 IPv4 en el 4; dgx1 conservo la suya en
+    # el 3. El indice NO es estable entre reinicios ni tiene por que coincidir en los
+    # dos nodos, asi que ningun valor fijo sirve a la pareja: ibv_modify_qp fallaba con
+    # el GID del otro lado vacio (::). Con ROCE_VERSION_NUM=2 y ADDR_FAMILY=AF_INET ya
+    # presentes, "-1" deja que NCCL localice el GID correcto en cada nodo.
+    targetRevision: f8a84df713f48ed448da6828026471f5eaa868fb
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
