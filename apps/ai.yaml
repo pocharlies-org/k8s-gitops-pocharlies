@@ -1320,7 +1320,17 @@ spec:
     # dos nodos, asi que ningun valor fijo sirve a la pareja: ibv_modify_qp fallaba con
     # el GID del otro lado vacio (::). Con ROCE_VERSION_NUM=2 y ADDR_FAMILY=AF_INET ya
     # presentes, "-1" deja que NCCL localice el GID correcto en cada nodo.
-    targetRevision: f8a84df713f48ed448da6828026471f5eaa868fb
+    # 21-09-2026 — repin a 18319a7: SOLO la imagen omnivoice 0.2.1+FlashInfer
+    # (dgx-infra 561dbb5: torch 2.15.0.dev20260921 + omnivoice 0.2.1 con el
+    # commit 28bc088 del #239, modulo omnivoice_flashinfer.py OPT-IN no
+    # activado). 18319a7 = cherry-pick de d40c033 (k8s-ai#84) sobre f8a84df,
+    # AISLADO a proposito: el tip de main (1a17edb) arrastra k8s-ai#83, cuyo
+    # pin gitops (PR k8s-gitops#356) esta en draft deliberado hasta la
+    # proxima ventana vigilada (reinicia el TP=2 entero, ~10-15 min sin
+    # residente). NO BORRAR la rama k8s-ai omnivoice-021-only hasta que
+    # #356 se fusione y este pin se reapunte al tip de main.
+    # ROLLBACK: f8a84df (NCCL GID -1, 20-09).
+    targetRevision: 18319a76d31423c8e718dcd68765ff3b3a6d7c05
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
