@@ -123,17 +123,18 @@ def validate_common(
             "value": "edge",
         } in pod_spec["tolerations"]
     else:
-        # arc-k8s (2026-09-16, Dani): scheduling libre sobre todos los nodos
-        # amd64 — sin nodeAffinity, el scheduler coloca el runner donde haya
-        # mas hueco (ks5, sauvage, x86). Se asume a proposito la contencion
-        # de I/O con Harbor/MinIO (md3) que motivo la restriccion original.
+        # arc-k8s (2026-09-22, Dani): sigue sin nodeAffinity — no se fijan
+        # hostnames —, pero YA NO tolera role=edge, y por eso no aterriza en
+        # sauvage: es el unico nodo con ese taint y su md3 esta al 100 %
+        # (medido: arrancar un pod alli no termino en 120 s, contra 0,34 s en
+        # ks5-cp-1). Deroga el "scheduling libre" del 16-09.
         assert "nodeAffinity" not in pod_spec["affinity"]
         assert {
             "effect": "NoSchedule",
             "key": "role",
             "operator": "Equal",
             "value": "edge",
-        } in pod_spec["tolerations"]
+        } not in pod_spec["tolerations"]
 
     pod_anti_affinity = pod_spec["affinity"]["podAntiAffinity"]
     assert "requiredDuringSchedulingIgnoredDuringExecution" not in pod_anti_affinity
@@ -149,11 +150,18 @@ def validate_common(
 def scheduler_eligible(pod_spec: dict, labels: dict[str, str]) -> bool:
     if any(labels.get(key) != value for key, value in pod_spec["nodeSelector"].items()):
         return False
+    # Un nodo con taint role=edge (hoy solo sauvage) exige tolerarlo. Antes esto
+    # no se modelaba y la matriz daba sauvage=True para cualquier pool: al dejar
+    # de tolerarlo, el render habria seguido "verde" mintiendo.
+    if labels.get("role") == "edge" and not any(
+        t.get("key") == "role" and t.get("value") == "edge"
+        for t in pod_spec.get("tolerations", [])
+    ):
+        return False
     node_affinity = pod_spec["affinity"].get("nodeAffinity")
     if node_affinity is None:
-        # Scheduling libre (arc-k8s): solo el nodeSelector (arch) acota. Las
-        # toleraciones que hacen falta p.ej. en sauvage se verifican aparte
-        # en validate_common.
+        # Sin nodeAffinity (arc-k8s): acotan el nodeSelector (arch) y el taint
+        # de arriba. No se fija hostname a proposito.
         return True
     terms = node_affinity["requiredDuringSchedulingIgnoredDuringExecution"][
         "nodeSelectorTerms"
@@ -194,7 +202,8 @@ eligibility_matrix = {
         "nvidia.com/gpu.present": "true",
     },
 }
-# arc-k8s es elegible en cualquier nodo amd64 desde 2026-09-16 (ver validate_common).
+# arc-k8s: elegible en los amd64 SANOS. sauvage queda fuera desde 2026-09-22 por
+# no tolerar su taint role=edge (ver validate_common).
 expected_eligibility = {
     "arc-openclaw": {
         "ks5": True,
@@ -204,7 +213,7 @@ expected_eligibility = {
     },
     "arc-k8s": {
         "ks5": True,
-        "sauvage": True,
+        "sauvage": False,
         "ubuntu-gpu": True,
         "arm-gpu": False,
     },
