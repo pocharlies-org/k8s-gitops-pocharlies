@@ -477,3 +477,18 @@ def test_ignores_node_modules_when_hunting_markers(repo, capsys):
     vendored.mkdir(parents=True)
     (vendored / "index.js").write_text("// CONTRACT: vendored.junk\n", encoding="utf-8")
     assert check(repo) == 0
+
+
+def test_ignores_the_checked_out_checker_when_hunting_markers(repo, capsys):
+    """The Contract surface job checks this repo out into the scanned tree at
+    `.contracts-checker/`, and this test file's fixtures are markers no consumer
+    registry declares. Without the exclusion, a repo's first CONTRACTS.yaml was
+    red forever (k8s-litellm#124)."""
+    checker = repo / ".contracts-checker" / "scripts"
+    checker.mkdir(parents=True)
+    (checker / "test-check-contracts.py").write_text(
+        "// CONTRACT: messaging.invented\n// CONTRACT: vendored.junk\n",
+        encoding="utf-8",
+    )
+    assert check(repo) == 0
+    assert "marker-unregistered" not in capsys.readouterr().out

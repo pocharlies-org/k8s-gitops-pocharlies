@@ -67,7 +67,10 @@ VALID_KINDS = {
     "allowlist",
     "workflow-file",
 }
-SKIP_DIRS = {".git", "node_modules", ".venv", "dist", "build", "__pycache__", ".next"}
+# `.contracts-checker` is where the Contract surface job checks this repo out
+# inside the consumer's workspace; its test file is a pile of fixture markers no
+# consumer registry declares (k8s-litellm#124).
+SKIP_DIRS = {".git", "node_modules", ".venv", "dist", "build", "__pycache__", ".next", ".contracts-checker"}
 TEXT_SUFFIXES = {
     ".py", ".ts", ".tsx", ".js", ".mjs", ".cjs", ".yaml", ".yml", ".json",
     ".toml", ".sh", ".md", ".sql", ".tf",
