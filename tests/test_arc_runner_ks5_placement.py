@@ -14,14 +14,12 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.shared_values = self.manifest.split("name: arc-k8s", 1)[1]
 
     def test_shared_runner_has_free_amd64_scheduling(self) -> None:
-        """arc-k8s se coloca en cualquier nodo amd64 — sin nodeAffinity.
+        """arc-k8s se coloca en cualquier nodo amd64 SANO — sin nodeAffinity.
 
-        Reescrito 2026-09-16 (decision de Dani). Sustituye al pinning a
-        ks5-nvme (2026-08-13): el pool se amplió a 6 y los runners van al
-        nodo amd64 con mas hueco (ks5, sauvage, x86). Se asume a proposito la
-        contencion de I/O con el MinIO de Harbor sobre md3 que motivo la
-        restriccion original. arc-openclaw si conserva su pinning a KS5 con
-        fallback a edge.
+        Sigue sin haber nodeAffinity (no se fijan hostnames): a sauvage se le
+        deja fuera no tolerando su taint, que es lo que comprueba
+        test_shared_pool_does_not_tolerate_edge. Este test defiende lo otro —
+        que nadie vuelva a meter un pinning duro a un nodo concreto.
         """
         runner_values = self.shared_values.split("runnerScaleSetName: arc-k8s", 1)[1]
         runner_values = runner_values.split("tolerations:", 1)[0]
@@ -34,14 +32,31 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertNotIn("kubernetes.io/hostname:", runner_values)
         self.assertNotIn("workload: cpu", runner_values)
 
-    def test_edge_node_is_tolerated_by_both_pools(self) -> None:
-        """arc-openclaw conserva el fallback a edge; arc-k8s lo tolera desde 2026-09-16."""
+    def test_edge_node_is_tolerated_by_openclaw(self) -> None:
+        """arc-openclaw conserva su fallback a edge (su carga es otra)."""
         self.assertIn("key: role", self.openclaw_values)
         self.assertIn("value: edge", self.openclaw_values)
         self.assertIn("values: [edge]", self.openclaw_values)
 
-        self.assertIn("key: role", self.shared_values)
-        self.assertIn("value: edge", self.shared_values)
+    def test_shared_pool_does_not_tolerate_edge(self) -> None:
+        """arc-k8s NO tolera role=edge, y por eso no aterriza en sauvage.
+
+        Deroga el "lo tolera desde 2026-09-16". sauvage es el unico nodo con ese
+        taint y su md3 esta al 100 %: medido el 22-09, arrancar un pod y escribir
+        200 MB no termino en 120 s alli, contra 0,34 s en ks5-cp-1. Un runner que
+        cae ahi secuestra uno de los 6 slots durante horas (un job llego a 2 h,
+        1 h de ellas en apt-get) y atasca la cola entera.
+
+        Es una toleration y no una nodeAffinity a proposito: asi vale para
+        cualquier nodo edge futuro sin tocar este fichero. Si md3 deja de estar
+        saturado, se revierte devolviendo la toleration.
+        """
+        runner_tolerations = self.shared_values.split("tolerations:", 1)[1]
+        runner_tolerations = runner_tolerations.split("initContainers:", 1)[0]
+        self.assertNotIn("value: edge", runner_tolerations)
+        self.assertNotIn("key: role", runner_tolerations)
+        # la del x86 (pool=dev, PreferNoSchedule) SI se conserva: ese nodo va bien
+        self.assertIn("key: pool", runner_tolerations)
 
     def test_runner_pool_caps_backlog_drain_at_six(self) -> None:
         self.assertIn("maxRunners: 6", self.shared_values)

@@ -156,10 +156,25 @@ spec:
           namespace: arc-systems
         githubConfigSecret: arc-github-app
         githubConfigUrl: https://github.com/pocharlies-org
-        # 2026-09-16 dani · pool a 6 y scheduling libre sobre amd64: los runners
-        # van al nodo amd64 con más hueco (ks5, sauvage, x86). Se asume a
-        # propósito la contención de I/O con Harbor/MinIO (md3) que motivó la
-        # restricción original a ks5-nvme.
+        # 2026-09-22 dani · pool a 6 sobre los amd64 SANOS: ks5-cp-1/2/3 y x86.
+        # sauvage queda fuera otra vez, y no por afinidad sino por no tolerar su
+        # taint (role=edge) — es el unico nodo que lo lleva, asi que no hay que
+        # fijar hostnames.
+        #
+        # Deroga el "scheduling libre" del 16-09, que asumia a proposito la
+        # contencion de I/O de md3. Medido el 22-09 con la cola atascada (12 runs
+        # encolados, 6/6 slots ocupados):
+        #   - sauvage: iowait 31 % (media 24 h 7 %), md3 al 100 % de utilizacion;
+        #     arrancar un pod y escribir 200 MB NO termino en 120 s.
+        #   - ks5-cp-1: lo mismo en 0,34 s. Resto del cluster: iowait 0,1-3,4 %.
+        # Un runner que cae ahi no falla, se arrastra: un job llevaba 2 h (1 h
+        # solo en apt-get, 17 min en setup-go) secuestrando uno de los 6 slots.
+        # Por eso el pool entero se atasca aunque el controlador este sano.
+        #
+        # Matiz sobre el motivo original: Harbor ya NO vive en sauvage (esta en
+        # ks5-cp-2/3). Hoy a md3 lo castigan minio-0 + backup-minio-0 y los ~132
+        # pods de skirmshop. Si algun dia md3 deja de estar saturado, esto se
+        # revierte devolviendo la toleration de role=edge.
         maxRunners: 6
         minRunners: 0
         runnerScaleSetName: arc-k8s
@@ -182,12 +197,6 @@ spec:
                 key: pool
                 operator: Equal
                 value: dev
-              # 2026-09-16: permitir colocación en sauvage (role=edge) tras
-              # quitar la afinidad obligada a ks5-nvme.
-              - effect: NoSchedule
-                key: role
-                operator: Equal
-                value: edge
             # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
             # container. containerMode must stay unset when that sidecar is
             # customized, otherwise Helm silently discards its resources.
