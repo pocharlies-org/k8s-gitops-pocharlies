@@ -1,0 +1,33 @@
+# Hermes en el bot DGX Studio (Dani 23-09-2026): segunda release del chart de Hermes,
+# mismo namespace. Ver helm/hermes/values-studio.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hermes-studio
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
+    targetRevision: deploy/prod
+    path: helm/hermes
+    helm:
+      releaseName: hermes-studio
+      valueFiles:
+        - values.yaml
+        - values-studio.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: hermes
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
