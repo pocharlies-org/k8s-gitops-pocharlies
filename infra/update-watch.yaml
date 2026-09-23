@@ -1,0 +1,52 @@
+# update-watch: ns + PV/PVC del contrato de intentos de auto-update (DGX-358,
+# epica DGX-309 criterio 3).
+#
+# Mismo patron que opencode/backup-logical-dumps/restore-drill: los manifiestos
+# viven en dgx-infra (k8s/infrastructure/update-watch/) y AQUI solo se declara la
+# Application. NO en dgx-infra/k8s/argocd/apps/: ese directorio no lo sincroniza
+# nada.
+#
+# prune:false a proposito: aqui vive ESTADO. attempts.jsonl es el registro de
+# intentos del contrato que leen DGX-310/311; un git rm equivocado no debe
+# poder borrar el ns, el PV o el PVC por un sync. selfHeal:true mantiene el
+# cluster reconciliado hacia git. El PV es ESTATICO con Retain (ver README del
+# directorio en dgx-infra): el puente host->PVC es un bind-mount local en x86
+# del export nfs-warm, no un pod puente.
+#
+# ORDEN DE FUSION: primero el PR de dgx-infra (dgx-358-update-watch -> master,
+# #569); hasta que ese path no exista en master, esta app da error de
+# resolucion.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: update-watch
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/dgx-infra/tree/master/k8s/infrastructure/update-watch
+  labels:
+    e-dani.com/tier: infra
+    app.kubernetes.io/part-of: dgx-infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/dgx-infra
+    targetRevision: master
+    path: k8s/infrastructure/update-watch
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: update-watch
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+  revisionHistoryLimit: 10
