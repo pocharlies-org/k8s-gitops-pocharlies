@@ -1335,7 +1335,11 @@ spec:
     # y worker (rama k8s-ai test/qwen38fn-eagle-block-drop-20260923). Unica
     # diferencia del render. Sigue SIN k8s-ai#83. Reinicia el TP=2 entero.
     # ROLLBACK: 18319a76d31423c8e718dcd68765ff3b3a6d7c05 (lo de antes).
-    targetRevision: 5e545579862dab8b894ae6b5f8640ddd1117af15
+    # 23-09-2026 21:40 — REVERTIDA la prueba 1: con 5e54557 el EngineCore se colgo
+    # a los 45 min (RPC sample_tokens timed out, paso con la cola de 142 tokens de
+    # un prompt de ~205k alineado a bloque + 2 decodes MTP). 18319a7 llevaba 3 dias
+    # sin reinicios. Vuelve a 18319a7 hasta aislar la causa.
+    targetRevision: 18319a76d31423c8e718dcd68765ff3b3a6d7c05
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
