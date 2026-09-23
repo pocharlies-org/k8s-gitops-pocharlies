@@ -175,12 +175,34 @@ spec:
         # ks5-cp-2/3). Hoy a md3 lo castigan minio-0 + backup-minio-0 y los ~132
         # pods de skirmshop. Si algun dia md3 deja de estar saturado, esto se
         # revierte devolviendo la toleration de role=edge.
-        maxRunners: 6
+        #
+        # 2026-09-24 dani · 6 -> 16, y sauvage vuelve como DESBORDE.
+        # Con 6 la cola de la org llego a ~79 runs encolados (el mas viejo 1 h
+        # 45 min) con las 6 plazas ocupadas y los nodos holgados (ks5 al 27-41 %
+        # de CPU real, x86 al 28 %). Decision de Dani: muchos mas runners y que
+        # el scheduler los reparta por el cluster si hace falta.
+        # - sauvage se tolera otra vez (role=edge), pero con nodeAffinity
+        #   PREFERIDA en contra: solo recibe runners cuando los otros ya van
+        #   cargados. Lo de md3 del 22-09 sigue siendo verdad: un runner ahi va
+        #   lento, pero con 16 plazas uno lento ya no atasca el pool.
+        # - Riesgo aceptado: 3-4 runners por ks5 (control-plane + etcd, 8
+        #   cores) pueden quemar CPU en builds simultaneos. Si el apiserver o
+        #   etcd se resienten, bajar maxRunners aqui.
+        maxRunners: 16
         minRunners: 0
         runnerScaleSetName: arc-k8s
         template:
           spec:
             affinity:
+              # sauvage (role=edge) solo como desborde: ver maxRunners.
+              nodeAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    preference:
+                      matchExpressions:
+                        - key: role
+                          operator: NotIn
+                          values: [edge]
               podAntiAffinity:
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
@@ -197,6 +219,10 @@ spec:
                 key: pool
                 operator: Equal
                 value: dev
+              - effect: NoSchedule
+                key: role
+                operator: Equal
+                value: edge
             # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
             # container. containerMode must stay unset when that sidecar is
             # customized, otherwise Helm silently discards its resources.
