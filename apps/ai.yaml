@@ -1339,7 +1339,10 @@ spec:
     # a los 45 min (RPC sample_tokens timed out, paso con la cola de 142 tokens de
     # un prompt de ~205k alineado a bloque + 2 decodes MTP). 18319a7 llevaba 3 dias
     # sin reinicios. Vuelve a 18319a7 hasta aislar la causa.
-    targetRevision: 18319a76d31423c8e718dcd68765ff3b3a6d7c05
+    # 24-09-2026 01:10 — A/B autopiloto (Dani): prueba 1 otra vez = 5e54557 (flag), luego
+    # prueba 2 (T=2048) y vuelta a 18319a7. Vigilante: si el motor se cuelga, se pasa al
+    # siguiente paso. ROLLBACK: 18319a76d31423c8e718dcd68765ff3b3a6d7c05.
+    targetRevision: 5e545579862dab8b894ae6b5f8640ddd1117af15
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
