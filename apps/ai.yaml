@@ -1330,7 +1330,12 @@ spec:
     # residente). NO BORRAR la rama k8s-ai omnivoice-021-only hasta que
     # #356 se fusione y este pin se reapunte al tip de main.
     # ROLLBACK: f8a84df (NCCL GID -1, 20-09).
-    targetRevision: 18319a76d31423c8e718dcd68765ff3b3a6d7c05
+    # 23-09-2026 — A/B de cache de prefijos del residente (prueba 1 de 2, Dani):
+    # 5e54557 = 18319a7 + SPECULATIVE_CONFIG disable_eagle_block_drop:true en head
+    # y worker (rama k8s-ai test/qwen38fn-eagle-block-drop-20260923). Unica
+    # diferencia del render. Sigue SIN k8s-ai#83. Reinicia el TP=2 entero.
+    # ROLLBACK: 18319a76d31423c8e718dcd68765ff3b3a6d7c05 (lo de antes).
+    targetRevision: 5e545579862dab8b894ae6b5f8640ddd1117af15
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
