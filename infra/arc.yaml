@@ -175,7 +175,14 @@ spec:
         # ks5-cp-2/3). Hoy a md3 lo castigan minio-0 + backup-minio-0 y los ~132
         # pods de skirmshop. Si algun dia md3 deja de estar saturado, esto se
         # revierte devolviendo la toleration de role=edge.
-        maxRunners: 6
+        #
+        # 2026-09-24 dani · 6 -> 8. Con 6 la cola de la org llego a ~79 runs
+        # encolados (el mas viejo 1 h 45 min); las 6 plazas estaban ocupadas y
+        # los nodos NO: ks5 al 27-41 % de CPU real, x86 al 28 %. 8 = 2 runners
+        # por nodo amd64 sano con la anti-afinidad preferida. No mas de 2: los
+        # ks5 son control-plane + etcd (8 cores) y cada runner puede quemar
+        # 4 cores (runner 2 + dind 2) en un build.
+        maxRunners: 8
         minRunners: 0
         runnerScaleSetName: arc-k8s
         template:

@@ -58,8 +58,10 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         # la del x86 (pool=dev, PreferNoSchedule) SI se conserva: ese nodo va bien
         self.assertIn("key: pool", runner_tolerations)
 
-    def test_runner_pool_caps_backlog_drain_at_six(self) -> None:
-        self.assertIn("maxRunners: 6", self.shared_values)
+    def test_runner_pool_caps_backlog_drain_at_eight(self) -> None:
+        """2 runners por nodo amd64 sano (ks5-cp-1/2/3 + x86); ver infra/arc.yaml."""
+        self.assertIn("maxRunners: 8", self.shared_values)
+        self.assertNotIn("maxRunners: 6", self.shared_values)
         self.assertNotIn("maxRunners: 3", self.shared_values)
         self.assertNotIn("maxRunners: 4", self.manifest)
 
