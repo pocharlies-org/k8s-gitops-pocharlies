@@ -1339,7 +1339,13 @@ spec:
     # a los 45 min (RPC sample_tokens timed out, paso con la cola de 142 tokens de
     # un prompt de ~205k alineado a bloque + 2 decodes MTP). 18319a7 llevaba 3 dias
     # sin reinicios. Vuelve a 18319a7 hasta aislar la causa.
-    targetRevision: 18319a76d31423c8e718dcd68765ff3b3a6d7c05
+    # 24-09-2026 — DGX-366 (voz de Jarvis): 01d0b11 = 18319a7 + omnivoice-audio con
+    # TTS primario GPU (Service nuevo omnivoice-tts-gpu) y standby CPU, imagen
+    # 20260924-tts-failover-3824b106 (k8s-ai#86, dgx-infra#563). Rama k8s-ai
+    # deploy/tts-gpu-primary-on-18319a7. Diff de render contra 18319a7: SOLO el
+    # Service nuevo + env/imagen del Deployment omnivoice-audio — el LLM no se toca.
+    # ROLLBACK: 18319a76d31423c8e718dcd68765ff3b3a6d7c05.
+    targetRevision: 01d0b11cac26d5a0ffd74b18c4dbcf36e61601dc
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
