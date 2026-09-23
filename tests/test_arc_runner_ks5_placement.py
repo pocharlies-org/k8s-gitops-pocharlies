@@ -16,9 +16,10 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
     def test_shared_runner_has_free_amd64_scheduling(self) -> None:
         """arc-k8s se coloca en cualquier nodo amd64 SANO — sin nodeAffinity.
 
-        Solo hay nodeAffinity PREFERIDA (sauvage como desborde, ver
-        test_shared_pool_uses_edge_only_as_overflow). Este test defiende que
-        nadie vuelva a meter un pinning duro a un nodo concreto.
+        Sigue sin haber nodeAffinity (no se fijan hostnames): a sauvage se le
+        deja fuera no tolerando su taint, que es lo que comprueba
+        test_shared_pool_does_not_tolerate_edge. Este test defiende lo otro —
+        que nadie vuelva a meter un pinning duro a un nodo concreto.
         """
         runner_values = self.shared_values.split("runnerScaleSetName: arc-k8s", 1)[1]
         runner_values = runner_values.split("tolerations:", 1)[0]
@@ -37,30 +38,25 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertIn("value: edge", self.openclaw_values)
         self.assertIn("values: [edge]", self.openclaw_values)
 
-    def test_shared_pool_uses_edge_only_as_overflow(self) -> None:
-        """arc-k8s tolera role=edge, pero sauvage es solo DESBORDE.
+    def test_shared_pool_does_not_tolerate_edge(self) -> None:
+        """arc-k8s NO tolera role=edge, y por eso no aterriza en sauvage.
 
-        Deroga el "NO tolera edge" del 22-09 (md3 al 100 %: un runner ahi se
-        arrastra). Desde el 24-09 el pool tiene 16 plazas y la decision es que
-        el scheduler reparta por todo el cluster; para que sauvage solo entre
-        cuando los demas van cargados, la toleration va con una nodeAffinity
-        PREFERIDA en contra de role=edge (nunca required: eso lo dejaria fuera).
+        22-09: md3 al 100 %, escribir 200 MB no termino en 120 s (0,34 s en
+        ks5-cp-1). 24-09: se probo como desborde con nodeAffinity preferida y
+        el scheduler le mando 4 runners de golpe, que se quedaron en
+        CreateContainerError ("context deadline exceeded") ocupando 4 plazas.
+        Es una toleration y no una nodeAffinity a proposito: asi vale para
+        cualquier nodo edge futuro. Si md3 deja de estar saturado, se revierte.
         """
         runner_tolerations = self.shared_values.split("tolerations:", 1)[1]
         runner_tolerations = runner_tolerations.split("initContainers:", 1)[0]
-        self.assertIn("key: role", runner_tolerations)
-        self.assertIn("value: edge", runner_tolerations)
+        self.assertNotIn("value: edge", runner_tolerations)
+        self.assertNotIn("key: role", runner_tolerations)
+        # la del x86 (pool=dev, PreferNoSchedule) SI se conserva: ese nodo va bien
         self.assertIn("key: pool", runner_tolerations)
 
-        affinity = self.shared_values.split("affinity:", 1)[1].split("podAntiAffinity:", 1)[0]
-        self.assertIn("nodeAffinity:", affinity)
-        self.assertIn("preferredDuringSchedulingIgnoredDuringExecution:", affinity)
-        self.assertIn("operator: NotIn", affinity)
-        self.assertIn("values: [edge]", affinity)
-        self.assertNotIn("requiredDuringSchedulingIgnoredDuringExecution:", affinity)
-
     def test_runner_pool_caps_backlog_drain_at_sixteen(self) -> None:
-        """16 plazas repartidas por el scheduler; ver el comentario en infra/arc.yaml."""
+        """16 plazas sobre los 4 amd64 sanos; ver el comentario en infra/arc.yaml."""
         self.assertIn("maxRunners: 16", self.shared_values)
         self.assertNotIn("maxRunners: 8", self.shared_values)
         self.assertNotIn("maxRunners: 6", self.shared_values)
