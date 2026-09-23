@@ -32,6 +32,7 @@ resources:
   - apps/bge.yaml
   - apps/firecrawl.yaml
   - apps/hermes.yaml
+  - apps/hermes-studio.yaml
   - apps/jarvis.yaml
   - apps/libreplay.yaml
   - apps/libreplay-staging.yaml
