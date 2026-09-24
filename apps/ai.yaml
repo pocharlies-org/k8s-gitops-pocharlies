@@ -1356,7 +1356,7 @@ spec:
     # test/qwen38fn-finegrained-prefix-v2-20260924.
     # ROLLBACK: 17239c40ab22e8fb7f60d70079733831be5e2318 (opcion D + omnivoice).
     # Vuelta de E a 17239c4 (opcion D + omnivoice): vigilante o decision de Dani.
-    targetRevision: 17239c40ab22e8fb7f60d70079733831be5e2318
+    targetRevision: 596e12a904cc66ae893042ef6e25b7be60b2db42
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
