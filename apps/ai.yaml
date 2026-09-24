@@ -1364,7 +1364,10 @@ spec:
     # forward. Reinicia el TP=2 (launch-revision). OJO quien repinee despues
     # (vuelta a E, etc.): monta encima de 1a0244e o pierde la sonda.
     # ROLLBACK: 596e12a904cc66ae893042ef6e25b7be60b2db42 (D + omnivoice seed, sin sonda).
-    targetRevision: 1a0244e7fc1ed00bbe7535a6a08379d0cb5c91b2
+    # 24-09-2026 — calibracion cal-20260924a de la sonda: c99d816 = 1a0244e + cal.json
+    # en el CM qwen38fn-refusal-probe-cal. SOLO cambia ese ConfigMap: sin reinicio
+    # (refusal_probe.py lo relee por mtime). ROLLBACK: 1a0244e (sonda sin calibrar).
+    targetRevision: c99d81684de225f52089056886006b4bba661821
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
