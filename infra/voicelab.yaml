@@ -1,0 +1,42 @@
+# Voice Lab — la API de clonado de voz (dgx-infra services/voicelab, #588).
+#
+# Mismo patron que opencode / restore-drill: los manifiestos viven en dgx-infra
+# (k8s/apps/voicelab/) y aqui solo se declara la Application.
+#
+# Destino `llm`: monta el catalogo de voces de OmniVoice (PVC omnivoice-voices-nfs)
+# para publicar el ritmo por voz. No toca nada de la app `ai` (sus objetos son
+# otros: Deployment/Service/PVC/ExternalSecrets `voicelab*`).
+#
+# prune:false: el PVC voicelab-data guarda los trabajos del laboratorio.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: voicelab
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/dgx-infra/tree/master/k8s/apps/voicelab
+  labels:
+    e-dani.com/tier: app
+    app.kubernetes.io/part-of: dgx-infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/dgx-infra
+    targetRevision: master
+    path: k8s/apps/voicelab
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: llm
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
