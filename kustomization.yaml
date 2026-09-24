@@ -10,6 +10,7 @@ resources:
   - infra/backup-logical-dumps.yaml
   - infra/restore-drill.yaml
   - infra/opencode.yaml
+  - infra/update-watch.yaml
   - infra/traefik-lan.yaml
   - infra/traefik-edge.yaml
   - infra/arc.yaml
