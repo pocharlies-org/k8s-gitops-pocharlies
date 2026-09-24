@@ -1373,7 +1373,17 @@ spec:
     # Rama k8s-ai qwen38fn/ple-checkpoint-mapped-20260924. Reinicia el TP=2 entero.
     # ROLLBACK: c99d81684de225f52089056886006b4bba661821.
     # Vuelta de la fase 3 PLE a c99d816 (preparada para cortar el tiempo sin residente).
-    targetRevision: c99d81684de225f52089056886006b4bba661821
+    # 24-09-2026 — DGX-366 (voz de Jarvis, Dani): e4209da = c99d816 + omnivoice-audio
+    # con TTS por GPU (Service nuevo omnivoice-tts-gpu, fuera el reparto al azar con el
+    # gemelo CPU) y fallback Alibaba del plan Team para TTS y ASR (ExternalSecret
+    # omnivoice-alibaba). Rama k8s-ai deploy/voice-gpu-alibaba-on-c99d816; en main por
+    # k8s-ai#86. Diff de render contra c99d816: SOLO Service + ExternalSecret nuevos y
+    # env/imagen del Deployment omnivoice-audio — el LLM no se toca, no reinicia el TP=2.
+    # OJO a los siguientes pines de esta serie: que partan de aqui o lleven k8s-ai#86
+    # (cherry-pick b0b57bd + e4209da), o la voz vuelve al pool mixto GPU/CPU y sin
+    # fallback cloud.
+    # ROLLBACK: c99d81684de225f52089056886006b4bba661821.
+    targetRevision: e4209daaf124a95d30005cf7496e6d04dab27eaa
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
