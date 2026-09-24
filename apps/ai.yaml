@@ -1349,7 +1349,13 @@ spec:
     # disable_eagle_block_drop:true + LONG_PREFILL_TOKEN_THRESHOLD=2048 (head y worker,
     # rama k8s-ai test/qwen38fn-combo-eagle-t2048-20260924). Vigilante de cuelgue activo.
     # ROLLBACK: 18319a76d31423c8e718dcd68765ff3b3a6d7c05.
-    targetRevision: 17239c40ab22e8fb7f60d70079733831be5e2318
+    # 24-09-2026 — opcion E (Dani: la mayoria de peticiones comparten sistema y
+    # herramientas de Claude Code/opencode): b247e33 = 17239c4 (D + omnivoice) con
+    # T=2048 + --prefix-match-unit 64 + --enable-mamba-fine-grained-prefix-cache y el
+    # drop de EAGLE ACTIVO (sin el flag de la prueba 1). Rama k8s-ai
+    # test/qwen38fn-finegrained-prefix-v2-20260924.
+    # ROLLBACK: 17239c40ab22e8fb7f60d70079733831be5e2318 (opcion D + omnivoice).
+    targetRevision: b247e33a7c9d129741aa21bcbb7b2821c3215813
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
