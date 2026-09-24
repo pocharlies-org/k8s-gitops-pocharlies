@@ -1372,7 +1372,8 @@ spec:
     # LOCALES en gx10-ec3d (fuera el PVC NFS) + puertas GPU_MEM_UTIL 0.80/0.76.
     # Rama k8s-ai qwen38fn/ple-checkpoint-mapped-20260924. Reinicia el TP=2 entero.
     # ROLLBACK: c99d81684de225f52089056886006b4bba661821.
-    targetRevision: fdfc28c64195caa5b28f9e4324e74b9e23cdef58
+    # Vuelta de la fase 3 PLE a c99d816 (preparada para cortar el tiempo sin residente).
+    targetRevision: c99d81684de225f52089056886006b4bba661821
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
