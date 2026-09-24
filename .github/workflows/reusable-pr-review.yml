@@ -1,6 +1,6 @@
 name: Reusable PR review
 
-# Bot de review de PRs: manda el diff a DeepSeek por LiteLLM y publica UN
+# Bot de review de PRs: manda el diff a un LLM por LiteLLM y publica UN
 # comentario con los hallazgos. Pensado para que los 113 repos activos lo
 # enciendan copiando `templates/ci/pr-review.yml`, cinco lineas.
 #
@@ -34,20 +34,19 @@ on:
         type: string
         default: arc-k8s
       model:
-        # `tooling` y no un alias de modelo concreto: es AGNOSTICO del perfil de
-        # computo. Los Sparks sirven un perfil a la vez —`llm-tp` (DeepSeek) o
-        # `creative` (Qwen38-27b dense)— y LOS DOS tienen un LLM capaz detras.
-        # Apuntar a `deepseek-v4-flash-0731` ataba el review a UN perfil: con el
-        # cluster en `creative` devolvia 503 "local LLM target is not ready" y
-        # el review se saltaba, aunque habia un modelo perfectamente disponible.
-        #
-        # Medido el 23-08-2026 con el cluster en `creative`:
-        #   tooling                -> HTTP 200 en 0s, finish stop, "OK"
-        #   qwen38-27b             -> HTTP 200 en 1s, finish stop, "OK"
-        #   deepseek-v4-flash-0731 -> HTTP 503
+        # `alibaba-q38-flash` (el gemelo cloud del residente, mismo Qwen3.8-Flash)
+        # y no `tooling`, desde el 25-09-2026. En el residente el review no
+        # tenia arreglo: cada diff es nuevo (acierto de cache ~4 %) y su prefill
+        # entraba en los mismos pasos del motor que los 80k de las sesiones
+        # interactivas, a ~1 s por paso; acababa en cola, en el timeout de 120 s
+        # o en un 503. Era <0,3 % de los tokens del residente, asi que sacarlo
+        # no le quita nada y le ahorra la cola. En Alibaba, 10 s con un diff de
+        # 11k tokens (ver `reasoning_effort` en review.py).
+        # Consecuencia asumida: el diff sale de la maquina al plan Team de
+        # Alibaba, tambien el de los repos privados.
         description: Alias del modelo en LiteLLM.
         type: string
-        default: tooling
+        default: alibaba-q38-flash
       litellm_url:
         # Servicio interno del cluster: el namespace es `litellm`, no `llm`.
         # Desde CI NO se usa litellm.lan.e-dani.com. Medido: sin key devuelve
