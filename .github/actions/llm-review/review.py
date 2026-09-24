@@ -186,6 +186,12 @@ def pedir(url, key, modelo, prompt, timeout):
         ],
         'temperature': 0.1,
         'max_tokens': 1500,
+        # Sin razonamiento. Medido el 25-09-2026 contra `alibaba-q38-flash` con
+        # un diff real de 11k tokens: por defecto razona 15k tokens (fuera de
+        # `max_tokens`) y tarda 219 s, por encima del timeout de 120; con
+        # `none` contesta en 10 s con el mismo JSON. En `tooling` el hook ya lo
+        # apagaba, asi que alli no cambia nada.
+        'reasoning_effort': 'none',
         'stream': False,
     }).encode('utf-8')
     req = urllib.request.Request(url, data=cuerpo, headers={
