@@ -1350,7 +1350,9 @@ spec:
     # rama k8s-ai test/qwen38fn-combo-eagle-t2048-20260924). Vigilante de cuelgue activo.
     # ROLLBACK: 18319a76d31423c8e718dcd68765ff3b3a6d7c05.
     # Vuelta a 18319a7 (vigilante de cuelgue de la opcion D o fin de la medida).
-    targetRevision: 18319a76d31423c8e718dcd68765ff3b3a6d7c05
+    # 462e26e5 = 18319a7 + omnivoice ritmo por voz / CPU fuera del pool (#377), para
+    # que volver atras el LLM no se lleve el arreglo de voz.
+    targetRevision: 462e26e53a6af9c3263dd11b9218f8654c74acec
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
