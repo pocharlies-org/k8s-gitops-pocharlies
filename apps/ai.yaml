@@ -1356,7 +1356,15 @@ spec:
     # test/qwen38fn-finegrained-prefix-v2-20260924.
     # ROLLBACK: 17239c40ab22e8fb7f60d70079733831be5e2318 (opcion D + omnivoice).
     # Vuelta de E a 17239c4 (opcion D + omnivoice): vigilante o decision de Dani.
-    targetRevision: 17239c40ab22e8fb7f60d70079733831be5e2318
+    # 24-09-2026 — sonda de refusal token a token (fase B, Dani): 1a0244e =
+    # 596e12a (D + omnivoice seed de k8s-gitops#381, que esta la SUSTITUYE) +
+    # cherry-pick de k8s-ai#87 (VLLM_REFUSAL_PROBE=1, patch_vllm_probe.py, CM
+    # qwen38fn-refusal-probe-cal). Rama k8s-ai deploy/refusal-probe-on-596e12a-20260924.
+    # La config del A/B D (flag + T=2048) queda IDENTICA; la sonda no toca el
+    # forward. Reinicia el TP=2 (launch-revision). OJO quien repinee despues
+    # (vuelta a E, etc.): monta encima de 1a0244e o pierde la sonda.
+    # ROLLBACK: 596e12a904cc66ae893042ef6e25b7be60b2db42 (D + omnivoice seed, sin sonda).
+    targetRevision: 1a0244e7fc1ed00bbe7535a6a08379d0cb5c91b2
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
