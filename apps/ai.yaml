@@ -1342,7 +1342,9 @@ spec:
     # 24-09-2026 01:10 — A/B autopiloto (Dani): prueba 1 otra vez = 5e54557 (flag), luego
     # prueba 2 (T=2048) y vuelta a 18319a7. Vigilante: si el motor se cuelga, se pasa al
     # siguiente paso. ROLLBACK: 18319a76d31423c8e718dcd68765ff3b3a6d7c05.
-    targetRevision: 5e545579862dab8b894ae6b5f8640ddd1117af15
+    # Prueba 2: 788d28e = 18319a7 + LONG_PREFILL_TOKEN_THRESHOLD=2048 en head y worker
+    # (rama k8s-ai test/qwen38fn-long-prefill-2048-20260924). Sin el flag de la prueba 1.
+    targetRevision: 788d28e6848ea843a6b26e6f8f0f84be7e2b8749
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
