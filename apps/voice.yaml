@@ -1,0 +1,51 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: voice
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-ai-pocharlies
+  labels:
+    e-dani.com/tier: app
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-ai-pocharlies
+    # Rama, no SHA (DGX-366, 24-09-2026): el servicio de voz (gateway omnivoice-audio,
+    # TTS omnivoice-tts-nvfp4, STT stt-turbo, Services y la clave del fallback Alibaba)
+    # itera sin repinear el SHA de `ai`, que pertenece a los experimentos del LLM.
+    # Mismo patron que `bge` (SC-315). Los PVC, su Job y la PriorityClass `preemptible`
+    # se quedan en `ai` (ver k8s-ai voice/kustomization.yaml).
+    targetRevision: main
+    path: voice
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: llm
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+      - ApplyOutOfSyncOnly=true
+  # Las replicas de los residentes GPU (nvfp4, stt-turbo) las posee compute_mode.py (el
+  # selector del dashboard); omnivoice-tts-cpu esta apagado a mano en el 0 de git. Sin
+  # esto selfHeal revertiria cada escala en segundos. Mismas entradas que tenia `ai`.
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: omnivoice-tts-nvfp4
+      namespace: llm
+      jsonPointers: ["/spec/replicas"]
+    - group: apps
+      kind: Deployment
+      name: stt-turbo
+      namespace: llm
+      jsonPointers: ["/spec/replicas"]
+    - group: apps
+      kind: Deployment
+      name: omnivoice-tts-cpu
+      namespace: llm
+      jsonPointers: ["/spec/replicas"]

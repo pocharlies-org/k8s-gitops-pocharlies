@@ -32,6 +32,7 @@ resources:
   - apps/adguard.yaml
   - apps/ai.yaml
   - apps/bge.yaml
+  - apps/voice.yaml
   - apps/firecrawl.yaml
   - apps/hermes.yaml
   - apps/hermes-studio.yaml
@@ -368,6 +369,29 @@ patches:
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *bge-replicas, name: bge-reranker-creative }
+  # DGX-366 (24-09-2026): la app `voice` (servicio de voz fuera de `ai`). Igual que `bge`:
+  # el blanket patch REEMPLAZA /spec/ignoreDifferences, asi que se re-anaden las replicas
+  # que posee compute_mode.py (nvfp4, stt-turbo) y la de omnivoice-tts-cpu (apagado).
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+      name: voice
+    patch: |-
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: &voice-replicas
+          group: apps
+          kind: Deployment
+          name: omnivoice-tts-nvfp4
+          namespace: llm
+          jsonPointers: [/spec/replicas]
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *voice-replicas, name: stt-turbo }
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *voice-replicas, name: omnivoice-tts-cpu }
   # The blanket Application patch above REPLACES /spec/ignoreDifferences, so it drops the two
   # target.template paths agentgateway-mcp declares in its own file. ESO defaults both on the
   # backend-tokens ExternalSecret, so without them the app is perpetually OutOfSync. Append
