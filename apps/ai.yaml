@@ -1367,7 +1367,12 @@ spec:
     # 24-09-2026 — calibracion cal-20260924a de la sonda: c99d816 = 1a0244e + cal.json
     # en el CM qwen38fn-refusal-probe-cal. SOLO cambia ese ConfigMap: sin reinicio
     # (refusal_probe.py lo relee por mtime). ROLLBACK: 1a0244e (sonda sin calibrar).
-    targetRevision: c99d81684de225f52089056886006b4bba661821
+    # 24-09-2026 — fase 3 del plan PLE (Dani): fdfc28c = c99d816 + tabla PLE leida del
+    # checkpoint (vllm#58439 portada, overlay qwen38fn-ursu-overlays-c) + head con pesos
+    # LOCALES en gx10-ec3d (fuera el PVC NFS) + puertas GPU_MEM_UTIL 0.80/0.76.
+    # Rama k8s-ai qwen38fn/ple-checkpoint-mapped-20260924. Reinicia el TP=2 entero.
+    # ROLLBACK: c99d81684de225f52089056886006b4bba661821.
+    targetRevision: fdfc28c64195caa5b28f9e4324e74b9e23cdef58
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
