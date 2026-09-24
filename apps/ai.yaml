@@ -1349,7 +1349,7 @@ spec:
     # disable_eagle_block_drop:true + LONG_PREFILL_TOKEN_THRESHOLD=2048 (head y worker,
     # rama k8s-ai test/qwen38fn-combo-eagle-t2048-20260924). Vigilante de cuelgue activo.
     # ROLLBACK: 18319a76d31423c8e718dcd68765ff3b3a6d7c05.
-    targetRevision: b09ae41ae6448e61f477cdc3ae1deeeb33976cc9
+    targetRevision: 17239c40ab22e8fb7f60d70079733831be5e2318
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
