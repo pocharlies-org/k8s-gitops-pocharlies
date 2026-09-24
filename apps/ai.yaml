@@ -1355,7 +1355,8 @@ spec:
     # drop de EAGLE ACTIVO (sin el flag de la prueba 1). Rama k8s-ai
     # test/qwen38fn-finegrained-prefix-v2-20260924.
     # ROLLBACK: 17239c40ab22e8fb7f60d70079733831be5e2318 (opcion D + omnivoice).
-    targetRevision: b247e33a7c9d129741aa21bcbb7b2821c3215813
+    # Vuelta de E a 17239c4 (opcion D + omnivoice): vigilante o decision de Dani.
+    targetRevision: 17239c40ab22e8fb7f60d70079733831be5e2318
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
