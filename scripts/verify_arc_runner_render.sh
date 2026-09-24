@@ -186,7 +186,7 @@ assert openclaw_runner["imagePullPolicy"] == "IfNotPresent"
 assert not openclaw_runner.get("securityContext", {}).get("privileged", False)
 assert "DOCKER_HOST" not in {item["name"] for item in openclaw_runner.get("env", [])}
 
-_, shared_spec = validate_common("arc-k8s", 6, edge_fallback=False)
+_, shared_spec = validate_common("arc-k8s", 16, edge_fallback=False)
 
 eligibility_matrix = {
     "ks5": {"kubernetes.io/arch": "amd64", "node-pool": "ks5-nvme"},
