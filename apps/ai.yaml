@@ -1345,7 +1345,11 @@ spec:
     # Prueba 2: 788d28e = 18319a7 + LONG_PREFILL_TOKEN_THRESHOLD=2048 en head y worker
     # (rama k8s-ai test/qwen38fn-long-prefill-2048-20260924). Sin el flag de la prueba 1.
     # Fin del A/B: vuelta a 18319a7 (la estable conocida) hasta que Dani decida.
-    targetRevision: 18319a76d31423c8e718dcd68765ff3b3a6d7c05
+    # 24-09-2026 04:45 — Dani elige la opcion D para medirla: b09ae41 = 18319a7 +
+    # disable_eagle_block_drop:true + LONG_PREFILL_TOKEN_THRESHOLD=2048 (head y worker,
+    # rama k8s-ai test/qwen38fn-combo-eagle-t2048-20260924). Vigilante de cuelgue activo.
+    # ROLLBACK: 18319a76d31423c8e718dcd68765ff3b3a6d7c05.
+    targetRevision: b09ae41ae6448e61f477cdc3ae1deeeb33976cc9
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
