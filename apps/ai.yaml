@@ -1383,7 +1383,10 @@ spec:
     # (cherry-pick b0b57bd + e4209da), o la voz vuelve al pool mixto GPU/CPU y sin
     # fallback cloud.
     # ROLLBACK: c99d81684de225f52089056886006b4bba661821.
-    targetRevision: e4209daaf124a95d30005cf7496e6d04dab27eaa
+    # 24-09-2026: e4209da + puerta del worker 0.781 -> 0.77 (con vm.min_free_kbytes=1 GiB
+    # el worker ve 92,75 GiB libres y no pasaba). Rama k8s-ai deploy/qwen38fn-gate-077-on-e4209da.
+    # ROLLBACK: e4209daaf124a95d30005cf7496e6d04dab27eaa.
+    targetRevision: 984b3be95a27f40be51583b40d22fbc5fb30c6a7
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
