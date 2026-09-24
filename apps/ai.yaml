@@ -1401,7 +1401,12 @@ spec:
     # OJO a los siguientes pines: que partan de aqui o de main >= k8s-ai#91. Un pin
     # anterior volveria a renderizar la voz dentro de `ai` y pelearia con `voice`.
     # ROLLBACK: 984b3be95a27f40be51583b40d22fbc5fb30c6a7 (y borrar apps/voice.yaml).
-    targetRevision: c36f005f3db6b8dcfa0e53cb6994768be1943566
+    # 25-09-2026 (Dani): prueba del bloque MTP en NVFP4 trasplantado (RadixArk#6) =
+    # c36f005 + MODEL_PATH a /cache/huggingface/qwen38fn-mtp-nvfp4 (head y worker); diff de
+    # render: solo esas dos variables. Rama k8s-ai deploy/qwen38fn-mtp-nvfp4-on-c36f005.
+    # Reinicia el TP=2. ROLLBACK: c36f005f3db6b8dcfa0e53cb6994768be1943566 (drop_caches en
+    # los dos Sparks antes de las puertas de arranque).
+    targetRevision: b2a39cca68c77c2d52da24391e1c6129335a869d
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
