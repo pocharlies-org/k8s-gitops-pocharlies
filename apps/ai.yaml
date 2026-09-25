@@ -1438,7 +1438,9 @@ spec:
     # (arregla vllm#58692, ZeroDivisionError en _init_candidates del drafter) aplicado en
     # launch.sh. Rama k8s-ai deploy/qwen38fn-dynsd-1to4-fix58692. Reinicia el TP=2.
     # ROLLBACK: 1d3e361463dd46ed02e61761629e69a31525db36 (drop_caches en los dos Sparks).
-    targetRevision: 3ec32c5bda231fc87ff39023240ad16a4fbfa9b3
+    # Vuelta a 1d3e361: con 3ec32c5 arranca (el backport de #48329 funciona) pero el decode
+    # cae a ~10 tok/s agregados con 8-9 en curso (frente a 130-200 con k=3 fijo), 25-09 10:13 UTC.
+    targetRevision: 1d3e361463dd46ed02e61761629e69a31525db36
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
