@@ -1434,7 +1434,11 @@ spec:
     # antes de las puertas de arranque).
     # Vuelta del MTP adaptativo (Dynamic SD) a 1d3e361: el head no arranca con ac5eaab
     # (Engine core initialization failed, 25-09 08:01 UTC).
-    targetRevision: 1d3e361463dd46ed02e61761629e69a31525db36
+    # 25-09-2026: segundo intento del MTP adaptativo 1-4 con el backport de vllm#48329
+    # (arregla vllm#58692, ZeroDivisionError en _init_candidates del drafter) aplicado en
+    # launch.sh. Rama k8s-ai deploy/qwen38fn-dynsd-1to4-fix58692. Reinicia el TP=2.
+    # ROLLBACK: 1d3e361463dd46ed02e61761629e69a31525db36 (drop_caches en los dos Sparks).
+    targetRevision: 3ec32c5bda231fc87ff39023240ad16a4fbfa9b3
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
