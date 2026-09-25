@@ -1426,7 +1426,13 @@ spec:
     # rank (dgx1: 13 NV_ERR/5 min frente a 374-478 en D). Reinicia el TP=2.
     # ROLLBACK: c2f7d453c1eec169055efa65ca1ba469c72bf27e (drop_caches en los dos Sparks
     # antes de las puertas de arranque).
-    targetRevision: 1d3e361463dd46ed02e61761629e69a31525db36
+    # 25-09-2026 (Dani): MTP adaptativo 1-4 por tamano de lote = 1d3e361 +
+    # SPECULATIVE_CONFIG num_speculative_tokens 4 y num_speculative_tokens_per_batch_size
+    # [[1,4,4],[5,8,3],[9,12,2],[13,16,1]] (head y worker). Rama k8s-ai
+    # deploy/qwen38fn-dynsd-1to4-on-1d3e361. Reinicia el TP=2.
+    # ROLLBACK: 1d3e361463dd46ed02e61761629e69a31525db36 (drop_caches en los dos Sparks
+    # antes de las puertas de arranque).
+    targetRevision: ac5eaab83b9f76bcab07a5ad91b6c05a48202e5f
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
