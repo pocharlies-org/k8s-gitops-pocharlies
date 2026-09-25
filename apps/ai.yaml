@@ -1440,7 +1440,11 @@ spec:
     # ROLLBACK: 1d3e361463dd46ed02e61761629e69a31525db36 (drop_caches en los dos Sparks).
     # Vuelta a 1d3e361: con 3ec32c5 arranca (el backport de #48329 funciona) pero el decode
     # cae a ~10 tok/s agregados con 8-9 en curso (frente a 130-200 con k=3 fijo), 25-09 10:13 UTC.
-    targetRevision: 1d3e361463dd46ed02e61761629e69a31525db36
+    # 25-09-2026 (Dani): reintento del MTP adaptativo 1-4 (3ec32c5). El rollback anterior se
+    # decidio midiendo dentro del calentamiento JIT; ahora se evalua a partir de 10 min tras
+    # startup complete. Referencia k=3 caliente (10:50 UTC): 99,6 tok/s, ~8,6 en curso.
+    # ROLLBACK: 1d3e361463dd46ed02e61761629e69a31525db36 (drop_caches en los dos Sparks).
+    targetRevision: 3ec32c5bda231fc87ff39023240ad16a4fbfa9b3
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
