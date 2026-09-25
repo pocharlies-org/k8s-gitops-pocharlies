@@ -1412,7 +1412,8 @@ spec:
     # Rama k8s-ai deploy/qwen38fn-mtp-nvfp4-profile-on-c36f005. Reinicia el TP=2; ventana
     # de ~30 min. ROLLBACK: c36f005f3db6b8dcfa0e53cb6994768be1943566 (drop_caches en los
     # dos Sparks antes de las puertas de arranque).
-    targetRevision: 67454d191f7ac5e81c987e9f3d85962db69aa20c
+    # Vuelta de la ventana de perfilado del MTP NVFP4 a c36f005 (drop_caches en los dos Sparks al reiniciar).
+    targetRevision: c36f005f3db6b8dcfa0e53cb6994768be1943566
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
