@@ -1432,7 +1432,9 @@ spec:
     # deploy/qwen38fn-dynsd-1to4-on-1d3e361. Reinicia el TP=2.
     # ROLLBACK: 1d3e361463dd46ed02e61761629e69a31525db36 (drop_caches en los dos Sparks
     # antes de las puertas de arranque).
-    targetRevision: ac5eaab83b9f76bcab07a5ad91b6c05a48202e5f
+    # Vuelta del MTP adaptativo (Dynamic SD) a 1d3e361: el head no arranca con ac5eaab
+    # (Engine core initialization failed, 25-09 08:01 UTC).
+    targetRevision: 1d3e361463dd46ed02e61761629e69a31525db36
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
