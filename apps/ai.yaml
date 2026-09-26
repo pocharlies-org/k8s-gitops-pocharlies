@@ -1444,7 +1444,16 @@ spec:
     # decidio midiendo dentro del calentamiento JIT; ahora se evalua a partir de 10 min tras
     # startup complete. Referencia k=3 caliente (10:50 UTC): 99,6 tok/s, ~8,6 en curso.
     # ROLLBACK: 1d3e361463dd46ed02e61761629e69a31525db36 (drop_caches en los dos Sparks).
-    targetRevision: c3f796386422ba2dfd9f80f382694778f27cec82
+    # 26-09-2026 (Dani): 4ed4e45 = c3f7963 + k8s-ai#97 (apagado del residente 27B del
+    # perfil creative: Deployment vllm-qwen38-27b-uncensored + sus dos Services + el
+    # ConfigMap ornith-tool-parser-patch, ya sin consumidores). Cherry-pick del squash
+    # 213ea46 SOBRE el pin vivo para no pisar la evaluacion del MTP adaptativo: diff de
+    # render vs c3f7963 = SOLO la salida del 27B y del ConfigMap (prune:true); el
+    # qwen38-flash-next NO cambia, NO reinicia el TP=2. El arbitro y el RBAC ya salieron
+    # desplegados (dgx-infra#680, merge 07:45Z + sync de control-nexus). OJO al
+    # siguiente pin: que parta de 4ed4e45 o de main >= k8s-ai#97; un pin anterior
+    # resucitaria el 27B. ROLLBACK: c3f796386422ba2dfd9f80f382694778f27cec82.
+    targetRevision: 4ed4e4538a08a73b424824a34237b2208b1cd704
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
