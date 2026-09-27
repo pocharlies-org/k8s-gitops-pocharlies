@@ -1461,7 +1461,11 @@ spec:
     # (--mamba-ssm-cache-dtype bfloat16; el modelo declara float32). Fase 2 de 2. Calidad
     # de referencia FP32 (longctx_eval.py, needle 32k-190k): 318/320 campos en dos pasadas.
     # Reinicia el TP=2. ROLLBACK: 00b8c0181375519628072a08d67bfe3537177a83 (K3 max, FP32).
-    targetRevision: 5b32938036462b633fa91a157956f2f7c744506b
+    # 27-09-2026 (Dani): 30dc1b0 = 5b32938 + top-k determinista de la QSA (jschmied,
+    # vllm#55122). En GB10 el persistent_topk stock cambia orden y a veces conjunto de bloques
+    # (vllm#51782, abierto). Se compila al arrancar y pasa test_det.py antes de cablearse; si
+    # falla, kernel stock. Reinicia el TP=2. ROLLBACK: 5b32938036462b633fa91a157956f2f7c744506b.
+    targetRevision: 30dc1b0662adec43fa10e993387751a0679a3b3c
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
