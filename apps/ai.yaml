@@ -1481,7 +1481,11 @@ spec:
     # repeticion el EngineCore murio a las 00:03 con carga real: un rango se colgo en un paso
     # (shm_broadcast TimeoutError -> EngineDeadError). Antes de morir: 323-2326 tok/s de trabajo e
     # ITL 1,9-2,5 s frente a 3275 tok/s e ITL 504 ms de 30dc1b0 en estado estable. Descartado.
-    targetRevision: 30dc1b0662adec43fa10e993387751a0679a3b3c
+    # 28-09-2026 00:45 (Dani, PRUEBA): 5bb40c2 = 5c38977 (grafos PIECEWISE breakable) + KV 22 -> 19
+    # GiB por rango, para que el worker no se quede sin memoria unificada (causa del EngineDead de
+    # las 00:03). Base estable 23:10-23:32 (30dc1b0): trabajo 3275 tok/s, gen 158/s, ITL 504 ms.
+    # Reinicia el TP=2. ROLLBACK: 30dc1b0662adec43fa10e993387751a0679a3b3c.
+    targetRevision: 5bb40c2433d35c816dfe0873aff5ac91b2093a95
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
