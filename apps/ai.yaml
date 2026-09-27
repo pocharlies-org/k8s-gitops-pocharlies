@@ -1465,7 +1465,11 @@ spec:
     # vllm#55122). En GB10 el persistent_topk stock cambia orden y a veces conjunto de bloques
     # (vllm#51782, abierto). Se compila al arrancar y pasa test_det.py antes de cablearse; si
     # falla, kernel stock. Reinicia el TP=2. ROLLBACK: 5b32938036462b633fa91a157956f2f7c744506b.
-    targetRevision: 30dc1b0662adec43fa10e993387751a0679a3b3c
+    # 27-09-2026 (Dani): 5c38977 = 30dc1b0 + grafos PIECEWISE breakable (sin torch.compile) para
+    # los pasos mixtos y de prefill, que iban en eager con FULL_DECODE_ONLY. Techo de captura 2560.
+    # Base sonda 64k: frio c1 48,7 s, turno caliente 3,8 s; c4 frio 50,3/80,3 s, caliente 2,5-3,4 s.
+    # Reinicia el TP=2. ROLLBACK: 30dc1b0662adec43fa10e993387751a0679a3b3c.
+    targetRevision: 5c3897786be942bde90633778237e0a925093f04
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
