@@ -1457,7 +1457,11 @@ spec:
     # 9-12 -> 2, 13-16 -> 1). Base K4 en 2 dias de trafico real: 4a posicion 9,2 %,
     # longitud aceptada 2,72. Reinicia el TP=2. Fase 1 de 2 (fase 2: Mamba SSM BF16 con
     # prueba de calidad de contexto largo). ROLLBACK: 4ed4e4538a08a73b424824a34237b2208b1cd704.
-    targetRevision: 00b8c0181375519628072a08d67bfe3537177a83
+    # 27-09-2026 (Dani): 5b32938 = 00b8c01 + estado SSM de Mamba en BF16
+    # (--mamba-ssm-cache-dtype bfloat16; el modelo declara float32). Fase 2 de 2. Calidad
+    # de referencia FP32 (longctx_eval.py, needle 32k-190k): 318/320 campos en dos pasadas.
+    # Reinicia el TP=2. ROLLBACK: 00b8c0181375519628072a08d67bfe3537177a83 (K3 max, FP32).
+    targetRevision: 5b32938036462b633fa91a157956f2f7c744506b
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
