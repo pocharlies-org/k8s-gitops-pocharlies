@@ -1472,7 +1472,12 @@ spec:
     # 27-09-2026 22:35 (Dani): ROLLBACK de 5c38977 (grafos PIECEWISE breakable). Con ellos el
     # decode se hundio: 2-15 tok/s agregados e ITL 1,4-2 s (antes 143-277 tok/s, ITL 126-293 ms),
     # 16 en curso y cola por capacidad. Vuelta a 30dc1b0 (FULL_DECODE_ONLY + top-k determinista).
-    targetRevision: 30dc1b0662adec43fa10e993387751a0679a3b3c
+    # 27-09-2026 23:35 (Dani): REPETICION del A/B de grafos PIECEWISE breakable (5c38977). El
+    # primer intento (22:14) quedo confundido con la tormenta de prefill en frio tras el reinicio;
+    # esta vez se juzga en estado estable tras drenar. Base estable 23:10-23:30 (30dc1b0):
+    # trabajo 3483 tok/s, gen 155/s, ITL 524 ms, 31 en curso, 20 en cola, 82 % de aciertos.
+    # ROLLBACK: 30dc1b0662adec43fa10e993387751a0679a3b3c.
+    targetRevision: 5c3897786be942bde90633778237e0a925093f04
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
