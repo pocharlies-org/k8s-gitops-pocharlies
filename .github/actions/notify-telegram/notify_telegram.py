@@ -56,6 +56,15 @@ ICONOS = {
 # Telegram corta en 4096; se deja margen para el icono y el aviso de recorte.
 LIMITE = 3900
 
+# 29-09-2026 (Dani): el grupo «github pocharlies-org» ya no recibe el chorro de
+# la pipeline (~800 avisos/semana: uno por PR, por review y por release). Ahí
+# solo hablan los agentes SRE y DevOps de Hermes (topics 2182/2183), que leen
+# GitHub ellos mismos, arreglan con PR y avisan a Dani solo si hace falta su
+# mano. Al grupo, el aviso NO se publica: queda en el resumen del job y como
+# ::notice::. NOTIFY_FORCE=true lo publica igualmente (para un llamante que de
+# verdad necesite a Dani sin pasar por los agentes).
+GRUPO_SILENCIADO = '-1003975290449'
+
 
 def env(nombre, defecto=''):
     return (os.environ.get(nombre) or defecto).strip()
@@ -342,6 +351,17 @@ def main():
         texto = f'[topic {topic} no disponible] {texto}'
     if len(texto) > LIMITE:
         texto = texto[:LIMITE] + '\n… (truncado)'
+
+    if chat == GRUPO_SILENCIADO and env('NOTIFY_FORCE', 'false').lower() != 'true':
+        resumen = os.environ.get('GITHUB_STEP_SUMMARY')
+        if resumen:
+            with open(resumen, 'a', encoding='utf-8') as fh:
+                fh.write(f'### Aviso (no publicado en Telegram)\n\n```\n{texto}\n```\n')
+        primera = texto.split('\n', 1)[0]
+        print(f'::notice::aviso no publicado: el grupo lo atienden los agentes SRE/DevOps — {primera}')
+        salida('thread_id', '')
+        salida('message_id', '')
+        return 0
 
     datos = {'chat_id': chat, 'text': texto, 'disable_web_page_preview': True}
     if thread:

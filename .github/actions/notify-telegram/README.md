@@ -3,6 +3,16 @@
 Acción compartida para publicar avisos en el grupo de Telegram
 **github pocharlies-org** (`-1003975290449`).
 
+## 29-09-2026: el grupo ya no recibe el chorro
+
+Al grupo `-1003975290449` la acción **no publica** (salvo `NOTIFY_FORCE=true`):
+el aviso queda en el resumen del job y como `::notice::`. Eran ~800 mensajes a
+la semana (286 «no se ha llegado a hacer», 244 «algo ha fallado» de la review
+por PR, 79 notas de release…) y nadie los leía. Ahora en el grupo hablan solo
+los agentes **SRE** (topic 2182) y **DevOps** (topic 2183) de Hermes: leen
+GitHub y el clúster ellos mismos, arreglan con PR y escriben a Dani solo
+cuando hace falta su mano.
+
 ## Quién la llama
 
 | llamante | topic | estados |
