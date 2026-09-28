@@ -1500,7 +1500,11 @@ spec:
     # q/k/v/o) BF16 -> FP8 por bloques 128 (FP8_PB_WO), idea de blazux. -1,25 GiB/rango de pesos, que
     # quedan de margen en el worker. Base 10:18-10:53 (fa0b6bf): gen 267/s, ITL 231 ms, 32 en curso, 15
     # en cola, 88 % aciertos. Reinicia el TP=2. ROLLBACK: fa0b6bfd96b790292ca4287d13ceb44db484d44a.
-    targetRevision: c5aab379ad1bb4d6700b35afbee386f4d314317e
+    # 28-09-2026 (Dani, PRUEBA): 8a8424f = c5aab37 + caches JIT persistentes (e5a9170) + KV principal en
+    # NVFP4 (lectura portada del overlay 3edbfcb a los overlays actuales de la QSA). 288 B/token/capa en
+    # vez de 512: esperado ~+56 % de KV (hoy 2.871.868 tokens). Reinicia el TP=2.
+    # ROLLBACK: c5aab379ad1bb4d6700b35afbee386f4d314317e.
+    targetRevision: 8a8424fc5e749e58cd45bd591f2348eab2ad6f4a
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
