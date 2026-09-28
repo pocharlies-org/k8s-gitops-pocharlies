@@ -18,7 +18,6 @@ resources:
   - infra/arc.yaml
   - infra/velero.yaml
   - infra/external-dns.yaml
-  - infra/vault.yaml
   - infra/nfs-cold.yaml
   - infra/nfs-warm.yaml
   - infra/gpu-operator.yaml
@@ -431,26 +430,6 @@ patches:
           namespace: velero
           jsonPointers:
             - /spec/default
-  # El chart de vault renderiza `caBundle: ""` en el webhook del agent-injector:
-  # el certificado NO lo pone el chart, lo genera y lo parchea el propio injector
-  # al arrancar. Sin este ignore, ArgoCD aplicaria la cadena vacia y el webhook se
-  # quedaria sin CA de confianza -- toda admision de pods con anotaciones de
-  # inyeccion de vault empezaria a fallar. Comprobado 15-08-2026: el render trae
-  # `caBundle: ""` y el objeto vivo tiene dos certificados reales.
-  - target:
-      group: argoproj.io
-      version: v1alpha1
-      kind: Application
-      name: vault
-    patch: |-
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value:
-          group: admissionregistration.k8s.io
-          kind: MutatingWebhookConfiguration
-          name: vault-agent-injector-cfg
-          jsonPointers:
-            - /webhooks/0/clientConfig/caBundle
   # La password de Postgres de Harbor no se puede externalizar: el chart solo
   # ofrece `database.external.existingSecret` y esta BD es INTERNA.
   #
