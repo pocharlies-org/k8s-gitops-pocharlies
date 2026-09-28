@@ -1,65 +1,16 @@
-# Runbook: Unseal Vault after restart
+# Runbook: Unseal Vault — RETIRADO (2026-09-28)
 
-**When to use**: Vault pod restarted (cluster restart, node failure, OOM), showing `sealed=true`.  
-**Time**: ~2 minutes.
+**Vault ya no existe en este clúster.** Se retiró el 2026-09-28 tras completar
+SC-699: los ~240 ExternalSecret migraron al `ClusterSecretStore/onepassword`
+(1Password, vault `k8s-pocharlies`, service account `k3s-external-secrets`) y la
+Application `vault` se borró con `--cascade` bajo decisión expresa del operador
+(snapshot raft final: `~/backups/vault-raft-final-2026-09-28.snap`, sha256
+`11f08d675ba9177a594a96aa7448ff513ab7422a4da898e540c81cf39a2f2fbb`).
 
----
+No hay nada que desellar. Si un restaurado de clúster (velero/etcd) levantara
+algún residuo del namespace `vault`, es basura: bórralo y usa 1Password.
 
-## Detect sealed state
-
-```bash
-kubectl -n vault exec vault-0 -- vault status
-# Look for: Sealed  true
-```
-
-Or via metrics/alerting: alert `VaultSealed` should fire.
-
----
-
-## Get unseal keys
-
-Open 1Password → search `k3s • Vault Unseal Keys (CRITICAL)`.
-
-You need **3 of the 5 keys** to unseal (Shamir threshold).
-
----
-
-## Unseal
-
-```bash
-# Run 3 times with 3 different keys
-kubectl -n vault exec -it vault-0 -- vault operator unseal <KEY_1>
-kubectl -n vault exec -it vault-0 -- vault operator unseal <KEY_2>
-kubectl -n vault exec -it vault-0 -- vault operator unseal <KEY_3>
-```
-
-After the 3rd key:
-```
-Sealed          false
-```
-
----
-
-## Verify ESO reconnected
-
-External Secrets Operator should auto-reconnect within ~60 seconds:
-
-```bash
-kubectl get clustersecretstore vault -o jsonpath='{.status.conditions[0].message}'
-# → "Valid"
-
-kubectl get externalsecrets -A
-# All should show READY=True
-```
-
----
-
-## Auto-unseal (future)
-
-For production, consider Vault auto-unseal with:
-- AWS KMS (if cloud budget allows)
-- Transit key from a second Vault instance
-- TPM on x86 node
-
-Until then, manual unseal is required after every Vault pod restart. 
-The alert `VaultSealed` in AlertManager will page you within 5 minutes.
+- Fuente de verdad de secretos: 1Password → `ClusterSecretStore/onepassword`.
+- Evidencia del cierre: `~/k8s/_ops/vault-to-1password/fase6-evidencia/` y el
+  histórico de [SC-699](https://e-dani.atlassian.net/browse/SC-699).
+- El runbook anterior está en el historial de git de este fichero.
