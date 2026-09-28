@@ -1493,7 +1493,10 @@ spec:
     # expertos FP8_PB_WO en vez de NVFP4 de provsalt; resto identico) + KV 22 -> 21,5 GiB por la
     # memoria del worker. Referencia MTP provsalt (6,5 h reales): long. aceptada 2,28, aceptacion
     # 64,4 %, por posicion 77,5/37,7/12,6 %. Reinicia el TP=2. ROLLBACK: 30dc1b0662adec43fa10e993387751a0679a3b3c.
-    targetRevision: dedcd8fbe106dcbef195798e0b3a7a26a259498e
+    # 28-09-2026 (Dani): fa0b6bf = dedcd8f + claves comprimidas del indexador QSA en FP8
+    # (indexer_kv_dtype=fp8; por defecto bf16). Esperado +~5 % de KV (hoy 2.712.238 tokens).
+    # Reinicia el TP=2. ROLLBACK: dedcd8fbe106dcbef195798e0b3a7a26a259498e.
+    targetRevision: fa0b6bfd96b790292ca4287d13ceb44db484d44a
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
