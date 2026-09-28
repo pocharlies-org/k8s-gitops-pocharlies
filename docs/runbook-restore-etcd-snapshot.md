@@ -122,5 +122,5 @@ ssh x86 sudo k3s server --cluster-reset
 - k3s snapshots are self-contained: they include all cluster state (secrets, deployments, PVCs metadata).
 - **PVC data** (Longhorn volumes, NFS data) is NOT in the etcd snapshot — it's on the storage nodes and survives independently.
 - After restore, Longhorn may show degraded replicas. This is normal; let Longhorn reconcile (5–15 min).
-- Vault was retired on 2026-09-28 (SC-699): there is nothing to unseal after a
-  cluster restore. Secrets come from 1Password via `ClusterSecretStore/onepassword`.
+- Vault was retired on 2026-09-28 (SC-699): after a cluster restore there is no
+  vault to open. Secrets come from 1Password via `ClusterSecretStore/onepassword`.
