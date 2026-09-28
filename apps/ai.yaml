@@ -1504,7 +1504,9 @@ spec:
     # NVFP4 (lectura portada del overlay 3edbfcb a los overlays actuales de la QSA). 288 B/token/capa en
     # vez de 512: esperado ~+56 % de KV (hoy 2.871.868 tokens). Reinicia el TP=2.
     # ROLLBACK: c5aab379ad1bb4d6700b35afbee386f4d314317e.
-    targetRevision: 8a8424fc5e749e58cd45bd591f2348eab2ad6f4a
+    # 28-09-2026 13:05: 1bbadab = 8a8424f + arreglo del warmup de la QSA (reconoce la cache nvfp4 por el
+    # layout; get_current_vllm_config_or_none() es None en el warmup y calculaba head_dim=72).
+    targetRevision: 1bbadab638cadcb2211831d7d6a7875ab89dba67
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
