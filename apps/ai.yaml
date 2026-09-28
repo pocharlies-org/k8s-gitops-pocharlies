@@ -1508,7 +1508,10 @@ spec:
     # layout; get_current_vllm_config_or_none() es None en el warmup y calculaba head_dim=72).
     # 28-09-2026 13:25: 2505d92 = 1bbadab + anotacion overlays-revision en la plantilla: el arreglo solo tocaba
     # el ConfigMap de overlays, no hubo rollout y el worker se quedo con el overlay viejo y sin rendezvous.
-    targetRevision: 2505d92d3d4f373b206eb0a778fe20f947d7ba16
+    # 28-09-2026 13:45: ROLLBACK de la prueba de KV principal en NVFP4 (8a8424f/1bbadab/2505d92). Arranca con
+    # 4.449.363 tokens de KV pero la salida degenera en basura a las pocas palabras: la lectura portada del
+    # overlay 3edbfcb no cuadra con lo que escribe reshape_and_cache_flash en esta nightly. Vuelta a c5aab37.
+    targetRevision: c5aab379ad1bb4d6700b35afbee386f4d314317e
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
