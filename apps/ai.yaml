@@ -1496,7 +1496,11 @@ spec:
     # 28-09-2026 (Dani): fa0b6bf = dedcd8f + claves comprimidas del indexador QSA en FP8
     # (indexer_kv_dtype=fp8; por defecto bf16). Esperado +~5 % de KV (hoy 2.712.238 tokens).
     # Reinicia el TP=2. ROLLBACK: dedcd8fbe106dcbef195798e0b3a7a26a259498e.
-    targetRevision: fa0b6bfd96b790292ca4287d13ceb44db484d44a
+    # 28-09-2026 (Dani): c5aab37 = fa0b6bf + checkpoint hibrido: 156 proyecciones densas (GDN in/out, QSA
+    # q/k/v/o) BF16 -> FP8 por bloques 128 (FP8_PB_WO), idea de blazux. -1,25 GiB/rango de pesos, que
+    # quedan de margen en el worker. Base 10:18-10:53 (fa0b6bf): gen 267/s, ITL 231 ms, 32 en curso, 15
+    # en cola, 88 % aciertos. Reinicia el TP=2. ROLLBACK: fa0b6bfd96b790292ca4287d13ceb44db484d44a.
+    targetRevision: c5aab379ad1bb4d6700b35afbee386f4d314317e
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
