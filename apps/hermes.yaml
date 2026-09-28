@@ -19,10 +19,10 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: hermes
+  # 28-09-2026 (Dani): sync MANUAL. Hermes (con los 16 bots de la compañía dentro) se despliega y reinicia SOLO
+  # con el pipeline hermes-despliegue.yml del repo k8s-openclaw-qwen36-pocharlies, que hace el reinicio ordenado
+  # (drena, espera a los turnos, sincroniza, recupera). Un merge ya no despliega solo; nada de sync ni restart a mano.
   syncPolicy:
-    automated:
-      selfHeal: true
-      prune: false
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
