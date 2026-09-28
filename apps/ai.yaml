@@ -1506,7 +1506,9 @@ spec:
     # ROLLBACK: c5aab379ad1bb4d6700b35afbee386f4d314317e.
     # 28-09-2026 13:05: 1bbadab = 8a8424f + arreglo del warmup de la QSA (reconoce la cache nvfp4 por el
     # layout; get_current_vllm_config_or_none() es None en el warmup y calculaba head_dim=72).
-    targetRevision: 1bbadab638cadcb2211831d7d6a7875ab89dba67
+    # 28-09-2026 13:25: 2505d92 = 1bbadab + anotacion overlays-revision en la plantilla: el arreglo solo tocaba
+    # el ConfigMap de overlays, no hubo rollout y el worker se quedo con el overlay viejo y sin rendezvous.
+    targetRevision: 2505d92d3d4f373b206eb0a778fe20f947d7ba16
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
