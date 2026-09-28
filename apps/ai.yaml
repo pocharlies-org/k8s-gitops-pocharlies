@@ -1511,7 +1511,10 @@ spec:
     # 28-09-2026 13:45: ROLLBACK de la prueba de KV principal en NVFP4 (8a8424f/1bbadab/2505d92). Arranca con
     # 4.449.363 tokens de KV pero la salida degenera en basura a las pocas palabras: la lectura portada del
     # overlay 3edbfcb no cuadra con lo que escribe reshape_and_cache_flash en esta nightly. Vuelta a c5aab37.
-    targetRevision: c5aab379ad1bb4d6700b35afbee386f4d314317e
+    # 29-09-2026 (Dani, PRUEBA): 430f9a9 = c5aab37 + SPECULATIVE_CONFIG con rejection_sample_method=block y
+    # draft_sample_method=probabilistic (receta v16b de dime-online). Nada mas. Reinicia el TP=2.
+    # ROLLBACK: c5aab379ad1bb4d6700b35afbee386f4d314317e.
+    targetRevision: 430f9a97fffae3dc900cced8aa7118b026e504e2
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
