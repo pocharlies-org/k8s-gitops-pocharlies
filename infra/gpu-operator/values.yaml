@@ -42,6 +42,23 @@ devicePlugin:
             resources:
               - name: nvidia.com/gpu
                 replicas: 2
+      # 29-09-2026 (Dani): la RTX 3080 Ti de `ubuntu` pasa a compartirse entre ComfyUI
+      # (Krea2 / qwen-image) y los dos bge (embedder + reranker), que dejan los Sparks
+      # para devolver memoria unificada al pool KV del LLM. 4 replicas = ComfyUI + 2 bge
+      # + 1 de holgura para el Recreate. La VRAM NO se reparte: la acota ComfyUI con
+      # --reserve-vram 5.5 (dgx-infra deployment-rtx.yaml). Se activa con la label de
+      # nodo nvidia.com/device-plugin.config=rtx-timeslice-4.
+      rtx-timeslice-4: |-
+        version: v1
+        flags:
+          migStrategy: none
+        sharing:
+          timeSlicing:
+            renameByDefault: false
+            failRequestsGreaterThanOne: true
+            resources:
+              - name: nvidia.com/gpu
+                replicas: 4
     default: ""
     name: dgx-device-plugin-config
   enabled: true
