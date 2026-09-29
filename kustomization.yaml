@@ -13,6 +13,7 @@ resources:
   - infra/update-watch.yaml
   - infra/renovate.yaml
   - infra/voicelab.yaml
+  - infra/ofimatica.yaml
   - infra/traefik-lan.yaml
   - infra/traefik-edge.yaml
   - infra/arc.yaml

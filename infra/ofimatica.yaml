@@ -1,0 +1,49 @@
+# ofimatica — servidor MCP de ofimatica (dgx-infra k8s/apps/ofimatica, OWU-65, epica OWU-64).
+#
+# Mismo patron que voicelab / opencode: los manifiestos viven en dgx-infra
+# (k8s/apps/ofimatica/) y aqui solo se declara la Application.
+#
+# CreateNamespace=true: `ofimatica` es un namespace de nueva creacion (el
+# manifiesto k8s/apps/ofimatica/namespace.yaml lo declara tambien; el syncOption
+# es el respaldo, como en opencode).
+#
+# prune:false: el servicio publica artefactos via S3+URL (patron /tts); no hay
+# estado en el namespace que un prune deba barrer, pero se mantiene el patron
+# de las apps hermanas y el resources-finalizer para que borrar sea decision manual.
+#
+# SIN Ingress: el servidor es cluster-internal (http://ofimatica.ofimatica.svc:8000/mcp);
+# la ruta publica la expone el gateway (k8s-agentgateway-pocharlies, ruta /ofimatica).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ofimatica
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/dgx-infra/tree/master/k8s/apps/ofimatica
+  labels:
+    e-dani.com/tier: app
+    app.kubernetes.io/part-of: dgx-infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/dgx-infra
+    targetRevision: master
+    path: k8s/apps/ofimatica
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ofimatica
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+  revisionHistoryLimit: 10
