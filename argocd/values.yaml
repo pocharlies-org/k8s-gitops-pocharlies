@@ -66,7 +66,7 @@ controller:
 # 29-09-2026 (Dani): ArgoCD avisa DIRECTO al empleado SRE/DevOps de Hermes (perfil sre-devops, topic 2182
 # de «github pocharlies-org») cuando un sync falla o una app se degrada. Sin poller en medio (ops-watch
 # retirado del x86). Hermes autentica la ruta por la cabecera X-Gitlab-Token = secreto de sus rutas
-# webhook; el valor lo trae el ExternalSecret argocd/notifications-secret.yaml (por eso el chart no crea
+# webhook; el valor lo trae el ExternalSecret argocd/notifications-externalsecret.yaml (por eso el chart no crea
 # el Secret). Solo dos triggers, suscritos por defecto para todas las apps.
 notifications:
   secret:
