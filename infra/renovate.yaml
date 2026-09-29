@@ -4,10 +4,12 @@
 # (k8s/infrastructure/renovate/) y AQUI solo se declara la Application. NO en
 # dgx-infra/k8s/argocd/apps/: ese directorio no lo sincroniza nada.
 #
-# prune:false a proposito: el PV/PVC del ns renovate apuntan al MISMO export NFS
-# que el ns update-watch (x86:/srv/nfs/k8s-warm/update-watch) y escriben en el
-# mismo attempts.jsonl del contrato; un git rm equivocado no debe poder borrar el
-# ns, el PV ni el PVC por un sync. selfHeal:true reconcilia hacia git.
+# prune:true: sin el, los ConfigMaps huérfanos que deja cada configMapGenerator
+# (update-watch-registry-*, update-watch-tool-*) se quedan OutOfSync para siempre y
+# el diff de la app nunca se vacía. El ESTADO del contrato (ns, PV, PVC que montan
+# x86:/srv/nfs/k8s-warm/update-watch con attempts.jsonl) sigue a salvo: vive en git
+# y además lleva la anotación argocd.argoproj.io/sync-options: Prune=false
+# (dgx-infra PR #741). selfHeal:true reconcilia hacia git.
 #
 # ORDEN DE FUSION: primero el PR de dgx-infra (dgx-310/c5-renovate -> master);
 # hasta que ese path no exista en master, esta app da error de resolucion de path
@@ -36,7 +38,7 @@ spec:
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
