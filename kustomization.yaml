@@ -95,6 +95,11 @@ patches:
               - .spec.dataFrom[]?.extract.decodingStrategy
               - .spec.dataFrom[]?.extract.metadataPolicy
               - .spec.dataFrom[]?.extract.nullBytePolicy
+              # ESO rellena target.template con sus defaults (engineVersion=v2,
+              # mergePolicy=Replace) y Argo lo ve como drift -> OutOfSync
+              # perpetuo en apps que gestionan ES (synapse-sre-foundation).
+              - .spec.target.template.engineVersion
+              - .spec.target.template.mergePolicy
           - group: external-secrets.io
             kind: ClusterExternalSecret
             jqPathExpressions:
