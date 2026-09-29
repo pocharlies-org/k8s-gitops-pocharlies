@@ -20,6 +20,35 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
+  # 2026-09-29 SRE (argocd:root OutOfSync permanente): gpu-operator, kyverno y
+  # longhorn arrastran finalizers pre/post-delete huerfanos de un `argocd app
+  # delete` abortado (sin deletionTimestamp). El application-controller de ArgoCD
+  # v3.4.2 los RE-AÑADE en cada reconcile (probado: quitados a mano vuelven en
+  # <60 s), asi que root NO converge por mucho que se limpien: llevaba +35
+  # auto-heals re-sincronizando las tres apps sin efecto. Ignoramos SOLO
+  # /metadata/finalizers de estas tres Applications hijas (nombradas una a una,
+  # no un wildcard): el resto del diff (spec, sources, syncPolicy) sigue
+  # vigilado y cualquier otro drift de root se sigue viendo. Revisar al migrar
+  # de ArgoCD o al depurar el delete colgado del controller.
+  ignoreDifferences:
+    - group: argoproj.io
+      kind: Application
+      name: gpu-operator
+      namespace: argocd
+      jsonPointers:
+        - /metadata/finalizers
+    - group: argoproj.io
+      kind: Application
+      name: kyverno
+      namespace: argocd
+      jsonPointers:
+        - /metadata/finalizers
+    - group: argoproj.io
+      kind: Application
+      name: longhorn
+      namespace: argocd
+      jsonPointers:
+        - /metadata/finalizers
   syncPolicy:
     automated:
       selfHeal: true
