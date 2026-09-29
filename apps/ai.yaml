@@ -1528,7 +1528,13 @@ spec:
     # requests running — 17,5 GiB deja 12,2 de margen. Reinicia el TP=2 (~10-15 min
     # sin residente, ventana de prueba ya abierta esta noche).
     # ROLLBACK: 33252030a7972b8932ea8f7cd682b6b3ab455aa4.
-    targetRevision: 48c388625e4b78cf714a047163caaa8d8d6aba46
+    # 29-09-2026 10:15Z (DEVOPS, TargetDown:llm voicelab): 2a92469 = 48c3886 + drop
+    # del target voicelab en k8s/vmservicescrape.yaml (k8s-ai PR #99, mergeada a la
+    # lineage del pin via PR #101). voicelab no expone /metrics (404) y mantenía
+    # TargetDown:llm activo desde el boot del reboot 07:18Z. Sin cambio de runtime:
+    # solo la línea del relabel.
+    # ROLLBACK: 48c388625e4b78cf714a047163caaa8d8d6aba46.
+    targetRevision: 2a92469bce0bc628bb9f5e5cd7ab7aee379f9a86
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
