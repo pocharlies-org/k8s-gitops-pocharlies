@@ -1514,7 +1514,9 @@ spec:
     # 29-09-2026 (Dani, PRUEBA): 430f9a9 = c5aab37 + SPECULATIVE_CONFIG con rejection_sample_method=block y
     # draft_sample_method=probabilistic (receta v16b de dime-online). Nada mas. Reinicia el TP=2.
     # ROLLBACK: c5aab379ad1bb4d6700b35afbee386f4d314317e.
-    targetRevision: 430f9a97fffae3dc900cced8aa7118b026e504e2
+    # 29-09-2026 02:55: 4a9dfcb = 430f9a9 + GPU_MEM_UTIL del worker 0.77 -> 0.73 (solo puerta de arranque; la
+    # cache de paginas del arranque la hacia fallar y el TP=2 no volvia). ROLLBACK: 430f9a9 / c5aab37.
+    targetRevision: 4a9dfcbfad1038eb23972f20f8aa9b9c3eb54005
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
