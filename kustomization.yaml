@@ -95,6 +95,17 @@ patches:
               - .spec.dataFrom[]?.extract.decodingStrategy
               - .spec.dataFrom[]?.extract.metadataPolicy
               - .spec.dataFrom[]?.extract.nullBytePolicy
+          - group: external-secrets.io
+            kind: ClusterExternalSecret
+            jqPathExpressions:
+              - .spec.externalSecretSpec.data[]?.remoteRef.conversionStrategy
+              - .spec.externalSecretSpec.data[]?.remoteRef.decodingStrategy
+              - .spec.externalSecretSpec.data[]?.remoteRef.metadataPolicy
+              - .spec.externalSecretSpec.data[]?.remoteRef.nullBytePolicy
+              - .spec.externalSecretSpec.dataFrom[]?.extract.conversionStrategy
+              - .spec.externalSecretSpec.dataFrom[]?.extract.decodingStrategy
+              - .spec.externalSecretSpec.dataFrom[]?.extract.metadataPolicy
+              - .spec.externalSecretSpec.dataFrom[]?.extract.nullBytePolicy
           - group: postgresql.cnpg.io
             kind: Cluster
             managedFieldsManagers:
