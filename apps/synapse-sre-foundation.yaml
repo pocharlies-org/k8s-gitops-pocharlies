@@ -19,10 +19,18 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: synapse
-  # Manual until the 14-day shadow gate and dedicated credential verification
-  # are complete. The foundation is safe to sync only while replicas remain 0
-  # and the weekly CronJob remains suspended.
+  # INFRA-314: automated + selfHeal (decision del tech-lead). El motivo del
+  # sync manual que declaraba este bloque (shadow gate: replicas 0 y CronJob
+  # suspendido) quedo obsoleto: deploy/prod ya corre con replicas 1 (5ef0b84
+  # #36) y suspend false (304e5a5 #63), y el gate de 14 dias vencio. El diff
+  # OutOfSync eran los 2 ExternalSecret sin la anotacion tracking-id de ArgoCD
+  # (objeto creados fuera de la App); sin automated nadie los reconciliaba
+  # desde el sync manual del 30-07. prune:false a proposito: la convencion del
+  # repo y el mismo limite que la familia synapse.
   syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
