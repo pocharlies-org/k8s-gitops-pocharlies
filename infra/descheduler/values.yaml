@@ -1,0 +1,55 @@
+# Descheduler: devuelve al x86 (`ubuntu`) lo que tuvo que saltar a otro nodo.
+#
+# 29-09-2026, tras un corte de luz en el x86: los servicios que prefieren
+# `ubuntu` (por latencia a la LAN y a los Sparks) llevan ahora
+# `preferredDuringScheduling` hacia `ubuntu` y pueden caer en `sauvage` si el
+# x86 no esta. El scheduler NO los devuelve solo cuando el x86 vuelve: por eso
+# existe esto. Cada 2 min evalua RemovePodsViolatingNodeAffinity en modo
+# `preferred` y desaloja el pod que podria estar en un nodo con mejor
+# preferencia.
+#
+# Opt-in por etiqueta: SOLO toca pods con `e-dani.com/vuelve-a-x86: "true"`.
+# Nada mas del cluster se reequilibra (sin LowNodeUtilization, sin
+# RemoveDuplicates, sin topologia): quien quiera volver al x86 se pone la
+# etiqueta.
+#
+# - nodeFit: true -> solo desaloja si el pod cabe en otro nodo (taints,
+#   afinidad, requests). Con el x86 NotReady lleva el taint
+#   node.kubernetes.io/unreachable:NoSchedule, asi que no desaloja nada
+#   hasta que vuelve.
+# - Respeta los PDB: con maxUnavailable 1 mueve una replica por pasada.
+# - PodsWithLocalStorage desactivada: litellm usa emptyDir (tracking, token
+#   de xAI) que es efimero por diseno.
+kind: CronJob
+schedule: "*/2 * * * *"
+successfulJobsHistoryLimit: 1
+failedJobsHistoryLimit: 1
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+deschedulerPolicy:
+  profiles:
+    - name: vuelve-a-x86
+      pluginConfig:
+        - name: DefaultEvictor
+          args:
+            nodeFit: true
+            podProtections:
+              defaultDisabled:
+                - PodsWithLocalStorage
+        - name: RemovePodsViolatingNodeAffinity
+          args:
+            nodeAffinityType:
+              - preferredDuringSchedulingIgnoredDuringExecution
+            labelSelector:
+              matchLabels:
+                e-dani.com/vuelve-a-x86: "true"
+      plugins:
+        deschedule:
+          enabled:
+            - RemovePodsViolatingNodeAffinity
