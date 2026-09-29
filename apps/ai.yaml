@@ -1534,7 +1534,10 @@ spec:
     # TargetDown:llm activo desde el boot del reboot 07:18Z. Sin cambio de runtime:
     # solo la línea del relabel.
     # ROLLBACK: 48c388625e4b78cf714a047163caaa8d8d6aba46.
-    targetRevision: 2a92469bce0bc628bb9f5e5cd7ab7aee379f9a86
+    # 29-09-2026 (Dani): f4ac658 = 2a92469 + pool KV 17,5 -> 19,5 GiB en los dos rangos. El hueco
+    # lo crean los bge en la RTX (k8s-ai #102/#103) y el STT en DGX2 (#104): ~8 GiB disponibles en
+    # cada Spark antes del cambio, ~6 despues. Reinicia el TP=2. ROLLBACK: 2a92469bce0bc628bb9f5e5cd7ab7aee379f9a86.
+    targetRevision: f4ac6586c4f0651f196b32b2d658ee7f0d8c6f77
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
