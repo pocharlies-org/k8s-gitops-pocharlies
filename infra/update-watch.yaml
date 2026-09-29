@@ -6,10 +6,12 @@
 # Application. NO en dgx-infra/k8s/argocd/apps/: ese directorio no lo sincroniza
 # nada.
 #
-# prune:false a proposito: aqui vive ESTADO. attempts.jsonl es el registro de
-# intentos del contrato que leen DGX-310/311; un git rm equivocado no debe
-# poder borrar el ns, el PV o el PVC por un sync. selfHeal:true mantiene el
-# cluster reconciliado hacia git. El PV es ESTATICO con Retain (ver README del
+# prune:true: sin el, los ConfigMaps huérfanos que deja cada configMapGenerator
+# (update-watch-registry-*, update-watch-tool-*) se quedan OutOfSync para siempre y
+# el diff de la app nunca se vacía. El ESTADO del contrato (ns, PV, PVC con
+# attempts.jsonl) sigue a salvo: vive en git y además lleva la anotación
+# argocd.argoproj.io/sync-options: Prune=false (dgx-infra PR #741). selfHeal:true
+# mantiene el cluster reconciliado hacia git. El PV es ESTATICO con Retain (ver README del
 # directorio en dgx-infra): el puente host->PVC es un bind-mount local en x86
 # del export nfs-warm, no un pod puente.
 #
@@ -39,7 +41,7 @@ spec:
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
