@@ -1516,7 +1516,10 @@ spec:
     # ROLLBACK: c5aab379ad1bb4d6700b35afbee386f4d314317e.
     # 29-09-2026 02:55: 4a9dfcb = 430f9a9 + GPU_MEM_UTIL del worker 0.77 -> 0.73 (solo puerta de arranque; la
     # cache de paginas del arranque la hacia fallar y el TP=2 no volvia). ROLLBACK: 430f9a9 / c5aab37.
-    targetRevision: 4a9dfcbfad1038eb23972f20f8aa9b9c3eb54005
+    # 29-09-2026 (Dani, PRUEBA punto 2): 32fc081 = 4a9dfcb + COMPILATION_CONFIG mode 3 (torch.compile) y
+    # cudagraph_mode FULL_AND_PIECEWISE (receta v16b de dime-online). Punto 1 medido antes: aceptacion pos0
+    # 77,3 -> 81,9 %. Reinicia el TP=2 y compila en el arranque. ROLLBACK: 4a9dfcbfad1038eb23972f20f8aa9b9c3eb54005.
+    targetRevision: 32fc081a1ecc67938837d711433f8f4762e4df0b
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
