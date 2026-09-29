@@ -1519,7 +1519,7 @@ spec:
     # 29-09-2026 (Dani, PRUEBA punto 2): 32fc081 = 4a9dfcb + COMPILATION_CONFIG mode 3 (torch.compile) y
     # cudagraph_mode FULL_AND_PIECEWISE (receta v16b de dime-online). Punto 1 medido antes: aceptacion pos0
     # 77,3 -> 81,9 %. Reinicia el TP=2 y compila en el arranque. ROLLBACK: 4a9dfcbfad1038eb23972f20f8aa9b9c3eb54005.
-    targetRevision: 32fc081a1ecc67938837d711433f8f4762e4df0b
+    targetRevision: 33252030a7972b8932ea8f7cd682b6b3ab455aa4
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
