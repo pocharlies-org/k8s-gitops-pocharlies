@@ -1519,7 +1519,16 @@ spec:
     # 29-09-2026 (Dani, PRUEBA punto 2): 32fc081 = 4a9dfcb + COMPILATION_CONFIG mode 3 (torch.compile) y
     # cudagraph_mode FULL_AND_PIECEWISE (receta v16b de dime-online). Punto 1 medido antes: aceptacion pos0
     # 77,3 -> 81,9 %. Reinicia el TP=2 y compila en el arranque. ROLLBACK: 4a9dfcbfad1038eb23972f20f8aa9b9c3eb54005.
-    targetRevision: 33252030a7972b8932ea8f7cd682b6b3ab455aa4
+    # 29-09-2026 05:10Z (DEVOPS, NvidiaDgxMemoryLow): 48c3886 = 3325203 + pool KV
+    # 21,5 -> 17,5 GiB en ambos rangos (k8s-ai PR #100, rama de la lineage del pin).
+    # nvidia-dgx llevaba 1,0 GiB de MemAvailable con pgmajfault >700/s sostenidos y
+    # gx10-ec3d 3 GiB, sin swap: SystemOOM del rank se lleva a residentes/litellm/
+    # brain. GPU_MEM_UTIL no es la palanca (desde 19-09 es solo puerta de arranque;
+    # el pool lo fija --kv-cache-memory-bytes). Uso medido del pool: 24,5% con 11
+    # requests running — 17,5 GiB deja 12,2 de margen. Reinicia el TP=2 (~10-15 min
+    # sin residente, ventana de prueba ya abierta esta noche).
+    # ROLLBACK: 33252030a7972b8932ea8f7cd682b6b3ab455aa4.
+    targetRevision: 48c388625e4b78cf714a047163caaa8d8d6aba46
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
