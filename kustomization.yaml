@@ -103,6 +103,16 @@ patches:
               - .spec.target.template.engineVersion
               - .spec.target.template.mergePolicy
           - group: external-secrets.io
+            kind: PushSecret
+            jqPathExpressions:
+              # 2026-09-29 (INFRA-314): el controller ESO rellena estos campos con
+              # su default "None" en cada PushSecret y ArgoCD lo ve como drift ->
+              # OutOfSync perpetuo (PushSecret hermes-api-key-cto, medido 29-09).
+              - .spec.data[]?.conversionStrategy
+              - .spec.data[]?.decodingStrategy
+              - .spec.data[]?.metadataPolicy
+              - .spec.data[]?.nullBytePolicy
+          - group: external-secrets.io
             kind: ClusterExternalSecret
             jqPathExpressions:
               - .spec.externalSecretSpec.data[]?.remoteRef.conversionStrategy
