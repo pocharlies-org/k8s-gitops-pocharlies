@@ -27,6 +27,7 @@ resources:
   - infra/metallb.yaml
   - infra/kyverno.yaml
   - infra/reflector.yaml
+  - infra/descheduler.yaml
   - infra/longhorn.yaml
   - infra/argocd.yaml
   - infra/harbor.yaml

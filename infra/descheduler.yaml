@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: descheduler
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/kubernetes-sigs/descheduler
+  labels:
+    e-dani.com/tier: infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  sources:
+    - repoURL: https://kubernetes-sigs.github.io/descheduler
+      chart: descheduler
+      targetRevision: 0.36.0
+      helm:
+        releaseName: descheduler
+        valueFiles:
+          - $values/infra/descheduler/values.yaml
+    - repoURL: https://github.com/pocharlies-org/k8s-gitops-pocharlies
+      targetRevision: deploy/prod
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - ServerSideApply=true
