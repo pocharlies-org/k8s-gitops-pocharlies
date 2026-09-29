@@ -24,3 +24,22 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+  # El controller de ESO rellena defaults explicitos (conversionStrategy:
+  # Default, decodingStrategy: None, metadataPolicy: None, nullBytePolicy:
+  # Ignore) en cada remoteRef del externalSecretSpec de los
+  # ClusterExternalSecret. Son semantica-identicos a omitirlos: sin este
+  # ignore la app queda OutOfSync permanente (medido 2026-09-29: los 6 CES
+  # skirmshop-drive-s3-*). Mismo patrón ya aplicado a ExternalSecret en esta
+  # app y en las demas (ver apps/synapse*.yaml).
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ClusterExternalSecret
+      jqPathExpressions:
+        - .spec.externalSecretSpec.data[]?.remoteRef.conversionStrategy
+        - .spec.externalSecretSpec.data[]?.remoteRef.decodingStrategy
+        - .spec.externalSecretSpec.data[]?.remoteRef.metadataPolicy
+        - .spec.externalSecretSpec.data[]?.remoteRef.nullBytePolicy
+        - .spec.externalSecretSpec.dataFrom[]?.extract.conversionStrategy
+        - .spec.externalSecretSpec.dataFrom[]?.extract.decodingStrategy
+        - .spec.externalSecretSpec.dataFrom[]?.extract.metadataPolicy
+        - .spec.externalSecretSpec.dataFrom[]?.extract.nullBytePolicy
