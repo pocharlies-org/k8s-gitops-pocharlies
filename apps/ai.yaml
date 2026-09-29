@@ -1537,7 +1537,14 @@ spec:
     # 29-09-2026 (Dani): f4ac658 = 2a92469 + pool KV 17,5 -> 19,5 GiB en los dos rangos. El hueco
     # lo crean los bge en la RTX (k8s-ai #102/#103) y el STT en DGX2 (#104): ~8 GiB disponibles en
     # cada Spark antes del cambio, ~6 despues. Reinicia el TP=2. ROLLBACK: 2a92469bce0bc628bb9f5e5cd7ab7aee379f9a86.
-    targetRevision: f4ac6586c4f0651f196b32b2d658ee7f0d8c6f77
+    # 29-09-2026 (Dani, tarde): b5df721 = f4ac658 + NORMA DE DESPLIEGUE con hooks
+    # (llm-deploy-pause PreSync: pausa el arbitro a phase sync-paused y escala TTS/STT a 0 antes
+    # de tocar head/worker; llm-deploy-resume PostSync/SyncFail: los devuelve al estar Healthy)
+    # + pool KV 19,5 -> 21,0 GiB por rango (voz repartida TTS=dgx1/STT=dgx2, deja ~6,7/~5,2
+    # libres; objetivo >=5 por nodo). El RBAC de los hooks va en el propio pin y se pre-aplico
+    # a mano UNA vez (k8s/llm-deploy-hooks-rbac.yaml, hecho 21:55). Reinicia el TP=2 ~30 min;
+    # la voz (TTS/STT) estara caida toda la ventana, a proposito. ROLLBACK: f4ac6586c4f0651f196b32b2d658ee7f0d8c6f77.
+    targetRevision: b5df721eeb7d9d8bf71cce7a3fd00aa11795dc48
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
