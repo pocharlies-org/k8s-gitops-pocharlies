@@ -62,3 +62,53 @@ controller:
       memory: 256Mi
     limits:
       memory: 2Gi
+
+# 29-09-2026 (Dani): ArgoCD avisa DIRECTO al empleado SRE/DevOps de Hermes (perfil sre-devops, topic 2182
+# de «github pocharlies-org») cuando un sync falla o una app se degrada. Sin poller en medio (ops-watch
+# retirado del x86). Hermes autentica la ruta por la cabecera X-Gitlab-Token = secreto de sus rutas
+# webhook; el valor lo trae el ExternalSecret argocd/notifications-externalsecret.yaml (por eso el chart no crea
+# el Secret). Solo dos triggers, suscritos por defecto para todas las apps.
+notifications:
+  secret:
+    create: false
+  notifiers:
+    service.webhook.hermes: |
+      url: http://hermes-webhook.hermes.svc.cluster.local:8644
+      headers:
+        - name: Content-Type
+          value: application/json
+        - name: X-Gitlab-Token
+          value: $hermes-webhook-token
+  templates:
+    template.hermes-sync-failed: |
+      webhook:
+        hermes:
+          method: POST
+          path: /p/sre-devops/webhooks/argocd
+          body: |
+            {"event_type": "argocd", "trigger": "on-sync-failed", "app": {{ .app.metadata.name | toJson }},
+             "sync": {{ .app.status.sync.status | toJson }}, "health": {{ .app.status.health.status | toJson }},
+             "message": {{ .app.status.operationState.message | toJson }},
+             "repo": {{ with .app.spec.source }}{{ .repoURL | toJson }}{{ else }}"multi-source"{{ end }}, "revision": {{ .app.status.sync.revision | toJson }}}
+    template.hermes-health-degraded: |
+      webhook:
+        hermes:
+          method: POST
+          path: /p/sre-devops/webhooks/argocd
+          body: |
+            {"event_type": "argocd", "trigger": "on-health-degraded", "app": {{ .app.metadata.name | toJson }},
+             "sync": {{ .app.status.sync.status | toJson }}, "health": {{ .app.status.health.status | toJson }},
+             "message": {{ .app.status.health.message | toJson }},
+             "repo": {{ with .app.spec.source }}{{ .repoURL | toJson }}{{ else }}"multi-source"{{ end }}, "revision": {{ .app.status.sync.revision | toJson }}}
+  triggers:
+    trigger.on-sync-failed: |
+      - description: El sync de la app ha fallado
+        when: app.status.operationState != nil and app.status.operationState.phase in ['Error', 'Failed']
+        send: [hermes-sync-failed]
+    trigger.on-health-degraded: |
+      - description: La app está Degraded
+        when: app.status.health.status == 'Degraded'
+        send: [hermes-health-degraded]
+  subscriptions:
+    - recipients: [hermes]
+      triggers: [on-sync-failed, on-health-degraded]

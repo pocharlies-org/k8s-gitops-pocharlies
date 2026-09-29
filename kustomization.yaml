@@ -76,6 +76,7 @@ resources:
   - apps/agentgateway-mcp.yaml
   - argocd/ingressroute.yaml
   - argocd/repositories.yaml
+  - argocd/notifications-externalsecret.yaml
 patches:
   - target:
       group: argoproj.io
