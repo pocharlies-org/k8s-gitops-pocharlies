@@ -186,13 +186,23 @@ class ReviewDistribute(unittest.TestCase):
         assert r.returncode == 4, r.stdout + r.stderr
         assert (self.out / "payload.json").is_file() and (self.out / "notify.txt").is_file()
 
-    def test_brain_401_exit_4(self):
+    def test_brain_401_exit_4_but_labels_still_synced(self):
         gh, gh_url = self.server()
         brain, brain_url = self.server(code=401)
         r = self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc", "--review-md", str(REVIEW),
                             env={"GH_TOKEN": "t", "GITHUB_API_URL": gh_url,
-                                 "BRAIN_URL": brain_url, "BRAIN_CI_KEY": "sekret-key-123"})
-        assert r.returncode == 4 and gh.calls == []
+                                 "BRAIN_URL": brain_url, "BRAIN_CI_KEY": "k"})
+        assert r.returncode == 4, r.stdout + r.stderr
+        assert len(gh.calls) == 2 and all(c[0] == "POST" for c in gh.calls)
+
+    def test_github_403_exit_4_but_push_ingest_still_attempted(self):
+        gh, gh_url = self.server(code=403)
+        brain, brain_url = self.server()
+        r = self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc", "--review-md", str(REVIEW),
+                            env={"GH_TOKEN": "t", "GITHUB_API_URL": gh_url,
+                                 "BRAIN_URL": brain_url, "BRAIN_CI_KEY": "k"})
+        assert r.returncode == 4, r.stdout + r.stderr
+        assert [c[1] for c in brain.calls] == ["/instances/local-ops/push-ingest"]
 
     # ── usage ──
 

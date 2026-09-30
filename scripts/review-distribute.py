@@ -11,6 +11,21 @@ Writes, in this order and always (contract `pr_review.v1`, schemas/pr_review.v1.
   4 <out-dir>/notify.txt — plain text for humans. This script never calls
     Telegram: the existing `avisar` job sends the file.
 
+Expected `--review-md` format (what INFRA-331 pins in PR-Agent `extra_instructions`).
+The parser is line-based and tolerant; anything it does not recognise is kept in
+`content` but yields no field (`unknown` / `false` / no finding):
+  Merge recommendation: merge | changes_required | needs_human    (own line;
+      also `Recomendación de merge:`; spaces or hyphens instead of `_` accepted)
+  Security concerns: <text>          (own line; also `Possible security issue:`;
+      a value starting with no / none / false / n/a / ninguno / sin = false,
+      anything else = possible_security_issue true)
+  One finding per list item (`-`, `*` or `1.`), file:line first, severity optional
+  in square brackets before or after it, then the summary:
+      - [high] `src/db.py:42` — string-concatenated query with user input
+      - `scripts/run.sh:7` [low]: missing quote around variable
+  Items without `path/file.ext:LINE` are not findings. At most 50 are kept.
+  A missing --review-md file = status skipped; an empty one = status degraded.
+
 It calls no model and has no dependencies beyond the standard library.
 Exit codes: 0 (also degraded), 2 invalid usage / missing mandatory env,
 4 on 401/403 from any API. No other code. Tokens come from the environment
@@ -251,30 +266,35 @@ def main(argv: list[str] | None = None) -> int:
 
     steps: list[str] = []
     rc = 0
-    try:
-        key = os.environ.get("BRAIN_CI_KEY", "")
-        if args.dry_run:
-            steps.append("push-ingest: omitido (--dry-run)")
-        elif not key:
-            steps.append("push-ingest: omitido, degradado (sin BRAIN_CI_KEY)")
-        else:
-            try:
-                push_ingest(payload, os.environ.get("BRAIN_URL", DEFAULT_BRAIN_URL), key)
-                steps.append("push-ingest: ok")
-            except Degraded as exc:
-                steps.append(f"push-ingest: degradado ({exc})")
-        if args.dry_run:
-            steps.append(f"etiquetas: omitidas (--dry-run); {LABEL_CHANGES}={payload['changes_required']}, "
-                         f"{LABEL_SECURITY}={payload['possible_security_issue']}")
-        else:
-            try:
-                sync_labels(payload, token)
-                steps.append("etiquetas: ok")
-            except Degraded as exc:
-                steps.append(f"etiquetas: degradado ({exc})")
-    except AuthError as exc:
-        steps.append(f"error: {exc} — credencial rechazada")
-        rc = 4
+    # Two independent steps: labels are the primary channel to pr-watcher, so a
+    # 401 from the brain must not skip them (and a 403 from GitHub must not skip
+    # the push-ingest). Exit 4 if either one is rejected.
+    key = os.environ.get("BRAIN_CI_KEY", "")
+    if args.dry_run:
+        steps.append("push-ingest: omitido (--dry-run)")
+    elif not key:
+        steps.append("push-ingest: omitido, degradado (sin BRAIN_CI_KEY)")
+    else:
+        try:
+            push_ingest(payload, os.environ.get("BRAIN_URL", DEFAULT_BRAIN_URL), key)
+            steps.append("push-ingest: ok")
+        except Degraded as exc:
+            steps.append(f"push-ingest: degradado ({exc})")
+        except AuthError as exc:
+            steps.append(f"push-ingest: error: {exc} — credencial rechazada")
+            rc = 4
+    if args.dry_run:
+        steps.append(f"etiquetas: omitidas (--dry-run); {LABEL_CHANGES}={payload['changes_required']}, "
+                     f"{LABEL_SECURITY}={payload['possible_security_issue']}")
+    else:
+        try:
+            sync_labels(payload, token)
+            steps.append("etiquetas: ok")
+        except Degraded as exc:
+            steps.append(f"etiquetas: degradado ({exc})")
+        except AuthError as exc:
+            steps.append(f"etiquetas: error: {exc} — credencial rechazada")
+            rc = 4
     (out / "notify.txt").write_text(notify_text(payload))  # also on exit 4: humans must see it
     print(f"review-distribute: status={payload['status']} recomendación={payload['merge_recommendation']} "
           f"hallazgos={len(payload['findings'])}")
