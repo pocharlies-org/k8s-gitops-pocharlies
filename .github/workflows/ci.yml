@@ -69,3 +69,16 @@ jobs:
       - run: python3 -m unittest tests/test_release_image_linkage_runtime.py
       - run: python3 -m unittest tests/test_synapse_sre_foundation_app.py
       - run: python3 -m unittest tests/test_review_context.py
+      - name: PR-Agent config and secret distribution (INFRA-331)
+        run: |
+          set -euo pipefail
+          # configuration.toml de PR-Agent v0.46.0 (commit del tag, el de la imagen fijada
+          # sha256:42c7833a…), verificado por hash: contra él se valida cada clave.
+          upstream="$RUNNER_TEMP/pr-agent-configuration.toml"
+          curl --retry 3 --retry-all-errors -fsSL \
+            "https://raw.githubusercontent.com/The-PR-Agent/pr-agent/1d01f24f455bb879c1d9c557ad7de3d72dcc7975/pr_agent/settings/configuration.toml" \
+            -o "$upstream"
+          echo "9051dcb7234c4c413b5350735cfded740ec6ced158aac883530be752a896afe0  $upstream" \
+            | sha256sum --check --strict
+          python3 scripts/check-pr-agent-config.py --upstream "$upstream"
+          PR_AGENT_UPSTREAM_CONFIG="$upstream" python3 -m unittest tests/test_pr_agent_config.py
