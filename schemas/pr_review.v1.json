@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pr_review.v1",
+  "title": "pr_review.v1 — payload of .review/payload.json and metadata of the brain adapter pr_review",
+  "description": "Frozen contract (INFRA-298 §2). Adding an optional field is not breaking; anything else is a new pr_review.v2 next to this file. `content` is the review markdown (<= 12 KB) and travels as the document body in the brain; every other field is flat metadata.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "repo", "pr", "head_sha", "status", "merge_recommendation",
+               "changes_required", "possible_security_issue", "findings", "content"],
+  "properties": {
+    "schema": {"const": "pr_review.v1"},
+    "repo": {"type": "string", "minLength": 3},
+    "pr": {"type": "integer", "minimum": 1},
+    "head_sha": {"type": "string", "minLength": 1},
+    "status": {"enum": ["ok", "degraded", "skipped"]},
+    "merge_recommendation": {"enum": ["merge", "changes_required", "needs_human", "unknown"]},
+    "changes_required": {"type": "boolean"},
+    "possible_security_issue": {"type": "boolean"},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "line", "severity", "summary"],
+        "properties": {
+          "file": {"type": "string", "minLength": 1},
+          "line": {"type": "integer", "minimum": 0},
+          "severity": {"type": "string", "minLength": 1},
+          "summary": {"type": "string"}
+        }
+      }
+    },
+    "content": {"type": "string", "maxLength": 12288}
+  }
+}

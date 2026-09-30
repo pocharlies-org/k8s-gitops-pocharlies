@@ -69,3 +69,4 @@ jobs:
       - run: python3 -m unittest tests/test_release_image_linkage_runtime.py
       - run: python3 -m unittest tests/test_synapse_sre_foundation_app.py
       - run: python3 -m unittest tests/test_review_context.py
+      - run: python3 -m unittest tests/test_review_distribute.py
