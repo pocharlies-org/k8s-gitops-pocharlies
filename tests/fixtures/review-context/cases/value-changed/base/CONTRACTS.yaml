@@ -1,0 +1,7 @@
+version: 1
+contracts:
+  - id: brain.ingest.v1
+    kind: routing-key
+    value: brain.{tenant}.ingest
+    role: publisher
+    status: active

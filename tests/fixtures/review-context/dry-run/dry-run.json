@@ -1,0 +1,6 @@
+{
+  "touched": [{"id": "brain.ingest.v1", "file": "CONTRACTS.yaml", "line": "", "facts": ["value cambió: `a` → `b`"], "value": "brain.{tenant}.ingest"}],
+  "trailers": [["abc1234567", "break", "brain.ingest.v1", true, true]],
+  "prs": [{"number": 7, "title": "otra PR", "branch": "feat/x", "files": ["CONTRACTS.yaml"]}],
+  "memory": [{"source": "pr_review:x/y#3", "summary": "review previa del mismo contrato"}]
+}
