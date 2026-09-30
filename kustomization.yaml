@@ -78,6 +78,7 @@ resources:
   - argocd/ingressroute.yaml
   - argocd/repositories.yaml
   - argocd/notifications-externalsecret.yaml
+  - argocd/repo-creds-dashboard-ro-externalsecret.yaml
 patches:
   - target:
       group: argoproj.io
