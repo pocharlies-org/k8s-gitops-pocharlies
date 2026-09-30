@@ -15,4 +15,4 @@ Registry de Synapse, solo lectura y offline (sin `/search/code`, que da 429):
 
 Entorno: `GH_TOKEN` (PRs abiertas), `BRAIN_URL`, `BRAIN_CI_KEY` (sin ella la memoria va a Degradaciones).
 Salidas: 0 (también degradado), 2 uso inválido, 4 si una API responde 401/403. `--dry-run` no usa git ni red.
-Tests: `python -m pytest tests/test_review_context.py -q`.
+Tests: `python3 -m unittest tests/test_review_context.py`.
