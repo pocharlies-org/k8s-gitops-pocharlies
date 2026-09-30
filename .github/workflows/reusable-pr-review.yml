@@ -343,7 +343,7 @@ jobs:
             if ! printf '%s' "${HARBOR_PASSWORD}" | docker login harbor.e-dani.com \
                  -u "${HARBOR_USER}" --password-stdin > "$PR_AGENT_DIR/login.log" 2>&1; then
               cp "$PR_AGENT_DIR/login.log" "$PR_AGENT_DIR/pull.err"
-              if grep -qiE 'unauthorized|401|403|denied' "$PR_AGENT_DIR/login.log"; then
+              if grep -qiE 'unauthorized|authentication required|incorrect username|40[13]' "$PR_AGENT_DIR/login.log"; then
                 echo 4 > "$PR_AGENT_DIR/pull.rc"
               else
                 echo 1 > "$PR_AGENT_DIR/pull.rc"
@@ -457,7 +457,9 @@ jobs:
             0) echo "ok=true" >> "$GITHUB_OUTPUT" ;;
             3) echo "::warning::sin HARBOR_USER/HARBOR_PASSWORD en este repo: PR-Agent no se lanza"
                echo "ok=false" >> "$GITHUB_OUTPUT" ;;
-            4) echo "::error::Harbor rechazo las credenciales (401/403)"
+            4) echo "::error::Harbor rechazo las credenciales (401/403): HARBOR_USER/HARBOR_PASSWORD de este repo"
+               # La salida de docker login no lleva la contraseña (va por stdin).
+               tail -3 "$PR_AGENT_DIR/pull.err" 2>/dev/null || true
                echo "ok=false" >> "$GITHUB_OUTPUT" ;;
             *) echo "::warning::no se pudo traer $PR_AGENT_IMAGE (rc=$rc); review degradada"
                tail -3 "$PR_AGENT_DIR/pull.err" 2>/dev/null || true
