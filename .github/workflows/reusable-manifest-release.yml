@@ -179,25 +179,91 @@ jobs:
             -cf "$bundle_tar" \
             -C "$SOURCE_PATH" .
           gzip -n -9 "$bundle_tar"
+          bundle_layer_digest="sha256:$(sha256sum "$BUNDLE" | cut -d' ' -f1)"
 
-          (
-            cd "$bundle_dir"
-            oras push \
-              --disable-path-validation \
-              --annotation "org.opencontainers.image.title=${ARTIFACT_NAME}" \
-              --annotation "org.opencontainers.image.version=${VERSION}" \
-              --annotation "org.opencontainers.image.revision=${GITHUB_SHA}" \
-              --annotation "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
-              "$CANDIDATE_REF" "manifest-bundle.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip"
-          )
+          harbor_netrc="$RUNNER_TEMP/harbor-manifest-release.netrc"
+          printf 'machine %s login %s password %s\n' "$REGISTRY" "$HARBOR_USER" "$HARBOR_PASSWORD" > "$harbor_netrc"
+          chmod 0600 "$harbor_netrc"
+          repository_encoded="$(printf '%s' "$ARTIFACT_NAME" | sed 's#/#%252F#g')"
+          project_encoded="$REGISTRY_PROJECT"
 
-          ARTIFACT_DIGEST="$(oras resolve "$CANDIDATE_REF")"
+          # Release preflight (INFRA-352). The bundle layer is reproducible, but
+          # the OCI manifest is not (ORAS stamps org.opencontainers.image.created),
+          # so a retry on a commit that already published `sha-<commit>` would
+          # push a second manifest and collide with that immutable tag. Resolve
+          # both tags first: a VERSION owned by another manifest fails here,
+          # before anything is pushed, and a `sha-<commit>` already bound to
+          # this revision and this exact bundle layer is reused, never moved.
+          lookup_manifest_artifact() {
+            local reference="$1"
+            local output="$2"
+            local lookup_status
+            lookup_status="$(curl --silent --show-error \
+              --netrc-file "$harbor_netrc" \
+              --output "$output" \
+              --write-out '%{http_code}' \
+              "https://${REGISTRY}/api/v2.0/projects/${project_encoded}/repositories/${repository_encoded}/artifacts/${reference}")"
+            case "$lookup_status" in
+              200|404) printf '%s' "$lookup_status" ;;
+              *)
+                echo "Harbor manifest preflight lookup failed for ${reference}: HTTP $lookup_status" >&2
+                head -c 1000 "$output" >&2 || true
+                return 1
+                ;;
+            esac
+          }
+          sha_lookup="$RUNNER_TEMP/manifest-preflight-sha.json"
+          version_lookup="$RUNNER_TEMP/manifest-preflight-version.json"
+          sha_lookup_status="$(lookup_manifest_artifact "$SHA_TAG" "$sha_lookup")"
+          version_lookup_status="$(lookup_manifest_artifact "$VERSION" "$version_lookup")"
+          reuse_digest=""
+          if [ "$sha_lookup_status" = "200" ]; then
+            reuse_digest="$(jq -er '.digest | select(test("^sha256:[a-f0-9]{64}$"))' "$sha_lookup")"
+            existing_manifest="$RUNNER_TEMP/manifest-preflight-existing.json"
+            oras manifest fetch "${REGISTRY}/${REGISTRY_PROJECT}/${ARTIFACT_NAME}@${reuse_digest}" > "$existing_manifest"
+            jq -e --arg revision "$GITHUB_SHA" --arg layer "$bundle_layer_digest" \
+              '.annotations["org.opencontainers.image.revision"] == $revision and ([.layers[].digest] == [$layer])' \
+              "$existing_manifest" >/dev/null || {
+                echo "Immutable manifest tag ${SHA_TAG} is bound to another revision or bundle; it is never moved"
+                exit 1
+              }
+            if ! jq -e --arg version "$VERSION" \
+              '.annotations["org.opencontainers.image.version"] == $version' "$existing_manifest" >/dev/null; then
+              echo "::notice::${SHA_TAG} was first published under another version annotation; tagging the same bundle as ${VERSION}"
+            fi
+          fi
+          if [ "$version_lookup_status" = "200" ]; then
+            version_digest="$(jq -r '.digest // ""' "$version_lookup")"
+            if [ -z "$reuse_digest" ] || [ "$version_digest" != "$reuse_digest" ]; then
+              echo "Manifest tag ${VERSION} is already published as ${version_digest}, not as this commit's ${SHA_TAG}."
+              echo "Immutable tags are never moved: release this commit under an unused image_tag."
+              exit 1
+            fi
+          fi
+
+          if [ -n "$reuse_digest" ]; then
+            echo "Reusing manifest bundle ${SHA_REF} at ${reuse_digest}: this commit already published it"
+            ARTIFACT_DIGEST="$reuse_digest"
+          else
+            (
+              cd "$bundle_dir"
+              oras push \
+                --disable-path-validation \
+                --annotation "org.opencontainers.image.title=${ARTIFACT_NAME}" \
+                --annotation "org.opencontainers.image.version=${VERSION}" \
+                --annotation "org.opencontainers.image.revision=${GITHUB_SHA}" \
+                --annotation "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+                "$CANDIDATE_REF" "manifest-bundle.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip"
+            )
+            ARTIFACT_DIGEST="$(oras resolve "$CANDIDATE_REF")"
+          fi
+
           if ! echo "$ARTIFACT_DIGEST" | grep -Eq '^sha256:[a-f0-9]{64}$'; then
             echo "Candidate did not resolve to a canonical sha256 digest"
             exit 1
           fi
           candidate_manifest="$RUNNER_TEMP/manifest-candidate.json"
-          oras manifest fetch "$CANDIDATE_REF" > "$candidate_manifest"
+          oras manifest fetch "${REGISTRY}/${REGISTRY_PROJECT}/${ARTIFACT_NAME}@${ARTIFACT_DIGEST}" > "$candidate_manifest"
           jq -e --arg revision "$GITHUB_SHA" \
             '.annotations["org.opencontainers.image.revision"] == $revision' \
             "$candidate_manifest" >/dev/null || {
@@ -205,11 +271,6 @@ jobs:
               exit 1
             }
 
-          harbor_netrc="$RUNNER_TEMP/harbor-manifest-release.netrc"
-          printf 'machine %s login %s password %s\n' "$REGISTRY" "$HARBOR_USER" "$HARBOR_PASSWORD" > "$harbor_netrc"
-          chmod 0600 "$harbor_netrc"
-          repository_encoded="$(printf '%s' "$ARTIFACT_NAME" | sed 's#/#%252F#g')"
-          project_encoded="$REGISTRY_PROJECT"
           digest_encoded="sha256%3A${ARTIFACT_DIGEST#sha256:}"
 
           verify_harbor_tag_on_digest() {
@@ -296,7 +357,22 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git push origin "HEAD:refs/heads/${DEPLOY_BRANCH}" --force-with-lease
+          # INFRA-352. The lease is the deploy tip this job checked out (what a
+          # bare --force-with-lease used), captured before any later fetch, so a
+          # concurrent advance still rejects the push instead of being
+          # overwritten. When the deploy branch already contains the released
+          # commit (released from the deploy branch while it advanced, or a
+          # retry of an older run) there is nothing to promote: pushing would
+          # rewind it, so that case succeeds without touching the branch.
+          checkout_tip="$(git rev-parse --verify --quiet "refs/remotes/origin/${DEPLOY_BRANCH}^{commit}" || true)"
+          if git ls-remote --exit-code --heads origin "refs/heads/${DEPLOY_BRANCH}" >/dev/null; then
+            git fetch --no-tags origin "+refs/heads/${DEPLOY_BRANCH}:refs/rho/deploy-tip"
+            if git merge-base --is-ancestor HEAD refs/rho/deploy-tip; then
+              echo "${DEPLOY_BRANCH} already contains ${GITHUB_SHA}; nothing to promote"
+              exit 0
+            fi
+          fi
+          git push origin "HEAD:refs/heads/${DEPLOY_BRANCH}" --force-with-lease="refs/heads/${DEPLOY_BRANCH}:${checkout_tip}"
 
   notify:
     name: Notify OpenClaw on manifest release failure

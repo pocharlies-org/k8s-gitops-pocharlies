@@ -88,6 +88,13 @@ required = [
     "release_images: ${{ steps.publish.outputs.release_images }}",
     'echo "release_images<<RHO_RELEASE_IMAGES"',
     "release evidence contains an invalid or duplicate image",
+    "Release preflight (INFRA-352)",
+    "harbor_lookup_artifact() {",
+    "RELEASE_PREFLIGHT_DECISION",
+    "Immutable tags are never moved: release this commit under an unused image_tag.",
+    'reused_from="$sha_ref"',
+    "fi # end of the fresh-build path; both paths verify below",
+    "reusedFrom: reused ? process.env.REUSED_FROM : null,",
 ]
 for marker in required:
     require(marker in workflow, f"missing release supply-chain guard: {marker}")
@@ -102,6 +109,13 @@ provenance = loop.index("cosign attest --yes --type slsaprovenance1")
 verify = loop.index("cosign verify \\")
 evidence = loop.index("release-evidence.json")
 require(scan < candidate_push < sign < attest < provenance < verify < final_push < evidence, "release gates are out of order")
+
+build_loop = workflow.index("while IFS=$'\\t' read -r name context dockerfile; do")
+require(workflow.index("RELEASE_PREFLIGHT_DECISION") < build_loop, "release preflight must run before any image is built")
+require(workflow.count("RELEASE_PREFLIGHT_DECISION") == 1, "release preflight decision must be single-sourced")
+reuse = loop.index('reused_from="$sha_ref"')
+fresh_build_end = loop.index("fi # end of the fresh-build path; both paths verify below")
+require(reuse < scan < provenance < fresh_build_end < verify, "a reused digest must reach the same Sigstore verification as a fresh build")
 
 slsa_verify = "cosign verify-attestation \\\n              --type slsaprovenance1"
 require(slsa_verify in loop, "SLSA provenance must be verified before evidence publication")
@@ -140,13 +154,16 @@ require(workflow.count('--certificate-github-workflow-repository "$GITHUB_REPOSI
 require(workflow.count('--certificate-github-workflow-sha "$GITHUB_SHA"') == 3, "all Cosign evidence must bind caller revision")
 require("refs/(heads|tags)" not in workflow, "mutable certificate reference accepted")
 
-# Revisado el 22-08-2026. Lo unico que cambio: el aviso de fallo deja de ser
-# ~90 lineas de JS inline y pasa a la accion compartida notify-telegram. Con
-# ello desaparece el canal de webhook a OpenClaw (era el primario, con Telegram
-# de respaldo): hoy el aviso es SOLO Telegram, y los secretos
-# OPENCLAW_GITHUB_NOTIFY_URL/_TOKEN ya no se declaran. La cadena de suministro
-# del release —firma, procedencia SLSA, escaneo, evidencia— no se toca.
-expected_workflow_digest = "db5bd7448b8d6305ad4120a8b87039edff9bb4df44901594fa1772257dcb75ac"
+# Revisado el 30-09-2026 (INFRA-352). Lo unico que cambio: un reintento sobre
+# un commit que ya publico converge en vez de colisionar. Un preflight resuelve
+# en Harbor `sha-<commit>` y VERSION de TODAS las imagenes antes de construir
+# nada: una VERSION de otro commit falla ahi, sin crear ningun tag, y un
+# `sha-<commit>` ya publicado por este commit se reutiliza en vez de
+# reconstruirse (el build no es reproducible). El digest reutilizado pasa por
+# la MISMA verificacion Sigstore de identidad exacta y revision del llamante
+# que un build nuevo antes de promocionarse. Firma, SBOM, SLSA, Trivy y la
+# creacion atomica de tags no cambian para el camino de build.
+expected_workflow_digest = "31388886a1012009d41738986ab54176b6bb87b428970a6050fc833205a62cc8"
 workflow_digest = hashlib.sha256(workflow.encode()).hexdigest()
 require(
     workflow_digest == expected_workflow_digest,

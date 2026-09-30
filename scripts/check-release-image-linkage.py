@@ -172,7 +172,7 @@ for label, mutated_release, mutated_manifest in [
         continue
     raise SystemExit(f"linkage mutation self-test unexpectedly passed: {label}")
 
-expected_release_sha256 = "db5bd7448b8d6305ad4120a8b87039edff9bb4df44901594fa1772257dcb75ac"
+expected_release_sha256 = "31388886a1012009d41738986ab54176b6bb87b428970a6050fc833205a62cc8"
 expected_manifest_sha256 = "1fafa1bf555d04971e1019b59fcb1e33dfead54f7591f239c07fd115a789de28"
 release_sha256 = hashlib.sha256(release.encode()).hexdigest()
 manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()
