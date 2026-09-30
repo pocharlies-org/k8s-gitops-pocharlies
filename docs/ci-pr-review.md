@@ -60,3 +60,36 @@ admin del repo. Tests: `python3 -m unittest tests/test_pr_agent_config.py`.
 
 Key de LiteLLM: alias `pr-agent-ci`, solo `alibaba-q38-flash`, 6 rpm / 240 000 tpm (dos PR a la vez),
 separada de `ci-review-bot` (equipo `ci-review`, 3 rpm / 120 000 tpm).
+
+# PR review: el workflow reusable v2 y `inputs.engine` (INFRA-332)
+
+`.github/workflows/reusable-pr-review.yml` tiene dos motores. `engine: propio` (por defecto) es `review.py`,
+sin cambios: lo siguen usando los 108 repos de la plantilla hasta INFRA-334. `engine: pr-agent` lo encienden
+solo los pilotos (`k8s-litellm-pocharlies`, `skirmshop-labels`), en su `.github/workflows/pr-review.yml`:
+
+    uses: pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-pr-review.yml@main
+    with:
+      engine: pr-agent
+
+Job `revisar_pr_agent`, en orden: pull de la imagen de Harbor por digest (en segundo plano) → contexto
+(`review-context.py` → `.review/context.md`, más «Tickets Jira citados en el PR») → **validación del
+fichero montado** (`check-pr-agent-config.py` dentro de la imagen fijada, contra su `configuration.toml`;
+si falla, el motor no se lanza y el job queda verde con `status: skipped`) → PR-Agent (`docker run`, el
+contexto le llega por `ARTIFACT_PATH` y las instrucciones de `[artifacts]` del `.toml`) → distribución
+(`review-distribute.py` con el markdown de `push_outputs`) → artefacto `.review/` (14 días) → veredicto.
+
+Permisos del job: `contents: read` + `pull-requests: write`. No `issues: write`: un job llamado que pide un
+permiso que el llamador no concede tumba el run entero al arrancar, y la plantilla no lo concede;
+`pull-requests: write` cubre comentarios y etiquetas del PR (tabla oficial de permisos de GitHub).
+
+Rojo solo por 401/403 (LiteLLM, GitHub, Harbor, brain) o uso inválido (D3). Sin `PR_AGENT_LITELLM_KEY`, sin
+`HARBOR_*`, modelo caído, timeout o config inválida: verde con aviso y `status` `skipped`/`degraded`.
+
+Defensa contra la config: los valores críticos van también por entorno del contenedor
+(`CONFIG__RESTRICTED_MODE`, `GITHUB_ACTION_CONFIG__AUTO_DESCRIBE`, `CONFIG__MODEL`, `CONFIG__FALLBACK_MODELS`,
+`OPENAI__API_BASE`, `GITHUB__BASE_URL`, `JIRA__JIRA_SITE`). Medido con la imagen fijada: sin ellos, un
+`.pr_agent.toml` en el tronco del repo revisado revierte todos esos valores, incluidos los destinos de las
+credenciales; con ellos, ninguno (sí puede cambiar ajustes no críticos, p. ej. `ai_timeout`).
+
+Imagen: `harbor.e-dani.com/homelab/pr-agent:0.46.0-github_action@sha256:42c7833a…` (espejo del manifiesto
+linux/amd64). La vigila la entrada `pr-agent` de `dgx-infra ci/update-watch.yaml` (aviso, sin PR automático).

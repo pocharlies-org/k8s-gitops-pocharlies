@@ -1,8 +1,18 @@
 name: Reusable PR review
 
-# Bot de review de PRs: manda el diff a un LLM por LiteLLM y publica UN
-# comentario con los hallazgos. Pensado para que los 113 repos activos lo
-# enciendan copiando `templates/ci/pr-review.yml`, cinco lineas.
+# Bot de review de PRs. Dos motores, elegidos con `inputs.engine` (INFRA-298, D6):
+#
+#   propio   (por defecto) review.py: manda el diff a un LLM por LiteLLM y publica
+#            UN comentario con los hallazgos. Es lo que siguen usando los 108 repos
+#            de la plantilla hasta el rollout (INFRA-334); se retira en F4.
+#   pr-agent PR-Agent 0.46.0 en contenedor, orquestado en tres pasos (INFRA-332):
+#            contexto (scripts/review-context.py) -> PR-Agent (imagen de Harbor por
+#            digest) -> distribucion (scripts/review-distribute.py: payload del
+#            contrato pr_review.v1, brain local-ops, etiquetas). Diseño: adjunto
+#            nota-architect-diseno.md de INFRA-298; runbook: docs/ci-pr-review.md.
+#
+# Pensado para que los 113 repos activos lo enciendan copiando
+# `templates/ci/pr-review.yml`, cinco lineas.
 #
 # Tres decisiones que parecen raras y no lo son:
 #
@@ -29,6 +39,13 @@ name: Reusable PR review
 on:
   workflow_call:
     inputs:
+      engine:
+        # D6 de INFRA-298: `propio` hasta que el piloto F1 de verde y el rollout
+        # (INFRA-334) cambie la plantilla. Un valor que no sea uno de los dos es
+        # uso invalido y pone el check en rojo (no se adivina el motor).
+        description: "Motor de review: `propio` (review.py) o `pr-agent`."
+        type: string
+        default: propio
       runner:
         description: Runner ARC del cluster.
         type: string
@@ -84,13 +101,35 @@ on:
       FRAMEWORK_REPO_TOKEN:
         description: Solo si este repo dejara de ser publico.
         required: false
+      # Motor pr-agent. Por repo, no de organizacion: el plan es `free` y un
+      # secreto de organizacion no llega a los repos privados (INFRA-331,
+      # scripts/review-distribute-secrets.sh los reparte).
+      PR_AGENT_LITELLM_KEY:
+        description: Key `pr-agent-ci` de LiteLLM (solo alibaba-q38-flash).
+        required: false
+      JIRA_EMAIL:
+        description: Cuenta Jira de solo lectura para el cumplimiento del ticket.
+        required: false
+      JIRA_API_TOKEN:
+        required: false
+      BRAIN_CI_KEY:
+        description: Brain local-ops. Sin ella la memoria y el push-ingest van degradados.
+        required: false
+      HARBOR_USER:
+        description: Pull de la imagen de PR-Agent desde harbor.e-dani.com/homelab (privado).
+        required: false
+      HARBOR_PASSWORD:
+        required: false
     outputs:
       veredicto:
         description: "`ok` | `hallazgos` | `omitido`."
-        value: ${{ jobs.revisar_pr.outputs.veredicto || jobs.revisar_commit.outputs.veredicto }}
+        value: ${{ jobs.revisar_pr.outputs.veredicto || jobs.revisar_pr_agent.outputs.veredicto || jobs.revisar_commit.outputs.veredicto }}
       n_hallazgos:
         description: Numero de hallazgos.
-        value: ${{ jobs.revisar_pr.outputs.n_hallazgos || jobs.revisar_commit.outputs.n_hallazgos }}
+        value: ${{ jobs.revisar_pr.outputs.n_hallazgos || jobs.revisar_pr_agent.outputs.n_hallazgos || jobs.revisar_commit.outputs.n_hallazgos }}
+      status:
+        description: "Motor pr-agent: `ok` | `degraded` | `skipped` (contrato pr_review.v1). Vacio con `propio`."
+        value: ${{ jobs.revisar_pr_agent.outputs.status }}
 
 permissions:
   contents: read
@@ -99,7 +138,7 @@ jobs:
   # Modo PR. Permisos minimos: escribir en el PR, leer el codigo.
   revisar_pr:
     name: Review del PR
-    if: ${{ github.event_name == 'pull_request' }}
+    if: ${{ github.event_name == 'pull_request' && inputs.engine != 'pr-agent' }}
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 10
     permissions:
@@ -117,6 +156,16 @@ jobs:
       resumen: ${{ steps.revisar.outputs.resumen || steps.guarda.outputs.motivo }}
       n_hallazgos: ${{ steps.revisar.outputs.n_hallazgos || '0' }}
     steps:
+      - name: Check the review engine
+        env:
+          ENGINE: ${{ inputs.engine }}
+        run: |
+          set -uo pipefail
+          if [ "${ENGINE}" != "propio" ]; then
+            echo "::error::inputs.engine='${ENGINE}' no es un motor: usa 'propio' o 'pr-agent'"
+            exit 2
+          fi
+
       # Un PR desde un FORK trae GITHUB_TOKEN de solo lectura y NO recibe los
       # secretos: el bot no puede ni leer la key ni comentar. Se sale en verde
       # y se dice por que. Lo que lo "arreglaria" es `pull_request_target`, que
@@ -211,6 +260,446 @@ jobs:
           fi
           python3 "$revisor"
 
+  # Motor pr-agent (INFRA-332): contexto -> PR-Agent -> distribucion.
+  #
+  # Permisos: `pull-requests: write` basta para comentar, publicar los inline y
+  # poner/quitar/crear etiquetas (tabla oficial «Permissions required for GitHub
+  # Apps», seccion Pull requests: POST /issues/{n}/comments, /issues/{n}/labels,
+  # /labels). NO se pide `issues: write` aqui: un job de un workflow llamado que
+  # pide un permiso que el llamador no concede tumba el run ENTERO al arrancar
+  # (startup_failure), aunque su `if:` lo salte — medido el 22-08-2026 con
+  # `contents: write`, ver `revisar_commit`. La plantilla de los 108 repos solo
+  # concede `contents: read` + `pull-requests: write`. Y nunca `contents: write`:
+  # PR-Agent no empuja codigo (restricted_mode, abajo, doble).
+  #
+  # D3 (no bloqueante): el job solo sale en rojo por 401/403 (credencial rota:
+  # LiteLLM, GitHub, Harbor, brain) o por uso invalido. Modelo caido, cola,
+  # timeout, config invalida o secreto sin configurar = verde con aviso y
+  # `status` degraded|skipped en el payload.
+  revisar_pr_agent:
+    name: Review del PR (PR-Agent)
+    if: ${{ github.event_name == 'pull_request' && inputs.engine == 'pr-agent' }}
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    concurrency:
+      group: pr-agent-review-${{ github.workflow }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    env:
+      # Espejo en Harbor del manifiesto linux/amd64 de
+      # docker.io/pragent/pr-agent:0.46.0-github_action (F0, INFRA-329 §3-4), nunca
+      # Docker Hub por job. Por digest: el tag es solo legible. Lo vigila la entrada
+      # `pr-agent` de dgx-infra ci/update-watch.yaml; el bump es copiar la version
+      # nueva a Harbor (crane cp) y cambiar ESTA linea, con check-pr-agent-config
+      # contra el configuration.toml de la version nueva.
+      PR_AGENT_IMAGE: harbor.e-dani.com/homelab/pr-agent:0.46.0-github_action@sha256:42c7833a3fbdf354387ab3469fe67c34e11b38f9b90370553398a36b47ad6bc0
+    outputs:
+      veredicto: ${{ steps.estado.outputs.veredicto || 'omitido' }}
+      resumen: ${{ steps.estado.outputs.resumen || steps.guarda.outputs.motivo }}
+      n_hallazgos: ${{ steps.estado.outputs.n_hallazgos || '0' }}
+      status: ${{ steps.estado.outputs.status || 'skipped' }}
+    steps:
+      - name: Skip pull requests from forks
+        id: guarda
+        env:
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          ESTE_REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          if [ -n "${HEAD_REPO}" ] && [ "${HEAD_REPO}" != "${ESTE_REPO}" ]; then
+            echo "::notice::PR desde un fork: sin secretos y con token de solo lectura; review omitida"
+            echo "fork=true" >> "$GITHUB_OUTPUT"
+            echo "motivo=PR desde un fork: sin secretos, review omitida" >> "$GITHUB_OUTPUT"
+          else
+            echo "fork=false" >> "$GITHUB_OUTPUT"
+            echo "motivo=" >> "$GITHUB_OUTPUT"
+          fi
+
+      # El pull cuesta ~30 s por job (dind efimero, F0): arranca YA, en segundo
+      # plano, y corre en paralelo con los checkouts y el contexto. Las
+      # credenciales de Harbor van por stdin; el resultado, a ficheros.
+      - name: Start pulling the PR-Agent image
+        if: ${{ steps.guarda.outputs.fork != 'true' }}
+        env:
+          HARBOR_USER: ${{ secrets.HARBOR_USER }}
+          HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+        run: |
+          set -uo pipefail
+          # `runner.temp` no existe en el `env:` de un job: se fija aqui para los pasos siguientes.
+          PR_AGENT_DIR="$RUNNER_TEMP/pr-agent"
+          echo "PR_AGENT_DIR=$PR_AGENT_DIR" >> "$GITHUB_ENV"
+          rm -rf "$PR_AGENT_DIR" && mkdir -p "$PR_AGENT_DIR/out"
+          # El contenedor no escribe como el usuario del runner (F0: GITHUB_OUTPUT
+          # montado a mano dio Permission denied): su directorio de salida es 0777.
+          chmod 0777 "$PR_AGENT_DIR/out"
+          if [ -z "${HARBOR_USER}" ] || [ -z "${HARBOR_PASSWORD}" ]; then
+            echo "sin HARBOR_USER/HARBOR_PASSWORD" > "$PR_AGENT_DIR/pull.err"
+            echo 3 > "$PR_AGENT_DIR/pull.rc"
+            exit 0
+          fi
+          (
+            if ! printf '%s' "${HARBOR_PASSWORD}" | docker login harbor.e-dani.com \
+                 -u "${HARBOR_USER}" --password-stdin > "$PR_AGENT_DIR/login.log" 2>&1; then
+              cp "$PR_AGENT_DIR/login.log" "$PR_AGENT_DIR/pull.err"
+              if grep -qiE 'unauthorized|401|403|denied' "$PR_AGENT_DIR/login.log"; then
+                echo 4 > "$PR_AGENT_DIR/pull.rc"
+              else
+                echo 1 > "$PR_AGENT_DIR/pull.rc"
+              fi
+              exit 0
+            fi
+            inicio=$(date +%s)
+            ok=1
+            for _ in 1 2; do
+              if docker pull -q "$PR_AGENT_IMAGE" > "$PR_AGENT_DIR/pull.err" 2>&1; then ok=0; break; fi
+            done
+            echo "$(( $(date +%s) - inicio ))" > "$PR_AGENT_DIR/pull.seconds"
+            docker logout harbor.e-dani.com > /dev/null 2>&1 || true
+            echo "$ok" > "$PR_AGENT_DIR/pull.rc"
+          ) > /dev/null 2>&1 &
+          echo "pull en segundo plano (pid $!)"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: ${{ steps.guarda.outputs.fork != 'true' }}
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check out the review framework
+        if: ${{ steps.guarda.outputs.fork != 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
+          ref: ${{ job.workflow_sha || 'main' }}
+          token: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
+          persist-credentials: false
+          path: .llm-review-framework
+
+      # Registro de Synapse para la seccion «Consumidores del registry». Synapse
+      # es privado: sin un token que lo alcance el checkout falla y
+      # review-context.py lo anota en «Degradaciones» (exit 0). No bloquea nada.
+      - name: Check out the Synapse contract registry
+        id: registry
+        if: ${{ steps.guarda.outputs.fork != 'true' }}
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: pocharlies-org/synapse
+          token: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
+          persist-credentials: false
+          path: .review-synapse
+          sparse-checkout: libs/synapse-contracts
+          sparse-checkout-cone-mode: true
+
+      - name: Install hash-locked PyYAML for the context script
+        if: ${{ steps.guarda.outputs.fork != 'true' }}
+        run: |
+          set -uo pipefail
+          # Mismo wheel y hash que reusable-ci.yml; sin pip. Sin el, review-context.py
+          # degrada las secciones de contratos (exit 0), no falla.
+          wheel="$RUNNER_TEMP/pyyaml-review.whl"
+          yaml_lib="$RUNNER_TEMP/review-yaml-lib"
+          if curl --retry 3 --retry-all-errors -fsSL \
+               "https://files.pythonhosted.org/packages/71/60/917329f640924b18ff085ab889a11c763e0b573da888e8404ff486657602/pyyaml-6.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl" \
+               -o "$wheel" \
+             && echo "b8bb0864c5a28024fac8a632c443c87c5aa6f215c0b126c449ae1a150412f31d  $wheel" | sha256sum --check --strict; then
+            mkdir -p "$yaml_lib" && python3 -m zipfile -e "$wheel" "$yaml_lib"
+            echo "PYTHONPATH=$yaml_lib" >> "$GITHUB_ENV"
+          else
+            echo "::warning::PyYAML no disponible: las secciones de contratos iran degradadas"
+          fi
+
+      - name: Build the review context
+        id: contexto
+        if: ${{ steps.guarda.outputs.fork != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRAIN_CI_KEY: ${{ secrets.BRAIN_CI_KEY }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -uo pipefail
+          # `.review/` lo escribe el CI, nunca el PR: un PR que traiga su propio
+          # `.review/` (o un symlink ahi) no llega a lo que se escribe ni se monta.
+          rm -rf .review && mkdir -p .review
+          for s in "$PR_BASE_SHA" "$PR_HEAD_SHA"; do
+            git cat-file -e "${s}^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$s" || true
+          done
+          python3 .llm-review-framework/scripts/review-context.py \
+            --repo "$REPO" --pr "$PR_NUMBER" --base "$PR_BASE_SHA" --head "$PR_HEAD_SHA" \
+            --registry .review-synapse/libs/synapse-contracts/registry.yaml \
+            --out .review/context.md --workdir .
+          rc=$?
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          case "$rc" in
+            0) ;;
+            4) echo "::error::review-context: una API respondio 401/403 (credencial rota)" ;;
+            *) echo "::warning::review-context salio $rc; PR-Agent revisa sin contexto extra" ;;
+          esac
+          [ -f .review/context.md ] && sed -n '/^## Degradaciones/,$p' .review/context.md
+          exit 0
+
+      - name: Wait for the image pull
+        id: imagen
+        if: ${{ steps.guarda.outputs.fork != 'true' }}
+        run: |
+          set -uo pipefail
+          # Acotado: `timeout` corta a los 240 s si el pull se cuelga.
+          timeout 240 bash -c 'while [ ! -s "$0/pull.rc" ]; do sleep 1; done' "$PR_AGENT_DIR" || true
+          rc="$(cat "$PR_AGENT_DIR/pull.rc" 2>/dev/null || echo 124)"
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          echo "pull: rc=$rc en $(cat "$PR_AGENT_DIR/pull.seconds" 2>/dev/null || echo '?') s"
+          case "$rc" in
+            0) echo "ok=true" >> "$GITHUB_OUTPUT" ;;
+            3) echo "::warning::sin HARBOR_USER/HARBOR_PASSWORD en este repo: PR-Agent no se lanza"
+               echo "ok=false" >> "$GITHUB_OUTPUT" ;;
+            4) echo "::error::Harbor rechazo las credenciales (401/403)"
+               echo "ok=false" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::warning::no se pudo traer $PR_AGENT_IMAGE (rc=$rc); review degradada"
+               tail -3 "$PR_AGENT_DIR/pull.err" 2>/dev/null || true
+               echo "ok=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      # Defensa (a) del CTO (INFRA-298, comentario 17496): PR-Agent se traga en
+      # silencio un TOML roto y arranca con sus valores por defecto. Se valida el
+      # fichero EXACTAMENTE montado, en la ruta donde lo carga, contra el
+      # configuration.toml de la imagen fijada y con el Python de esa imagen.
+      # Si no pasa, el motor NO se lanza y el job sigue en verde (D3).
+      - name: Validate the mounted PR-Agent configuration
+        id: config
+        if: ${{ steps.imagen.outputs.ok == 'true' }}
+        run: |
+          set -uo pipefail
+          install -m 0444 .llm-review-framework/.pr_agent.toml "$PR_AGENT_DIR/host.toml"
+          install -m 0444 .llm-review-framework/scripts/check-pr-agent-config.py "$PR_AGENT_DIR/check-pr-agent-config.py"
+          sha="$(sha256sum "$PR_AGENT_DIR/host.toml" | cut -c1-64)"
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+          if docker run --rm --network none --entrypoint python \
+               -v "$PR_AGENT_DIR/host.toml:/app/pr_agent/settings_prod/.secrets.toml:ro" \
+               -v "$PR_AGENT_DIR/check-pr-agent-config.py:/opt/check-pr-agent-config.py:ro" \
+               "$PR_AGENT_IMAGE" /opt/check-pr-agent-config.py \
+               --config /app/pr_agent/settings_prod/.secrets.toml \
+               --upstream /app/pr_agent/settings/configuration.toml; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::la configuracion de PR-Agent (sha256 $sha) no pasa check-pr-agent-config.py: NO se lanza el motor (status skipped)"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Add the Jira keys the PR cites
+        if: ${{ steps.config.outputs.ok == 'true' }}
+        run: |
+          set -uo pipefail
+          # Hecho, no juicio: que claves Jira de la allowlist de la config
+          # (jira.project_keys) aparecen en titulo, cuerpo o rama. Sin ninguna, las
+          # instrucciones de [artifacts] piden el hallazgo «sin criterios de
+          # aceptacion que verificar» (criterio 3 de la epica).
+          python3 - "$PR_AGENT_DIR/host.toml" "$GITHUB_EVENT_PATH" > .review/tickets.md <<'PY'
+          import json, re, sys, tomllib
+          keys = tomllib.load(open(sys.argv[1], "rb")).get("jira", {}).get("project_keys", [])
+          pr = json.load(open(sys.argv[2])).get("pull_request", {})
+          text = "\n".join([pr.get("title") or "", pr.get("body") or "", (pr.get("head") or {}).get("ref") or ""])
+          pat = r"\b(?:%s)-\d+\b" % "|".join(map(re.escape, keys))
+          found = sorted(set(re.findall(pat, text))) if keys else []
+          print("## Tickets Jira citados en el PR\n")
+          print(", ".join(found) if found else "ninguno")
+          PY
+          { cat .review/context.md 2>/dev/null || echo "_contexto no disponible_"; echo; cat .review/tickets.md; } \
+            > .review/pr-agent-context.md
+          cat .review/tickets.md
+
+      - name: Run PR-Agent
+        id: motor
+        if: ${{ steps.config.outputs.ok == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OPENAI_KEY: ${{ secrets.PR_AGENT_LITELLM_KEY }}
+          OPENAI__API_BASE: ${{ inputs.litellm_url }}
+          JIRA__JIRA_API_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA__JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          set -uo pipefail
+          if [ -z "${OPENAI_KEY}" ]; then
+            echo "::warning::sin PR_AGENT_LITELLM_KEY en este repo: PR-Agent no se lanza (status skipped)"
+            echo "ran=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          [ -n "${JIRA__JIRA_API_TOKEN}" ] || echo "::notice::sin JIRA_EMAIL/JIRA_API_TOKEN: sin cumplimiento de ticket (SC-1400)"
+          : > "$PR_AGENT_DIR/out/github_output" && chmod 0666 "$PR_AGENT_DIR/out/github_output"
+          inicio=$(date +%s)
+          # Secretos con `-e NOMBRE` (sin valor): docker los toma del entorno del
+          # paso y nunca aparecen en su argv. Defensa (b): los valores criticos van
+          # ADEMAS por entorno, la capa que PR-Agent reaplica encima de cualquier
+          # .pr_agent.toml del repo (git_providers/utils.py _reapply_env_overrides).
+          # Medido con la imagen fijada (INFRA-332, 50-entrega.md): sin entorno, un
+          # .pr_agent.toml en el tronco del repo revierte restricted_mode, auto_describe,
+          # el modelo y los DESTINOS de las credenciales (openai.api_base,
+          # github.base_url, jira.jira_site); con estas variables, ninguno.
+          # WorkingDir /app y solo `.review/` montado: el codigo del PR (su
+          # pyproject.toml incluido) no entra en el contenedor.
+          timeout 420 docker run --rm --name "pr-agent-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            -v "$PR_AGENT_DIR/host.toml:/app/pr_agent/settings_prod/.secrets.toml:ro" \
+            -v "$GITHUB_EVENT_PATH:/github/event.json:ro" \
+            -v "$GITHUB_WORKSPACE/.review:/github/workspace/.review:ro" \
+            -v "$PR_AGENT_DIR/out:/github/out" \
+            -e GITHUB_EVENT_NAME -e GITHUB_REPOSITORY -e GITHUB_RUN_ID \
+            -e GITHUB_EVENT_PATH=/github/event.json \
+            -e GITHUB_WORKSPACE=/github/workspace \
+            -e GITHUB_OUTPUT=/github/out/github_output \
+            -e GITHUB_TOKEN -e OPENAI_KEY -e OPENAI__API_BASE \
+            -e JIRA__JIRA_API_EMAIL -e JIRA__JIRA_API_TOKEN \
+            -e CONFIG__RESTRICTED_MODE=true \
+            -e GITHUB_ACTION_CONFIG__AUTO_DESCRIBE=false \
+            -e CONFIG__MODEL=openai/alibaba-q38-flash \
+            -e 'CONFIG__FALLBACK_MODELS=[]' \
+            -e GITHUB__BASE_URL=https://api.github.com \
+            -e JIRA__JIRA_SITE=e-dani \
+            -e ARTIFACT_PATH=.review/pr-agent-context.md \
+            -e PUSH_OUTPUTS__ENABLE=true \
+            -e 'PUSH_OUTPUTS__CHANNELS=["file"]' \
+            -e PUSH_OUTPUTS__FILE_PATH=/github/out/pr-agent-outputs.jsonl \
+            -e GITHUB_ACTION_CONFIG__ENABLE_OUTPUT=true \
+            "$PR_AGENT_IMAGE" 2>&1 | tee "$PR_AGENT_DIR/pr-agent.log"
+          rc=${PIPESTATUS[0]}
+          echo "ran=true" >> "$GITHUB_OUTPUT"
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          echo "seconds=$(( $(date +%s) - inicio ))" >> "$GITHUB_OUTPUT"
+          [ "$rc" = 124 ] && docker rm -f "pr-agent-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" > /dev/null 2>&1
+          # 401/403 = credencial rota (key de LiteLLM, token de GitHub): rojo (D3).
+          # Timeout, cola, 429, 5xx o conexion rechazada = modelo no disponible: verde.
+          if grep -qE 'AuthenticationError|PermissionDeniedError|Error code: 40[13]|status[_ ]code[=: ]*40[13]|40[13] (Unauthorized|Forbidden)|Bad credentials' \
+               "$PR_AGENT_DIR/pr-agent.log"; then
+            echo "auth=true" >> "$GITHUB_OUTPUT"
+          fi
+          exit 0
+
+      - name: Distribute the review
+        id: distribucion
+        if: ${{ always() && steps.guarda.outputs.fork != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRAIN_CI_KEY: ${{ secrets.BRAIN_CI_KEY }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MOTOR_RAN: ${{ steps.motor.outputs.ran }}
+        run: |
+          set -uo pipefail
+          mkdir -p .review
+          out="$PR_AGENT_DIR/out/pr-agent-outputs.jsonl"
+          # Contrato de review-distribute.py: sin fichero = skipped (el motor no
+          # corrio); vacio = degraded (corrio y no publico review).
+          rm -f .review/review.md
+          if [ "${MOTOR_RAN}" = "true" ]; then
+            : > .review/review.md
+            if [ -s "$out" ]; then
+              cp "$out" .review/pr-agent-outputs.jsonl
+              jq -r 'select(.type=="review" or .type=="improve") | .markdown // empty' "$out" \
+                > .review/review.md || : > .review/review.md
+            fi
+            if [ -s "$PR_AGENT_DIR/out/github_output" ]; then
+              cp "$PR_AGENT_DIR/out/github_output" .review/pr-agent-github-output.txt
+            fi
+          fi
+          distribuidor=.llm-review-framework/scripts/review-distribute.py
+          if [ ! -f "$distribuidor" ]; then
+            echo "::warning::sin scripts/review-distribute.py en el framework: distribucion degradada"
+            echo "rc=127" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          args=(--repo "$REPO" --pr "$PR_NUMBER" --head-sha "$PR_HEAD_SHA" --out-dir .review)
+          [ -f .review/review.md ] && args+=(--review-md .review/review.md)
+          python3 "$distribuidor" "${args[@]}"
+          rc=$?
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          case "$rc" in
+            0) ;;
+            4) echo "::error::review-distribute: una API respondio 401/403 (credencial rota)" ;;
+            *) echo "::warning::review-distribute salio $rc; la review sigue publicada en el PR" ;;
+          esac
+          exit 0
+
+      - name: Upload the review record
+        if: ${{ always() && steps.guarda.outputs.fork != 'true' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pr-review-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
+          path: .review/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Review verdict
+        id: estado
+        if: ${{ always() && steps.guarda.outputs.fork != 'true' }}
+        env:
+          CONTEXTO_RC: ${{ steps.contexto.outputs.rc }}
+          PULL_RC: ${{ steps.imagen.outputs.rc }}
+          CONFIG_OK: ${{ steps.config.outputs.ok }}
+          CONFIG_SHA: ${{ steps.config.outputs.sha256 }}
+          MOTOR_RAN: ${{ steps.motor.outputs.ran }}
+          MOTOR_RC: ${{ steps.motor.outputs.rc }}
+          MOTOR_SECONDS: ${{ steps.motor.outputs.seconds }}
+          MOTOR_AUTH: ${{ steps.motor.outputs.auth }}
+          DIST_RC: ${{ steps.distribucion.outputs.rc }}
+        run: |
+          set -uo pipefail
+          p=.review/payload.json
+          if [ -s "$p" ]; then
+            status="$(jq -r '.status' "$p")"
+            reco="$(jq -r '.merge_recommendation' "$p")"
+            n="$(jq -r '.findings | length' "$p")"
+          else
+            status=skipped; reco=unknown; n=0
+          fi
+          # Sin motor no hay review publicada, diga lo que diga el payload.
+          [ "${MOTOR_RAN}" = "true" ] || status=skipped
+          if [ "$status" != "ok" ]; then veredicto=omitido
+          elif [ "$reco" = "changes_required" ] || [ "$n" -gt 0 ]; then veredicto=hallazgos
+          else veredicto=ok; fi
+          resumen="$(head -c 300 .review/notify.txt 2>/dev/null | tr '\n' ' ')"
+          [ -n "$resumen" ] || resumen="review ${status}"
+          {
+            echo "status=$status"
+            echo "veredicto=$veredicto"
+            echo "n_hallazgos=$n"
+            echo "resumen=$resumen"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### Review del PR (PR-Agent) · status: \`$status\`"
+            echo
+            echo "| paso | resultado |"
+            echo "|---|---|"
+            echo "| contexto (review-context.py) | rc=${CONTEXTO_RC:-no corrio} |"
+            echo "| imagen (Harbor, por digest) | rc=${PULL_RC:-no corrio} |"
+            echo "| config montada (sha256 ${CONFIG_SHA:0:12}) | valida=${CONFIG_OK:-no} |"
+            echo "| PR-Agent | corrio=${MOTOR_RAN:-false} rc=${MOTOR_RC:--} ${MOTOR_SECONDS:-?} s |"
+            echo "| distribucion (review-distribute.py) | rc=${DIST_RC:-no corrio} |"
+            echo
+            echo "recomendacion: \`$reco\` · hallazgos: $n"
+            if [ -f .review/notify.txt ]; then echo; echo '```'; cat .review/notify.txt; echo '```'; fi
+            if [ -f .review/context.md ]; then echo; sed -n '/^## Degradaciones/,$p' .review/context.md; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          # D3: rojo solo por credencial rota (401/403) o uso invalido.
+          fallo=""
+          [ "${MOTOR_AUTH}" = "true" ] && fallo="$fallo LiteLLM/GitHub 401-403 en PR-Agent;"
+          [ "${PULL_RC}" = "4" ] && fallo="$fallo Harbor 401-403;"
+          [ "${CONTEXTO_RC}" = "4" ] && fallo="$fallo review-context 401-403;"
+          [ "${CONTEXTO_RC}" = "2" ] && fallo="$fallo review-context uso invalido;"
+          [ "${DIST_RC}" = "4" ] && fallo="$fallo review-distribute 401-403;"
+          [ "${DIST_RC}" = "2" ] && fallo="$fallo review-distribute uso invalido;"
+          if [ -n "$fallo" ]; then
+            echo "::error::review en rojo por credencial rota o uso invalido:${fallo}"
+            exit 1
+          fi
+          if [ "$status" != "ok" ]; then
+            echo "::warning::review ${status}: no bloquea nada (D3). Detalle en el resumen del job."
+          fi
+
   # Modo validacion: comenta el ultimo commit del tronco, sin ensuciar con PRs
   # de prueba. Job aparte porque la API de comentarios de commit exige
   # `contents: write`, y ese permiso no tiene por que vivir en el modo PR.
@@ -285,7 +774,7 @@ jobs:
 
   avisar:
     name: Aviso en Telegram
-    needs: [revisar_pr, revisar_commit]
+    needs: [revisar_pr, revisar_pr_agent, revisar_commit]
     # Los dos modos son excluyentes: uno de los dos jobs queda SIEMPRE en
     # `skipped`, y un need saltado salta tambien a quien depende de el salvo
     # que la condicion diga otra cosa. Se avisa cuando el que toco ejecutar
@@ -300,6 +789,8 @@ jobs:
       ${{ always() && inputs.notificar && (
           needs.revisar_pr.result == 'success' ||
           needs.revisar_pr.result == 'failure' ||
+          needs.revisar_pr_agent.result == 'success' ||
+          needs.revisar_pr_agent.result == 'failure' ||
           needs.revisar_commit.result == 'success' ||
           needs.revisar_commit.result == 'failure') }}
     runs-on: ${{ inputs.runner }}
@@ -326,9 +817,11 @@ jobs:
           TG_CHAT: ${{ secrets.TELEGRAM_CI_CHAT_ID }}
           # `resumen` es TEXTO DEL MODELO: entra por entorno, jamas por `${{ }}`
           # dentro del `run`.
-          VEREDICTO: ${{ needs.revisar_pr.outputs.veredicto || needs.revisar_commit.outputs.veredicto }}
-          RESUMEN: ${{ needs.revisar_pr.outputs.resumen || needs.revisar_commit.outputs.resumen }}
-          N_HALLAZGOS: ${{ needs.revisar_pr.outputs.n_hallazgos || needs.revisar_commit.outputs.n_hallazgos }}
+          VEREDICTO: ${{ needs.revisar_pr.outputs.veredicto || needs.revisar_pr_agent.outputs.veredicto || needs.revisar_commit.outputs.veredicto }}
+          # Con pr-agent, RESUMEN es `.review/notify.txt` de review-distribute.py:
+          # ese script no envia Telegram, lo envia este job (diseño §6).
+          RESUMEN: ${{ needs.revisar_pr.outputs.resumen || needs.revisar_pr_agent.outputs.resumen || needs.revisar_commit.outputs.resumen }}
+          N_HALLAZGOS: ${{ needs.revisar_pr.outputs.n_hallazgos || needs.revisar_pr_agent.outputs.n_hallazgos || needs.revisar_commit.outputs.n_hallazgos }}
           PR_NUMERO: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
