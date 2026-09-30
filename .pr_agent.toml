@@ -1,0 +1,71 @@
+# PR-Agent 0.46.0: configuración central de la review de PRs (INFRA-298, historia INFRA-331).
+#
+# El workflow reusable (INFRA-332) la monta como configuración de HOST del contenedor:
+#   -v <checkout de k8s-gitops-pocharlies>/.pr_agent.toml:/app/pr_agent/settings_prod/.secrets.toml:ro
+# En este repo sirve además como su propio .pr_agent.toml (mismo contenido, sin conflicto).
+#
+# Aquí no va ningún secreto ni ningún endpoint: llegan por entorno desde el workflow.
+#   OPENAI_KEY            <- secreto PR_AGENT_LITELLM_KEY (key propia `pr-agent-ci`, no LITELLM_CI_KEY)
+#   OPENAI__API_BASE      <- input litellm_url del reusable (http://litellm.litellm.svc.cluster.local:4000)
+#   JIRA__JIRA_API_EMAIL  <- secreto JIRA_EMAIL   (cuenta de solo lectura, Request SC-1400)
+#   JIRA__JIRA_API_TOKEN  <- secreto JIRA_API_TOKEN
+#
+# Valores medidos en F0 (INFRA-329, 50-entrega.md adjunto 14031) y aceptados por el CTO.
+# PR-Agent se traga en silencio un TOML roto o una clave mal escrita y arranca con sus valores
+# por defecto (auto_describe encendido, restricted_mode apagado, modelo gpt-5.6). Antes de
+# cambiar nada: python3 scripts/check-pr-agent-config.py (el CI lo corre contra el
+# configuration.toml de la versión fijada).
+
+[config]
+git_provider = "github"
+# D4: Qwen3.8-Flash en Alibaba vía LiteLLM, nunca el residente de los Sparks.
+model = "openai/alibaba-q38-flash"
+# El valor por defecto trae gpt-5.6-terra: sin fallback.
+fallback_models = []
+# 3 llamadas por PR (review, improve, reflexión) de ~35k tokens caben en el tpm de la key.
+max_model_tokens = 32000
+# El alias no declara ventana en LiteLLM; 32k probado (34 676 tokens de prompt aceptados).
+custom_model_max_tokens = 32000
+# p95 medido por llamada con un diff de 120 KB: 27,0 s. Margen x2,2.
+ai_timeout = 60
+retry_same_model_on_timeout = false
+# Sin esto el modelo razona (~15k tokens, 219 s). PR-Agent descarta reasoning_effort en
+# silencio si no conoce el modelo: hace falta listarlo en additional_reasoning_effort_models.
+reasoning_effort = "none"
+additional_reasoning_effort_models = ["openai/alibaba-q38-flash"]
+response_language = "es-ES"
+# Sin push de código: con pull-requests:write + issues:write basta (F0, run 36717726502).
+restricted_mode = true
+
+[github_action_config]
+# PR-Agent enciende estas tres si no se declaran (None = sí): van todas explícitas.
+auto_review = true
+# D5: apagado hasta F3 (reescribe título y cuerpo de la PR).
+auto_describe = false
+# Decisión 5 del CTO: con 0.46.0 los hallazgos en la línea de código solo salen por /improve
+# (F0 §5). improve no toca título ni cuerpo: pr_code_suggestions.py del commit 1d01f24 solo
+# publica comentarios y sugerencias (veredicto del arquitecto, INFRA-298 comentario 17487).
+auto_improve = true
+
+[pr_reviewer]
+# Un único comentario de review que se edita en cada run, en vez de uno nuevo.
+persistent_comment = true
+# D3 (contrato pr_review.v1 §2): la recomendación la da el modelo; el glue la traduce.
+require_merge_recommendation = true
+# Una sola etiqueta de seguridad: PR-Agent pondría «Possible security concern» y la señal de
+# pr-watcher es `possible security issue` (decisión del CTO, INFRA-298 comentario 17496).
+# PR-Agent 0.46.0 la lee como pr_reviewer.enable_review_labels_security (pr_reviewer.py).
+enable_review_labels_security = false
+
+[pr_code_suggestions]
+persistent_comment = true
+# La vía inline en GitHub con 0.46.0 (F0 §5): /review no publica inline.
+commitable_code_suggestions = true
+# Con el rpm de la key, varios chunks en paralelo más la reflexión dan 429.
+max_number_of_calls = 1
+parallel_calls = false
+
+[jira]
+jira_site = "e-dani"
+# Allowlist: solo se consulta Jira para claves de estos proyectos.
+project_keys = ["SC", "INFRA", "DGX", "SKIRM", "OWU"]
