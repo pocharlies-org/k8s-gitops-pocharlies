@@ -1,0 +1,161 @@
+name: Reusable duplicados
+
+# Detector de código copiado, estándar de la org. 30-09-2026 · Dani: "que el
+# detector de copia sea estándar de todos los repos". Cada repo lo enciende
+# copiando `templates/ci/duplicados.yml` (cinco líneas); la lógica vive en
+# `scripts/duplicados.py` y solo cuenta la duplicación que AÑADE la PR: la que
+# ya estaba en el tronco no es culpa de quien llega ahora, y medir el
+# inventario completo pondría los ~113 repos en rojo de nacimiento.
+#
+# Copia las decisiones de `reusable-pr-review.yml`, que son las que mandan:
+#
+# 1. `pull_request`, NUNCA `pull_request_target`: el segundo ejecuta con el
+#    token del repo base y sus secretos sobre código de un fork. Aquí además
+#    no hacen falta secretos (todo corre en local: jscpd sobre el árbol, git
+#    sobre el diff), así que un PR de fork también recibe su check con el
+#    token de solo lectura.
+#
+# 2. El script NO se invoca con `uses:`: `scripts/check-workflow-pins.py`
+#    rechaza cualquier `uses:` que no sea `./` o un SHA de 40 hex, y `./`
+#    dentro de un reutilizable se resuelve contra el workspace de quien llama.
+#    Se hace lo mismo que pr-review: checkout del framework a un subdirectorio
+#    y ejecución directa.
+#
+# 3. Node no viene en el runner ARC (imagen pelada, skill `ci-runners-arc`):
+#    se baja el mismo tarball exacto y con sha256 que usa `reusable-ci.yml`.
+#    Lo único mutable de la cadena es `npx --yes jscpd@<versión>`: la versión
+#    va fijada en `scripts/duplicados.py` (JSCPD_VERSION), no aquí.
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: Runner ARC del cluster.
+        type: string
+        default: arc-k8s
+      min_lineas:
+        description: Líneas mínimos de un bloque para que cuente como copiado.
+        type: number
+        default: 12
+      formatos:
+        description: >
+          Formatos separados por comas. Vacio = los de la casa (codigo; sin
+          yaml/json/markdown, que en GitOps son repetitivos por naturaleza).
+        type: string
+        default: ''
+      ignorar:
+        description: >
+          Globs extra a ignorar, separados por comas. Se suman a los de la
+          casa (node_modules, vendor, dist, build, *.min.*, lockfiles,
+          fixtures, generado, .github/).
+        type: string
+        default: ''
+    secrets:
+      FRAMEWORK_REPO_TOKEN:
+        description: Solo si este repo dejara de ser publico.
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  duplicados:
+    name: duplicados
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    concurrency:
+      # Un push encima cancela el escaneo anterior: revisamos el ultimo
+      # commit, no el penultimo.
+      group: duplicados-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check out the duplicados framework
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Mismo truco que pr-review: `job.workflow_*` no es contexto
+          # documentado; si no resuelve quedan vacios y el fallback deja las
+          # dos ramas apuntando al framework. El subdirectorio esta ademas en
+          # la lista de ignores del script, para no escanearse a si mismo.
+          repository: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
+          ref: ${{ job.workflow_sha || 'main' }}
+          token: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
+          persist-credentials: false
+          path: .duplicados-framework
+
+      - name: Resolve the diff range
+        env:
+          # Del payload del evento y por entorno: los nombres de rama son
+          # texto de terceros y aqui ni se miran.
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${PR_BASE_SHA}" ]; then
+            for s in "${PR_BASE_SHA}" "${PR_HEAD_SHA}"; do
+              echo "$s" | grep -Eq '^[0-9a-f]{40}$' || {
+                echo "::error::el rango del PR no trae SHAs completos"; exit 1; }
+              # Los dos extremos, no solo la base: antes que dejar el check en
+              # rojo por un objeto que no vino en el fetch, se trae al vuelo.
+              git cat-file -e "${s}^{commit}" 2>/dev/null || \
+                git fetch --no-tags --depth=1 origin "$s"
+            done
+            {
+              echo "DUPLICADOS_BASE=${PR_BASE_SHA}"
+              echo "DUPLICADOS_HEAD=${PR_HEAD_SHA}"
+            } >> "$GITHUB_ENV"
+          else
+            # workflow_dispatch: el ultimo commit del tronco. Sin padre, base
+            # vacia: todo el arbol cuenta como anadido (el script lo sabe).
+            base="$(git rev-parse --verify --quiet HEAD~1 || true)"
+            {
+              echo "DUPLICADOS_BASE=${base}"
+              echo "DUPLICADOS_HEAD=$(git rev-parse HEAD)"
+            } >> "$GITHUB_ENV"
+          fi
+
+      - name: Install verified Node.js
+        run: |
+          set -euo pipefail
+          version=v22.23.2
+          case "$(uname -m)" in
+            x86_64|amd64) arch=x64; expected=b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a ;;
+            aarch64|arm64) arch=arm64; expected=013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30 ;;
+            *) echo "Unsupported Node runner architecture: $(uname -m)"; exit 1 ;;
+          esac
+          archive="$RUNNER_TEMP/node-${version}-${arch}.tar.gz"
+          curl --retry 3 --retry-all-errors -fsSL \
+            "https://nodejs.org/dist/${version}/node-${version}-linux-${arch}.tar.gz" \
+            -o "$archive"
+          echo "${expected}  ${archive}" | sha256sum --check --strict
+          tar xzf "$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/node-${version}-linux-${arch}/bin" >> "$GITHUB_PATH"
+
+      - name: Detect copied code
+        env:
+          # Los inputs entran por entorno, nunca interpolados en el `run`:
+          # `check-workflow-pins.py` lo rechaza y son texto de terceros.
+          DUPLICADOS_MIN_LINEAS: ${{ inputs.min_lineas }}
+          DUPLICADOS_FORMATOS: ${{ inputs.formatos }}
+          DUPLICADOS_IGNORAR: ${{ inputs.ignorar }}
+        run: |
+          set -uo pipefail
+          detector=.duplicados-framework/scripts/duplicados.py
+          if [ ! -f "$detector" ]; then
+            echo "::error::no se pudo traer el framework de duplicados"
+            exit 1
+          fi
+          # `--formatos`/`--ignorar` se pasan siempre: vacios, el script usa
+          # sus defectos de la casa.
+          python3 "$detector" \
+            --base "$DUPLICADOS_BASE" --head "$DUPLICADOS_HEAD" \
+            --workdir . \
+            --min-lineas "$DUPLICADOS_MIN_LINEAS" \
+            --formatos "$DUPLICADOS_FORMATOS" \
+            --ignorar "$DUPLICADOS_IGNORAR"
