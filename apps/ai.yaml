@@ -1544,7 +1544,12 @@ spec:
     # libres; objetivo >=5 por nodo). El RBAC de los hooks va en el propio pin y se pre-aplico
     # a mano UNA vez (k8s/llm-deploy-hooks-rbac.yaml, hecho 21:55). Reinicia el TP=2 ~30 min;
     # la voz (TTS/STT) estara caida toda la ventana, a proposito. ROLLBACK: f4ac6586c4f0651f196b32b2d658ee7f0d8c6f77.
-    targetRevision: b5df721eeb7d9d8bf71cce7a3fd00aa11795dc48
+    # 30-09-2026 (DGX-452, ventana nocturna): 45c8ed5 = b5df721 + --scheduling-policy priority
+    # SOLO en los args del head (launch.sh rank 0; env SCHEDULING_POLICY en los dos para que el
+    # par se recree junto). Activa el orden del campo `priority` que ya inyecta LiteLLM
+    # (priority_by_alias: -10 Hermes/Open WebUI, +10 hermes-batch). Mismo PR en main: k8s-ai #108.
+    # Reinicia el TP=2 con la norma de hooks de b5df721. ROLLBACK: b5df721eeb7d9d8bf71cce7a3fd00aa11795dc48.
+    targetRevision: 45c8ed5a7197e6e77a6afc3b3eb602197352859b
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
