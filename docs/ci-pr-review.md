@@ -30,10 +30,15 @@ PR-Agent **no revienta** con un TOML roto: lo salta y sigue con sus valores por 
 
     python3 scripts/check-pr-agent-config.py [--upstream <configuration.toml de v0.46.0>]
 
-Falla (exit 1) si el TOML no parsea, si deriva una decisión (modelo D4, `auto_describe`/`auto_improve` D5,
-`restricted_mode`, `fallback_models`, `jira.project_keys`), si lleva una credencial o un endpoint, o, con
-`--upstream`, si una clave no existe en esa versión. El CI lo corre contra el fichero upstream fijado por
-commit y sha256. El workflow que monte el fichero debe correrlo antes de lanzar PR-Agent.
+Falla (exit 1) si el TOML no parsea, si deriva una decisión (modelo D4, `auto_describe=false` D5,
+`auto_review=true` y `auto_improve=true`, `restricted_mode`, `fallback_models`, `jira.project_keys`), si lleva
+una credencial o un endpoint, o, con `--upstream`, si una clave no existe en esa versión. El CI lo corre
+contra el fichero upstream fijado por commit y sha256. El workflow que monte el fichero debe correrlo antes
+de lanzar PR-Agent.
+
+`auto_improve` va encendido (decisión 5 del CTO): con 0.46.0 los hallazgos en la línea de código solo salen
+por `/improve` (`/review` no publica inline), e improve no toca título ni cuerpo de la PR. `auto_describe`
+sigue apagado hasta F3.
 
 Equivalencias con los nombres del encargo: «output_language» es `config.response_language = "es-ES"`;
 «enable_persistent_comments» es `persistent_comment = true` en `[pr_reviewer]` y `[pr_code_suggestions]`;
@@ -46,7 +51,8 @@ Equivalencias con los nombres del encargo: «output_language» es `config.respon
 
 Reparte `PR_AGENT_LITELLM_KEY`, `JIRA_EMAIL` y `JIRA_API_TOKEN` (`BRAIN_CI_KEY` no, hasta que security
 responda SC-1400). Valor: variable de entorno del mismo nombre o, con `--from-vault`, Vault KV v2
-`secret/<ruta>` (necesita `VAULT_ADDR` y `VAULT_TOKEN`). Viaja por stdin a `gh secret set`; nunca se imprime.
+`secret/<ruta>` (necesita `VAULT_ADDR` y `VAULT_TOKEN`; el token va a curl por `-H @fichero` 0600, nunca en
+su argv). Viaja por stdin a `gh secret set`; nunca se imprime.
 Un secreto ya presente no se toca sin `--rotate`, así que reejecutar no cambia nada. Salida: una línea
 `repo=… secreto=… estado=… accion=… fuente=…` por par y un `RESUMEN`. Códigos: 0 · 2 uso, repo
 inexistente o valor ausente (sin escribir nada) · 4 401/403 · 1 otro fallo. El token de `gh` necesita

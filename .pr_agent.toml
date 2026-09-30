@@ -38,10 +38,14 @@ response_language = "es-ES"
 restricted_mode = true
 
 [github_action_config]
+# PR-Agent enciende estas tres si no se declaran (None = sí): van todas explícitas.
 auto_review = true
-# D5: apagados hasta F3. PR-Agent los ENCIENDE si no se declaran (None = sí).
+# D5: apagado hasta F3 (reescribe título y cuerpo de la PR).
 auto_describe = false
-auto_improve = false
+# Decisión 5 del CTO: con 0.46.0 los hallazgos en la línea de código solo salen por /improve
+# (F0 §5). improve no toca título ni cuerpo: pr_code_suggestions.py del commit 1d01f24 solo
+# publica comentarios y sugerencias (veredicto del arquitecto, INFRA-298 comentario 17487).
+auto_improve = true
 
 [pr_reviewer]
 # Un único comentario de review que se edita en cada run, en vez de uno nuevo.

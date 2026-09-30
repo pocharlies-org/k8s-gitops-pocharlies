@@ -8,8 +8,9 @@ encendido, restricted_mode apagado y el modelo gpt-5.6. Este script falla antes,
 
 Comprueba, solo con la biblioteca estándar:
   1. que el fichero parsea (tomllib);
-  2. las decisiones de la épica que no pueden derivar (D4 modelo, D5 auto_describe/auto_improve,
-     restricted_mode, allowlist de proyectos de Jira, sin fallback);
+  2. las decisiones de la épica que no pueden derivar (D4 modelo, D5 auto_describe apagado,
+     decisión 5 auto_review y auto_improve encendidos, restricted_mode, allowlist de proyectos
+     de Jira, sin fallback);
   3. que no lleva credenciales ni endpoints (llegan por entorno desde el workflow);
   4. con --upstream: que cada [sección] y clave existe en el configuration.toml de la versión
      de PR-Agent fijada (incluidas las documentadas en comentario, como jira_site o
@@ -39,7 +40,9 @@ REQUIRED = {
     ("config", "fallback_models"): [],
     ("config", "restricted_mode"): True,
     ("github_action_config", "auto_describe"): False,
-    ("github_action_config", "auto_improve"): False,
+    # Decisión 5 del CTO: los hallazgos en la línea de código solo salen por /improve en 0.46.0.
+    ("github_action_config", "auto_review"): True,
+    ("github_action_config", "auto_improve"): True,
 }
 POSITIVE_INTS = [("config", "max_model_tokens"), ("config", "custom_model_max_tokens"),
                  ("config", "ai_timeout")]

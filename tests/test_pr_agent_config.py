@@ -11,6 +11,7 @@ from __future__ import annotations
 import http.server
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -27,6 +28,7 @@ CONFIG = ROOT / ".pr_agent.toml"
 SECRETS = ["PR_AGENT_LITELLM_KEY", "JIRA_EMAIL", "JIRA_API_TOKEN"]
 VALUES = {"PR_AGENT_LITELLM_KEY": "sk-fake-litellm-0001", "JIRA_EMAIL": "ro@example.test",
           "JIRA_API_TOKEN": "fake-jira-token-0002"}
+VAULT_TOKEN = "s.fake-vault-token-0003"
 
 FAKE_GH = textwrap.dedent(r'''
     #!/usr/bin/env python3
@@ -55,6 +57,17 @@ FAKE_GH = textwrap.dedent(r'''
         if name not in st["names"]: st["names"].append(name)
         json.dump(st, open(path(repo), "w")); sys.exit(0)
     sys.exit(3)
+''').lstrip()
+
+# curl espía: deja en $FAKE_CURL_LOG su argv y el modo de cada fichero -H @..., y ejecuta el real.
+FAKE_CURL = textwrap.dedent(r'''
+    #!/usr/bin/env python3
+    import json, os, stat, sys
+    a = sys.argv[1:]
+    files = {x[1:]: oct(stat.S_IMODE(os.stat(x[1:]).st_mode)) for x in a if x.startswith("@")}
+    with open(os.environ["FAKE_CURL_LOG"], "a") as f:
+        f.write(json.dumps({"argv": a, "header_files": files}) + "\n")
+    os.execv(os.environ["REAL_CURL"], ["curl", *a])
 ''').lstrip()
 
 
@@ -108,7 +121,8 @@ class ConfigTest(unittest.TestCase):
         data = tomllib.loads(CONFIG.read_text(encoding="utf-8"))
         self.assertIs(data["config"]["restricted_mode"], True)
         self.assertIs(data["github_action_config"]["auto_describe"], False)
-        self.assertIs(data["github_action_config"]["auto_improve"], False)
+        self.assertIs(data["github_action_config"]["auto_review"], True)
+        self.assertIs(data["github_action_config"]["auto_improve"], True)
         self.assertEqual(data["config"]["model"], "openai/alibaba-q38-flash")
         self.assertEqual(sorted(data["jira"]["project_keys"]), ["DGX", "INFRA", "OWU", "SC", "SKIRM"])
 
@@ -119,6 +133,8 @@ class ConfigTest(unittest.TestCase):
 
     def test_decision_drift_fails(self):
         for section, key, value in [("github_action_config", "auto_describe", "true"),
+                                    ("github_action_config", "auto_improve", "false"),
+                                    ("github_action_config", "auto_review", "false"),
                                     ("config", "restricted_mode", "false"),
                                     ("config", "model", '"openai/tooling"'),
                                     ("config", "fallback_models", '["gpt-5.6-terra"]'),
@@ -129,11 +145,14 @@ class ConfigTest(unittest.TestCase):
                 self.assertEqual(r.returncode, 1, r.stdout)
                 self.assertIn(f"{section}.{key}", r.stdout)
 
-    def test_missing_auto_describe_fails(self):
-        text = CONFIG.read_text(encoding="utf-8").replace("auto_describe = false\n", "")
-        r = self.run_check(text)
-        self.assertEqual(r.returncode, 1)
-        self.assertIn("auto_describe", r.stdout)
+    def test_missing_auto_flags_fail(self):
+        # Sin declarar, PR-Agent las enciende todas (None = sí): tienen que ir explícitas.
+        for line in ["auto_describe = false", "auto_improve = true", "auto_review = true"]:
+            with self.subTest(line=line):
+                text = CONFIG.read_text(encoding="utf-8").replace(line + "\n", "")
+                r = self.run_check(text)
+                self.assertEqual(r.returncode, 1, r.stdout)
+                self.assertIn(line.split(" ")[0], r.stdout)
 
     def test_credentials_in_file_fail(self):
         for section, key in [("openai", "key"), ("jira", "jira_api_token"),
@@ -166,10 +185,13 @@ class ConfigTest(unittest.TestCase):
 class _Vault(http.server.BaseHTTPRequestHandler):
     status = 200
     data: dict = {}
+    seen_token = None
 
     def do_GET(self):  # noqa: N802
-        body = json.dumps({"data": {"data": self.data}}).encode()
-        self.send_response(self.status)
+        _Vault.seen_token = self.headers.get("X-Vault-Token")
+        ok = _Vault.seen_token == VAULT_TOKEN
+        body = json.dumps({"data": {"data": self.data}} if ok else {"errors": ["permission denied"]}).encode()
+        self.send_response(self.status if ok else 403)
         self.end_headers()
         self.wfile.write(body)
 
@@ -185,10 +207,14 @@ class DistributeTest(unittest.TestCase):
         self.state.mkdir(); bindir.mkdir()
         gh = bindir / "gh"
         gh.write_text(FAKE_GH, encoding="utf-8"); gh.chmod(0o755)
+        curl = bindir / "curl"
+        curl.write_text(FAKE_CURL, encoding="utf-8"); curl.chmod(0o755)
+        self.curl_log = t / "curl.log"
         for repo, names in {"o/a": [], "o/b": ["JIRA_EMAIL"]}.items():
             (self.state / (repo.replace("/", "__") + ".json")).write_text(json.dumps({"names": names}))
         env = {k: v for k, v in os.environ.items() if k not in SECRETS + ["VAULT_ADDR", "VAULT_TOKEN"]}
-        self.env = {**env, "PATH": f"{bindir}:{os.environ['PATH']}", "FAKE_GH_DIR": str(self.state)}
+        self.env = {**env, "PATH": f"{bindir}:{os.environ['PATH']}", "FAKE_GH_DIR": str(self.state),
+                    "FAKE_CURL_LOG": str(self.curl_log), "REAL_CURL": shutil.which("curl") or "/usr/bin/curl"}
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -240,17 +266,35 @@ class DistributeTest(unittest.TestCase):
         srv = http.server.HTTPServer(("127.0.0.1", 0), _Vault)
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         try:
-            env = {"VAULT_ADDR": f"http://127.0.0.1:{srv.server_port}", "VAULT_TOKEN": "t"}
+            env = {"VAULT_ADDR": f"http://127.0.0.1:{srv.server_port}", "VAULT_TOKEN": VAULT_TOKEN}
             r = self.run_dist("--repos", "o/a", "--from-vault", "pr-review-ci", env=env)
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
             self.assertIn("fuente=vault", r.stdout)
             self.assertEqual(self.repo("o/a")["values"]["PR_AGENT_LITELLM_KEY"], VALUES["PR_AGENT_LITELLM_KEY"])
+            # El token llega a Vault por cabecera, pero nunca está en el argv de curl ni en la
+            # salida; el fichero de la cabecera es 0600 y no sobrevive a la ejecución.
+            self.assertEqual(_Vault.seen_token, VAULT_TOKEN)
+            calls = [json.loads(x) for x in self.curl_log.read_text().splitlines()]
+            self.assertEqual(len(calls), 1)
+            self.assertNotIn(VAULT_TOKEN, " ".join(calls[0]["argv"]))
+            self.assertNotIn(VAULT_TOKEN, r.stdout + r.stderr)
+            self.assertEqual(list(calls[0]["header_files"].values()), ["0o600"])
+            for hdr in calls[0]["header_files"]:
+                self.assertFalse(Path(hdr).exists())
             _Vault.status = 403
             r = self.run_dist("--dry-run", "--repos", "o/a", "--from-vault", "pr-review-ci", env=env)
             self.assertEqual(r.returncode, 4)
         finally:
             srv.shutdown()
             srv.server_close()
+
+    def test_vault_token_with_newline_rejected(self):
+        # Un salto de línea en el token metería otra cabecera en el fichero -H @...
+        env = {"VAULT_ADDR": "http://127.0.0.1:9", "VAULT_TOKEN": VAULT_TOKEN + "\nX-Other: 1"}
+        r = self.run_dist("--dry-run", "--repos", "o/a", "--from-vault", "pr-review-ci", env=env)
+        self.assertEqual(r.returncode, 2)
+        self.assertFalse(self.curl_log.exists())
+        self.assertNotIn(VAULT_TOKEN, r.stdout + r.stderr)
 
     def test_auth_error_exit_4(self):
         r = self.run_dist("--dry-run", "--repos", "o/a", env={"FAKE_GH_DENY": "403"})

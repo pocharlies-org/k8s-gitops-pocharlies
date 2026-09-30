@@ -60,8 +60,14 @@ http_status() { grep -oE 'HTTP [0-9]{3}' "$1" | tail -1 | cut -d' ' -f2 || true;
 # ---- valores: se cargan una vez en ficheros 0600 del directorio temporal ------------------
 VAULT_JSON="$TMPD/vault.json"
 if [ -n "$VAULT_PATH" ]; then
-  code=$(curl -sS -o "$VAULT_JSON" -w '%{http_code}' -H "X-Vault-Token: $VAULT_TOKEN" \
+  # El token nunca va en el argv de curl (lo vería cualquiera con `ps`): lo escribe printf, que
+  # es builtin, en un fichero 0600 de $TMPD (0700) y curl lo lee con -H @fichero.
+  case "$VAULT_TOKEN" in *$'\n'*|*$'\r'*) die "VAULT_TOKEN inválido: lleva saltos de línea" ;; esac
+  VAULT_HDR="$TMPD/vault.hdr"
+  (umask 077; printf 'X-Vault-Token: %s\n' "$VAULT_TOKEN" > "$VAULT_HDR")
+  code=$(curl -sS -o "$VAULT_JSON" -w '%{http_code}' -H "@$VAULT_HDR" \
     "$VAULT_ADDR/v1/$KV_MOUNT/data/$VAULT_PATH" 2>"$TMPD/curl.err" || echo 000)
+  rm -f "$VAULT_HDR"
   case "$code" in
     200) ;;
     404) echo '{}' > "$VAULT_JSON" ;;
