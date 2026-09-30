@@ -76,6 +76,7 @@ resources:
   - apps/serpientetool.yaml
   - apps/agentgateway-mcp.yaml
   - apps/picqer-mcp.yaml
+  - apps/shopify-admin-mcp.yaml
   - argocd/ingressroute.yaml
   - argocd/repositories.yaml
   - argocd/notifications-externalsecret.yaml
