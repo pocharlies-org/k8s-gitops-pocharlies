@@ -1,0 +1,14 @@
+version: 1
+commands:
+  brain.ingest:
+    key: brain.{tenant}.ingest
+    consumers:
+    - synapse-adapter-brain-ingest
+    - synapse-adapter-brain-summary
+    status: active
+events:
+  attachment.family.received:
+    key: attachment.family.received
+    workflows:
+    - workflows/family/expense/process.v1.yaml
+    status: active

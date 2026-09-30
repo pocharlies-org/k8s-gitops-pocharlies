@@ -1,0 +1,11 @@
+version: 1
+contracts:
+  - id: brain.ingest.v1
+    kind: routing-key
+    value: brain.{tenant}.ingest_v0
+    role: publisher
+    status: active
+    exception:
+      reason: rename agreed with consumers
+      consumers_checked: [synapse-adapter-brain-ingest]
+      approved_by: dani
