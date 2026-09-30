@@ -176,8 +176,10 @@ class ReviewContext(unittest.TestCase):
 
 
     def test_invalid_usage_exit_2(self):
+        # Hermetic: in CI GITHUB_EVENT_PATH is set and legitimately supplies base/head.
+        env = {k: v for k, v in os.environ.items() if k != "GITHUB_EVENT_PATH"}
         assert subprocess.run([sys.executable, str(SCRIPT), "--out", str(self.tmp / "c.md")],
-                              capture_output=True, cwd=self.tmp).returncode == 2
+                              capture_output=True, cwd=self.tmp, env=env).returncode == 2
         assert subprocess.run([sys.executable, str(SCRIPT), "--bogus"], capture_output=True).returncode == 2
 
 
