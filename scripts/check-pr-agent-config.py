@@ -43,6 +43,8 @@ REQUIRED = {
     # Decisión 5 del CTO: los hallazgos en la línea de código solo salen por /improve en 0.46.0.
     ("github_action_config", "auto_review"): True,
     ("github_action_config", "auto_improve"): True,
+    # Una sola etiqueta de seguridad (INFRA-298 comentario 17496): la de pr-watcher, no la de PR-Agent.
+    ("pr_reviewer", "enable_review_labels_security"): False,
 }
 POSITIVE_INTS = [("config", "max_model_tokens"), ("config", "custom_model_max_tokens"),
                  ("config", "ai_timeout")]

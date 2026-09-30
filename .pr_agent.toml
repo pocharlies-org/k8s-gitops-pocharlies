@@ -52,6 +52,10 @@ auto_improve = true
 persistent_comment = true
 # D3 (contrato pr_review.v1 §2): la recomendación la da el modelo; el glue la traduce.
 require_merge_recommendation = true
+# Una sola etiqueta de seguridad: PR-Agent pondría «Possible security concern» y la señal de
+# pr-watcher es `possible security issue` (decisión del CTO, INFRA-298 comentario 17496).
+# PR-Agent 0.46.0 la lee como pr_reviewer.enable_review_labels_security (pr_reviewer.py).
+enable_review_labels_security = false
 
 [pr_code_suggestions]
 persistent_comment = true

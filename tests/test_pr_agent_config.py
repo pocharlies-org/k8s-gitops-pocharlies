@@ -123,6 +123,7 @@ class ConfigTest(unittest.TestCase):
         self.assertIs(data["github_action_config"]["auto_describe"], False)
         self.assertIs(data["github_action_config"]["auto_review"], True)
         self.assertIs(data["github_action_config"]["auto_improve"], True)
+        self.assertIs(data["pr_reviewer"]["enable_review_labels_security"], False)
         self.assertEqual(data["config"]["model"], "openai/alibaba-q38-flash")
         self.assertEqual(sorted(data["jira"]["project_keys"]), ["DGX", "INFRA", "OWU", "SC", "SKIRM"])
 
@@ -135,6 +136,7 @@ class ConfigTest(unittest.TestCase):
         for section, key, value in [("github_action_config", "auto_describe", "true"),
                                     ("github_action_config", "auto_improve", "false"),
                                     ("github_action_config", "auto_review", "false"),
+                                    ("pr_reviewer", "enable_review_labels_security", "true"),
                                     ("config", "restricted_mode", "false"),
                                     ("config", "model", '"openai/tooling"'),
                                     ("config", "fallback_models", '["gpt-5.6-terra"]'),
