@@ -75,6 +75,7 @@ resources:
   - apps/dgx-messages.yaml
   - apps/serpientetool.yaml
   - apps/agentgateway-mcp.yaml
+  - apps/picqer-mcp.yaml
   - argocd/ingressroute.yaml
   - argocd/repositories.yaml
   - argocd/notifications-externalsecret.yaml
