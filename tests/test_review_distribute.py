@@ -68,6 +68,44 @@ class _Labels(http.server.BaseHTTPRequestHandler):
         pass
 
 
+class _Comments(http.server.BaseHTTPRequestHandler):
+    """GitHub con estado de comentarios en línea del PR: GET lista, POST crea,
+    DELETE /pulls/comments/<id> borra (404 si no estaba). `code` distinto de 200
+    responde ese código a todo (para probar degradado y 401/403)."""
+
+    def _all(self):
+        n = int(self.headers.get("Content-Length", 0))
+        body = json.loads(self.rfile.read(n)) if n else None
+        srv = self.server
+        srv.calls.append((self.command, self.path.split("?")[0], body))
+        code, payload = srv.code, b"{}"
+        if srv.code == 200:
+            if "/issues/" in self.path:  # el paso de etiquetas: se acepta y se ignora
+                code, payload = 200, b"{}"
+            elif self.command == "GET":
+                code, payload = 200, json.dumps(srv.comments).encode()
+            elif self.command == "POST":
+                cid = srv.next_id
+                srv.next_id += 1
+                srv.comments.append({"id": cid, **body,
+                                     "pull_request_review": {"commit_id": body["commit_id"]}})
+                code, payload = 201, b"{}"
+            elif self.command == "DELETE":
+                cid = int(self.path.rsplit("/", 1)[1])
+                before = len(srv.comments)
+                srv.comments = [c for c in srv.comments if c["id"] != cid]
+                code, payload = (204 if before != len(srv.comments) else 404), b""
+        self.send_response(code)
+        self.end_headers()
+        if payload:
+            self.wfile.write(payload)
+
+    do_GET = do_POST = do_DELETE = _all
+
+    def log_message(self, *a):
+        pass
+
+
 class ReviewDistribute(unittest.TestCase):
     def setUp(self):
         d = tempfile.TemporaryDirectory()
@@ -295,6 +333,128 @@ class ReviewDistribute(unittest.TestCase):
                                  "BRAIN_URL": brain_url, "BRAIN_CI_KEY": "k"})
         assert r.returncode == 4, r.stdout + r.stderr
         assert [c[1] for c in brain.calls] == ["/instances/local-ops/push-ingest"]
+
+    # ── inline contract findings (seguimiento D del arquitecto, INFRA-332/333) ──
+
+    def comments_server(self, code: int = 200):
+        srv = http.server.HTTPServer(("127.0.0.1", 0), _Comments)
+        srv.calls, srv.comments, srv.next_id, srv.code = [], [], 500, code
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.shutdown)
+        self.addCleanup(srv.server_close)
+        return srv, f"http://127.0.0.1:{srv.server_port}"
+
+    def findings_file(self, findings=None, line: int = 5):
+        if findings is None:
+            findings = [{"id": "brain.ingest.v1", "file": "CONTRACTS.yaml", "line": line,
+                         "old_value": "brain.a", "value": "brain.b", "consumers": ["synapse-x"],
+                         "body": "<!--contrato:brain.ingest.v1-->\n**Severidad alta · contrato "
+                                 "`brain.ingest.v1`**: el value no muta"}]
+        f = self.out.parent / "contract-findings.json"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps(findings))
+        return f
+
+    def inline(self, review: Path | None = None, code: int = 200):
+        srv, url = self.comments_server(code=code)
+        f = self.findings_file()
+        args = ["--repo", "o/r", "--pr", "7", "--head-sha", "abc", "--findings", str(f)]
+        if review:
+            args += ["--review-md", str(review)]
+        r = self.run_script(*args, env={"GH_TOKEN": "t", "GITHUB_API_URL": url})
+        return r, srv, url, f
+
+    def test_inline_finding_posted_anchored_to_head_line(self):
+        r, srv, _, _ = self.inline(REVIEW)
+        assert r.returncode == 0, r.stdout + r.stderr
+        posts = [c for c in srv.calls if c[0] == "POST" and c[1] == "/repos/o/r/pulls/7/comments"]
+        assert len(posts) == 1, srv.calls
+        body = posts[0][2]
+        assert body["path"] == "CONTRACTS.yaml" and body["line"] == 5 and body["side"] == "RIGHT"
+        assert body["commit_id"] == "abc" and body["body"].startswith("<!--contrato:brain.ingest.v1-->")
+        assert self.dist()["inline_contract_findings"]["state"] == "ok"
+        assert "hallazgos inline: ok" in r.stdout
+        # la review sigue su camino: etiquetas y payload igual que sin findings
+        assert self.payload()["status"] == "ok"
+        assert any(c[1] == "/repos/o/r/issues/7/labels" for c in srv.calls)
+
+    def test_inline_finding_not_reposted_when_unchanged(self):
+        r, srv, url, f = self.inline(REVIEW)
+        assert r.returncode == 0
+        n_posts = len([c for c in srv.calls if c[0] == "POST" and "/pulls/7/comments" in c[1]])
+        assert n_posts == 1
+        before = len(srv.calls)
+        r2 = self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc",
+                             "--findings", str(f), "--review-md", str(REVIEW),
+                             env={"GH_TOKEN": "t", "GITHUB_API_URL": url})
+        assert r2.returncode == 0, r2.stderr
+        new = srv.calls[before:]
+        assert [c[0] for c in new if "/pulls/7/comments" in c[1]] == ["GET"]  # solo se mira
+        assert "1 en su sitio" in r2.stdout
+        assert len(srv.comments) == 1  # ni duplicado ni movido
+
+    def test_inline_finding_reposted_when_line_or_head_changes(self):
+        r, srv, url, f = self.inline(REVIEW)
+        assert r.returncode == 0
+        self.findings_file(line=6)  # el value se movió de línea en el nuevo push
+        r2 = self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "def",
+                             "--findings", str(f), "--review-md", str(REVIEW),
+                             env={"GH_TOKEN": "t", "GITHUB_API_URL": url})
+        assert r2.returncode == 0, r2.stderr
+        verbs = [c[0] for c in srv.calls if c[1].startswith("/repos/o/r/pulls/comments/")]
+        assert verbs == ["DELETE"]
+        posts = [c for c in srv.calls if c[0] == "POST" and c[1] == "/repos/o/r/pulls/7/comments"]
+        assert len(posts) == 2 and posts[1][2]["line"] == 6 and posts[1][2]["commit_id"] == "def"
+        assert len(srv.comments) == 1  # el viejo fuera, el nuevo en su sitio
+
+    def inline_with(self, findings):
+        srv, url = self.comments_server()
+        f = self.findings_file(findings)
+        r = self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc",
+                            "--findings", str(f), "--review-md", str(REVIEW),
+                            env={"GH_TOKEN": "t", "GITHUB_API_URL": url})
+        return r, srv, url, f
+
+    def test_inline_empty_findings_recorded_not_posted(self):
+        r, srv, _, _ = self.inline_with([])
+        assert r.returncode == 0
+        assert self.dist()["inline_contract_findings"] == {"state": "sin_hallazgos", "http": None}
+        assert not [c for c in srv.calls if c[0] == "POST" and "/pulls/7/comments" in c[1]]
+
+    def test_inline_github_500_degrades_exit_0(self):
+        r, srv, _, _ = self.inline(REVIEW, code=500)
+        assert r.returncode == 0, r.stdout + r.stderr
+        rec = self.dist()["inline_contract_findings"]
+        assert rec["state"] == "degradado" and rec["http"] == 500
+        assert "hallazgos inline: degradado" in r.stdout
+
+    def test_inline_github_403_exit_4_recorded(self):
+        r, srv, _, _ = self.inline(REVIEW, code=403)
+        assert r.returncode == 4, r.stdout + r.stderr
+        rec = self.dist()["inline_contract_findings"]
+        assert rec["state"] == "rechazado" and rec["http"] == 403
+
+    def test_invalid_findings_file_is_usage_2(self):
+        srv, url = self.comments_server()
+        f = self.findings_file()
+        f.write_text('[{"id": "sin-line"}]')
+        r = self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc",
+                            "--findings", str(f), env={"GH_TOKEN": "t", "GITHUB_API_URL": url})
+        assert r.returncode == 2 and "contract-findings" in r.stderr
+
+    def test_dry_run_with_findings_no_network(self):
+        f = self.findings_file()
+        r = self.run_script("--dry-run", "--repo", "o/r", "--pr", "7", "--findings", str(f))
+        assert r.returncode == 0, r.stderr
+        assert self.dist()["inline_contract_findings"] == {"state": "dry_run", "http": None,
+                                                           "posted": 1}
+
+    def test_without_findings_flag_no_inline_record(self):
+        srv, url = self.comments_server()
+        r = self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc",
+                            "--review-md", str(REVIEW), env={"GH_TOKEN": "t", "GITHUB_API_URL": url})
+        assert r.returncode == 0, r.stderr
+        assert "inline_contract_findings" not in self.dist()
 
     # ── usage ──
 

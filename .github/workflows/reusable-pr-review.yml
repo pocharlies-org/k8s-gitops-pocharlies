@@ -8,7 +8,8 @@ name: Reusable PR review
 #   pr-agent PR-Agent 0.46.0 en contenedor, orquestado en tres pasos (INFRA-332):
 #            contexto (scripts/review-context.py) -> PR-Agent (imagen de Harbor por
 #            digest) -> distribucion (scripts/review-distribute.py: payload del
-#            contrato pr_review.v1, brain local-ops, etiquetas). Diseño: adjunto
+#            contrato pr_review.v1, brain local-ops, etiquetas, y el hallazgo de contrato
+#            en linea por la API, determinista). Diseño: adjunto
 #            nota-architect-diseno.md de INFRA-298; runbook: docs/ci-pr-review.md.
 #
 # Pensado para que los 113 repos activos lo enciendan copiando
@@ -260,7 +261,8 @@ jobs:
           fi
           python3 "$revisor"
 
-  # Motor pr-agent (INFRA-332): contexto -> PR-Agent -> distribucion.
+  # Motor pr-agent (INFRA-332): contexto -> PR-Agent -> distribucion (+ inline de contratos,
+  # determinista, en la distribucion).
   #
   # Permisos: `pull-requests: write` basta para comentar, publicar los inline y
   # poner/quitar/crear etiquetas (tabla oficial «Permissions required for GitHub
@@ -615,6 +617,10 @@ jobs:
           fi
           args=(--repo "$REPO" --pr "$PR_NUMBER" --head-sha "$PR_HEAD_SHA" --out-dir .review)
           [ -f .review/review.md ] && args+=(--review-md .review/review.md)
+          # Hallazgo de contrato en linea, determinista: review-context.py ya sabe el fichero
+          # y la linea del value que cambio; review-distribute.py lo publica por la API de
+          # GitHub sin depender de que el modelo obedezca (seguimiento D, INFRA-332/333).
+          [ -f .review/contract-findings.json ] && args+=(--findings .review/contract-findings.json)
           python3 "$distribuidor" "${args[@]}"
           rc=$?
           echo "rc=$rc" >> "$GITHUB_OUTPUT"

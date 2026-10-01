@@ -13,6 +13,16 @@ Writes, in this order and always (contract `pr_review.v1`, schemas/pr_review.v1.
   5 <out-dir>/notify.txt — plain text for humans. This script never calls
     Telegram: the existing `avisar` job sends the file.
 
+With `--findings <contract-findings.json>` (written by scripts/review-context.py)
+it also publishes each contract finding as an INLINE review comment through the
+GitHub API (`pulls/{pr}/comments`, anchored to head_sha, path and the line of the
+changed value), deterministically and without depending on the model. Each body
+carries a `<!--contrato:<id>-->` marker: on a re-run the same finding is left
+alone if it is identical on the current commit, and is deleted and re-posted when
+the line, the text or the head commit changed. The step is recorded in
+distribute.json as `inline_contract_findings`; it never blocks (degraded on 4xx/
+5xx other than 401/403, which is exit 4 like every other GitHub step here).
+
 Expected `--review-md` format (what INFRA-331 pins in PR-Agent `extra_instructions`).
 The parser is line-based and tolerant; anything it does not recognise is kept in
 `content` but yields no field (`unknown` / `false` / no finding):
@@ -28,13 +38,16 @@ The parser is line-based and tolerant; anything it does not recognise is kept in
   Items without `path/file.ext:LINE` are not findings. At most 50 are kept.
   A missing --review-md file = status skipped; an empty one = status degraded.
 
-It calls no model and has no dependencies beyond the standard library.
-Exit codes: 0 (also degraded), 2 invalid usage / missing mandatory env,
-4 on 401/403 from any API. No other code. Tokens come from the environment
-(GH_TOKEN, BRAIN_CI_KEY) and are never printed. Idempotent: it overwrites.
+It calls no model and has no dependencies beyond the standard library and its
+sibling `scripts/review_http.py`.
+Exit codes: 0 (also degraded), 2 invalid usage / missing mandatory env / invalid
+contract-findings, 4 on 401/403 from any API. No other code. Tokens come from the
+environment (GH_TOKEN, BRAIN_CI_KEY) and are never printed. Idempotent: it
+overwrites, and an inline finding already in place is not re-posted.
 
 Usage:
     review-distribute.py --repo o/r --pr 7 --head-sha <sha> --review-md review.md
+    review-distribute.py --repo o/r --pr 7 --head-sha <sha> --findings .review/contract-findings.json
     review-distribute.py --dry-run --repo o/r --pr 7     # no network, fixture review
 """
 
@@ -45,11 +58,12 @@ import json
 import os
 import re
 import sys
-import urllib.error
 import urllib.parse
-import urllib.request
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # el módulo común vive junto a este script
+from review_http import AuthError, Degraded, github_headers, request  # noqa: E402
 
 SCHEMA_ID = "pr_review.v1"
 SCHEMA_FILE = Path(__file__).resolve().parent.parent / "schemas/pr_review.v1.json"
@@ -76,21 +90,7 @@ FINDING_RE = re.compile(
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 
 
-class AuthError(Exception):
-    """401/403 from an API: the only failure that is not a degradation."""
-
-    def __init__(self, source: str, code: int):
-        super().__init__(f"{source} respondió HTTP {code}")
-        self.code = code
-
-
-class Degraded(Exception):
-    """Dependency down or answering 4xx/5xx other than 401/403; `code` is the HTTP status if any."""
-
-    def __init__(self, message: str, code: int | None = None):
-        super().__init__(message)
-        self.code = code
-
+# AuthError, Degraded y el cliente HTTP: scripts/review_http.py (una sola copia).
 
 # ── payload ─────────────────────────────────────────────────────────────────
 
@@ -195,46 +195,87 @@ def notify_text(p: dict[str, Any]) -> str:
     return ANSI_RE.sub("", re.sub(r"[\x00-\x08\x0b-\x1f\x7f]", " ", text)) + "\n"
 
 
-# ── HTTP ────────────────────────────────────────────────────────────────────
-
-
-def http(source: str, method: str, url: str, headers: dict[str, str],
-         body: dict | None = None, ok404: bool = False) -> None:
-    data = json.dumps(body).encode() if body is not None else None
-    hdrs = {"Accept": "application/json", **headers}
-    if data:
-        hdrs["Content-Type"] = "application/json"
-    req = urllib.request.Request(url, data=data, headers=hdrs, method=method)  # noqa: S310
-    try:
-        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT):  # noqa: S310
-            return
-    except urllib.error.HTTPError as exc:
-        if exc.code in (401, 403):
-            raise AuthError(source, exc.code) from None
-        if exc.code == 404 and ok404:
-            return
-        raise Degraded(f"{source}: HTTP {exc.code}", exc.code) from None
-    except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
-        raise Degraded(f"{source}: {type(exc).__name__}") from None
+# ── HTTP (cliente y clasificación de errores: scripts/review_http.py) ──────
 
 
 def push_ingest(p: dict[str, Any], url: str, key: str) -> None:
     meta = {k: v for k, v in p.items() if k != "content"}  # contract fields, flat
     doc = {"source_id": f"{ADAPTER}:{p['repo']}#{p['pr']}", "content": p["content"], "metadata": meta}
-    http("brain", "POST", f"{url.rstrip('/')}/instances/{BRAIN_INSTANCE}/push-ingest",
-         {"X-API-Key": key, "Authorization": f"Bearer {key}"}, {"adapter": ADAPTER, "documents": [doc]})
+    request(f"{url.rstrip('/')}/instances/{BRAIN_INSTANCE}/push-ingest",
+            {"X-API-Key": key, "Authorization": f"Bearer {key}"}, method="POST",
+            body={"adapter": ADAPTER, "documents": [doc]}, timeout=HTTP_TIMEOUT, source="brain")
 
 
 def sync_labels(p: dict[str, Any], token: str) -> None:
-    hdrs = {"Authorization": f"Bearer {token}", "X-GitHub-Api-Version": "2022-11-28"}
+    hdrs = github_headers(token)
     api = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
     base = f"{api}/repos/{p['repo']}/issues/{p['pr']}/labels"
     for label, on in ((LABEL_CHANGES, p["changes_required"]),
                       (LABEL_SECURITY, p["possible_security_issue"])):
         if on:
-            http("github", "POST", base, hdrs, {"labels": [label]})
+            request(base, hdrs, method="POST", body={"labels": [label]},
+                    timeout=HTTP_TIMEOUT, source="github")
         else:
-            http("github", "DELETE", f"{base}/{urllib.parse.quote(label)}", hdrs, ok404=True)
+            request(f"{base}/{urllib.parse.quote(label)}", hdrs, method="DELETE",
+                    ok404=True, timeout=HTTP_TIMEOUT, source="github")
+
+
+# ── inline contract findings ────────────────────────────────────────────────
+
+FINDING_MARK_RE = re.compile(r"<!--contrato:([a-z0-9][a-z0-9._-]*)-->")
+COMMENTS_PAGES = 5  # 100 por página: los nuestros se buscan por su marcador
+
+
+def load_findings(path: Path) -> list[dict[str, Any]]:
+    """`.review/contract-findings.json` (scripts/review-context.py). Un fichero roto
+    es un bug del CI, no una condición de runtime: sale 2 como payload inválido."""
+    data = json.loads(path.read_text())
+    if not isinstance(data, list):
+        raise ValueError("contract-findings.json debe ser una lista")
+    for f in data:
+        if not (isinstance(f, dict) and re.fullmatch(r"[a-z0-9][a-z0-9._-]*", str(f.get("id", "")))
+                and f.get("file") and isinstance(f.get("line"), int) and f["line"] >= 1
+                and f.get("body") and FINDING_MARK_RE.search(f["body"])):
+            raise ValueError(f"hallazgo inválido: {str(f)[:120]}")
+    return data
+
+
+def post_inline_findings(p: dict[str, Any], findings: list[dict[str, Any]], token: str) -> str:
+    """Publica cada hallazgo en su línea, anclado a head_sha. Repite solo lo que cambió.
+
+    Devuelve un resumen para stdout. 401/403 sube AuthError (exit 4); el resto de 4xx/5xx,
+    Degradado: un comentario que no salió no bloquea la distribución."""
+    hdrs = github_headers(token)
+    api = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
+    repo, pr, head = p["repo"], p["pr"], p["head_sha"]
+    list_base = f"{api}/repos/{repo}/pulls/{pr}/comments"
+    existing: dict[str, list[dict[str, Any]]] = {}
+    for page in range(1, COMMENTS_PAGES + 1):
+        batch = request(f"{list_base}?per_page=100&page={page}", hdrs,
+                        timeout=HTTP_TIMEOUT, source="github")
+        for c in batch:
+            m = FINDING_MARK_RE.search(c.get("body", ""))
+            if m:
+                existing.setdefault(m.group(1), []).append(c)
+        if len(batch) < 100:
+            break
+    posted = skipped = 0
+    for f in findings:
+        current = [c for c in existing.get(f["id"], [])
+                   if c.get("path") == f["file"] and c.get("line") == f["line"]
+                   and c.get("body") == f["body"]
+                   and (c.get("pull_request_review") or {}).get("commit_id") == head]
+        if current:
+            skipped += 1
+            continue
+        for c in existing.get(f["id"], []):  # el anterior (línea, texto o commit viejos)
+            request(f"{api}/repos/{repo}/pulls/comments/{c['id']}", hdrs, method="DELETE",
+                    ok404=True, timeout=HTTP_TIMEOUT, source="github")
+        request(list_base, hdrs, method="POST", timeout=HTTP_TIMEOUT, source="github",
+                body={"body": f["body"], "commit_id": head, "path": f["file"],
+                      "line": f["line"], "side": "RIGHT"})
+        posted += 1
+    return f"{posted} publicado(s), {skipped} en su sitio"
 
 
 # ── main ────────────────────────────────────────────────────────────────────
@@ -246,6 +287,8 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--pr", type=int, required=True)
     p.add_argument("--head-sha", help="default: GITHUB_EVENT_PATH pull_request.head.sha")
     p.add_argument("--review-md", help="PR-Agent markdown output; absent or missing = status skipped")
+    p.add_argument("--findings", help="contract-findings.json (review-context.py): each finding "
+                                      "is posted as an inline review comment, deterministically")
     p.add_argument("--out-dir", default=".review")
     p.add_argument("--dry-run", action="store_true", help="no network: fixture review, files only")
     return p
@@ -323,6 +366,35 @@ def main(argv: list[str] | None = None) -> int:
             steps.append(f"etiquetas: error: {exc} — credencial rechazada")
             record["labels"] = {"state": "rechazado", "http": exc.code}
             rc = 4
+    # Hallazgos de contrato en línea: deterministas, los calculó review-context.py antes
+    # de PR-Agent. Se publican también con la review caída (status != ok): el hallazgo
+    # depende del diff, no del modelo.
+    findings_path = Path(args.findings) if args.findings else None
+    if findings_path and findings_path.is_file():
+        try:
+            findings = load_findings(findings_path)
+        except (ValueError, OSError) as exc:  # bug del artefacto del CI, no condición de runtime
+            print(f"review-distribute: contract-findings inválido: {exc}", file=sys.stderr)
+            return 2
+        if not findings:
+            record["inline_contract_findings"] = {"state": "sin_hallazgos", "http": None}
+        elif args.dry_run:
+            steps.append(f"hallazgos inline: omitidos (--dry-run); {len(findings)} en "
+                         f"{findings_path.name}")
+            record["inline_contract_findings"] = {"state": "dry_run", "http": None,
+                                                  "posted": len(findings)}
+        else:
+            try:
+                resumen = post_inline_findings(payload, findings, token)
+                steps.append(f"hallazgos inline: ok ({resumen})")
+                record["inline_contract_findings"] = {"state": "ok", "http": None}
+            except Degraded as exc:
+                steps.append(f"hallazgos inline: degradado ({exc})")
+                record["inline_contract_findings"] = {"state": "degradado", "http": exc.code}
+            except AuthError as exc:
+                steps.append(f"hallazgos inline: error: {exc} — credencial rechazada")
+                record["inline_contract_findings"] = {"state": "rechazado", "http": exc.code}
+                rc = 4
     (out / "distribute.json").write_text(json.dumps(record, indent=2) + "\n")
     (out / "notify.txt").write_text(notify_text(payload))  # also on exit 4: humans must see it
     print(f"review-distribute: status={payload['status']} recomendación={payload['merge_recommendation']} "

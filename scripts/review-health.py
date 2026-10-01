@@ -23,6 +23,8 @@ No measurable runs = green with a note (nothing to judge).
 
 Exit codes: 0 green, 2 invalid usage, 3 red, 4 GitHub answered 401/403 to this script.
 GH_TOKEN comes from the environment and is never printed. No model calls. stdlib only.
+The HTTP client and the AuthError/Degraded rule are shared with the rest of the review
+pipeline in `scripts/review_http.py` (seguimiento D del arquitecto, INFRA-332/333).
 
 Usage:
     review-health.py --repo pocharlies-org/k8s-litellm-pocharlies [--out .review-health/x.md]
@@ -36,12 +38,13 @@ import json
 import os
 import re
 import sys
-import urllib.error
-import urllib.request
 import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # el módulo común vive junto a este script
+from review_http import AuthError, Degraded, github_headers, request  # noqa: E402
 
 WORKFLOW_FILE = "pr-review.yml"
 WINDOW = 50
@@ -51,37 +54,9 @@ HTTP_TIMEOUT = 30
 MEASURED = ("success", "failure")  # cancelled/skipped/neutral runs say nothing about the review
 
 
-class AuthError(Exception):
-    pass
-
-
-class Unavailable(Exception):
-    pass
-
-
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, *a, **k):
-        return None
-
-
 def api(url: str, token: str, raw: bool = False) -> Any:
-    req = urllib.request.Request(url, headers={
-        "Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28"})
-    opener = urllib.request.build_opener(_NoRedirect)
-    try:
-        with opener.open(req, timeout=HTTP_TIMEOUT) as resp:
-            return resp.read() if raw else json.load(resp)
-    except urllib.error.HTTPError as exc:
-        if exc.code in (301, 302, 303, 307) and raw:
-            # the zip lives on blob storage: follow WITHOUT the GitHub token
-            with urllib.request.urlopen(exc.headers["Location"], timeout=HTTP_TIMEOUT) as resp:  # noqa: S310
-                return resp.read()
-        if exc.code in (401, 403):
-            raise AuthError(f"GitHub respondió HTTP {exc.code}") from None
-        raise Unavailable(f"GitHub respondió HTTP {exc.code}") from None
-    except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
-        raise Unavailable(f"GitHub: {type(exc).__name__}") from None
+    """GET de la API de GitHub (o el zip de un artefacto con raw=True)."""
+    return request(url, github_headers(token), raw=raw, timeout=HTTP_TIMEOUT, source="GitHub")
 
 
 def engine_ran(jobs: list[dict[str, Any]]) -> bool:
@@ -237,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
     except AuthError as exc:
         print(f"review-health: {exc} — credencial rechazada", file=sys.stderr)
         return 4
-    except Unavailable as exc:
+    except Degraded as exc:
         # The signal itself is down: that is not "green". Report and fail loudly.
         print(f"review-health: no se pudo medir ({exc})", file=sys.stderr)
         return 3
