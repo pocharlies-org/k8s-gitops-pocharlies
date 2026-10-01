@@ -102,7 +102,12 @@ persistence:
       bucket: harbor-blobs
       existingSecret: harbor-s3-credentials
       multipartcopychunksize: '33554432'
-      multipartcopymaxconcurrency: '1'
+      # Al cerrar cada subida el registry copia la capa dentro de MinIO a su
+      # ruta final (copia multiparte de 32 MiB). Con 1 iba trozo a trozo: p90
+      # 42 s, p99 190 s, máx 298 s por cierre (01-10-2026), y el cliente de la
+      # CI cortaba con «timeout awaiting response headers». 8 en paralelo
+      # (el defecto de distribution es 16; MinIO es de un solo nodo).
+      multipartcopymaxconcurrency: '8'
       region: us-east-1
       regionendpoint: http://minio-s3.minio.svc.cluster.local:9000
       secure: false
