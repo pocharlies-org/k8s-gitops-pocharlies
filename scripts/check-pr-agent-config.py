@@ -40,9 +40,14 @@ REQUIRED = {
     ("config", "fallback_models"): [],
     ("config", "restricted_mode"): True,
     ("github_action_config", "auto_describe"): False,
-    # Decisión 5 del CTO: los hallazgos en la línea de código solo salen por /improve en 0.46.0.
+    # Decisión 5 del CTO: /improve está encendido y no toca título ni cuerpo. (F0 §5 decía que
+    # el inline solo salía por /improve; medido sobre la fuente fijada, /review publica inline
+    # con pr_reviewer.inline_key_issues — criterio 1, rework qa de INFRA-332.)
     ("github_action_config", "auto_review"): True,
     ("github_action_config", "auto_improve"): True,
+    # Criterio 1 (INFRA-332): los puntos clave de la review, incluido el hallazgo de contrato,
+    # tienen que publicarse en la línea; sin declararla, 0.46.0 la deja en false.
+    ("pr_reviewer", "inline_key_issues"): True,
     # Una sola etiqueta de seguridad (INFRA-298 comentario 17496): la de pr-watcher, no la de PR-Agent.
     ("pr_reviewer", "enable_review_labels_security"): False,
 }

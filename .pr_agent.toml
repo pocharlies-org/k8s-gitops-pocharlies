@@ -42,9 +42,11 @@ restricted_mode = true
 auto_review = true
 # D5: apagado hasta F3 (reescribe título y cuerpo de la PR).
 auto_describe = false
-# Decisión 5 del CTO: con 0.46.0 los hallazgos en la línea de código solo salen por /improve
-# (F0 §5). improve no toca título ni cuerpo: pr_code_suggestions.py del commit 1d01f24 solo
-# publica comentarios y sugerencias (veredicto del arquitecto, INFRA-298 comentario 17487).
+# Decisión 5 del CTO: /improve no toca título ni cuerpo: pr_code_suggestions.py del commit
+# 1d01f24 solo publica comentarios y sugerencias (veredicto del arquitecto, INFRA-298
+# comentario 17487). Nota INFRA-332 (rework qa): F0 §5 decía que en 0.46.0 el inline solo
+# salía por /improve; medido sobre la fuente fijada, /review también publica inline con
+# pr_reviewer.inline_key_issues (pr_reviewer.py::_publish_key_issues_as_inline_comments).
 auto_improve = true
 # Una review por push, como el motor propio. Sin `synchronize` PR-Agent 0.46.0 ignora los pushes
 # a un PR abierto (github_action_runner.py: por defecto solo opened/reopened/ready_for_review/
@@ -60,10 +62,18 @@ require_merge_recommendation = true
 # pr-watcher es `possible security issue` (decisión del CTO, INFRA-298 comentario 17496).
 # PR-Agent 0.46.0 la lee como pr_reviewer.enable_review_labels_security (pr_reviewer.py).
 enable_review_labels_security = false
+# INFRA-332 (rework qa, criterio 1): los puntos clave de la review —incluido el hallazgo de
+# ruptura de contrato— salen como comentario EN LA LÍNEA del fichero del diff (los que no
+# tienen fichero, como «sin criterios de aceptación que verificar», se quedan en la tabla).
+# Sin esto, en 0.46.0 el hallazgo solo se veía en el comentario-resumen (medido en #187:
+# pulls/187/comments vacío). Es clave host-only por directorio (config_security.py): la fija
+# este fichero de host, no puede reactivarla un .pr_agent.toml del repo.
+inline_key_issues = true
 
 [pr_code_suggestions]
 persistent_comment = true
-# La vía inline en GitHub con 0.46.0 (F0 §5): /review no publica inline.
+# Las sugerencias ya salen inline por su cuenta (medido en #191); con inline_key_issues=true
+# (arriba) los puntos clave de /review salen inline también.
 commitable_code_suggestions = true
 # Con el rpm de la key, varios chunks en paralelo más la reflexión dan 429.
 max_number_of_calls = 1
@@ -80,8 +90,8 @@ artifact_label = "Contexto del CI (hechos verificados, no opiniones)"
 artifact_instructions = """
 Este bloque lo genera el CI y solo contiene HECHOS: no inventes contratos, consumidores ni tickets que no aparezcan aquí o en el diff.
 1. Contratos. Si «Contratos tocados» lista una entrada de CONTRACTS.yaml cuyo value cambió, y ni «Trailers Contract-Change» trae un trailer con ese id ni hay el hecho «bloque exception», es una ruptura de contrato de severidad ALTA: en esta casa lo existente no muta (un cambio incompatible es una entrada nueva .vN+1 y la vieja pasa a deprecated).
-   - En las sugerencias de código: emite una sobre la línea del value en CONTRACTS.yaml que empiece por «Severidad alta · contrato <id>», nombre los consumidores que «Consumidores del registry» lista para ese id (si no lista ninguno, escribe «el registry no lista consumidores») y proponga restaurar el value y añadir la entrada .vN+1.
-   - En la review: ponlo como primer punto clave, con el mismo id y los mismos consumidores.
+   - En la review: ponlo como PRIMER punto clave (key issue) con relevant_file = la ruta de CONTRACTS.yaml y las líneas del value cambiado, para que salga publicado en la línea. Su texto empieza por «Severidad alta · contrato <id>», nombra los consumidores que «Consumidores del registry» lista para ese id (si no lista ninguno, escribe «el registry no lista consumidores») y propone restaurar el value y añadir la entrada .vN+1.
+   - En las sugerencias de código: si emites alguna sobre ese fichero, que empiece también por «Severidad alta · contrato <id>»; no sustituyas el punto clave de la review con la sugerencia.
 2. Ticket. Si «Tickets Jira citados en el PR» dice «ninguno», añade en la review un punto clave titulado exactamente «sin criterios de aceptación que verificar», con «Severidad media» en el texto: el PR no cita ninguna clave Jira y no hay criterios de aceptación contra los que comprobarlo. Si cita alguna, no añadas ese punto.
 3. PRs que solapan, memoria local-ops y degradaciones: contexto; menciónalos solo si cambian lo que hay que revisar.
 """

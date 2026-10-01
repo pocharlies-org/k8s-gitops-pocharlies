@@ -124,6 +124,8 @@ class ConfigTest(unittest.TestCase):
         self.assertIs(data["github_action_config"]["auto_review"], True)
         self.assertIs(data["github_action_config"]["auto_improve"], True)
         self.assertIs(data["pr_reviewer"]["enable_review_labels_security"], False)
+        # INFRA-332 (rework qa, criterio 1): hallazgos de la review en la línea.
+        self.assertIs(data["pr_reviewer"]["inline_key_issues"], True)
         self.assertEqual(data["config"]["model"], "openai/alibaba-q38-flash")
         self.assertEqual(sorted(data["jira"]["project_keys"]), ["DGX", "INFRA", "OWU", "SC", "SKIRM"])
 
@@ -137,6 +139,7 @@ class ConfigTest(unittest.TestCase):
                                     ("github_action_config", "auto_improve", "false"),
                                     ("github_action_config", "auto_review", "false"),
                                     ("pr_reviewer", "enable_review_labels_security", "true"),
+                                    ("pr_reviewer", "inline_key_issues", "false"),
                                     ("config", "restricted_mode", "false"),
                                     ("config", "model", '"openai/tooling"'),
                                     ("config", "fallback_models", '["gpt-5.6-terra"]'),
@@ -148,8 +151,12 @@ class ConfigTest(unittest.TestCase):
                 self.assertIn(f"{section}.{key}", r.stdout)
 
     def test_missing_auto_flags_fail(self):
-        # Sin declarar, PR-Agent las enciende todas (None = sí): tienen que ir explícitas.
-        for line in ["auto_describe = false", "auto_improve = true", "auto_review = true"]:
+        # Sin declarar, PR-Agent usa su default (auto_*: todas sí; inline_key_issues: no):
+        # tienen que ir explícitas. El caso inline_key_issues es el rework qa de INFRA-332:
+        # sin la línea, el hallazgo de contrato vuelve al comentario-resumen y pulls/N/comments
+        # queda vacío (medido en #187).
+        for line in ["auto_describe = false", "auto_improve = true", "auto_review = true",
+                     "inline_key_issues = true"]:
             with self.subTest(line=line):
                 text = CONFIG.read_text(encoding="utf-8").replace(line + "\n", "")
                 r = self.run_check(text)
