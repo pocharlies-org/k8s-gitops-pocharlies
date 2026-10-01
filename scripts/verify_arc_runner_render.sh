@@ -176,15 +176,38 @@ def scheduler_eligible(pod_spec: dict, labels: dict[str, str]) -> bool:
     )
 
 
+GH_PATH = "/opt/gh:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+
+def validate_install_gh(container: dict) -> None:
+    # SC-77: gh no viene en la imagen actions-runner; install-gh la baja pinneada
+    # y la deja en el emptyDir gh-bin que el runner monta en /opt/gh.
+    assert container["image"] == runner_image
+    assert container["imagePullPolicy"] == "IfNotPresent"
+    script = container["command"][2]
+    assert "set -euo pipefail" in script
+    assert "sha256sum -c" in script
+    assert "gh_2.40.1_linux_amd64.tar.gz" in script
+    assert {m["name"] for m in container["volumeMounts"]} == {"gh-bin"}
+
+
 _, openclaw_spec = validate_common("arc-openclaw", 2, edge_fallback=True)
 assert [container["name"] for container in openclaw_spec["containers"]] == ["runner"]
-assert openclaw_spec.get("initContainers", []) == []
-assert openclaw_spec.get("volumes", []) == []
+# SC-77: install-gh es su unico initContainer (sin dind aqui).
+assert [c["name"] for c in openclaw_spec["initContainers"]] == ["install-gh"]
+validate_install_gh(openclaw_spec["initContainers"][0])
+assert [v["name"] for v in openclaw_spec["volumes"]] == ["gh-bin"]
 openclaw_runner = openclaw_spec["containers"][0]
 assert openclaw_runner["image"] == runner_image
 assert openclaw_runner["imagePullPolicy"] == "IfNotPresent"
 assert not openclaw_runner.get("securityContext", {}).get("privileged", False)
 assert "DOCKER_HOST" not in {item["name"] for item in openclaw_runner.get("env", [])}
+openclaw_env = {item["name"]: item.get("value") for item in openclaw_runner["env"]}
+assert openclaw_env["PATH"] == GH_PATH
+assert any(
+    m["name"] == "gh-bin" and m["mountPath"] == "/opt/gh" and m.get("readOnly")
+    for m in openclaw_runner["volumeMounts"]
+)
 
 _, shared_spec = validate_common("arc-k8s", 16, edge_fallback=False)
 
@@ -230,8 +253,12 @@ for release, runner_spec in (
 assert [container["name"] for container in shared_spec["containers"]] == ["runner"]
 assert [container["name"] for container in shared_spec["initContainers"]] == [
     "init-dind-externals",
+    "install-gh",
     "dind",
 ]
+# install-gh va antes de dind a proposito: dind es restartable y cualquier init
+# posterior esperaria la readiness de dockerd.
+validate_install_gh(shared_spec["initContainers"][1])
 externals_init = shared_spec["initContainers"][0]
 assert externals_init["image"] == runner_image
 assert externals_init["imagePullPolicy"] == "IfNotPresent"
@@ -251,12 +278,17 @@ assert shared_runner["image"] == runner_image
 assert shared_runner["imagePullPolicy"] == "IfNotPresent"
 runner_env = {item["name"]: item.get("value") for item in shared_runner["env"]}
 assert runner_env["DOCKER_HOST"] == "unix:///var/run/docker.sock"
+assert runner_env["PATH"] == GH_PATH
+assert any(
+    m["name"] == "gh-bin" and m["mountPath"] == "/opt/gh" and m.get("readOnly")
+    for m in shared_runner["volumeMounts"]
+)
 assert shared_runner["resources"] == {
     "requests": {"cpu": "100m", "memory": "1Gi"},
     "limits": {"cpu": "2", "memory": "4Gi"},
 }
 
-dind = shared_spec["initContainers"][1]
+dind = shared_spec["initContainers"][2]
 assert dind["image"] == dind_image
 assert dind["imagePullPolicy"] == "IfNotPresent"
 # 2026-09-16: uploads de registry en paralelo (sin --max-concurrent-uploads=1).
@@ -279,6 +311,7 @@ assert {volume["name"] for volume in shared_spec["volumes"]} == {
     "work",
     "dind-sock",
     "dind-externals",
+    "gh-bin",
 }
 
 print("ARC runner render contract: OK")
