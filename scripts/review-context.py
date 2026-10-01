@@ -270,15 +270,21 @@ def brain_memory(url: str, key: str, query: str) -> list[dict[str, str]]:
 # ── contract findings (inline determinista, sin depender del modelo) ───────
 
 
-FINDING_MARK = "<!--contrato:{cid}-->"
-FINDING_MARK_RE = re.compile(r"<!--contrato:([a-z0-9][a-z0-9._-]*)-->")
+FINDING_MARK = "<!--contrato:{cid}-->"  # la lectura del marcador vive en review-distribute.py
+
+
+def _value_repr(value: object) -> str:
+    """El value en el comentario: una línea, sin acentos de markdown que rompan el `code`,
+    acotado (un value de contrato es corto; si no lo es, el YAML está como puede estar)."""
+    text = " ".join(str(value if value is not None else "").split()).replace("`", "'")
+    return text[:120] + "…" if len(text) > 120 else text
 
 
 def finding_body(t: dict[str, Any], consumers: list[str]) -> str:
     cons = ", ".join(consumers) if consumers else "el registry no lista consumidores"
     return (FINDING_MARK.format(cid=t["id"]) + "\n"
             f"**Severidad alta · contrato `{t['id']}`**: el `value` de una entrada activa no muta. "
-            f"Cambiado `{t.get('old_value')}` → `{t.get('value')}`. Consumidores: {cons}. "
+            f"Cambiado `{_value_repr(t.get('old_value'))}` → `{_value_repr(t.get('value'))}`. Consumidores: {cons}. "
             "Regla de la casa: un cambio incompatible es una entrada nueva `.vN+1` y la vieja pasa "
             "a `deprecated` (nunca se borra): restaura el value y añade la entrada nueva, o el "
             "bloque `exception` si procede. Lo publica el CI, no un modelo.")

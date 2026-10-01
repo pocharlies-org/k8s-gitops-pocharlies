@@ -113,6 +113,25 @@ class ReviewHttp(unittest.TestCase):
         with self.assertRaises(rh.Degraded):
             rh.request(url, {}, source="github")
 
+    def test_200_empty_body_is_degraded_204_is_none(self):
+        # un 200 con cuerpo vacío es una API respondiendo mal: Degraded (como antes de
+        # extraer el cliente). El único cuerpo vacío legítimo es el 204 de un DELETE.
+        class _Empty(_Handler):
+            def do_GET(self):
+                self.server.calls.append(("GET", self.path, None, b""))
+                self.send_response(self.server.status)
+                self.end_headers()
+
+        for status, expect_none in ((200, False), (204, True)):
+            with self.subTest(status=status):
+                srv, url = self.server(_Empty)
+                srv.status = status
+                if expect_none:
+                    assert rh.request(url, {}, source="github") is None
+                else:
+                    with self.assertRaises(rh.Degraded):
+                        rh.request(url, {}, source="github")
+
     def test_connection_refused_is_degraded_not_auth(self):
         with self.assertRaises(rh.Degraded) as cm:
             rh.request("http://127.0.0.1:1/x", {}, source="brain")

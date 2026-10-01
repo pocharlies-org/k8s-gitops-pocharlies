@@ -87,8 +87,11 @@ class _Comments(http.server.BaseHTTPRequestHandler):
             elif self.command == "POST":
                 cid = srv.next_id
                 srv.next_id += 1
-                srv.comments.append({"id": cid, **body,
-                                     "pull_request_review": {"commit_id": body["commit_id"]}})
+                # forma real de GET /pulls/{n}/comments: commit_id/original_commit_id en el
+                # propio comentario, pull_request_review_id suelto y user.type del autor.
+                srv.comments.append({"id": cid, **body, "original_commit_id": body["commit_id"],
+                                     "pull_request_review_id": 900 + cid,
+                                     "user": {"login": "github-actions[bot]", "type": "Bot"}})
                 code, payload = 201, b"{}"
             elif self.command == "DELETE":
                 cid = int(self.path.rsplit("/", 1)[1])
@@ -406,6 +409,38 @@ class ReviewDistribute(unittest.TestCase):
         posts = [c for c in srv.calls if c[0] == "POST" and c[1] == "/repos/o/r/pulls/7/comments"]
         assert len(posts) == 2 and posts[1][2]["line"] == 6 and posts[1][2]["commit_id"] == "def"
         assert len(srv.comments) == 1  # el viejo fuera, el nuevo en su sitio
+
+    def test_same_head_twice_no_delete_no_post(self):
+        # dedup por el commit_id real del comentario (no pull_request_review.commit_id,
+        # campo que GET /pulls/{n}/comments no devuelve)
+        r, srv, url, f = self.inline(REVIEW)
+        assert r.returncode == 0, r.stderr
+        assert srv.comments[0]["commit_id"] == "abc"
+        before = len(srv.calls)
+        r2 = self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc",
+                             "--findings", str(f), "--review-md", str(REVIEW),
+                             env={"GH_TOKEN": "t", "GITHUB_API_URL": url})
+        assert r2.returncode == 0, r2.stderr
+        comment_calls = [c[0] for c in srv.calls[before:]
+                         if "/pulls/7/comments" in c[1] or "/pulls/comments/" in c[1]]
+        assert comment_calls == ["GET"], comment_calls  # 0 DELETE, 0 POST
+        assert len(srv.comments) == 1
+
+    def test_human_comment_with_marker_is_never_touched(self):
+        srv, url = self.comments_server()
+        f = self.findings_file()
+        finding = json.loads(f.read_text())[0]
+        srv.comments.append({"id": 111, "path": finding["file"], "line": finding["line"],
+                             "commit_id": "abc", "body": finding["body"],
+                             "pull_request_review_id": 222,
+                             "user": {"login": "alguien", "type": "User"}})
+        r = self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc",
+                            "--findings", str(f), "--review-md", str(REVIEW),
+                            env={"GH_TOKEN": "t", "GITHUB_API_URL": url})
+        assert r.returncode == 0, r.stderr
+        assert not [c for c in srv.calls if c[0] == "DELETE"]  # el humano no se borra
+        ids = [c["id"] for c in srv.comments]
+        assert 111 in ids and len(srv.comments) == 2  # el nuestro, aparte
 
     def inline_with(self, findings):
         srv, url = self.comments_server()

@@ -74,8 +74,11 @@ def request(url: str, headers: dict[str, str], *, method: str | None = None,
             data = resp.read()
             if raw:
                 return data
-            # un 204 de DELETE llega con cuerpo vacío: None, no JSONDecodeError
-            return json.loads(data) if data else None
+            # un 204 (DELETE) llega sin cuerpo por contrato: None. Un 200 con cuerpo
+            # vacío NO: era Degraded antes de extraer este cliente y lo sigue siendo.
+            if resp.status == 204:
+                return None
+            return json.loads(data)
     except urllib.error.HTTPError as exc:
         if exc.code in (301, 302, 303, 307) and raw:
             # el zip del artefacto vive en blob storage: se sigue SIN el token

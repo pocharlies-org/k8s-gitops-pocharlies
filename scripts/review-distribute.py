@@ -254,6 +254,9 @@ def post_inline_findings(p: dict[str, Any], findings: list[dict[str, Any]], toke
         batch = request(f"{list_base}?per_page=100&page={page}", hdrs,
                         timeout=HTTP_TIMEOUT, source="github")
         for c in batch:
+            # solo los nuestros (Bot): un humano que copie el marcador no se borra ni se toca
+            if (c.get("user") or {}).get("type") != "Bot":
+                continue
             m = FINDING_MARK_RE.search(c.get("body", ""))
             if m:
                 existing.setdefault(m.group(1), []).append(c)
@@ -261,10 +264,12 @@ def post_inline_findings(p: dict[str, Any], findings: list[dict[str, Any]], toke
             break
     posted = skipped = 0
     for f in findings:
+        # GET /pulls/{n}/comments trae commit_id/original_commit_id en el propio comentario
+        # (pull_request_review_id es solo el id de la review); un push nuevo cambia el head
+        # y el comentario viejo queda outdated: se borra y se republica anclado al nuevo.
         current = [c for c in existing.get(f["id"], [])
                    if c.get("path") == f["file"] and c.get("line") == f["line"]
-                   and c.get("body") == f["body"]
-                   and (c.get("pull_request_review") or {}).get("commit_id") == head]
+                   and c.get("body") == f["body"] and c.get("commit_id") == head]
         if current:
             skipped += 1
             continue
