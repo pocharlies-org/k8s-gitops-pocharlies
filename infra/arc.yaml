@@ -110,11 +110,40 @@ spec:
                 key: role
                 operator: Equal
                 value: edge
+            initContainers:
+              # SC-77: the actions-runner image ships no gh. Fail-fast install
+              # of a pinned gh into an emptyDir the runner mounts at /opt/gh.
+              - name: install-gh
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command:
+                  - /bin/bash
+                  - -c
+                  - |
+                    set -euo pipefail
+                    curl -fsSL --retry 3 -o /tmp/gh.tar.gz \
+                      https://github.com/cli/cli/releases/download/v2.40.1/gh_2.40.1_linux_amd64.tar.gz
+                    echo '7f34ee83a7dd17addd1d029bc66ec06d91773a93172e3e1e30e0ec3a9f923fe2  /tmp/gh.tar.gz' | sha256sum -c -
+                    tar -xzf /tmp/gh.tar.gz -C /tmp
+                    install -m 0755 /tmp/gh_2.40.1_linux_amd64/bin/gh /opt/gh/gh
+                resources:
+                  requests:
+                    cpu: "5m"
+                    memory: "32Mi"
+                  limits:
+                    cpu: "100m"
+                    memory: "128Mi"
+                volumeMounts:
+                  - name: gh-bin
+                    mountPath: /opt/gh
             containers:
               - name: runner
                 image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
                 imagePullPolicy: IfNotPresent
                 command: ["/home/runner/run.sh"]
+                env:
+                  - name: PATH
+                    value: /opt/gh:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
                 resources:
                   requests:
                     cpu: "500m"
@@ -122,6 +151,13 @@ spec:
                   limits:
                     cpu: "2"
                     memory: "4Gi"
+                volumeMounts:
+                  - name: gh-bin
+                    mountPath: /opt/gh
+                    readOnly: true
+            volumes:
+              - name: gh-bin
+                emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
     namespace: arc-runners
@@ -232,6 +268,33 @@ spec:
                 volumeMounts:
                   - name: dind-externals
                     mountPath: /home/runner/tmpDir
+              # SC-77: the actions-runner image ships no gh. Fail-fast install
+              # of a pinned gh into an emptyDir the runner mounts at /opt/gh.
+              # Before dind on purpose: dind is a restartable init container and
+              # any init container placed after it waits for dockerd readiness.
+              - name: install-gh
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command:
+                  - /bin/bash
+                  - -c
+                  - |
+                    set -euo pipefail
+                    curl -fsSL --retry 3 -o /tmp/gh.tar.gz \
+                      https://github.com/cli/cli/releases/download/v2.40.1/gh_2.40.1_linux_amd64.tar.gz
+                    echo '7f34ee83a7dd17addd1d029bc66ec06d91773a93172e3e1e30e0ec3a9f923fe2  /tmp/gh.tar.gz' | sha256sum -c -
+                    tar -xzf /tmp/gh.tar.gz -C /tmp
+                    install -m 0755 /tmp/gh_2.40.1_linux_amd64/bin/gh /opt/gh/gh
+                resources:
+                  requests:
+                    cpu: "5m"
+                    memory: "32Mi"
+                  limits:
+                    cpu: "100m"
+                    memory: "128Mi"
+                volumeMounts:
+                  - name: gh-bin
+                    mountPath: /opt/gh
               - name: dind
                 image: docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c
                 imagePullPolicy: IfNotPresent
@@ -285,6 +348,10 @@ spec:
                 imagePullPolicy: IfNotPresent
                 command: ["/home/runner/run.sh"]
                 env:
+                  # The runner agent inherits the container env and builds each
+                  # step's PATH from its own, so /opt/gh reaches workflow steps.
+                  - name: PATH
+                    value: /opt/gh:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
                   - name: DOCKER_HOST
                     value: unix:///var/run/docker.sock
                   - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
@@ -304,7 +371,12 @@ spec:
                     mountPath: /home/runner/_work
                   - name: dind-sock
                     mountPath: /var/run
+                  - name: gh-bin
+                    mountPath: /opt/gh
+                    readOnly: true
             volumes:
+              - name: gh-bin
+                emptyDir: {}
               - name: work
                 emptyDir: {}
               - name: dind-sock
