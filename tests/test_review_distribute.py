@@ -171,6 +171,26 @@ class ReviewDistribute(unittest.TestCase):
         assert meta["changes_required"] is True and meta["findings"][0]["file"] == "src/db.py"
         assert "sekret-key-123" not in r.stdout + r.stderr
 
+    def dist(self) -> dict:
+        return json.loads((self.out / "distribute.json").read_text())
+
+    def test_distribute_json_records_each_step(self):
+        gh, gh_url = self.server()
+        brain, brain_url = self.server(code=404)
+        r = self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc", "--review-md", str(REVIEW),
+                            env={"GH_TOKEN": "t", "GITHUB_API_URL": gh_url,
+                                 "BRAIN_URL": brain_url, "BRAIN_CI_KEY": "k"})
+        assert r.returncode == 0
+        assert self.dist() == {"push_ingest": {"state": "degradado", "http": 404},
+                               "labels": {"state": "ok", "http": None}}
+
+    def test_distribute_json_without_key_and_on_rejection(self):
+        gh, gh_url = self.server(code=403)
+        assert self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc", "--review-md", str(REVIEW),
+                               env={"GH_TOKEN": "t", "GITHUB_API_URL": gh_url}).returncode == 4
+        assert self.dist() == {"push_ingest": {"state": "sin_clave", "http": None},
+                               "labels": {"state": "rechazado", "http": 403}}
+
     def test_brain_failure_degrades_exit_0(self):
         gh, gh_url = self.server()
         brain, brain_url = self.server(code=500)

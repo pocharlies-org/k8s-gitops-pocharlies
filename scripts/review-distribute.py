@@ -8,7 +8,9 @@ Writes, in this order and always (contract `pr_review.v1`, schemas/pr_review.v1.
     fails = degraded, exit 0
   3 GitHub labels `changes_required` / `possible security issue`, set or removed
     from the payload; no other label is ever touched
-  4 <out-dir>/notify.txt — plain text for humans. This script never calls
+  4 <out-dir>/distribute.json — what each step did (state ok|sin_clave|degradado|
+    rechazado|dry_run and the HTTP status); scripts/review-health.py counts it
+  5 <out-dir>/notify.txt — plain text for humans. This script never calls
     Telegram: the existing `avisar` job sends the file.
 
 Expected `--review-md` format (what INFRA-331 pins in PR-Agent `extra_instructions`).
@@ -79,10 +81,15 @@ class AuthError(Exception):
 
     def __init__(self, source: str, code: int):
         super().__init__(f"{source} respondió HTTP {code}")
+        self.code = code
 
 
 class Degraded(Exception):
-    pass
+    """Dependency down or answering 4xx/5xx other than 401/403; `code` is the HTTP status if any."""
+
+    def __init__(self, message: str, code: int | None = None):
+        super().__init__(message)
+        self.code = code
 
 
 # ── payload ─────────────────────────────────────────────────────────────────
@@ -195,7 +202,7 @@ def http(source: str, method: str, url: str, headers: dict[str, str],
             raise AuthError(source, exc.code) from None
         if exc.code == 404 and ok404:
             return
-        raise Degraded(f"{source}: HTTP {exc.code}") from None
+        raise Degraded(f"{source}: HTTP {exc.code}", exc.code) from None
     except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
         raise Degraded(f"{source}: {type(exc).__name__}") from None
 
@@ -265,6 +272,7 @@ def main(argv: list[str] | None = None) -> int:
     (out / "payload.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
 
     steps: list[str] = []
+    record: dict[str, Any] = {}  # .review/distribute.json: what review-health.py counts
     rc = 0
     # Two independent steps: labels are the primary channel to pr-watcher, so a
     # 401 from the brain must not skip them (and a 403 from GitHub must not skip
@@ -272,29 +280,39 @@ def main(argv: list[str] | None = None) -> int:
     key = os.environ.get("BRAIN_CI_KEY", "")
     if args.dry_run:
         steps.append("push-ingest: omitido (--dry-run)")
+        record["push_ingest"] = {"state": "dry_run", "http": None}
     elif not key:
         steps.append("push-ingest: omitido, degradado (sin BRAIN_CI_KEY)")
+        record["push_ingest"] = {"state": "sin_clave", "http": None}
     else:
         try:
             push_ingest(payload, os.environ.get("BRAIN_URL", DEFAULT_BRAIN_URL), key)
             steps.append("push-ingest: ok")
+            record["push_ingest"] = {"state": "ok", "http": None}
         except Degraded as exc:
             steps.append(f"push-ingest: degradado ({exc})")
+            record["push_ingest"] = {"state": "degradado", "http": exc.code}
         except AuthError as exc:
             steps.append(f"push-ingest: error: {exc} — credencial rechazada")
+            record["push_ingest"] = {"state": "rechazado", "http": exc.code}
             rc = 4
     if args.dry_run:
         steps.append(f"etiquetas: omitidas (--dry-run); {LABEL_CHANGES}={payload['changes_required']}, "
                      f"{LABEL_SECURITY}={payload['possible_security_issue']}")
+        record["labels"] = {"state": "dry_run", "http": None}
     else:
         try:
             sync_labels(payload, token)
             steps.append("etiquetas: ok")
+            record["labels"] = {"state": "ok", "http": None}
         except Degraded as exc:
             steps.append(f"etiquetas: degradado ({exc})")
+            record["labels"] = {"state": "degradado", "http": exc.code}
         except AuthError as exc:
             steps.append(f"etiquetas: error: {exc} — credencial rechazada")
+            record["labels"] = {"state": "rechazado", "http": exc.code}
             rc = 4
+    (out / "distribute.json").write_text(json.dumps(record, indent=2) + "\n")
     (out / "notify.txt").write_text(notify_text(payload))  # also on exit 4: humans must see it
     print(f"review-distribute: status={payload['status']} recomendación={payload['merge_recommendation']} "
           f"hallazgos={len(payload['findings'])}")

@@ -1,0 +1,116 @@
+# Señal de salud nocturna de la PR review (INFRA-333, P5b de INFRA-298).
+#
+# Mide, por repo, los ultimos 50 runs de `PR review`: rojo si mas del 20 % de las
+# reviews NO se hicieron (omitidas, o su distribucion al brain/etiquetas fallo con
+# 4xx/5xx) o si el ultimo run termino en failure (401/403). La regla vive en
+# scripts/review-health.py y sus casos de borde en tests/test_review_health.py.
+# Es la puerta de las oleadas del rollout (INFRA-334): una oleada no avanza con
+# esta senal en rojo.
+#
+# Runner arc-k8s; nada en el x86. Solo lee: `actions: read` sobre los repos medidos
+# (FRAMEWORK_REPO_TOKEN, el mismo secreto de lectura que ya usan los reusables).
+name: review-health
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      extra_repos:
+        description: "Repos extra a medir, owner/repo separados por coma (solo con engine: pr-agent)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: review-health
+  cancel-in-progress: false
+
+jobs:
+  repos:
+    name: Repos a medir
+    runs-on: arc-k8s
+    timeout-minutes: 2
+    outputs:
+      lista: ${{ steps.l.outputs.lista }}
+    steps:
+      - id: l
+        env:
+          EXTRA: ${{ inputs.extra_repos }}
+        run: |
+          set -uo pipefail
+          # Solo miden los repos con `engine: pr-agent` (los pilotos de INFRA-332):
+          # con `propio` no hay artefacto y saldrian en rojo sin motivo. Cada oleada
+          # de INFRA-334 anade aqui sus repos.
+          base='pocharlies-org/k8s-litellm-pocharlies pocharlies-org/skirmshop-labels'
+          lista="$(for r in $base ${EXTRA//,/ }; do
+            printf '%s\n' "$r" | grep -E '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'; done | sort -u | jq -R . | jq -sc .)"
+          echo "lista=$lista" >> "$GITHUB_OUTPUT"
+
+  salud:
+    name: Salud ${{ matrix.repo }}
+    needs: repos
+    runs-on: arc-k8s
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        repo: ${{ fromJSON(needs.repos.outputs.lista) }}
+    steps:
+      - name: Check out the framework
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Measure the review health
+        id: medir
+        env:
+          GH_TOKEN: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
+        run: |
+          set -uo pipefail
+          # --since: antes de esta fecha el registro de la review no se subia (directorio
+          # oculto, corregido en este mismo cambio): esos runs no dicen nada.
+          python3 scripts/review-health.py --repo "${{ matrix.repo }}" --since 2026-10-02T00:00:00Z \
+            --out "$RUNNER_TEMP/salud.md"
+          rc=$?
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          [ -f "$RUNNER_TEMP/salud.md" ] && cat "$RUNNER_TEMP/salud.md" >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
+
+      - name: Compose the notice
+        id: aviso
+        # rc 0 = verde: no se avisa. Cualquier otro codigo (3 rojo, 4 credencial,
+        # 2 uso) es un aviso, y el job ya queda en rojo por el paso anterior.
+        if: ${{ always() && steps.medir.outputs.rc != '0' }}
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_CI_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_CI_CHAT_ID }}
+          RC: ${{ steps.medir.outputs.rc }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          if [ -z "${TG_TOKEN}" ] || [ -z "${TG_CHAT}" ]; then
+            echo "::notice::sin secretos de Telegram; no se avisa"
+            exit 0
+          fi
+          {
+            echo "La revision de PR esta en rojo en ${{ matrix.repo }} (codigo ${RC:-sin medir})."
+            [ -f "$RUNNER_TEMP/salud.md" ] && grep -E '^- (ROJO|runs)' "$RUNNER_TEMP/salud.md" | head -c 600
+            echo "run: ${RUN_URL}"
+          } > "$RUNNER_TEMP/aviso.txt"
+          echo "hay=true" >> "$GITHUB_OUTPUT"
+
+      - name: Notify Telegram
+        if: ${{ always() && steps.aviso.outputs.hay == 'true' }}
+        continue-on-error: true
+        env:
+          NOTIFY_TOKEN: ${{ secrets.TELEGRAM_CI_BOT_TOKEN }}
+          NOTIFY_CHAT_ID: ${{ secrets.TELEGRAM_CI_CHAT_ID }}
+          NOTIFY_STATE: fallo
+          NOTIFY_TOPIC: ci
+          # Mismo escalon que reusable-pr-review.yml: el id del topic `ci` no abre nada por si solo.
+          NOTIFY_THREAD_ID: ${{ secrets.TELEGRAM_CI_THREAD_ID || '63' }}
+          NOTIFY_STRICT: 'true'
+        run: NOTIFY_TEXT="$(cat "$RUNNER_TEMP/aviso.txt")" python3 .github/actions/notify-telegram/notify_telegram.py
