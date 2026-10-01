@@ -124,9 +124,12 @@ class ConfigTest(unittest.TestCase):
         self.assertIs(data["github_action_config"]["auto_review"], True)
         self.assertIs(data["github_action_config"]["auto_improve"], True)
         self.assertIs(data["pr_reviewer"]["enable_review_labels_security"], False)
-        # INFRA-332 (rework qa, criterio 1): hallazgos en la línea (inline real = sugerencias).
+        # INFRA-332 (rework qa, criterio 1): intención de inline en /review (inerte en
+        # GitHub 0.46.0; el inline del contrato lo publica el CI por API).
         self.assertIs(data["pr_reviewer"]["inline_key_issues"], True)
-        self.assertEqual(data["pr_code_suggestions"]["suggestions_score_threshold"], 0)
+        # Seguimiento D del arquitecto: el umbral vuelve al 1 (default con el que nació el
+        # fichero, antes de #466); el inline del contrato lo publica el CI, no /improve.
+        self.assertEqual(data["pr_code_suggestions"]["suggestions_score_threshold"], 1)
         self.assertEqual(data["config"]["model"], "openai/alibaba-q38-flash")
         self.assertEqual(sorted(data["jira"]["project_keys"]), ["DGX", "INFRA", "OWU", "SC", "SKIRM"])
 
@@ -141,7 +144,7 @@ class ConfigTest(unittest.TestCase):
                                     ("github_action_config", "auto_review", "false"),
                                     ("pr_reviewer", "enable_review_labels_security", "true"),
                                     ("pr_reviewer", "inline_key_issues", "false"),
-                                    ("pr_code_suggestions", "suggestions_score_threshold", "1"),
+                                    ("pr_code_suggestions", "suggestions_score_threshold", "0"),
                                     ("config", "restricted_mode", "false"),
                                     ("config", "model", '"openai/tooling"'),
                                     ("config", "fallback_models", '["gpt-5.6-terra"]'),
@@ -166,9 +169,10 @@ class ConfigTest(unittest.TestCase):
                 self.assertIn(line.split(" ")[0], r.stdout)
 
     def test_missing_score_threshold_fails(self):
-        # Sin la línea, 0.46.0 usa su default (1): la sugerencia de contrato puntuada 0 por
-        # self_reflect se descarta y pulls/N/comments queda vacío (rework 2 de INFRA-332, #194).
-        text = CONFIG.read_text(encoding="utf-8").replace("suggestions_score_threshold = 0\n", "")
+        # Sin la línea el valor sería el default de 0.46.0 (1), que coincide: la política del
+        # fichero es declarar hasta los defaults, y una deriva a 0 apaga el filtro de calidad
+        # de /improve en todos los repos con `engine: pr-agent` (así llegó #466).
+        text = CONFIG.read_text(encoding="utf-8").replace("suggestions_score_threshold = 1\n", "")
         r = self.run_check(text)
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("suggestions_score_threshold", r.stdout)

@@ -46,13 +46,15 @@ REQUIRED = {
     ("github_action_config", "auto_review"): True,
     ("github_action_config", "auto_improve"): True,
     # Criterio 1 (INFRA-332): intención de inline en /review. En 0.46.0 es inerte en GitHub
-    # (el provider no implementa la verificación; run 36879060762) — el inline real sale por
-    # sugerencias con suggestions_score_threshold abajo.
+    # (el provider no implementa la verificación; run 36879060762) — el inline del contrato
+    # lo publica el CI por API (seguimiento D), no este flag ni las sugerencias.
     ("pr_reviewer", "inline_key_issues"): True,
-    # Criterio 1 (INFRA-332, rework 2): con el default (1), self_reflect puntúa la sugerencia
-    # de contrato con 0 y se descarta antes de publicar → pulls/N/comments vacío (medido en
-    # #187 y #194). 0 = se publican todas, incluida la de contrato, en su línea.
-    ("pr_code_suggestions", "suggestions_score_threshold"): 0,
+    # Seguimiento D del arquitecto (INFRA-332/333): vuelta al 1 (el default con el que nació
+    # el fichero; #466 lo bajó a 0 y llenaba las PRs de sugerencias flojas). El inline del
+    # hallazgo de contrato ya no pasa por aquí: lo publica el CI determinísticamente
+    # (review-context.py → review-distribute.py). Explícito aunque sea el default: deriva a
+    # 0 = filtro de calidad apagado, y el checker debe decirlo.
+    ("pr_code_suggestions", "suggestions_score_threshold"): 1,
     # Una sola etiqueta de seguridad (INFRA-298 comentario 17496): la de pr-watcher, no la de PR-Agent.
     ("pr_reviewer", "enable_review_labels_security"): False,
 }

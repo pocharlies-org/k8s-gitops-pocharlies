@@ -67,23 +67,26 @@ enable_review_labels_security = false
 # publishing is not verifiable for this provider; keeping findings in the review summary» —
 # GitHubProvider no implementa get_persistent_comment_bodies/get_recent_inline_comment_bodies
 # (inline_comment_dedup.can_verify_inline_comment_publication → False); solo Bitbucket y
-# Azure las tienen. En GitHub el inline de 0.46.0 sale por las sugerencias de /improve
-# (suggestions_score_threshold más abajo). Se deja en true: inofensiva hoy, activa el día que
-# upstream añada la verificación a GitHub. Es clave host-only por directorio (config_security.py).
+# Azure las tienen. El inline del hallazgo de contrato en GitHub no depende ya de PR-Agent:
+# lo publica el CI por la API (seguimiento D del arquitecto; ver suggestions_score_threshold
+# más abajo). Se deja en true: inofensiva hoy, activa el día que upstream añada la
+# verificación a GitHub. Es clave host-only por directorio (config_security.py).
 inline_key_issues = true
 
 [pr_code_suggestions]
 persistent_comment = true
 # Las sugerencias salen inline por publish_inline_comments (medido en #191: 2 inline).
 commitable_code_suggestions = true
-# INFRA-332 rework qa, criterio 1 — la causa real del #187/#194 sin inline: el modelo de
-# self_reflect_on_suggestions puntúa la sugerencia de contrato con 0 (no conoce la regla de la
-# casa: value de contrato activo no muta) y el umbral por defecto (1) la descarta antes de
-# publicar («Removing suggestions 0 … score_threshold is 1», run 36879060762). Con 0 se
-# publican todas las sugerencias que generate emite, incluida la de contrato, en su línea.
-# El coste es ruido: las sugerencias flojas que la reflexión marcaba también salen; la review
-# sigue resumiendo en la tabla.
-suggestions_score_threshold = 0
+# Vuelta al valor con el que nació el fichero (default de 0.46.0; #466 lo bajó a 0 y el
+# seguimiento D del arquitecto lo revierte): con 0 se publicaban TODAS las sugerencias que
+# generate emite, incluidas las flojas que self_reflect_on_suggestions marcaba con 0 — ruido
+# en todos los repos con `engine: pr-agent`. El motivo de aquel 0 era que la sugerencia de
+# contrato se filtraba y el hallazgo no salía en la línea: ya no hace falta, porque el
+# comentario en línea del contrato lo publica el CI de forma determinista (review-context.py
+# → review-distribute.py, marcador `<!--contrato:…-->`), sin depender de que el modelo
+# obedezca ni de que la reflexión le ponga nota. El filtro de calidad vuelve a valer.
+# Se deja explícito (no borrado): la política del fichero es declarar hasta los defaults.
+suggestions_score_threshold = 1
 # Con el rpm de la key, varios chunks en paralelo más la reflexión dan 429.
 max_number_of_calls = 1
 parallel_calls = false
@@ -99,8 +102,8 @@ artifact_label = "Contexto del CI (hechos verificados, no opiniones)"
 artifact_instructions = """
 Este bloque lo genera el CI y solo contiene HECHOS: no inventes contratos, consumidores ni tickets que no aparezcan aquí o en el diff.
 1. Contratos. Si «Contratos tocados» lista una entrada de CONTRACTS.yaml cuyo value cambió, y ni «Trailers Contract-Change» trae un trailer con ese id ni hay el hecho «bloque exception», es una ruptura de contrato de severidad ALTA: en esta casa lo existente no muta (un cambio incompatible es una entrada nueva .vN+1 y la vieja pasa a deprecated).
-   - Sugerencia de código (obligatoria, es la vía inline en GitHub): emite SIEMPRE una sugerencia sobre la línea del value en CONTRACTS.yaml que empiece por «Severidad alta · contrato <id>», nombre los consumidores que «Consumidores del registry» lista para ese id (si no lista ninguno, escribe «el registry no lista consumidores») y proponga restaurar el value y añadir la entrada .vN+1. Esta sugerencia NO es opcional ni discutible aunque el cambio parezca intencional: la regla de la casa es que el value de una entrada activa no muta.
-   - En la review: ponlo además como PRIMER punto clave (key issue) con relevant_file = la ruta de CONTRACTS.yaml y las líneas del value cambiado, con el mismo id y los mismos consumidores.
+   - NO emitas una sugerencia de código para este hallazgo: el CI ya lo publica como comentario en línea sobre la línea del value, de forma determinista y con los consumidores del registry. Repetirlo en /improve es ruido.
+   - En la review: ponlo como PRIMER punto clave (key issue) con relevant_file = la ruta de CONTRACTS.yaml y las líneas del value cambiado, con el mismo id y los mismos consumidores que «Consumidores del registry» lista para ese id (si no lista ninguno, escribe «el registry no lista consumidores»).
 2. Ticket. Si «Tickets Jira citados en el PR» dice «ninguno», añade en la review un punto clave titulado exactamente «sin criterios de aceptación que verificar», con «Severidad media» en el texto: el PR no cita ninguna clave Jira y no hay criterios de aceptación contra los que comprobarlo. Si cita alguna, no añadas ese punto.
 3. PRs que solapan, memoria local-ops y degradaciones: contexto; menciónalos solo si cambian lo que hay que revisar.
 """

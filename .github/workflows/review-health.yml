@@ -1,11 +1,16 @@
 # Señal de salud nocturna de la PR review (INFRA-333, P5b de INFRA-298).
 #
-# Mide, por repo, los ultimos 50 runs de `PR review`: rojo si mas del 20 % de las
-# reviews NO se hicieron (omitidas, o su distribucion al brain/etiquetas fallo con
+# Mide, por repo, los runs de `PR review` de la ultimas 24 h (la ventana se calcula, no va
+# fija en el YAML; tope 50 runs): rojo si mas del 20 % de las reviews NO se hicieron
+# (omitidas, o su distribucion al brain/etiquetas fallo con
 # 4xx/5xx) o si el ultimo run termino en failure (401/403). La regla vive en
 # scripts/review-health.py y sus casos de borde en tests/test_review_health.py.
 # Es la puerta de las oleadas del rollout (INFRA-334): una oleada no avanza con
 # esta senal en rojo.
+#
+# La lista de repos NO esta aqui: se lee de `.github/pr-agent-repos.txt`, la unica lista de
+# los repos con `engine: pr-agent` (seguimiento D del arquitecto, INFRA-332/333: que no
+# queden dos listas).
 #
 # Runner arc-k8s; nada en el x86. Solo lee: `actions: read` sobre los repos medidos
 # (FRAMEWORK_REPO_TOKEN, el mismo secreto de lectura que ya usan los reusables).
@@ -32,20 +37,28 @@ jobs:
   repos:
     name: Repos a medir
     runs-on: arc-k8s
-    timeout-minutes: 2
+    timeout-minutes: 5
     outputs:
       lista: ${{ steps.l.outputs.lista }}
     steps:
+      - name: Check out the framework
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
       - id: l
         env:
           EXTRA: ${{ inputs.extra_repos }}
         run: |
           set -uo pipefail
-          # Solo miden los repos con `engine: pr-agent` (los pilotos de INFRA-332):
-          # con `propio` no hay artefacto y saldrian en rojo sin motivo. Cada oleada
-          # de INFRA-334 anade aqui sus repos.
-          base='pocharlies-org/k8s-litellm-pocharlies pocharlies-org/skirmshop-labels'
-          lista="$(for r in $base ${EXTRA//,/ }; do
+          # La lista de los repos con `engine: pr-agent` (los unicos medibles: con `propio`
+          # no hay artefacto y saldrian en rojo sin motivo) vive en
+          # .github/pr-agent-repos.txt; aqui solo se lee. Cada oleada de INFRA-334 la
+          # amplifica en ese fichero.
+          [ -s .github/pr-agent-repos.txt ] || {
+            echo "::error::.github/pr-agent-repos.txt ausente o vacio: sin lista no hay señal"
+            exit 1; }
+          lista="$(for r in $(grep -Ev '^[[:space:]]*(#|$)' .github/pr-agent-repos.txt) ${EXTRA//,/ }; do
             printf '%s\n' "$r" | grep -E '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'; done | sort -u | jq -R . | jq -sc .)"
           echo "lista=$lista" >> "$GITHUB_OUTPUT"
 
@@ -70,9 +83,12 @@ jobs:
           GH_TOKEN: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
         run: |
           set -uo pipefail
-          # --since: antes de esta fecha el registro de la review no se subia (directorio
-          # oculto, corregido en este mismo cambio): esos runs no dicen nada.
-          python3 scripts/review-health.py --repo "${{ matrix.repo }}" --since 2026-10-02T00:00:00Z \
+          # Ventana calculada, no una fecha fija en el YAML (seguimiento D del arquitecto):
+          # las ultimas 24 h = desde la ultima ejecucion del cron nocturno. Los runs fuera
+          # de la ventana son `ajenos` (no dicen nada de lo de ayer) y el tope de runs lo
+          # pone el script (50).
+          since="$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
+          python3 scripts/review-health.py --repo "${{ matrix.repo }}" --since "$since" \
             --out "$RUNNER_TEMP/salud.md"
           rc=$?
           echo "rc=$rc" >> "$GITHUB_OUTPUT"

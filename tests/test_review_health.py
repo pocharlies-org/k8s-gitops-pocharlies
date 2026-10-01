@@ -11,6 +11,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -135,6 +136,45 @@ class Rule(unittest.TestCase):
         runs, arts = make(10, 0)
         runs[5]["conclusion"] = "failure"
         assert self.ev(runs, arts)["red"] == []
+
+    def test_inline_contract_step_is_not_an_omission(self):
+        # el paso nuevo de review-distribute.py (inline de contratos) vive en distribute.json
+        # pero no entra en la regla: la señal mide la review, no cada comentario.
+        bad = {"payload.json": {"status": "ok"},
+               "distribute.json": {"push_ingest": {"state": "ok"}, "labels": {"state": "ok"},
+                                   "inline_contract_findings": {"state": "degradado", "http": 500}}}
+        ev = self.ev(*make(10, 0, bad))
+        assert ev["omitted"] == 0 and ev["red"] == []
+
+
+class WorkflowShape(unittest.TestCase):
+    """El YAML de la señal nocturna: lista única y ventana calculada (seguimiento D)."""
+
+    WF = (ROOT / ".github/workflows/review-health.yml").read_text()
+    LIST = (ROOT / ".github/pr-agent-repos.txt").read_text()
+
+    def test_no_fixed_since_date_in_yaml(self):
+        assert "2026-10-02" not in self.WF
+        assert "--since 2026" not in self.WF
+        assert "date -u -d '24 hours ago'" in self.WF  # la ventana se calcula
+        assert '--since "$since"' in self.WF           # y llega al script como variable
+
+    def test_repo_list_comes_from_the_single_file(self):
+        assert ".github/pr-agent-repos.txt" in self.WF
+        # la lista fija del job `repos` ya no está: ni un `base=` con repos escritos
+        assert "base='pocharlies-org/" not in self.WF
+        assert "pocharlies-org/skirmshop-labels" not in self.WF  # solo vive en el fichero
+
+    def test_pr_agent_repos_file_is_the_only_list(self):
+        repos = [line.strip() for line in self.LIST.splitlines()
+                 if line.strip() and not line.strip().startswith("#")]
+        assert all(re.fullmatch(r"[\w.-]+/[\w.-]+", r) for r in repos), repos
+        assert "pocharlies-org/k8s-litellm-pocharlies" in repos
+        assert "pocharlies-org/skirmshop-labels" in repos
+        assert len(repos) == len(set(repos))
+        # y no hay una segunda lista en el propio workflow
+        for r in repos:
+            assert self.WF.count(r) == 0, f"{r} duplicado en review-health.yml"
 
 
 class Selection(unittest.TestCase):

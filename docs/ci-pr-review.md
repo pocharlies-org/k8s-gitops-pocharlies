@@ -13,8 +13,15 @@ Registry de Synapse, solo lectura y offline (sin `/search/code`, que da 429):
     python scripts/review-context.py --base origin/main --head HEAD \
         --registry _synapse/libs/synapse-contracts/registry.yaml --out .review/context.md
 
+Además de context.md escribe `contract-findings.json` junto a `--out`: los hallazgos de contrato
+deterministas — `value` mutado in situ, sin trailer `Contract-Change` del id y sin bloque `exception` —
+con fichero, línea del value en head, valores viejo/nuevo, consumidores y cuerpo del comentario. Es la
+señal de entrada del inline publicado por `review-distribute.py` (seguimiento D del arquitecto): el
+hallazgo no depende de que el modelo obedezca.
+
 Entorno: `GH_TOKEN` (PRs abiertas), `BRAIN_URL`, `BRAIN_CI_KEY` (sin ella la memoria va a Degradaciones).
 Salidas: 0 (también degradado), 2 uso inválido, 4 si una API responde 401/403. `--dry-run` no usa git ni red.
+El HTTP (AuthError/Degraded/cliente) es común a los tres scripts del motor: `scripts/review_http.py`.
 Tests: `python3 -m unittest tests/test_review_context.py`.
 
 # PR review: configuración de PR-Agent y secretos por repo (INFRA-331)
@@ -36,9 +43,16 @@ una credencial o un endpoint, o, con `--upstream`, si una clave no existe en esa
 contra el fichero upstream fijado por commit y sha256. El workflow que monte el fichero debe correrlo antes
 de lanzar PR-Agent.
 
-`auto_improve` va encendido (decisión 5 del CTO): con 0.46.0 los hallazgos en la línea de código solo salen
-por `/improve` (`/review` no publica inline), e improve no toca título ni cuerpo de la PR. `auto_describe`
-sigue apagado hasta F3.
+`auto_improve` va encendido (decisión 5 del CTO): e improve no toca título ni cuerpo de la PR.
+`auto_describe` sigue apagado hasta F3.
+
+El inline del hallazgo de contrato NO pasa por PR-Agent: lo publica el CI por la API de GitHub
+(`review-context.py` → `review-distribute.py`, marcador `<!--contrato:…-->`, anclado a la línea del
+value en head, idempotente entre pushes). Por eso `suggestions_score_threshold` vale 1 (el default con
+el que nació el fichero; #466 lo bajó a 0 y publicaba todas las sugerencias, también las flojas que
+`self_reflect_on_suggestions` puntuaba 0 — ruido en todos los repos `engine: pr-agent`). El filtro de
+calidad vuelve a valer; `artifact_instructions` pide ahora al modelo NO repetir el hallazgo como
+sugerencia y dejarlo como primer key issue en la tabla de la review.
 
 Equivalencias con los nombres del encargo: «output_language» es `config.response_language = "es-ES"`;
 «enable_persistent_comments» es `persistent_comment = true` en `[pr_reviewer]` y `[pr_code_suggestions]`;
@@ -65,7 +79,8 @@ separada de `ci-review-bot` (equipo `ci-review`, 3 rpm / 120 000 tpm).
 
 `.github/workflows/reusable-pr-review.yml` tiene dos motores. `engine: propio` (por defecto) es `review.py`,
 sin cambios: lo siguen usando los 108 repos de la plantilla hasta INFRA-334. `engine: pr-agent` lo encienden
-solo los pilotos (`k8s-litellm-pocharlies`, `skirmshop-labels`), en su `.github/workflows/pr-review.yml`:
+solo los pilotos, en su `.github/workflows/pr-review.yml`; la lista operativa de esos repos es
+`.github/pr-agent-repos.txt` (única: la mide la señal nocturna y la siguen las oleadas de INFRA-334):
 
     uses: pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-pr-review.yml@main
     with:
@@ -76,7 +91,8 @@ Job `revisar_pr_agent`, en orden: pull de la imagen de Harbor por digest (en seg
 fichero montado** (`check-pr-agent-config.py` dentro de la imagen fijada, contra su `configuration.toml`;
 si falla, el motor no se lanza y el job queda verde con `status: skipped`) → PR-Agent (`docker run`, el
 contexto le llega por `ARTIFACT_PATH` y las instrucciones de `[artifacts]` del `.toml`) → distribución
-(`review-distribute.py` con el markdown de `push_outputs`) → artefacto `.review/` (14 días) → veredicto.
+(`review-distribute.py` con el markdown de `push_outputs`, las etiquetas, el push-ingest y el inline
+determinista de `contract-findings.json`) → artefacto `.review/` (14 días) → veredicto.
 
 Permisos del job: `contents: read` + `pull-requests: write`. No `issues: write`: un job llamado que pide un
 permiso que el llamador no concede tumba el run entero al arrancar, y la plantilla no lo concede;
@@ -97,9 +113,11 @@ linux/amd64). La vigila la entrada `pr-agent` de `dgx-infra ci/update-watch.yaml
 ## Señal de salud nocturna (`review-health.yml`, INFRA-333)
 
 `.github/workflows/review-health.yml` (cron 03:17 UTC + `workflow_dispatch`, runner `arc-k8s`) corre
-`scripts/review-health.py` sobre cada repo con `engine: pr-agent` (hoy `k8s-litellm-pocharlies` y `skirmshop-labels`;
-cada oleada de INFRA-334 añade los suyos a la lista del job `repos`, o se pasan en `extra_repos`). Lee los últimos 50 runs de
-`PR review` y el artefacto `pr-review-<pr>-<intento>` de cada uno (`payload.json` + `distribute.json`).
+`scripts/review-health.py` sobre cada repo de `.github/pr-agent-repos.txt` (la única lista de los
+`engine: pr-agent`; cada oleada de INFRA-334 añade su repo ahí, y `extra_repos` solo vale para un
+dispatch puntual). Lee los runs de `PR review` de las últimas 24 h —la ventana la calcula el workflow
+(`date -u -d '24 hours ago'`), no hay fecha fija en el YAML— hasta 50, y el artefacto
+`pr-review-<pr>-<intento>` de cada uno (`payload.json` + `distribute.json`).
 
 - **Omitido** = sin artefacto dentro de la retención (14 d), `status` ≠ `ok`, o push-ingest/etiquetas `degradado`
   (el brain o GitHub dieron 4xx/5xx) o `rechazado` (401/403). Cuenta una vez por run.
