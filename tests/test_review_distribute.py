@@ -15,6 +15,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import urllib.parse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -34,6 +35,30 @@ class _Server(http.server.BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(n)) if n else None
         self.server.calls.append((self.command, self.path, body, dict(self.headers)))
         self.send_response(self.server.code)
+        self.end_headers()
+        self.wfile.write(b"{}")
+
+    do_POST = do_DELETE = _do
+
+    def log_message(self, *a):
+        pass
+
+
+class _Labels(http.server.BaseHTTPRequestHandler):
+    """GitHub with state: POST adds a label, DELETE removes it (404 if absent)."""
+
+    def _do(self):
+        n = int(self.headers.get("Content-Length", 0))
+        body = json.loads(self.rfile.read(n)) if n else None
+        labels = self.server.labels
+        code = 200
+        if self.command == "POST":
+            labels.update(body["labels"])
+        else:
+            name = urllib.parse.unquote(self.path.rsplit("/", 1)[1])
+            code = 200 if name in labels else 404
+            labels.discard(name)
+        self.send_response(code)
         self.end_headers()
         self.wfile.write(b"{}")
 
@@ -140,6 +165,53 @@ class ReviewDistribute(unittest.TestCase):
         calls = [(m, p, b) for m, p, b, _ in srv.calls]
         assert ("POST", "/repos/o/r/issues/7/labels", {"labels": ["changes_required"]}) in calls
         assert ("POST", "/repos/o/r/issues/7/labels", {"labels": ["possible security issue"]}) in calls
+
+    def stale_labels(self, review: Path | None, extra=()):
+        """Run live against a GitHub that already has both labels on the PR; return (rc, labels left)."""
+        srv = http.server.HTTPServer(("127.0.0.1", 0), _Labels)
+        srv.labels = {"changes_required", "possible security issue", "bug"}
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        self.addCleanup(srv.shutdown)
+        self.addCleanup(srv.server_close)
+        args = ["--repo", "o/r", "--pr", "7", "--head-sha", "abc", *extra]
+        if review:
+            args += ["--review-md", str(review)]
+        r = self.run_script(*args, env={"GH_TOKEN": "t", "GITHUB_API_URL": f"http://127.0.0.1:{srv.server_port}"})
+        return r.returncode, srv.labels
+
+    def test_status_not_ok_removes_stale_labels_and_payload_is_false(self):
+        # INFRA-353 relies on this: a changes_required left by an earlier green review
+        # must not survive a run whose review did not happen.
+        self.out.parent.mkdir(parents=True, exist_ok=True)
+        empty = self.out.parent / "empty.md"
+        empty.write_text("\n")
+        blank = self.out.parent / "blank.md"
+        blank.write_text("   \n\t\n")
+        for name, review, status in (("degraded-empty", empty, "degraded"),
+                                     ("degraded-blank", blank, "degraded"),
+                                     ("skipped-missing", self.out.parent / "nope.md", "skipped"),
+                                     ("skipped-no-flag", None, "skipped")):
+            with self.subTest(name):
+                rc, labels = self.stale_labels(review)
+                assert rc == 0
+                assert labels == {"bug"}, labels  # both ours gone, the foreign one untouched
+                p = self.payload()
+                assert p["status"] == status and p["changes_required"] is False
+                assert p["possible_security_issue"] is False and p["merge_recommendation"] == "unknown"
+
+    def test_status_ok_keeps_the_labels_the_review_asks_for(self):
+        rc, labels = self.stale_labels(REVIEW)
+        assert rc == 0 and labels == {"changes_required", "possible security issue", "bug"}
+
+    def test_invariants_reject_blocking_payload_with_status_not_ok(self):
+        p = self.dry()
+        for status in ("degraded", "skipped"):
+            bad = {**p, "status": status}  # still says changes_required
+            assert rd.invariants(bad), status
+        assert rd.invariants({**p, "status": "degraded", "merge_recommendation": "unknown",
+                              "changes_required": False, "possible_security_issue": True})
+        assert rd.invariants({**p, "changes_required": False})  # recommendation says it is required
+        assert rd.invariants(p) == []
 
     def test_labels_removed_when_review_clean(self):
         f = self.out.parent / "ok.md"
