@@ -132,7 +132,10 @@ def escanear(repo: Path, formatos: list[str], ignorar: list[str],
         str(repo),
     ]
     try:
-        r = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, timeout=600)
+        # cwd fuera del repo: dentro, `npx` lee el package.json del repo y sus `overrides` rompen la
+        # instalación del detector (openchamber, 01-10-2026: «Override for @codemirror/autocomplete …
+        # conflicts with direct dependency»). El repo va como argumento; no hace falta estar dentro.
+        r = subprocess.run(cmd, cwd=outdir, capture_output=True, text=True, timeout=600)
     except FileNotFoundError:
         fracaso("no hay `npx` en el PATH: el runner necesita Node "
                 "(en arc-k8s lo baja el propio reusable, ver reusable-duplicados.yml)")
