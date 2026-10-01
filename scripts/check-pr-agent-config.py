@@ -45,9 +45,14 @@ REQUIRED = {
     # con pr_reviewer.inline_key_issues — criterio 1, rework qa de INFRA-332.)
     ("github_action_config", "auto_review"): True,
     ("github_action_config", "auto_improve"): True,
-    # Criterio 1 (INFRA-332): los puntos clave de la review, incluido el hallazgo de contrato,
-    # tienen que publicarse en la línea; sin declararla, 0.46.0 la deja en false.
+    # Criterio 1 (INFRA-332): intención de inline en /review. En 0.46.0 es inerte en GitHub
+    # (el provider no implementa la verificación; run 36879060762) — el inline real sale por
+    # sugerencias con suggestions_score_threshold abajo.
     ("pr_reviewer", "inline_key_issues"): True,
+    # Criterio 1 (INFRA-332, rework 2): con el default (1), self_reflect puntúa la sugerencia
+    # de contrato con 0 y se descarta antes de publicar → pulls/N/comments vacío (medido en
+    # #187 y #194). 0 = se publican todas, incluida la de contrato, en su línea.
+    ("pr_code_suggestions", "suggestions_score_threshold"): 0,
     # Una sola etiqueta de seguridad (INFRA-298 comentario 17496): la de pr-watcher, no la de PR-Agent.
     ("pr_reviewer", "enable_review_labels_security"): False,
 }
