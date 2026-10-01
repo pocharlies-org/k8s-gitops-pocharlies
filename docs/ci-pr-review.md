@@ -93,3 +93,18 @@ credenciales; con ellos, ninguno (sí puede cambiar ajustes no críticos, p. ej.
 
 Imagen: `harbor.e-dani.com/homelab/pr-agent:0.46.0-github_action@sha256:42c7833a…` (espejo del manifiesto
 linux/amd64). La vigila la entrada `pr-agent` de `dgx-infra ci/update-watch.yaml` (aviso, sin PR automático).
+
+## Señal de salud nocturna (`review-health.yml`, INFRA-333)
+
+`.github/workflows/review-health.yml` (cron 03:17 UTC + `workflow_dispatch`, runner `arc-k8s`) corre
+`scripts/review-health.py` sobre cada repo con `engine: pr-agent` (hoy `k8s-litellm-pocharlies` y `skirmshop-labels`;
+cada oleada de INFRA-334 añade los suyos a la lista del job `repos`, o se pasan en `extra_repos`). Lee los últimos 50 runs de
+`PR review` y el artefacto `pr-review-<pr>-<intento>` de cada uno (`payload.json` + `distribute.json`).
+
+- **Omitido** = sin artefacto dentro de la retención (14 d), `status` ≠ `ok`, o push-ingest/etiquetas `degradado`
+  (el brain o GitHub dieron 4xx/5xx) o `rechazado` (401/403). Cuenta una vez por run.
+- **Rojo** (job en rojo + aviso al topic `ci`) si omitidos > 20 % de los runs medibles (10 de 50 es verde, 11 es rojo; con
+  menos de 50 runs, sobre los que haya) o si el último run terminó en `failure` (credencial rota).
+- **No cuentan**: runs sin el motor PR-Agent (`engine: propio`, forks), anteriores a `--since`, sin datos por retención, y
+  `push_ingest: sin_clave` (falta `BRAIN_CI_KEY`, SC-1400): se informa aparte como dependencia.
+- Si no se puede medir (GitHub caído) sale 3, no verde. Es la puerta de cada oleada de INFRA-334.

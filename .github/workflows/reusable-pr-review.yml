@@ -632,6 +632,9 @@ jobs:
         with:
           name: pr-review-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
           path: .review/
+          # `.review/` es un directorio oculto: sin esto upload-artifact (v4+) no
+          # sube nada y scripts/review-health.py no ve ningun run (INFRA-333).
+          include-hidden-files: true
           retention-days: 14
           if-no-files-found: ignore
 
