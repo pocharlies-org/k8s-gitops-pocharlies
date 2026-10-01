@@ -124,8 +124,9 @@ class ConfigTest(unittest.TestCase):
         self.assertIs(data["github_action_config"]["auto_review"], True)
         self.assertIs(data["github_action_config"]["auto_improve"], True)
         self.assertIs(data["pr_reviewer"]["enable_review_labels_security"], False)
-        # INFRA-332 (rework qa, criterio 1): hallazgos de la review en la línea.
+        # INFRA-332 (rework qa, criterio 1): hallazgos en la línea (inline real = sugerencias).
         self.assertIs(data["pr_reviewer"]["inline_key_issues"], True)
+        self.assertEqual(data["pr_code_suggestions"]["suggestions_score_threshold"], 0)
         self.assertEqual(data["config"]["model"], "openai/alibaba-q38-flash")
         self.assertEqual(sorted(data["jira"]["project_keys"]), ["DGX", "INFRA", "OWU", "SC", "SKIRM"])
 
@@ -140,6 +141,7 @@ class ConfigTest(unittest.TestCase):
                                     ("github_action_config", "auto_review", "false"),
                                     ("pr_reviewer", "enable_review_labels_security", "true"),
                                     ("pr_reviewer", "inline_key_issues", "false"),
+                                    ("pr_code_suggestions", "suggestions_score_threshold", "1"),
                                     ("config", "restricted_mode", "false"),
                                     ("config", "model", '"openai/tooling"'),
                                     ("config", "fallback_models", '["gpt-5.6-terra"]'),
@@ -162,6 +164,14 @@ class ConfigTest(unittest.TestCase):
                 r = self.run_check(text)
                 self.assertEqual(r.returncode, 1, r.stdout)
                 self.assertIn(line.split(" ")[0], r.stdout)
+
+    def test_missing_score_threshold_fails(self):
+        # Sin la línea, 0.46.0 usa su default (1): la sugerencia de contrato puntuada 0 por
+        # self_reflect se descarta y pulls/N/comments queda vacío (rework 2 de INFRA-332, #194).
+        text = CONFIG.read_text(encoding="utf-8").replace("suggestions_score_threshold = 0\n", "")
+        r = self.run_check(text)
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("suggestions_score_threshold", r.stdout)
 
     def test_credentials_in_file_fail(self):
         for section, key in [("openai", "key"), ("jira", "jira_api_token"),
