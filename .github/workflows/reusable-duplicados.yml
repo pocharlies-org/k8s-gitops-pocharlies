@@ -77,6 +77,10 @@ jobs:
           persist-credentials: false
 
       - name: Check out the duplicados framework
+        id: fw1
+        # Si el token no alcanza el framework (02-10: pocharlies-org/hermes-agent, fork público
+        # sin FRAMEWORK_REPO_TOKEN, «could not read Username»), el paso siguiente lo trae anónimo.
+        continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # Mismo truco que pr-review: `job.workflow_*` no es contexto
@@ -88,6 +92,18 @@ jobs:
           token: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
           persist-credentials: false
           path: .duplicados-framework
+
+      - name: Check out the duplicados framework (anónimo, el framework es público)
+        if: ${{ steps.fw1.outcome == 'failure' }}
+        env:
+          FW_REPO: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
+          FW_REF: ${{ job.workflow_sha || 'main' }}
+        run: |
+          set -euo pipefail
+          rm -rf .duplicados-framework
+          git init -q .duplicados-framework
+          git -C .duplicados-framework fetch -q --depth=1 "https://github.com/${FW_REPO}.git" "$FW_REF"
+          git -C .duplicados-framework checkout -q FETCH_HEAD
 
       - name: Resolve the diff range
         env:

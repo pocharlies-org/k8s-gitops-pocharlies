@@ -201,7 +201,11 @@ jobs:
           persist-credentials: false
 
       - name: Check out the review framework
+        id: fw1
         if: ${{ steps.guarda.outputs.fork != 'true' }}
+        # Si el token no alcanza el framework (02-10: pocharlies-org/hermes-agent, fork público
+        # sin FRAMEWORK_REPO_TOKEN, «could not read Username»), el paso siguiente lo trae anónimo.
+        continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # `job.workflow_repository` / `job.workflow_sha` no son contexto
@@ -213,6 +217,18 @@ jobs:
           token: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
           persist-credentials: false
           path: .llm-review-framework
+
+      - name: Check out the review framework (anónimo, el framework es público)
+        if: ${{ steps.guarda.outputs.fork != 'true' && steps.fw1.outcome == 'failure' }}
+        env:
+          FW_REPO: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
+          FW_REF: ${{ job.workflow_sha || 'main' }}
+        run: |
+          set -euo pipefail
+          rm -rf .llm-review-framework
+          git init -q .llm-review-framework
+          git -C .llm-review-framework fetch -q --depth=1 "https://github.com/${FW_REPO}.git" "$FW_REF"
+          git -C .llm-review-framework checkout -q FETCH_HEAD
 
       - name: Compute the diff
         if: ${{ steps.guarda.outputs.fork != 'true' }}
@@ -370,7 +386,11 @@ jobs:
           persist-credentials: false
 
       - name: Check out the review framework
+        id: fw2
         if: ${{ steps.guarda.outputs.fork != 'true' }}
+        # Si el token no alcanza el framework (02-10: pocharlies-org/hermes-agent, fork público
+        # sin FRAMEWORK_REPO_TOKEN, «could not read Username»), el paso siguiente lo trae anónimo.
+        continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
@@ -378,6 +398,18 @@ jobs:
           token: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
           persist-credentials: false
           path: .llm-review-framework
+
+      - name: Check out the review framework (anónimo, el framework es público)
+        if: ${{ steps.guarda.outputs.fork != 'true' && steps.fw2.outcome == 'failure' }}
+        env:
+          FW_REPO: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
+          FW_REF: ${{ job.workflow_sha || 'main' }}
+        run: |
+          set -euo pipefail
+          rm -rf .llm-review-framework
+          git init -q .llm-review-framework
+          git -C .llm-review-framework fetch -q --depth=1 "https://github.com/${FW_REPO}.git" "$FW_REF"
+          git -C .llm-review-framework checkout -q FETCH_HEAD
 
       # Registro de Synapse para la seccion «Consumidores del registry». Synapse
       # es privado: sin un token que lo alcance el checkout falla y
@@ -739,6 +771,10 @@ jobs:
           persist-credentials: false
 
       - name: Check out the review framework
+        id: fw3
+        # Si el token no alcanza el framework (02-10: pocharlies-org/hermes-agent, fork público
+        # sin FRAMEWORK_REPO_TOKEN, «could not read Username»), el paso siguiente lo trae anónimo.
+        continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
@@ -746,6 +782,18 @@ jobs:
           token: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
           persist-credentials: false
           path: .llm-review-framework
+
+      - name: Check out the review framework (anónimo, el framework es público)
+        if: ${{ steps.fw3.outcome == 'failure' }}
+        env:
+          FW_REPO: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
+          FW_REF: ${{ job.workflow_sha || 'main' }}
+        run: |
+          set -euo pipefail
+          rm -rf .llm-review-framework
+          git init -q .llm-review-framework
+          git -C .llm-review-framework fetch -q --depth=1 "https://github.com/${FW_REPO}.git" "$FW_REF"
+          git -C .llm-review-framework checkout -q FETCH_HEAD
 
       - name: Compute the diff
         run: |
@@ -810,6 +858,10 @@ jobs:
       contents: read
     steps:
       - name: Check out the review framework
+        id: fw4
+        # Si el token no alcanza el framework (02-10: pocharlies-org/hermes-agent, fork público
+        # sin FRAMEWORK_REPO_TOKEN, «could not read Username»), el paso siguiente lo trae anónimo.
+        continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
@@ -817,6 +869,18 @@ jobs:
           token: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
           persist-credentials: false
           path: .llm-review-framework
+
+      - name: Check out the review framework (anónimo, el framework es público)
+        if: ${{ steps.fw4.outcome == 'failure' }}
+        env:
+          FW_REPO: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
+          FW_REF: ${{ job.workflow_sha || 'main' }}
+        run: |
+          set -euo pipefail
+          rm -rf .llm-review-framework
+          git init -q .llm-review-framework
+          git -C .llm-review-framework fetch -q --depth=1 "https://github.com/${FW_REPO}.git" "$FW_REF"
+          git -C .llm-review-framework checkout -q FETCH_HEAD
 
       - name: Compose the notice
         id: componer
