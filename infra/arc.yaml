@@ -480,11 +480,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-opsafe
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -641,11 +641,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-synapse-client
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -802,11 +802,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-libreplay
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -963,11 +963,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-mcp-17track
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -1124,11 +1124,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-mcp-aimharder
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -1285,11 +1285,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-mcp-brain-search
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -1446,11 +1446,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-mcp-dgx
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -1607,11 +1607,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-bambulab-openclaw
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -1768,11 +1768,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-pocharlies-openclaw
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -1929,11 +1929,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-mcp-telegram
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -2090,11 +2090,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-mcp-instagram
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -2251,11 +2251,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-sauvageclubbot
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -2418,11 +2418,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-deepseek-flash
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -2585,11 +2585,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-jarvis
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -2752,11 +2752,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-k3s-gitops
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -2919,11 +2919,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-llm-status
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -3086,11 +3086,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-llm-status-ios
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -3253,11 +3253,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-n8n-k8s
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -3420,11 +3420,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-n8n-backups
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -3587,11 +3587,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-aiops
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -3754,11 +3754,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-qwen27b
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -3921,11 +3921,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-qwen-sglang
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -4088,11 +4088,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-qwen-nvfp4
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -4255,11 +4255,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-shared-infra
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
@@ -4422,11 +4422,11 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-systems
+    namespace: arc-personal-trisplit
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
