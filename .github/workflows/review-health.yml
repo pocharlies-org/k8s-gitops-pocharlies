@@ -12,8 +12,11 @@
 # los repos con `engine: pr-agent` (seguimiento D del arquitecto, INFRA-332/333: que no
 # queden dos listas).
 #
-# Runner arc-k8s; nada en el x86. Solo lee: `actions: read` sobre los repos medidos
-# (FRAMEWORK_REPO_TOKEN, el mismo secreto de lectura que ya usan los reusables).
+# Runner arc-k8s; nada en el x86. Solo lee: token de instalacion de la GitHub App
+# `pocharlies-dashboard-ro` (app-id 3818825, permisos actions/contents/metadata read sobre
+# toda la org; INFRA-419 tras la retirada de FRAMEWORK_REPO_TOKEN en INFRA-412 — el
+# github.token no ve los repos privados). La clave privada vive en el secreto de repo
+# REVIEW_HEALTH_APP_PRIVATE_KEY; nunca un PAT personal.
 name: review-health
 
 on:
@@ -77,10 +80,19 @@ jobs:
         with:
           persist-credentials: false
 
+      # Token efimero (1 h) de la App de solo lectura de la org; sin secreto el job falla
+      # aqui, en claro, en lugar de medir 404s contra los repos privados (INFRA-419).
+      - name: Read-only installation token
+        id: token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: 3818825
+          private-key: ${{ secrets.REVIEW_HEALTH_APP_PRIVATE_KEY }}
+
       - name: Measure the review health
         id: medir
         env:
-          GH_TOKEN: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
+          GH_TOKEN: ${{ steps.token.outputs.token }}
         run: |
           set -uo pipefail
           # Ventana calculada, no una fecha fija en el YAML (seguimiento D del arquitecto):
