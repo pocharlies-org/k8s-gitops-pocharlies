@@ -12,7 +12,8 @@ from the artifact `pr-review-<pr>-<attempt>` each one uploads, decides per run:
   ok       anything else. `push_ingest: sin_clave` (BRAIN_CI_KEY not distributed yet,
            SC-1400) is NOT an omission: it is reported apart as a dependency.
   ajeno    the run did not execute the PR-Agent engine (`engine: propio`, a fork, a skipped
-           job) or predates --since: it says nothing about this review. Left out of the ratio.
+           job), predates --since, or is a deliberate contract test (marker `PRUEBA` in the
+           run title, SC-1592): it says nothing about this review. Left out of the ratio.
   expirado the run is older than the artifact retention (14 d): no data, left out of
            both sides of the ratio (it is neither omitted nor ok).
 
@@ -71,6 +72,12 @@ def select_runs(runs: list[dict[str, Any]], jobs: dict[int, list[dict[str, Any]]
     picked, foreign = [], 0
     for r in runs:
         if r.get("conclusion") not in MEASURED:
+            continue
+        # SC-1592: las pruebas deliberadas del contrato INFRA-332 llevan el marcador PRUEBA en
+        # el titulo del run y no dejan artefacto pr-review-*: no dicen nada de la review real,
+        # son ajenas (como un run sin motor), no omisiones.
+        if "PRUEBA" in (r.get("display_title") or ""):
+            foreign += 1
             continue
         created = datetime.fromisoformat(r["created_at"].replace("Z", "+00:00"))
         if (since and created < since) or not engine_ran(jobs.get(r["id"], [])):
