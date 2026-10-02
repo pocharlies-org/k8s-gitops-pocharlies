@@ -88,6 +88,8 @@ jobs:
         with:
           app-id: 3818825
           private-key: ${{ secrets.REVIEW_HEALTH_APP_PRIVATE_KEY }}
+          # sin `owner`, v3 acota el token al repo actual y los demas dan 404
+          owner: pocharlies-org
 
       - name: Measure the review health
         id: medir
