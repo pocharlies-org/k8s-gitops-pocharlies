@@ -488,3 +488,2186 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+---
+# SC-1571 · replica del patron SC-1568 (arc-personal-opsafe) a los 13 repos de la
+# cuenta personal pocharlies cuyos checks "Review del PR" (runs-on: arc-k8s)
+# llevaban en cola desde 2026-10-01T21:53Z: el runner solo existia en la org
+# pocharlies-org. Mismo secret (arc-github-pat-secret, verificado 201 en los 13
+# repos), mismo template DinD, maxRunners 1 por repo (un check por PR), ns
+# arc-systems (donde vive el PAT). runnerScaleSetName arc-k8s: probado sin
+# colision con el de la org en el POC de op-safe.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-personal-deepseek-flash
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-personal-deepseek-flash
+      values: |
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-pat-secret
+        githubConfigUrl: https://github.com/pocharlies/deepseek-v4-flash-rank1-refusal-projection
+        maxRunners: 1
+        minRunners: 0
+        runnerScaleSetName: arc-k8s
+        template:
+          spec:
+            affinity:
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            tolerations:
+              - effect: PreferNoSchedule
+                key: pool
+                operator: Equal
+                value: dev
+            # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
+            # container. containerMode must stay unset when that sidecar is
+            # customized, otherwise Helm silently discards its resources.
+            initContainers:
+              - name: init-dind-externals
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                # Keep command and args explicit.  The pre-GitOps Helm manager
+                # still owns the args field in the live ARS; a full command
+                # plus those retained args executes cp twice and recursively
+                # copies tmpDir into itself.
+                command: ["cp"]
+                args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+                resources:
+                  requests:
+                    # Scheduling reservation only; the 100m limit preserves
+                    # burst capacity while avoiding false KS5 CPU exhaustion.
+                    cpu: "5m"
+                    memory: "32Mi"
+                  limits:
+                    cpu: "100m"
+                    memory: "128Mi"
+                volumeMounts:
+                  - name: dind-externals
+                    mountPath: /home/runner/tmpDir
+              - name: dind
+                image: docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c
+                imagePullPolicy: IfNotPresent
+                args:
+                  - dockerd
+                  - --host=unix:///var/run/docker.sock
+                  - --group=$(DOCKER_GROUP_GID)
+                  # dockerd defaults its bridge to 1500, but the pod network
+                  # runs at 1230 (tailnet/WireGuard overhead). Build containers
+                  # then emit frames the pod route cannot carry: the connection
+                  # opens and the headers arrive, so small requests look fine,
+                  # while any large transfer stalls until the step times out.
+                  # It only shows on nodes whose egress does not rescue it with
+                  # PMTU discovery, so it reads as a flaky runner rather than a
+                  # config bug -- a 30 min hang on `apt-get update` on ks5 and a
+                  # clean build on sauvage, same commit. Keep in step with the
+                  # CNI: `kubectl exec -n arc-runners <runner> -c runner --
+                  # cat /sys/class/net/eth0/mtu`.
+                  - --mtu=1230
+                env:
+                  - name: DOCKER_GROUP_GID
+                    value: "123"
+                restartPolicy: Always
+                resources:
+                  requests:
+                    # DinD is idle while a runner waits for a job. Reserve its
+                    # steady-state footprint and retain the 2-core burst limit.
+                    cpu: "50m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                securityContext:
+                  privileged: true
+                startupProbe:
+                  exec:
+                    command: ["docker", "info"]
+                  initialDelaySeconds: 0
+                  failureThreshold: 24
+                  periodSeconds: 5
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+                  - name: dind-externals
+                    mountPath: /home/runner/externals
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["/home/runner/run.sh"]
+                env:
+                  - name: DOCKER_HOST
+                    value: unix:///var/run/docker.sock
+                  - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+                    value: "120"
+                resources:
+                  requests:
+                    # ARC runners are ephemeral and burst-bound. A small CPU
+                    # request lets two anti-affine runners schedule on KS5;
+                    # the unchanged 2-core limit protects build throughput.
+                    cpu: "100m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+            volumes:
+              - name: work
+                emptyDir: {}
+              - name: dind-sock
+                emptyDir: {}
+              - name: dind-externals
+                emptyDir: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-systems
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+---
+# SC-1571 · replica del patron SC-1568 (arc-personal-opsafe) a los 13 repos de la
+# cuenta personal pocharlies cuyos checks "Review del PR" (runs-on: arc-k8s)
+# llevaban en cola desde 2026-10-01T21:53Z: el runner solo existia en la org
+# pocharlies-org. Mismo secret (arc-github-pat-secret, verificado 201 en los 13
+# repos), mismo template DinD, maxRunners 1 por repo (un check por PR), ns
+# arc-systems (donde vive el PAT). runnerScaleSetName arc-k8s: probado sin
+# colision con el de la org en el POC de op-safe.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-personal-jarvis
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-personal-jarvis
+      values: |
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-pat-secret
+        githubConfigUrl: https://github.com/pocharlies/jarvis
+        maxRunners: 1
+        minRunners: 0
+        runnerScaleSetName: arc-k8s
+        template:
+          spec:
+            affinity:
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            tolerations:
+              - effect: PreferNoSchedule
+                key: pool
+                operator: Equal
+                value: dev
+            # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
+            # container. containerMode must stay unset when that sidecar is
+            # customized, otherwise Helm silently discards its resources.
+            initContainers:
+              - name: init-dind-externals
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                # Keep command and args explicit.  The pre-GitOps Helm manager
+                # still owns the args field in the live ARS; a full command
+                # plus those retained args executes cp twice and recursively
+                # copies tmpDir into itself.
+                command: ["cp"]
+                args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+                resources:
+                  requests:
+                    # Scheduling reservation only; the 100m limit preserves
+                    # burst capacity while avoiding false KS5 CPU exhaustion.
+                    cpu: "5m"
+                    memory: "32Mi"
+                  limits:
+                    cpu: "100m"
+                    memory: "128Mi"
+                volumeMounts:
+                  - name: dind-externals
+                    mountPath: /home/runner/tmpDir
+              - name: dind
+                image: docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c
+                imagePullPolicy: IfNotPresent
+                args:
+                  - dockerd
+                  - --host=unix:///var/run/docker.sock
+                  - --group=$(DOCKER_GROUP_GID)
+                  # dockerd defaults its bridge to 1500, but the pod network
+                  # runs at 1230 (tailnet/WireGuard overhead). Build containers
+                  # then emit frames the pod route cannot carry: the connection
+                  # opens and the headers arrive, so small requests look fine,
+                  # while any large transfer stalls until the step times out.
+                  # It only shows on nodes whose egress does not rescue it with
+                  # PMTU discovery, so it reads as a flaky runner rather than a
+                  # config bug -- a 30 min hang on `apt-get update` on ks5 and a
+                  # clean build on sauvage, same commit. Keep in step with the
+                  # CNI: `kubectl exec -n arc-runners <runner> -c runner --
+                  # cat /sys/class/net/eth0/mtu`.
+                  - --mtu=1230
+                env:
+                  - name: DOCKER_GROUP_GID
+                    value: "123"
+                restartPolicy: Always
+                resources:
+                  requests:
+                    # DinD is idle while a runner waits for a job. Reserve its
+                    # steady-state footprint and retain the 2-core burst limit.
+                    cpu: "50m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                securityContext:
+                  privileged: true
+                startupProbe:
+                  exec:
+                    command: ["docker", "info"]
+                  initialDelaySeconds: 0
+                  failureThreshold: 24
+                  periodSeconds: 5
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+                  - name: dind-externals
+                    mountPath: /home/runner/externals
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["/home/runner/run.sh"]
+                env:
+                  - name: DOCKER_HOST
+                    value: unix:///var/run/docker.sock
+                  - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+                    value: "120"
+                resources:
+                  requests:
+                    # ARC runners are ephemeral and burst-bound. A small CPU
+                    # request lets two anti-affine runners schedule on KS5;
+                    # the unchanged 2-core limit protects build throughput.
+                    cpu: "100m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+            volumes:
+              - name: work
+                emptyDir: {}
+              - name: dind-sock
+                emptyDir: {}
+              - name: dind-externals
+                emptyDir: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-systems
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+---
+# SC-1571 · replica del patron SC-1568 (arc-personal-opsafe) a los 13 repos de la
+# cuenta personal pocharlies cuyos checks "Review del PR" (runs-on: arc-k8s)
+# llevaban en cola desde 2026-10-01T21:53Z: el runner solo existia en la org
+# pocharlies-org. Mismo secret (arc-github-pat-secret, verificado 201 en los 13
+# repos), mismo template DinD, maxRunners 1 por repo (un check por PR), ns
+# arc-systems (donde vive el PAT). runnerScaleSetName arc-k8s: probado sin
+# colision con el de la org en el POC de op-safe.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-personal-k3s-gitops
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-personal-k3s-gitops
+      values: |
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-pat-secret
+        githubConfigUrl: https://github.com/pocharlies/k3s-gitops
+        maxRunners: 1
+        minRunners: 0
+        runnerScaleSetName: arc-k8s
+        template:
+          spec:
+            affinity:
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            tolerations:
+              - effect: PreferNoSchedule
+                key: pool
+                operator: Equal
+                value: dev
+            # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
+            # container. containerMode must stay unset when that sidecar is
+            # customized, otherwise Helm silently discards its resources.
+            initContainers:
+              - name: init-dind-externals
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                # Keep command and args explicit.  The pre-GitOps Helm manager
+                # still owns the args field in the live ARS; a full command
+                # plus those retained args executes cp twice and recursively
+                # copies tmpDir into itself.
+                command: ["cp"]
+                args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+                resources:
+                  requests:
+                    # Scheduling reservation only; the 100m limit preserves
+                    # burst capacity while avoiding false KS5 CPU exhaustion.
+                    cpu: "5m"
+                    memory: "32Mi"
+                  limits:
+                    cpu: "100m"
+                    memory: "128Mi"
+                volumeMounts:
+                  - name: dind-externals
+                    mountPath: /home/runner/tmpDir
+              - name: dind
+                image: docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c
+                imagePullPolicy: IfNotPresent
+                args:
+                  - dockerd
+                  - --host=unix:///var/run/docker.sock
+                  - --group=$(DOCKER_GROUP_GID)
+                  # dockerd defaults its bridge to 1500, but the pod network
+                  # runs at 1230 (tailnet/WireGuard overhead). Build containers
+                  # then emit frames the pod route cannot carry: the connection
+                  # opens and the headers arrive, so small requests look fine,
+                  # while any large transfer stalls until the step times out.
+                  # It only shows on nodes whose egress does not rescue it with
+                  # PMTU discovery, so it reads as a flaky runner rather than a
+                  # config bug -- a 30 min hang on `apt-get update` on ks5 and a
+                  # clean build on sauvage, same commit. Keep in step with the
+                  # CNI: `kubectl exec -n arc-runners <runner> -c runner --
+                  # cat /sys/class/net/eth0/mtu`.
+                  - --mtu=1230
+                env:
+                  - name: DOCKER_GROUP_GID
+                    value: "123"
+                restartPolicy: Always
+                resources:
+                  requests:
+                    # DinD is idle while a runner waits for a job. Reserve its
+                    # steady-state footprint and retain the 2-core burst limit.
+                    cpu: "50m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                securityContext:
+                  privileged: true
+                startupProbe:
+                  exec:
+                    command: ["docker", "info"]
+                  initialDelaySeconds: 0
+                  failureThreshold: 24
+                  periodSeconds: 5
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+                  - name: dind-externals
+                    mountPath: /home/runner/externals
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["/home/runner/run.sh"]
+                env:
+                  - name: DOCKER_HOST
+                    value: unix:///var/run/docker.sock
+                  - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+                    value: "120"
+                resources:
+                  requests:
+                    # ARC runners are ephemeral and burst-bound. A small CPU
+                    # request lets two anti-affine runners schedule on KS5;
+                    # the unchanged 2-core limit protects build throughput.
+                    cpu: "100m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+            volumes:
+              - name: work
+                emptyDir: {}
+              - name: dind-sock
+                emptyDir: {}
+              - name: dind-externals
+                emptyDir: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-systems
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+---
+# SC-1571 · replica del patron SC-1568 (arc-personal-opsafe) a los 13 repos de la
+# cuenta personal pocharlies cuyos checks "Review del PR" (runs-on: arc-k8s)
+# llevaban en cola desde 2026-10-01T21:53Z: el runner solo existia en la org
+# pocharlies-org. Mismo secret (arc-github-pat-secret, verificado 201 en los 13
+# repos), mismo template DinD, maxRunners 1 por repo (un check por PR), ns
+# arc-systems (donde vive el PAT). runnerScaleSetName arc-k8s: probado sin
+# colision con el de la org en el POC de op-safe.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-personal-llm-status
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-personal-llm-status
+      values: |
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-pat-secret
+        githubConfigUrl: https://github.com/pocharlies/llm-status
+        maxRunners: 1
+        minRunners: 0
+        runnerScaleSetName: arc-k8s
+        template:
+          spec:
+            affinity:
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            tolerations:
+              - effect: PreferNoSchedule
+                key: pool
+                operator: Equal
+                value: dev
+            # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
+            # container. containerMode must stay unset when that sidecar is
+            # customized, otherwise Helm silently discards its resources.
+            initContainers:
+              - name: init-dind-externals
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                # Keep command and args explicit.  The pre-GitOps Helm manager
+                # still owns the args field in the live ARS; a full command
+                # plus those retained args executes cp twice and recursively
+                # copies tmpDir into itself.
+                command: ["cp"]
+                args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+                resources:
+                  requests:
+                    # Scheduling reservation only; the 100m limit preserves
+                    # burst capacity while avoiding false KS5 CPU exhaustion.
+                    cpu: "5m"
+                    memory: "32Mi"
+                  limits:
+                    cpu: "100m"
+                    memory: "128Mi"
+                volumeMounts:
+                  - name: dind-externals
+                    mountPath: /home/runner/tmpDir
+              - name: dind
+                image: docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c
+                imagePullPolicy: IfNotPresent
+                args:
+                  - dockerd
+                  - --host=unix:///var/run/docker.sock
+                  - --group=$(DOCKER_GROUP_GID)
+                  # dockerd defaults its bridge to 1500, but the pod network
+                  # runs at 1230 (tailnet/WireGuard overhead). Build containers
+                  # then emit frames the pod route cannot carry: the connection
+                  # opens and the headers arrive, so small requests look fine,
+                  # while any large transfer stalls until the step times out.
+                  # It only shows on nodes whose egress does not rescue it with
+                  # PMTU discovery, so it reads as a flaky runner rather than a
+                  # config bug -- a 30 min hang on `apt-get update` on ks5 and a
+                  # clean build on sauvage, same commit. Keep in step with the
+                  # CNI: `kubectl exec -n arc-runners <runner> -c runner --
+                  # cat /sys/class/net/eth0/mtu`.
+                  - --mtu=1230
+                env:
+                  - name: DOCKER_GROUP_GID
+                    value: "123"
+                restartPolicy: Always
+                resources:
+                  requests:
+                    # DinD is idle while a runner waits for a job. Reserve its
+                    # steady-state footprint and retain the 2-core burst limit.
+                    cpu: "50m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                securityContext:
+                  privileged: true
+                startupProbe:
+                  exec:
+                    command: ["docker", "info"]
+                  initialDelaySeconds: 0
+                  failureThreshold: 24
+                  periodSeconds: 5
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+                  - name: dind-externals
+                    mountPath: /home/runner/externals
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["/home/runner/run.sh"]
+                env:
+                  - name: DOCKER_HOST
+                    value: unix:///var/run/docker.sock
+                  - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+                    value: "120"
+                resources:
+                  requests:
+                    # ARC runners are ephemeral and burst-bound. A small CPU
+                    # request lets two anti-affine runners schedule on KS5;
+                    # the unchanged 2-core limit protects build throughput.
+                    cpu: "100m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+            volumes:
+              - name: work
+                emptyDir: {}
+              - name: dind-sock
+                emptyDir: {}
+              - name: dind-externals
+                emptyDir: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-systems
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+---
+# SC-1571 · replica del patron SC-1568 (arc-personal-opsafe) a los 13 repos de la
+# cuenta personal pocharlies cuyos checks "Review del PR" (runs-on: arc-k8s)
+# llevaban en cola desde 2026-10-01T21:53Z: el runner solo existia en la org
+# pocharlies-org. Mismo secret (arc-github-pat-secret, verificado 201 en los 13
+# repos), mismo template DinD, maxRunners 1 por repo (un check por PR), ns
+# arc-systems (donde vive el PAT). runnerScaleSetName arc-k8s: probado sin
+# colision con el de la org en el POC de op-safe.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-personal-llm-status-ios
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-personal-llm-status-ios
+      values: |
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-pat-secret
+        githubConfigUrl: https://github.com/pocharlies/llm-status-ios
+        maxRunners: 1
+        minRunners: 0
+        runnerScaleSetName: arc-k8s
+        template:
+          spec:
+            affinity:
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            tolerations:
+              - effect: PreferNoSchedule
+                key: pool
+                operator: Equal
+                value: dev
+            # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
+            # container. containerMode must stay unset when that sidecar is
+            # customized, otherwise Helm silently discards its resources.
+            initContainers:
+              - name: init-dind-externals
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                # Keep command and args explicit.  The pre-GitOps Helm manager
+                # still owns the args field in the live ARS; a full command
+                # plus those retained args executes cp twice and recursively
+                # copies tmpDir into itself.
+                command: ["cp"]
+                args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+                resources:
+                  requests:
+                    # Scheduling reservation only; the 100m limit preserves
+                    # burst capacity while avoiding false KS5 CPU exhaustion.
+                    cpu: "5m"
+                    memory: "32Mi"
+                  limits:
+                    cpu: "100m"
+                    memory: "128Mi"
+                volumeMounts:
+                  - name: dind-externals
+                    mountPath: /home/runner/tmpDir
+              - name: dind
+                image: docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c
+                imagePullPolicy: IfNotPresent
+                args:
+                  - dockerd
+                  - --host=unix:///var/run/docker.sock
+                  - --group=$(DOCKER_GROUP_GID)
+                  # dockerd defaults its bridge to 1500, but the pod network
+                  # runs at 1230 (tailnet/WireGuard overhead). Build containers
+                  # then emit frames the pod route cannot carry: the connection
+                  # opens and the headers arrive, so small requests look fine,
+                  # while any large transfer stalls until the step times out.
+                  # It only shows on nodes whose egress does not rescue it with
+                  # PMTU discovery, so it reads as a flaky runner rather than a
+                  # config bug -- a 30 min hang on `apt-get update` on ks5 and a
+                  # clean build on sauvage, same commit. Keep in step with the
+                  # CNI: `kubectl exec -n arc-runners <runner> -c runner --
+                  # cat /sys/class/net/eth0/mtu`.
+                  - --mtu=1230
+                env:
+                  - name: DOCKER_GROUP_GID
+                    value: "123"
+                restartPolicy: Always
+                resources:
+                  requests:
+                    # DinD is idle while a runner waits for a job. Reserve its
+                    # steady-state footprint and retain the 2-core burst limit.
+                    cpu: "50m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                securityContext:
+                  privileged: true
+                startupProbe:
+                  exec:
+                    command: ["docker", "info"]
+                  initialDelaySeconds: 0
+                  failureThreshold: 24
+                  periodSeconds: 5
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+                  - name: dind-externals
+                    mountPath: /home/runner/externals
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["/home/runner/run.sh"]
+                env:
+                  - name: DOCKER_HOST
+                    value: unix:///var/run/docker.sock
+                  - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+                    value: "120"
+                resources:
+                  requests:
+                    # ARC runners are ephemeral and burst-bound. A small CPU
+                    # request lets two anti-affine runners schedule on KS5;
+                    # the unchanged 2-core limit protects build throughput.
+                    cpu: "100m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+            volumes:
+              - name: work
+                emptyDir: {}
+              - name: dind-sock
+                emptyDir: {}
+              - name: dind-externals
+                emptyDir: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-systems
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+---
+# SC-1571 · replica del patron SC-1568 (arc-personal-opsafe) a los 13 repos de la
+# cuenta personal pocharlies cuyos checks "Review del PR" (runs-on: arc-k8s)
+# llevaban en cola desde 2026-10-01T21:53Z: el runner solo existia en la org
+# pocharlies-org. Mismo secret (arc-github-pat-secret, verificado 201 en los 13
+# repos), mismo template DinD, maxRunners 1 por repo (un check por PR), ns
+# arc-systems (donde vive el PAT). runnerScaleSetName arc-k8s: probado sin
+# colision con el de la org en el POC de op-safe.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-personal-n8n-k8s
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-personal-n8n-k8s
+      values: |
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-pat-secret
+        githubConfigUrl: https://github.com/pocharlies/n8n-k8s
+        maxRunners: 1
+        minRunners: 0
+        runnerScaleSetName: arc-k8s
+        template:
+          spec:
+            affinity:
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            tolerations:
+              - effect: PreferNoSchedule
+                key: pool
+                operator: Equal
+                value: dev
+            # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
+            # container. containerMode must stay unset when that sidecar is
+            # customized, otherwise Helm silently discards its resources.
+            initContainers:
+              - name: init-dind-externals
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                # Keep command and args explicit.  The pre-GitOps Helm manager
+                # still owns the args field in the live ARS; a full command
+                # plus those retained args executes cp twice and recursively
+                # copies tmpDir into itself.
+                command: ["cp"]
+                args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+                resources:
+                  requests:
+                    # Scheduling reservation only; the 100m limit preserves
+                    # burst capacity while avoiding false KS5 CPU exhaustion.
+                    cpu: "5m"
+                    memory: "32Mi"
+                  limits:
+                    cpu: "100m"
+                    memory: "128Mi"
+                volumeMounts:
+                  - name: dind-externals
+                    mountPath: /home/runner/tmpDir
+              - name: dind
+                image: docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c
+                imagePullPolicy: IfNotPresent
+                args:
+                  - dockerd
+                  - --host=unix:///var/run/docker.sock
+                  - --group=$(DOCKER_GROUP_GID)
+                  # dockerd defaults its bridge to 1500, but the pod network
+                  # runs at 1230 (tailnet/WireGuard overhead). Build containers
+                  # then emit frames the pod route cannot carry: the connection
+                  # opens and the headers arrive, so small requests look fine,
+                  # while any large transfer stalls until the step times out.
+                  # It only shows on nodes whose egress does not rescue it with
+                  # PMTU discovery, so it reads as a flaky runner rather than a
+                  # config bug -- a 30 min hang on `apt-get update` on ks5 and a
+                  # clean build on sauvage, same commit. Keep in step with the
+                  # CNI: `kubectl exec -n arc-runners <runner> -c runner --
+                  # cat /sys/class/net/eth0/mtu`.
+                  - --mtu=1230
+                env:
+                  - name: DOCKER_GROUP_GID
+                    value: "123"
+                restartPolicy: Always
+                resources:
+                  requests:
+                    # DinD is idle while a runner waits for a job. Reserve its
+                    # steady-state footprint and retain the 2-core burst limit.
+                    cpu: "50m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                securityContext:
+                  privileged: true
+                startupProbe:
+                  exec:
+                    command: ["docker", "info"]
+                  initialDelaySeconds: 0
+                  failureThreshold: 24
+                  periodSeconds: 5
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+                  - name: dind-externals
+                    mountPath: /home/runner/externals
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["/home/runner/run.sh"]
+                env:
+                  - name: DOCKER_HOST
+                    value: unix:///var/run/docker.sock
+                  - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+                    value: "120"
+                resources:
+                  requests:
+                    # ARC runners are ephemeral and burst-bound. A small CPU
+                    # request lets two anti-affine runners schedule on KS5;
+                    # the unchanged 2-core limit protects build throughput.
+                    cpu: "100m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+            volumes:
+              - name: work
+                emptyDir: {}
+              - name: dind-sock
+                emptyDir: {}
+              - name: dind-externals
+                emptyDir: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-systems
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+---
+# SC-1571 · replica del patron SC-1568 (arc-personal-opsafe) a los 13 repos de la
+# cuenta personal pocharlies cuyos checks "Review del PR" (runs-on: arc-k8s)
+# llevaban en cola desde 2026-10-01T21:53Z: el runner solo existia en la org
+# pocharlies-org. Mismo secret (arc-github-pat-secret, verificado 201 en los 13
+# repos), mismo template DinD, maxRunners 1 por repo (un check por PR), ns
+# arc-systems (donde vive el PAT). runnerScaleSetName arc-k8s: probado sin
+# colision con el de la org en el POC de op-safe.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-personal-n8n-backups
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-personal-n8n-backups
+      values: |
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-pat-secret
+        githubConfigUrl: https://github.com/pocharlies/n8n-workflow-backups
+        maxRunners: 1
+        minRunners: 0
+        runnerScaleSetName: arc-k8s
+        template:
+          spec:
+            affinity:
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            tolerations:
+              - effect: PreferNoSchedule
+                key: pool
+                operator: Equal
+                value: dev
+            # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
+            # container. containerMode must stay unset when that sidecar is
+            # customized, otherwise Helm silently discards its resources.
+            initContainers:
+              - name: init-dind-externals
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                # Keep command and args explicit.  The pre-GitOps Helm manager
+                # still owns the args field in the live ARS; a full command
+                # plus those retained args executes cp twice and recursively
+                # copies tmpDir into itself.
+                command: ["cp"]
+                args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+                resources:
+                  requests:
+                    # Scheduling reservation only; the 100m limit preserves
+                    # burst capacity while avoiding false KS5 CPU exhaustion.
+                    cpu: "5m"
+                    memory: "32Mi"
+                  limits:
+                    cpu: "100m"
+                    memory: "128Mi"
+                volumeMounts:
+                  - name: dind-externals
+                    mountPath: /home/runner/tmpDir
+              - name: dind
+                image: docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c
+                imagePullPolicy: IfNotPresent
+                args:
+                  - dockerd
+                  - --host=unix:///var/run/docker.sock
+                  - --group=$(DOCKER_GROUP_GID)
+                  # dockerd defaults its bridge to 1500, but the pod network
+                  # runs at 1230 (tailnet/WireGuard overhead). Build containers
+                  # then emit frames the pod route cannot carry: the connection
+                  # opens and the headers arrive, so small requests look fine,
+                  # while any large transfer stalls until the step times out.
+                  # It only shows on nodes whose egress does not rescue it with
+                  # PMTU discovery, so it reads as a flaky runner rather than a
+                  # config bug -- a 30 min hang on `apt-get update` on ks5 and a
+                  # clean build on sauvage, same commit. Keep in step with the
+                  # CNI: `kubectl exec -n arc-runners <runner> -c runner --
+                  # cat /sys/class/net/eth0/mtu`.
+                  - --mtu=1230
+                env:
+                  - name: DOCKER_GROUP_GID
+                    value: "123"
+                restartPolicy: Always
+                resources:
+                  requests:
+                    # DinD is idle while a runner waits for a job. Reserve its
+                    # steady-state footprint and retain the 2-core burst limit.
+                    cpu: "50m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                securityContext:
+                  privileged: true
+                startupProbe:
+                  exec:
+                    command: ["docker", "info"]
+                  initialDelaySeconds: 0
+                  failureThreshold: 24
+                  periodSeconds: 5
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+                  - name: dind-externals
+                    mountPath: /home/runner/externals
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["/home/runner/run.sh"]
+                env:
+                  - name: DOCKER_HOST
+                    value: unix:///var/run/docker.sock
+                  - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+                    value: "120"
+                resources:
+                  requests:
+                    # ARC runners are ephemeral and burst-bound. A small CPU
+                    # request lets two anti-affine runners schedule on KS5;
+                    # the unchanged 2-core limit protects build throughput.
+                    cpu: "100m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+            volumes:
+              - name: work
+                emptyDir: {}
+              - name: dind-sock
+                emptyDir: {}
+              - name: dind-externals
+                emptyDir: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-systems
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+---
+# SC-1571 · replica del patron SC-1568 (arc-personal-opsafe) a los 13 repos de la
+# cuenta personal pocharlies cuyos checks "Review del PR" (runs-on: arc-k8s)
+# llevaban en cola desde 2026-10-01T21:53Z: el runner solo existia en la org
+# pocharlies-org. Mismo secret (arc-github-pat-secret, verificado 201 en los 13
+# repos), mismo template DinD, maxRunners 1 por repo (un check por PR), ns
+# arc-systems (donde vive el PAT). runnerScaleSetName arc-k8s: probado sin
+# colision con el de la org en el POC de op-safe.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-personal-aiops
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-personal-aiops
+      values: |
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-pat-secret
+        githubConfigUrl: https://github.com/pocharlies/pocharlies-aiops
+        maxRunners: 1
+        minRunners: 0
+        runnerScaleSetName: arc-k8s
+        template:
+          spec:
+            affinity:
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            tolerations:
+              - effect: PreferNoSchedule
+                key: pool
+                operator: Equal
+                value: dev
+            # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
+            # container. containerMode must stay unset when that sidecar is
+            # customized, otherwise Helm silently discards its resources.
+            initContainers:
+              - name: init-dind-externals
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                # Keep command and args explicit.  The pre-GitOps Helm manager
+                # still owns the args field in the live ARS; a full command
+                # plus those retained args executes cp twice and recursively
+                # copies tmpDir into itself.
+                command: ["cp"]
+                args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+                resources:
+                  requests:
+                    # Scheduling reservation only; the 100m limit preserves
+                    # burst capacity while avoiding false KS5 CPU exhaustion.
+                    cpu: "5m"
+                    memory: "32Mi"
+                  limits:
+                    cpu: "100m"
+                    memory: "128Mi"
+                volumeMounts:
+                  - name: dind-externals
+                    mountPath: /home/runner/tmpDir
+              - name: dind
+                image: docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c
+                imagePullPolicy: IfNotPresent
+                args:
+                  - dockerd
+                  - --host=unix:///var/run/docker.sock
+                  - --group=$(DOCKER_GROUP_GID)
+                  # dockerd defaults its bridge to 1500, but the pod network
+                  # runs at 1230 (tailnet/WireGuard overhead). Build containers
+                  # then emit frames the pod route cannot carry: the connection
+                  # opens and the headers arrive, so small requests look fine,
+                  # while any large transfer stalls until the step times out.
+                  # It only shows on nodes whose egress does not rescue it with
+                  # PMTU discovery, so it reads as a flaky runner rather than a
+                  # config bug -- a 30 min hang on `apt-get update` on ks5 and a
+                  # clean build on sauvage, same commit. Keep in step with the
+                  # CNI: `kubectl exec -n arc-runners <runner> -c runner --
+                  # cat /sys/class/net/eth0/mtu`.
+                  - --mtu=1230
+                env:
+                  - name: DOCKER_GROUP_GID
+                    value: "123"
+                restartPolicy: Always
+                resources:
+                  requests:
+                    # DinD is idle while a runner waits for a job. Reserve its
+                    # steady-state footprint and retain the 2-core burst limit.
+                    cpu: "50m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                securityContext:
+                  privileged: true
+                startupProbe:
+                  exec:
+                    command: ["docker", "info"]
+                  initialDelaySeconds: 0
+                  failureThreshold: 24
+                  periodSeconds: 5
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+                  - name: dind-externals
+                    mountPath: /home/runner/externals
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["/home/runner/run.sh"]
+                env:
+                  - name: DOCKER_HOST
+                    value: unix:///var/run/docker.sock
+                  - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+                    value: "120"
+                resources:
+                  requests:
+                    # ARC runners are ephemeral and burst-bound. A small CPU
+                    # request lets two anti-affine runners schedule on KS5;
+                    # the unchanged 2-core limit protects build throughput.
+                    cpu: "100m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+            volumes:
+              - name: work
+                emptyDir: {}
+              - name: dind-sock
+                emptyDir: {}
+              - name: dind-externals
+                emptyDir: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-systems
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+---
+# SC-1571 · replica del patron SC-1568 (arc-personal-opsafe) a los 13 repos de la
+# cuenta personal pocharlies cuyos checks "Review del PR" (runs-on: arc-k8s)
+# llevaban en cola desde 2026-10-01T21:53Z: el runner solo existia en la org
+# pocharlies-org. Mismo secret (arc-github-pat-secret, verificado 201 en los 13
+# repos), mismo template DinD, maxRunners 1 por repo (un check por PR), ns
+# arc-systems (donde vive el PAT). runnerScaleSetName arc-k8s: probado sin
+# colision con el de la org en el POC de op-safe.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-personal-qwen27b
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-personal-qwen27b
+      values: |
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-pat-secret
+        githubConfigUrl: https://github.com/pocharlies/qwen38-27b-rank1-refusal-projection
+        maxRunners: 1
+        minRunners: 0
+        runnerScaleSetName: arc-k8s
+        template:
+          spec:
+            affinity:
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            tolerations:
+              - effect: PreferNoSchedule
+                key: pool
+                operator: Equal
+                value: dev
+            # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
+            # container. containerMode must stay unset when that sidecar is
+            # customized, otherwise Helm silently discards its resources.
+            initContainers:
+              - name: init-dind-externals
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                # Keep command and args explicit.  The pre-GitOps Helm manager
+                # still owns the args field in the live ARS; a full command
+                # plus those retained args executes cp twice and recursively
+                # copies tmpDir into itself.
+                command: ["cp"]
+                args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+                resources:
+                  requests:
+                    # Scheduling reservation only; the 100m limit preserves
+                    # burst capacity while avoiding false KS5 CPU exhaustion.
+                    cpu: "5m"
+                    memory: "32Mi"
+                  limits:
+                    cpu: "100m"
+                    memory: "128Mi"
+                volumeMounts:
+                  - name: dind-externals
+                    mountPath: /home/runner/tmpDir
+              - name: dind
+                image: docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c
+                imagePullPolicy: IfNotPresent
+                args:
+                  - dockerd
+                  - --host=unix:///var/run/docker.sock
+                  - --group=$(DOCKER_GROUP_GID)
+                  # dockerd defaults its bridge to 1500, but the pod network
+                  # runs at 1230 (tailnet/WireGuard overhead). Build containers
+                  # then emit frames the pod route cannot carry: the connection
+                  # opens and the headers arrive, so small requests look fine,
+                  # while any large transfer stalls until the step times out.
+                  # It only shows on nodes whose egress does not rescue it with
+                  # PMTU discovery, so it reads as a flaky runner rather than a
+                  # config bug -- a 30 min hang on `apt-get update` on ks5 and a
+                  # clean build on sauvage, same commit. Keep in step with the
+                  # CNI: `kubectl exec -n arc-runners <runner> -c runner --
+                  # cat /sys/class/net/eth0/mtu`.
+                  - --mtu=1230
+                env:
+                  - name: DOCKER_GROUP_GID
+                    value: "123"
+                restartPolicy: Always
+                resources:
+                  requests:
+                    # DinD is idle while a runner waits for a job. Reserve its
+                    # steady-state footprint and retain the 2-core burst limit.
+                    cpu: "50m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                securityContext:
+                  privileged: true
+                startupProbe:
+                  exec:
+                    command: ["docker", "info"]
+                  initialDelaySeconds: 0
+                  failureThreshold: 24
+                  periodSeconds: 5
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+                  - name: dind-externals
+                    mountPath: /home/runner/externals
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["/home/runner/run.sh"]
+                env:
+                  - name: DOCKER_HOST
+                    value: unix:///var/run/docker.sock
+                  - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+                    value: "120"
+                resources:
+                  requests:
+                    # ARC runners are ephemeral and burst-bound. A small CPU
+                    # request lets two anti-affine runners schedule on KS5;
+                    # the unchanged 2-core limit protects build throughput.
+                    cpu: "100m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+            volumes:
+              - name: work
+                emptyDir: {}
+              - name: dind-sock
+                emptyDir: {}
+              - name: dind-externals
+                emptyDir: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-systems
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+---
+# SC-1571 · replica del patron SC-1568 (arc-personal-opsafe) a los 13 repos de la
+# cuenta personal pocharlies cuyos checks "Review del PR" (runs-on: arc-k8s)
+# llevaban en cola desde 2026-10-01T21:53Z: el runner solo existia en la org
+# pocharlies-org. Mismo secret (arc-github-pat-secret, verificado 201 en los 13
+# repos), mismo template DinD, maxRunners 1 por repo (un check por PR), ns
+# arc-systems (donde vive el PAT). runnerScaleSetName arc-k8s: probado sin
+# colision con el de la org en el POC de op-safe.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-personal-qwen-sglang
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-personal-qwen-sglang
+      values: |
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-pat-secret
+        githubConfigUrl: https://github.com/pocharlies/qwen38-flash-next-dgx-spark-sglang
+        maxRunners: 1
+        minRunners: 0
+        runnerScaleSetName: arc-k8s
+        template:
+          spec:
+            affinity:
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            tolerations:
+              - effect: PreferNoSchedule
+                key: pool
+                operator: Equal
+                value: dev
+            # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
+            # container. containerMode must stay unset when that sidecar is
+            # customized, otherwise Helm silently discards its resources.
+            initContainers:
+              - name: init-dind-externals
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                # Keep command and args explicit.  The pre-GitOps Helm manager
+                # still owns the args field in the live ARS; a full command
+                # plus those retained args executes cp twice and recursively
+                # copies tmpDir into itself.
+                command: ["cp"]
+                args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+                resources:
+                  requests:
+                    # Scheduling reservation only; the 100m limit preserves
+                    # burst capacity while avoiding false KS5 CPU exhaustion.
+                    cpu: "5m"
+                    memory: "32Mi"
+                  limits:
+                    cpu: "100m"
+                    memory: "128Mi"
+                volumeMounts:
+                  - name: dind-externals
+                    mountPath: /home/runner/tmpDir
+              - name: dind
+                image: docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c
+                imagePullPolicy: IfNotPresent
+                args:
+                  - dockerd
+                  - --host=unix:///var/run/docker.sock
+                  - --group=$(DOCKER_GROUP_GID)
+                  # dockerd defaults its bridge to 1500, but the pod network
+                  # runs at 1230 (tailnet/WireGuard overhead). Build containers
+                  # then emit frames the pod route cannot carry: the connection
+                  # opens and the headers arrive, so small requests look fine,
+                  # while any large transfer stalls until the step times out.
+                  # It only shows on nodes whose egress does not rescue it with
+                  # PMTU discovery, so it reads as a flaky runner rather than a
+                  # config bug -- a 30 min hang on `apt-get update` on ks5 and a
+                  # clean build on sauvage, same commit. Keep in step with the
+                  # CNI: `kubectl exec -n arc-runners <runner> -c runner --
+                  # cat /sys/class/net/eth0/mtu`.
+                  - --mtu=1230
+                env:
+                  - name: DOCKER_GROUP_GID
+                    value: "123"
+                restartPolicy: Always
+                resources:
+                  requests:
+                    # DinD is idle while a runner waits for a job. Reserve its
+                    # steady-state footprint and retain the 2-core burst limit.
+                    cpu: "50m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                securityContext:
+                  privileged: true
+                startupProbe:
+                  exec:
+                    command: ["docker", "info"]
+                  initialDelaySeconds: 0
+                  failureThreshold: 24
+                  periodSeconds: 5
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+                  - name: dind-externals
+                    mountPath: /home/runner/externals
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["/home/runner/run.sh"]
+                env:
+                  - name: DOCKER_HOST
+                    value: unix:///var/run/docker.sock
+                  - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+                    value: "120"
+                resources:
+                  requests:
+                    # ARC runners are ephemeral and burst-bound. A small CPU
+                    # request lets two anti-affine runners schedule on KS5;
+                    # the unchanged 2-core limit protects build throughput.
+                    cpu: "100m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+            volumes:
+              - name: work
+                emptyDir: {}
+              - name: dind-sock
+                emptyDir: {}
+              - name: dind-externals
+                emptyDir: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-systems
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+---
+# SC-1571 · replica del patron SC-1568 (arc-personal-opsafe) a los 13 repos de la
+# cuenta personal pocharlies cuyos checks "Review del PR" (runs-on: arc-k8s)
+# llevaban en cola desde 2026-10-01T21:53Z: el runner solo existia en la org
+# pocharlies-org. Mismo secret (arc-github-pat-secret, verificado 201 en los 13
+# repos), mismo template DinD, maxRunners 1 por repo (un check por PR), ns
+# arc-systems (donde vive el PAT). runnerScaleSetName arc-k8s: probado sin
+# colision con el de la org en el POC de op-safe.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-personal-qwen-nvfp4
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-personal-qwen-nvfp4
+      values: |
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-pat-secret
+        githubConfigUrl: https://github.com/pocharlies/Qwen3.8-Flash-Next-NVFP4-vLLM-DGX-Spark-k8s
+        maxRunners: 1
+        minRunners: 0
+        runnerScaleSetName: arc-k8s
+        template:
+          spec:
+            affinity:
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            tolerations:
+              - effect: PreferNoSchedule
+                key: pool
+                operator: Equal
+                value: dev
+            # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
+            # container. containerMode must stay unset when that sidecar is
+            # customized, otherwise Helm silently discards its resources.
+            initContainers:
+              - name: init-dind-externals
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                # Keep command and args explicit.  The pre-GitOps Helm manager
+                # still owns the args field in the live ARS; a full command
+                # plus those retained args executes cp twice and recursively
+                # copies tmpDir into itself.
+                command: ["cp"]
+                args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+                resources:
+                  requests:
+                    # Scheduling reservation only; the 100m limit preserves
+                    # burst capacity while avoiding false KS5 CPU exhaustion.
+                    cpu: "5m"
+                    memory: "32Mi"
+                  limits:
+                    cpu: "100m"
+                    memory: "128Mi"
+                volumeMounts:
+                  - name: dind-externals
+                    mountPath: /home/runner/tmpDir
+              - name: dind
+                image: docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c
+                imagePullPolicy: IfNotPresent
+                args:
+                  - dockerd
+                  - --host=unix:///var/run/docker.sock
+                  - --group=$(DOCKER_GROUP_GID)
+                  # dockerd defaults its bridge to 1500, but the pod network
+                  # runs at 1230 (tailnet/WireGuard overhead). Build containers
+                  # then emit frames the pod route cannot carry: the connection
+                  # opens and the headers arrive, so small requests look fine,
+                  # while any large transfer stalls until the step times out.
+                  # It only shows on nodes whose egress does not rescue it with
+                  # PMTU discovery, so it reads as a flaky runner rather than a
+                  # config bug -- a 30 min hang on `apt-get update` on ks5 and a
+                  # clean build on sauvage, same commit. Keep in step with the
+                  # CNI: `kubectl exec -n arc-runners <runner> -c runner --
+                  # cat /sys/class/net/eth0/mtu`.
+                  - --mtu=1230
+                env:
+                  - name: DOCKER_GROUP_GID
+                    value: "123"
+                restartPolicy: Always
+                resources:
+                  requests:
+                    # DinD is idle while a runner waits for a job. Reserve its
+                    # steady-state footprint and retain the 2-core burst limit.
+                    cpu: "50m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                securityContext:
+                  privileged: true
+                startupProbe:
+                  exec:
+                    command: ["docker", "info"]
+                  initialDelaySeconds: 0
+                  failureThreshold: 24
+                  periodSeconds: 5
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+                  - name: dind-externals
+                    mountPath: /home/runner/externals
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["/home/runner/run.sh"]
+                env:
+                  - name: DOCKER_HOST
+                    value: unix:///var/run/docker.sock
+                  - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+                    value: "120"
+                resources:
+                  requests:
+                    # ARC runners are ephemeral and burst-bound. A small CPU
+                    # request lets two anti-affine runners schedule on KS5;
+                    # the unchanged 2-core limit protects build throughput.
+                    cpu: "100m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+            volumes:
+              - name: work
+                emptyDir: {}
+              - name: dind-sock
+                emptyDir: {}
+              - name: dind-externals
+                emptyDir: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-systems
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+---
+# SC-1571 · replica del patron SC-1568 (arc-personal-opsafe) a los 13 repos de la
+# cuenta personal pocharlies cuyos checks "Review del PR" (runs-on: arc-k8s)
+# llevaban en cola desde 2026-10-01T21:53Z: el runner solo existia en la org
+# pocharlies-org. Mismo secret (arc-github-pat-secret, verificado 201 en los 13
+# repos), mismo template DinD, maxRunners 1 por repo (un check por PR), ns
+# arc-systems (donde vive el PAT). runnerScaleSetName arc-k8s: probado sin
+# colision con el de la org en el POC de op-safe.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-personal-shared-infra
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-personal-shared-infra
+      values: |
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-pat-secret
+        githubConfigUrl: https://github.com/pocharlies/shared-infra
+        maxRunners: 1
+        minRunners: 0
+        runnerScaleSetName: arc-k8s
+        template:
+          spec:
+            affinity:
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            tolerations:
+              - effect: PreferNoSchedule
+                key: pool
+                operator: Equal
+                value: dev
+            # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
+            # container. containerMode must stay unset when that sidecar is
+            # customized, otherwise Helm silently discards its resources.
+            initContainers:
+              - name: init-dind-externals
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                # Keep command and args explicit.  The pre-GitOps Helm manager
+                # still owns the args field in the live ARS; a full command
+                # plus those retained args executes cp twice and recursively
+                # copies tmpDir into itself.
+                command: ["cp"]
+                args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+                resources:
+                  requests:
+                    # Scheduling reservation only; the 100m limit preserves
+                    # burst capacity while avoiding false KS5 CPU exhaustion.
+                    cpu: "5m"
+                    memory: "32Mi"
+                  limits:
+                    cpu: "100m"
+                    memory: "128Mi"
+                volumeMounts:
+                  - name: dind-externals
+                    mountPath: /home/runner/tmpDir
+              - name: dind
+                image: docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c
+                imagePullPolicy: IfNotPresent
+                args:
+                  - dockerd
+                  - --host=unix:///var/run/docker.sock
+                  - --group=$(DOCKER_GROUP_GID)
+                  # dockerd defaults its bridge to 1500, but the pod network
+                  # runs at 1230 (tailnet/WireGuard overhead). Build containers
+                  # then emit frames the pod route cannot carry: the connection
+                  # opens and the headers arrive, so small requests look fine,
+                  # while any large transfer stalls until the step times out.
+                  # It only shows on nodes whose egress does not rescue it with
+                  # PMTU discovery, so it reads as a flaky runner rather than a
+                  # config bug -- a 30 min hang on `apt-get update` on ks5 and a
+                  # clean build on sauvage, same commit. Keep in step with the
+                  # CNI: `kubectl exec -n arc-runners <runner> -c runner --
+                  # cat /sys/class/net/eth0/mtu`.
+                  - --mtu=1230
+                env:
+                  - name: DOCKER_GROUP_GID
+                    value: "123"
+                restartPolicy: Always
+                resources:
+                  requests:
+                    # DinD is idle while a runner waits for a job. Reserve its
+                    # steady-state footprint and retain the 2-core burst limit.
+                    cpu: "50m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                securityContext:
+                  privileged: true
+                startupProbe:
+                  exec:
+                    command: ["docker", "info"]
+                  initialDelaySeconds: 0
+                  failureThreshold: 24
+                  periodSeconds: 5
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+                  - name: dind-externals
+                    mountPath: /home/runner/externals
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["/home/runner/run.sh"]
+                env:
+                  - name: DOCKER_HOST
+                    value: unix:///var/run/docker.sock
+                  - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+                    value: "120"
+                resources:
+                  requests:
+                    # ARC runners are ephemeral and burst-bound. A small CPU
+                    # request lets two anti-affine runners schedule on KS5;
+                    # the unchanged 2-core limit protects build throughput.
+                    cpu: "100m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+            volumes:
+              - name: work
+                emptyDir: {}
+              - name: dind-sock
+                emptyDir: {}
+              - name: dind-externals
+                emptyDir: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-systems
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+
+---
+# SC-1571 · replica del patron SC-1568 (arc-personal-opsafe) a los 13 repos de la
+# cuenta personal pocharlies cuyos checks "Review del PR" (runs-on: arc-k8s)
+# llevaban en cola desde 2026-10-01T21:53Z: el runner solo existia en la org
+# pocharlies-org. Mismo secret (arc-github-pat-secret, verificado 201 en los 13
+# repos), mismo template DinD, maxRunners 1 por repo (un check por PR), ns
+# arc-systems (donde vive el PAT). runnerScaleSetName arc-k8s: probado sin
+# colision con el de la org en el POC de op-safe.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-personal-trisplit
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-personal-trisplit
+      values: |
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-pat-secret
+        githubConfigUrl: https://github.com/pocharlies/trisplit
+        maxRunners: 1
+        minRunners: 0
+        runnerScaleSetName: arc-k8s
+        template:
+          spec:
+            affinity:
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            tolerations:
+              - effect: PreferNoSchedule
+                key: pool
+                operator: Equal
+                value: dev
+            # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
+            # container. containerMode must stay unset when that sidecar is
+            # customized, otherwise Helm silently discards its resources.
+            initContainers:
+              - name: init-dind-externals
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                # Keep command and args explicit.  The pre-GitOps Helm manager
+                # still owns the args field in the live ARS; a full command
+                # plus those retained args executes cp twice and recursively
+                # copies tmpDir into itself.
+                command: ["cp"]
+                args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+                resources:
+                  requests:
+                    # Scheduling reservation only; the 100m limit preserves
+                    # burst capacity while avoiding false KS5 CPU exhaustion.
+                    cpu: "5m"
+                    memory: "32Mi"
+                  limits:
+                    cpu: "100m"
+                    memory: "128Mi"
+                volumeMounts:
+                  - name: dind-externals
+                    mountPath: /home/runner/tmpDir
+              - name: dind
+                image: docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c
+                imagePullPolicy: IfNotPresent
+                args:
+                  - dockerd
+                  - --host=unix:///var/run/docker.sock
+                  - --group=$(DOCKER_GROUP_GID)
+                  # dockerd defaults its bridge to 1500, but the pod network
+                  # runs at 1230 (tailnet/WireGuard overhead). Build containers
+                  # then emit frames the pod route cannot carry: the connection
+                  # opens and the headers arrive, so small requests look fine,
+                  # while any large transfer stalls until the step times out.
+                  # It only shows on nodes whose egress does not rescue it with
+                  # PMTU discovery, so it reads as a flaky runner rather than a
+                  # config bug -- a 30 min hang on `apt-get update` on ks5 and a
+                  # clean build on sauvage, same commit. Keep in step with the
+                  # CNI: `kubectl exec -n arc-runners <runner> -c runner --
+                  # cat /sys/class/net/eth0/mtu`.
+                  - --mtu=1230
+                env:
+                  - name: DOCKER_GROUP_GID
+                    value: "123"
+                restartPolicy: Always
+                resources:
+                  requests:
+                    # DinD is idle while a runner waits for a job. Reserve its
+                    # steady-state footprint and retain the 2-core burst limit.
+                    cpu: "50m"
+                    memory: "512Mi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                securityContext:
+                  privileged: true
+                startupProbe:
+                  exec:
+                    command: ["docker", "info"]
+                  initialDelaySeconds: 0
+                  failureThreshold: 24
+                  periodSeconds: 5
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+                  - name: dind-externals
+                    mountPath: /home/runner/externals
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["/home/runner/run.sh"]
+                env:
+                  - name: DOCKER_HOST
+                    value: unix:///var/run/docker.sock
+                  - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+                    value: "120"
+                resources:
+                  requests:
+                    # ARC runners are ephemeral and burst-bound. A small CPU
+                    # request lets two anti-affine runners schedule on KS5;
+                    # the unchanged 2-core limit protects build throughput.
+                    cpu: "100m"
+                    memory: "1Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+            volumes:
+              - name: work
+                emptyDir: {}
+              - name: dind-sock
+                emptyDir: {}
+              - name: dind-externals
+                emptyDir: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-systems
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
