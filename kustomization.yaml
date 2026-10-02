@@ -17,7 +17,6 @@ resources:
   - infra/traefik-lan.yaml
   - infra/traefik-edge.yaml
   - infra/arc.yaml
-  - infra/arc-personal-secrets.yaml
   - infra/velero.yaml
   - infra/external-dns.yaml
   - infra/nfs-cold.yaml
