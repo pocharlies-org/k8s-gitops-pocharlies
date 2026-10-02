@@ -204,6 +204,12 @@ class Selection(unittest.TestCase):
         picked, foreign = rh.select_runs(runs, {r["id"]: self.PA for r in runs}, NOW - timedelta(days=2))
         assert len(picked) == 3 and foreign == 1
 
+    def test_prueba_marker_runs_are_foreign(self):  # SC-1592
+        runs = self.runs(4)
+        runs[1]["display_title"] = "[PRUEBA INFRA-332 · NO MERGEAR] value de dgx.hermes.profile-header.v1 sin .vN+1"
+        picked, foreign = rh.select_runs(runs, {r["id"]: self.PA for r in runs}, None)
+        assert [r["id"] for r in picked] == [0, 2, 3] and foreign == 1
+
     def test_pr_agent_job_failure_counts_as_ran(self):
         assert rh.engine_ran([{"name": "x (PR-Agent)", "conclusion": "failure"}])
         assert not rh.engine_ran([{"name": "x (PR-Agent)", "conclusion": "skipped"}, {"name": "Review del PR"}])
@@ -233,11 +239,11 @@ class _GitHub(http.server.BaseHTTPRequestHandler):
 
 
 class Main(unittest.TestCase):
-    def server(self, runs, files=None, code=200):
+    def server(self, runs, files=None, code=200, no_artifact_ids=()):
         srv = http.server.HTTPServer(("127.0.0.1", 0), _GitHub)
         srv.runs, srv.paths, srv.code = runs, [], code
         srv.arts = {r["id"]: [{"id": r["id"], "name": f"pr-review-{r['id']}-1", "expired": False}]
-                    for r in runs if files is not None}
+                    for r in runs if files is not None and r["id"] not in no_artifact_ids}
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as z:
             for name, content in (files or {}).items():
@@ -265,6 +271,16 @@ class Main(unittest.TestCase):
     def test_red_exit_3_when_reviews_omitted(self):
         r = self.run_main(self.server(self.recent(3), SKIPPED))
         assert r.returncode == 3 and "ROJO" in r.stdout
+
+    def test_prueba_contract_tests_do_not_count_as_omitted(self):  # SC-1592
+        # 7 runs, 2 of them deliberate contract tests (marker PRUEBA, no artifact): they are
+        # `ajeno`, not omissions — 2/7 = 29 % would be red only if they counted.
+        runs = self.recent(7)
+        for r in runs[1:3]:
+            r["display_title"] = "[PRUEBA INFRA-332 · NO MERGEAR] value de dgx.hermes.profile-header.v1 sin .vN+1"
+        url = self.server(runs, OK, no_artifact_ids={r["id"] for r in runs[1:3]})
+        r = self.run_main(url)
+        assert r.returncode == 0 and "VERDE" in r.stdout, r.stdout + r.stderr
 
     def test_failure_run_red_exit_3(self):
         r = self.run_main(self.server(self.recent(2, "failure"), OK))
