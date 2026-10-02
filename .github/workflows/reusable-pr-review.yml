@@ -409,13 +409,10 @@ jobs:
           persist-credentials: false
           path: .llm-review-framework
 
-      # Registro de Synapse para la seccion «Consumidores del registry». Synapse
-      # es privado: sin un token que lo alcance el checkout falla y
-      # review-context.py lo anota en «Degradaciones» (exit 0). No bloquea nada.
-      # SC-1359: el framework es privado; lo lee un token de la GitHub App de solo lectura
+      # SC-1359: el repo es privado; lo lee un token de la GitHub App de solo lectura
       # (pocharlies-dashboard-ro) que se genera en cada run, sin PAT. Si faltan sus
       # secretos, el checkout cae a FRAMEWORK_REPO_TOKEN y luego a github.token.
-      - name: Token de la GitHub App para leer el framework
+      - name: Token de la GitHub App para leer el registro de Synapse
         id: framework-token-3
         if: ${{ steps.guarda.outputs.fork != 'true' }}
         continue-on-error: true
@@ -424,9 +421,12 @@ jobs:
           client-id: ${{ secrets.FRAMEWORK_APP_CLIENT_ID }}
           private-key: ${{ secrets.FRAMEWORK_APP_PRIVATE_KEY }}
           owner: pocharlies-org
-          repositories: k8s-gitops-pocharlies
+          repositories: synapse
           permission-contents: read
 
+      # Registro de Synapse para la seccion «Consumidores del registry». Synapse
+      # es privado: sin un token que lo alcance el checkout falla y
+      # review-context.py lo anota en «Degradaciones» (exit 0). No bloquea nada.
       - name: Check out the Synapse contract registry
         id: registry
         if: ${{ steps.guarda.outputs.fork != 'true' }}
