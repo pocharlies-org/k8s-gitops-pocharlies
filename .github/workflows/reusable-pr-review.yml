@@ -210,7 +210,7 @@ jobs:
           # apuntando al framework.
           repository: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
           ref: ${{ job.workflow_sha || 'main' }}
-          token: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
+          token: ${{ github.token }}
           persist-credentials: false
           path: .llm-review-framework
 
@@ -375,7 +375,7 @@ jobs:
         with:
           repository: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
           ref: ${{ job.workflow_sha || 'main' }}
-          token: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
+          token: ${{ github.token }}
           persist-credentials: false
           path: .llm-review-framework
 
@@ -743,7 +743,7 @@ jobs:
         with:
           repository: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
           ref: ${{ job.workflow_sha || 'main' }}
-          token: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
+          token: ${{ github.token }}
           persist-credentials: false
           path: .llm-review-framework
 
@@ -814,7 +814,7 @@ jobs:
         with:
           repository: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
           ref: ${{ job.workflow_sha || 'main' }}
-          token: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
+          token: ${{ github.token }}
           persist-credentials: false
           path: .llm-review-framework
 
