@@ -562,7 +562,7 @@ jobs:
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
-          token: ${{ secrets.FRAMEWORK_REPO_TOKEN }}
+          token: ${{ github.token }}
           persist-credentials: false
           path: .contracts-checker
 

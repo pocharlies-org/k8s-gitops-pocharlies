@@ -85,7 +85,7 @@ jobs:
           # la lista de ignores del script, para no escanearse a si mismo.
           repository: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
           ref: ${{ job.workflow_sha || 'main' }}
-          token: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
+          token: ${{ github.token }}
           persist-credentials: false
           path: .duplicados-framework
 
