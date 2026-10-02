@@ -379,6 +379,90 @@ jobs:
             return 1
           }
 
+          # Release preflight (INFRA-352). The image build is not reproducible:
+          # building the same commit twice yields two digests. Without this
+          # step a retry on a commit whose earlier run died after promoting
+          # `sha-<commit>` always collides with that immutable tag, and a run
+          # whose VERSION already belongs to another commit only fails after
+          # it has already published `sha-<commit>`. Resolve both tags of EVERY
+          # image before building anything:
+          #   - a doomed run fails here, before any candidate or release tag
+          #     exists;
+          #   - a commit that already published keeps that digest: it is not
+          #     rebuilt, and it passes the same exact-identity Sigstore
+          #     verification below as a fresh build before any tag is created.
+          # Nothing is ever deleted or moved in Harbor.
+          preflight_project_encoded="$(PROJECT="$REGISTRY_PROJECT" node -e '
+            process.stdout.write(encodeURIComponent(process.env.PROJECT));
+          ')"
+          preflight_dir="$RUNNER_TEMP/release-preflight"
+          mkdir -p "$preflight_dir"
+          : > "$preflight_dir/decisions.tsv"
+          harbor_lookup_artifact() {
+            local repository_path="$1"
+            local reference="$2"
+            local output="$3"
+            local lookup_status
+            lookup_status="$(curl --silent --show-error \
+              --netrc-file "$harbor_netrc" \
+              --output "$output" \
+              --write-out '%{http_code}' \
+              "https://${REGISTRY}/api/v2.0/projects/${preflight_project_encoded}/repositories/${repository_path}/artifacts/${reference}")"
+            case "$lookup_status" in
+              200|404) printf '%s' "$lookup_status" ;;
+              *)
+                echo "Harbor release preflight lookup failed for ${reference}: HTTP $lookup_status" >&2
+                head -c 1000 "$output" >&2 || true
+                return 1
+                ;;
+            esac
+          }
+          while IFS=$'\t' read -r name _preflight_context _preflight_dockerfile; do
+            [ -n "$name" ] || continue
+            safe_name="$(printf '%s' "$name" | sha256sum | cut -c1-32)"
+            repository_encoded="$(NAME="$name" node -e '
+              process.stdout.write(encodeURIComponent(process.env.NAME).replace(/%2F/gi, "%252F"));
+            ')"
+            sha_lookup="$preflight_dir/${safe_name}-sha.json"
+            version_lookup="$preflight_dir/${safe_name}-version.json"
+            sha_lookup_status="$(harbor_lookup_artifact "$repository_encoded" "$SHA_TAG" "$sha_lookup")"
+            version_lookup_status="$(harbor_lookup_artifact "$repository_encoded" "$VERSION" "$version_lookup")"
+            decision="$(NAME="$name" EXPECTED_REVISION="$GITHUB_SHA" \
+              SHA_TAG_STATUS="$sha_lookup_status" SHA_TAG_FILE="$sha_lookup" \
+              VERSION_STATUS="$version_lookup_status" VERSION_FILE="$version_lookup" \
+              node <<'NODE'
+          // RELEASE_PREFLIGHT_DECISION: prints "build" or "reuse<TAB><digest>".
+          const fs = require("fs");
+          const env = process.env;
+          const lookup = (status, file) => {
+            if (status === "404") return null;
+            if (status !== "200") throw new Error(`unexpected Harbor lookup status: ${status}`);
+            const artifact = JSON.parse(fs.readFileSync(file, "utf8"));
+            if (!artifact || typeof artifact !== "object" || !/^sha256:[a-f0-9]{64}$/.test(artifact.digest || "")) {
+              throw new Error("Harbor artifact lookup returned no canonical digest");
+            }
+            const labels = ((artifact.extra_attrs || {}).config || {}).Labels || {};
+            return { digest: artifact.digest, revision: labels["org.opencontainers.image.revision"] || "" };
+          };
+          const sha = lookup(env.SHA_TAG_STATUS, env.SHA_TAG_FILE);
+          const version = lookup(env.VERSION_STATUS, env.VERSION_FILE);
+          if (sha && sha.revision && sha.revision !== env.EXPECTED_REVISION) {
+            throw new Error(`${env.NAME}:${env.SHA_TAG} is bound to revision ${sha.revision}, not ${env.EXPECTED_REVISION}`);
+          }
+          if (version && (!sha || version.digest !== sha.digest)) {
+            throw new Error(
+              `${env.NAME}:${env.VERSION} is already published as ${version.digest}` +
+              ` (revision ${version.revision || "unknown"}), not as this commit's ${env.SHA_TAG}.` +
+              " Immutable tags are never moved: release this commit under an unused image_tag.",
+            );
+          }
+          process.stdout.write(sha ? `reuse\t${sha.digest}` : "build");
+          NODE
+            )"
+            printf '%s\t%s\n' "$name" "$decision" >> "$preflight_dir/decisions.tsv"
+            echo "Release preflight ${name}: ${decision}"
+          done < "$RUNNER_TEMP/images.tsv"
+
           while IFS=$'\t' read -r name context dockerfile; do
             [ -n "$name" ] || continue
             base="${REGISTRY}/${REGISTRY_PROJECT}/${name}"
@@ -389,6 +473,21 @@ jobs:
             sbom="$evidence_dir/sbom/${safe_name}.spdx.json"
             provenance="$evidence_dir/provenance/${safe_name}.slsa-v1.json"
             trivy_report="$evidence_dir/trivy/${safe_name}.json"
+            reuse_digest="$(IMAGE="$name" awk -F'\t' '$1 == ENVIRON["IMAGE"] && $2 == "reuse" { print $3 }' \
+              "$preflight_dir/decisions.tsv")"
+            reused_from=""
+            suppressed_count=""
+            if [ -n "$reuse_digest" ]; then
+              # Retry of a commit that already published this image (see the
+              # release preflight). Not rebuilt: the digest behind SHA_TAG is
+              # the release candidate. It was signed only after passing the
+              # scan gate of this same workflow, and it is re-verified below by
+              # exact Sigstore identity and caller revision before promotion.
+              digest="$reuse_digest"
+              digest_ref="${base}@${digest}"
+              reused_from="$sha_ref"
+              echo "Reusing ${sha_ref} at ${digest}: this commit already published it"
+            else
             build_started_on="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
             timeout "$DOCKER_BUILD_TIMEOUT" docker buildx build \
@@ -501,6 +600,7 @@ jobs:
             cosign sign --yes "$digest_ref"
             cosign attest --yes --type spdxjson --predicate "$sbom" "$digest_ref"
             cosign attest --yes --type slsaprovenance1 --predicate "$provenance" "$digest_ref"
+            fi # end of the fresh-build path; both paths verify below
 
             # GitHub records the exact called workflow in Sigstore's
             # `job_workflow_ref` claim. It was validated above as a commit
@@ -532,19 +632,23 @@ jobs:
               DIGEST_REF="$digest_ref" SBOM_FILE="sbom/${safe_name}.spdx.json" \
               PROVENANCE_FILE="provenance/${safe_name}.slsa-v1.json" \
               TRIVY_REPORT="trivy/${safe_name}.json" TRIVY_POLICY_SHA="$policy_sha" \
-              SUPPRESSED_COUNT="$suppressed_count" \
+              SUPPRESSED_COUNT="$suppressed_count" REUSED_FROM="$reused_from" \
               node <<'NODE' >> "$evidence_dir/evidence.ndjson"
+          // A reused digest carries no local SBOM/provenance/scan files: its
+          // attestations live in the registry and were verified above.
+          const reused = Boolean(process.env.REUSED_FROM);
           const record = {
             image: process.env.NAME,
             versionRef: process.env.VERSION_REF,
             shaRef: process.env.SHA_REF,
             digestRef: process.env.DIGEST_REF,
             sourceRevision: process.env.GITHUB_SHA,
-            sbom: process.env.SBOM_FILE,
-            provenance: process.env.PROVENANCE_FILE,
-            trivyReport: process.env.TRIVY_REPORT,
+            reusedFrom: reused ? process.env.REUSED_FROM : null,
+            sbom: reused ? null : process.env.SBOM_FILE,
+            provenance: reused ? null : process.env.PROVENANCE_FILE,
+            trivyReport: reused ? null : process.env.TRIVY_REPORT,
             trivyPolicySha256: process.env.TRIVY_POLICY_SHA,
-            suppressedFindings: Number(process.env.SUPPRESSED_COUNT),
+            suppressedFindings: reused ? null : Number(process.env.SUPPRESSED_COUNT),
             vulnerabilityGate: "fixable HIGH/CRITICAL vulnerabilities and embedded secrets after validated, time-bound typed policy",
             signature: "sigstore-keyless",
             attestations: ["https://spdx.dev/Document", "https://slsa.dev/provenance/v1"],
@@ -656,7 +760,7 @@ jobs:
           const records = fs.readFileSync(path.join(dir, "evidence.ndjson"), "utf8")
             .split("\n").filter(Boolean).map(JSON.parse);
           fs.writeFileSync(path.join(dir, "release-evidence.json"), `${JSON.stringify(records, null, 2)}\n`);
-          const rows = records.map((r) => `| ${r.image} | \`${r.digestRef}\` | signed + SBOM + SLSA v1 provenance attested |`).join("\n");
+          const rows = records.map((r) => `| ${r.image} | \`${r.digestRef}\` | ${r.reusedFrom ? `reused from ${r.reusedFrom}, re-verified: ` : ""}signed + SBOM + SLSA v1 provenance attested |`).join("\n");
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,
             `## Immutable release evidence\n\n| Image | Digest | Gates |\n|---|---|---|\n${rows}\n`);
           NODE

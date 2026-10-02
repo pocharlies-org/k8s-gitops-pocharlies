@@ -85,6 +85,8 @@ jobs:
       - run: python3 scripts/check-release-supply-chain.py
       - run: python3 scripts/check-release-image-linkage.py
       - run: python3 -m unittest tests/test_release_image_linkage_runtime.py
+      # INFRA-352: a release retry on an already published commit converges.
+      - run: python3 -m unittest tests/test_release_retry_idempotence.py
       - run: python3 -m unittest tests/test_synapse_sre_foundation_app.py
       - run: python3 -m unittest tests/test_review_http.py
       - run: python3 -m unittest tests/test_review_context.py

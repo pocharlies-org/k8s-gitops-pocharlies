@@ -121,6 +121,18 @@ legacy_required = [
     "verify_harbor_tag_on_digest()",
     "?page=${page}&page_size=100",
     'any(.[]; .name == $expected_tag)',
+    # INFRA-352: the lease is the tip checked out, never a re-read one, and a
+    # deploy branch that already contains the release is never rewound.
+    '--force-with-lease="refs/heads/${DEPLOY_BRANCH}:${checkout_tip}"',
+    "git merge-base --is-ancestor HEAD refs/rho/deploy-tip",
+    "nothing to promote",
+    # INFRA-352: a retry reuses the bundle `sha-<commit>` already names
+    # (revision and exact layer checked) instead of colliding with it.
+    "Release preflight (INFRA-352)",
+    "lookup_manifest_artifact() {",
+    "Reusing manifest bundle",
+    "([.layers[].digest] == [$layer])",
+    "Immutable tags are never moved: release this commit under an unused image_tag.",
 ]
 for marker in legacy_required:
     require(marker in legacy, f"missing legacy manifest compatibility guard: {marker}")
@@ -131,6 +143,12 @@ require("oras copy" not in legacy, "legacy manifest release must use atomic Harb
 require(legacy.count("?page=${page}&page_size=100") == 1, "legacy Harbor nested tag lookup must be paginated exactly once")
 require(legacy.count('any(.[]; .name == $expected_tag)') == 1, "legacy reconciliation must match the exact tag name")
 require(legacy.count('verify_harbor_tag_on_digest "$tag"') == 1, "legacy reconciliation function must be invoked exactly once")
+legacy_lookup = legacy.index('sha_lookup_status="$(lookup_manifest_artifact "$SHA_TAG"')
+legacy_bundle_push = legacy.index("oras push \\")
+require(legacy_lookup < legacy_bundle_push, "legacy manifest preflight must run before any push")
+legacy_contained = legacy.index("git merge-base --is-ancestor HEAD refs/rho/deploy-tip")
+legacy_deploy_push = legacy.index('git push origin "HEAD:refs/heads/${DEPLOY_BRANCH}"')
+require(legacy_contained < legacy_deploy_push, "legacy promotion must check containment before pushing")
 legacy_case = legacy.index('case "$http_code" in')
 legacy_reconcile = legacy.index('verify_harbor_tag_on_digest "$tag"')
 legacy_resolve = legacy.index('resolved="$(oras resolve "$tag_ref")"')
