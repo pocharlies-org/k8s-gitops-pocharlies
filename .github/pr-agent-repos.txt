@@ -1,0 +1,11 @@
+# Repos con `engine: pr-agent` en su `.github/workflows/pr-review.yml` (pilotos de INFRA-332).
+#
+# ÚNICA lista de la señal nocturna: `.github/workflows/review-health.yml` (job `repos`) mide
+# exactamente los repos de este fichero; el propio `engine:` del repo llamador sigue siendo la
+# verdad del motor, y este fichero es la verdad operativa de «qué mide la señal». Cada oleada
+# del rollout (INFRA-334) añade su repo AQUÍ, en el mismo PR que enciende `engine: pr-agent`
+# en el repo (y reparte secretos con scripts/review-distribute-secrets.sh --repos).
+#
+# Formato: un `owner/repo` por línea. `#` y líneas en blanco, comentarios.
+pocharlies-org/k8s-litellm-pocharlies
+pocharlies-org/skirmshop-labels

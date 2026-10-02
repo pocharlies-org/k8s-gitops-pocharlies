@@ -1,0 +1,132 @@
+# Señal de salud nocturna de la PR review (INFRA-333, P5b de INFRA-298).
+#
+# Mide, por repo, los runs de `PR review` de la ultimas 24 h (la ventana se calcula, no va
+# fija en el YAML; tope 50 runs): rojo si mas del 20 % de las reviews NO se hicieron
+# (omitidas, o su distribucion al brain/etiquetas fallo con
+# 4xx/5xx) o si el ultimo run termino en failure (401/403). La regla vive en
+# scripts/review-health.py y sus casos de borde en tests/test_review_health.py.
+# Es la puerta de las oleadas del rollout (INFRA-334): una oleada no avanza con
+# esta senal en rojo.
+#
+# La lista de repos NO esta aqui: se lee de `.github/pr-agent-repos.txt`, la unica lista de
+# los repos con `engine: pr-agent` (seguimiento D del arquitecto, INFRA-332/333: que no
+# queden dos listas).
+#
+# Runner arc-k8s; nada en el x86. Solo lee: `actions: read` sobre los repos medidos
+# (FRAMEWORK_REPO_TOKEN, el mismo secreto de lectura que ya usan los reusables).
+name: review-health
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      extra_repos:
+        description: "Repos extra a medir, owner/repo separados por coma (solo con engine: pr-agent)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: review-health
+  cancel-in-progress: false
+
+jobs:
+  repos:
+    name: Repos a medir
+    runs-on: arc-k8s
+    timeout-minutes: 5
+    outputs:
+      lista: ${{ steps.l.outputs.lista }}
+    steps:
+      - name: Check out the framework
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - id: l
+        env:
+          EXTRA: ${{ inputs.extra_repos }}
+        run: |
+          set -uo pipefail
+          # La lista de los repos con `engine: pr-agent` (los unicos medibles: con `propio`
+          # no hay artefacto y saldrian en rojo sin motivo) vive en
+          # .github/pr-agent-repos.txt; aqui solo se lee. Cada oleada de INFRA-334 la
+          # amplifica en ese fichero.
+          [ -s .github/pr-agent-repos.txt ] || {
+            echo "::error::.github/pr-agent-repos.txt ausente o vacio: sin lista no hay señal"
+            exit 1; }
+          lista="$(for r in $(grep -Ev '^[[:space:]]*(#|$)' .github/pr-agent-repos.txt) ${EXTRA//,/ }; do
+            printf '%s\n' "$r" | grep -E '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'; done | sort -u | jq -R . | jq -sc .)"
+          echo "lista=$lista" >> "$GITHUB_OUTPUT"
+
+  salud:
+    name: Salud ${{ matrix.repo }}
+    needs: repos
+    runs-on: arc-k8s
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        repo: ${{ fromJSON(needs.repos.outputs.lista) }}
+    steps:
+      - name: Check out the framework
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Measure the review health
+        id: medir
+        env:
+          GH_TOKEN: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
+        run: |
+          set -uo pipefail
+          # Ventana calculada, no una fecha fija en el YAML (seguimiento D del arquitecto):
+          # las ultimas 24 h = desde la ultima ejecucion del cron nocturno. Los runs fuera
+          # de la ventana son `ajenos` (no dicen nada de lo de ayer) y el tope de runs lo
+          # pone el script (50).
+          since="$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
+          python3 scripts/review-health.py --repo "${{ matrix.repo }}" --since "$since" \
+            --out "$RUNNER_TEMP/salud.md"
+          rc=$?
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          [ -f "$RUNNER_TEMP/salud.md" ] && cat "$RUNNER_TEMP/salud.md" >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
+
+      - name: Compose the notice
+        id: aviso
+        # rc 0 = verde: no se avisa. Cualquier otro codigo (3 rojo, 4 credencial,
+        # 2 uso) es un aviso, y el job ya queda en rojo por el paso anterior.
+        if: ${{ always() && steps.medir.outputs.rc != '0' }}
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_CI_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_CI_CHAT_ID }}
+          RC: ${{ steps.medir.outputs.rc }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          if [ -z "${TG_TOKEN}" ] || [ -z "${TG_CHAT}" ]; then
+            echo "::notice::sin secretos de Telegram; no se avisa"
+            exit 0
+          fi
+          {
+            echo "La revision de PR esta en rojo en ${{ matrix.repo }} (codigo ${RC:-sin medir})."
+            [ -f "$RUNNER_TEMP/salud.md" ] && grep -E '^- (ROJO|runs)' "$RUNNER_TEMP/salud.md" | head -c 600
+            echo "run: ${RUN_URL}"
+          } > "$RUNNER_TEMP/aviso.txt"
+          echo "hay=true" >> "$GITHUB_OUTPUT"
+
+      - name: Notify Telegram
+        if: ${{ always() && steps.aviso.outputs.hay == 'true' }}
+        continue-on-error: true
+        env:
+          NOTIFY_TOKEN: ${{ secrets.TELEGRAM_CI_BOT_TOKEN }}
+          NOTIFY_CHAT_ID: ${{ secrets.TELEGRAM_CI_CHAT_ID }}
+          NOTIFY_STATE: fallo
+          NOTIFY_TOPIC: ci
+          # Mismo escalon que reusable-pr-review.yml: el id del topic `ci` no abre nada por si solo.
+          NOTIFY_THREAD_ID: ${{ secrets.TELEGRAM_CI_THREAD_ID || '63' }}
+          NOTIFY_STRICT: 'true'
+        run: NOTIFY_TEXT="$(cat "$RUNNER_TEMP/aviso.txt")" python3 .github/actions/notify-telegram/notify_telegram.py

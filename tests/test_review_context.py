@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import http.server
 import importlib.util
+import json
 import os
 import shutil
 import subprocess
@@ -193,6 +194,57 @@ class ReviewContext(unittest.TestCase):
         assert headers(text) == HEADERS and "- #7 otra PR" in text and "- [pr_review:x/y#3]" in text
         assert "consumers" in text
 
+
+    # ── contract findings inline (seguimiento D del arquitecto, INFRA-332/333) ──
+
+    def findings(self, out: Path) -> list:
+        return json.loads((out.parent / "contract-findings.json").read_text())
+
+    def test_value_changed_writes_finding_with_file_line_and_consumers(self):
+        out = self.tmp / "context.md"
+        repo = make_repo(self.tmp, "value-changed")
+        assert run(repo, out).returncode == 0
+        f = self.findings(out)
+        assert len(f) == 1 and f[0]["id"] == "brain.ingest.v1" and f[0]["file"] == "CONTRACTS.yaml"
+        # la línea del `value:` en el CONTRACTS.yaml de head (ancla del comentario inline)
+        assert f[0]["line"] == 5, f[0]
+        assert f[0]["old_value"] == "brain.{tenant}.ingest" and f[0]["value"] == "brain.{tenant}.ingest_v0"
+        assert f[0]["consumers"] == ["synapse-adapter-brain-ingest", "synapse-adapter-brain-summary"]
+        assert f[0]["body"].startswith("<!--contrato:brain.ingest.v1-->")
+        assert "Severidad alta · contrato `brain.ingest.v1`" in f[0]["body"]
+        assert ".vN+1" in f[0]["body"] and "deprecated" in f[0]["body"]
+        # context.md también ve la línea (la tabla de la review la cita)
+        assert "CONTRACTS.yaml:5" in out.read_text()
+
+    def test_trailer_for_the_id_suppresses_the_finding(self):
+        out = self.tmp / "context.md"
+        assert run(make_repo(self.tmp, "value-changed-trailer"), out).returncode == 0
+        assert self.findings(out) == []
+        assert "value cambió" in out.read_text()  # el hecho se sigue reportando
+
+    def test_exception_block_suppresses_the_finding(self):
+        out = self.tmp / "context.md"
+        assert run(make_repo(self.tmp, "exception"), out).returncode == 0
+        assert self.findings(out) == []
+
+    def test_marker_and_added_entries_produce_no_finding(self):
+        for case in ("marker", "v2-added", "no-contracts"):
+            with self.subTest(case=case):
+                d = tempfile.TemporaryDirectory()
+                self.addCleanup(d.cleanup)
+                tmp = Path(d.name)
+                out = tmp / "context.md"
+                assert run(make_repo(tmp, case), out).returncode == 0
+                assert self.findings(out) == []
+
+    def test_dry_run_writes_findings_file_too(self):
+        out = self.tmp / "context.md"
+        r = subprocess.run([sys.executable, str(SCRIPT), "--dry-run", "--repo", "x/y", "--pr", "1",
+                            "--registry", str(REGISTRY), "--out", str(out)],
+                           capture_output=True, text=True, cwd=self.tmp)
+        assert r.returncode == 0, r.stderr
+        # el fixture dry-run trae trailer para el mismo id: suprimido, pero el fichero existe
+        assert self.findings(out) == []
 
     def test_size_capped_and_degradations_kept(self):
         ctx = {"touched": [], "trailers": [], "consumers": {}, "prs": [],

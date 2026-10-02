@@ -11,10 +11,20 @@ Sections, fixed and in this order (empty = `_ninguno_`):
   1 Contratos tocados · 2 Trailers Contract-Change · 3 Consumidores del registry
   4 PRs abiertas que solapan · 5 Memoria local-ops · 6 Degradaciones
 
+Beside `--out` it also writes `contract-findings.json`: the deterministic list of
+high-severity contract findings — a `value` that changed in place, with no
+`Contract-Change` trailer for that id and no `exception` block — each one with the
+file and the line of the changed `value` in the head tree. The CI (scripts/
+review-distribute.py) publishes those as inline review comments through the GitHub
+API, so the finding no longer depends on the model obeying its instructions
+(seguimiento D del arquitecto, INFRA-332).
+
 Exit codes: 0 (also when a source is missing: it is listed in section 6),
 2 invalid usage, 4 on 401/403 from any API. No other code.
 Tokens come from the environment only (GH_TOKEN, BRAIN_CI_KEY) and are never
 printed. Model calls: none.
+The HTTP client and the AuthError/Degraded rule are shared with the rest of the
+review pipeline in `scripts/review_http.py`.
 
 Usage:
     review-context.py --base origin/main --head HEAD --registry <registry.yaml>
@@ -29,10 +39,11 @@ import os
 import re
 import subprocess
 import sys
-import urllib.error
-import urllib.request
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # el módulo común vive junto a este script
+from review_http import AuthError, Degraded, github_headers, request  # noqa: E402
 
 try:  # PyYAML is optional: without it the contract sections degrade, exit 0.
     import yaml
@@ -61,17 +72,8 @@ HTTP_TIMEOUT = 15
 MAX_OPEN_PRS = 30
 MAX_MEMORY = 5
 
-
-class AuthError(Exception):
-    """401/403 from an API: the only failure that is not a degradation."""
-
-    def __init__(self, source: str, code: int):
-        super().__init__(f"{source} respondió HTTP {code}")
-        self.source = source
-
-
-class Degraded(Exception):
-    pass
+VALUE_LINE_RE = re.compile(r"^\s*value:\s*\S")
+ENTRY_ID_RE = re.compile(r"^\s*-\s+id:\s*(\S+)\s*$")
 
 
 # ── git ─────────────────────────────────────────────────────────────────────
@@ -113,23 +115,48 @@ def contracts_at(workdir: Path, rev: str) -> dict[str, dict[str, Any]]:
 # ── section 1: contracts touched ────────────────────────────────────────────
 
 
+def value_line(text: str, cid: str) -> int | None:
+    """Nº de línea (1-based, en el texto de head) del `value:` de la entrada `cid`.
+
+    Búsqueda de línea sobre el texto crudo: el inline de GitHub ancla por número de
+    línea del fichero, y PyYAML no la conserva."""
+    inside = False
+    for n, raw in enumerate(text.splitlines(), 1):
+        m = ENTRY_ID_RE.match(raw)
+        if m:
+            inside = m.group(1) == cid
+        elif inside and VALUE_LINE_RE.match(raw):
+            return n
+    return None
+
+
 def touched_from_registry_file(workdir: Path, base: str, head: str) -> list[dict[str, Any]]:
     before, after = contracts_at(workdir, base), contracts_at(workdir, head)
     out: list[dict[str, Any]] = []
+    head_text: str | None = None
     for cid, new in after.items():
         old = before.get(cid)
         facts: list[str] = []
+        line = ""
         if old is None:
             facts.append("entrada añadida")
         else:
             if old.get("value") != new.get("value"):
                 facts.append(f"value cambió: `{old.get('value')}` → `{new.get('value')}`")
+                # la línea del value en head: el ancla del comentario en línea determinista
+                if head_text is None:
+                    try:
+                        head_text = git(workdir, "show", f"{head}:{CONTRACTS_FILE}")
+                    except Degraded:
+                        head_text = ""
+                if (n := value_line(head_text, cid)) is not None:
+                    line = str(n)
             if old.get("status") != new.get("status"):
                 facts.append(f"status: {old.get('status')} → {new.get('status')}")
         if "exception" in new and (old is None or "exception" not in old):
             facts.append("bloque exception: presente en el rango")
         if facts:
-            out.append({"id": cid, "file": CONTRACTS_FILE, "line": "", "facts": facts,
+            out.append({"id": cid, "file": CONTRACTS_FILE, "line": line, "facts": facts,
                         "value": new.get("value"), "old_value": (old or {}).get("value")})
     for cid, old in before.items():
         if cid not in after:
@@ -199,36 +226,22 @@ def registry_consumers(registry: Any, cid: str, *values: str | None) -> list[tup
     return hits
 
 
-# ── HTTP ────────────────────────────────────────────────────────────────────
-
-
-def http_json(source: str, url: str, headers: dict[str, str], body: dict | None = None) -> Any:
-    data = json.dumps(body).encode() if body is not None else None
-    hdrs = {"Accept": "application/json", **headers}
-    if data:
-        hdrs["Content-Type"] = "application/json"
-    req = urllib.request.Request(url, data=data, headers=hdrs)  # noqa: S310
-    try:
-        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:  # noqa: S310
-            return json.load(resp)
-    except urllib.error.HTTPError as exc:
-        if exc.code in (401, 403):
-            raise AuthError(source, exc.code) from None
-        raise Degraded(f"{source}: HTTP {exc.code}") from None
-    except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
-        raise Degraded(f"{source}: {type(exc).__name__}") from None
+# ── HTTP (cliente y clasificación de errores: scripts/review_http.py) ──────
 
 
 def open_prs(repo: str, pr: int | None, files: set[str], token: str) -> list[dict[str, Any]]:
-    hdrs = {"Authorization": f"Bearer {token}", "X-GitHub-Api-Version": "2022-11-28"}
-    base = f"https://api.github.com/repos/{repo}"
-    prs = http_json("github", f"{base}/pulls?state=open&per_page={MAX_OPEN_PRS}", hdrs)
+    hdrs = github_headers(token)
+    api = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
+    base = f"{api}/repos/{repo}"
+    prs = request(f"{base}/pulls?state=open&per_page={MAX_OPEN_PRS}", hdrs,
+                  timeout=HTTP_TIMEOUT, source="github")
     out = []
     for p in prs:
         if p.get("number") == pr:
             continue
-        theirs = {f["filename"] for f in http_json(
-            "github", f"{base}/pulls/{p['number']}/files?per_page=100", hdrs)}
+        theirs = {f["filename"] for f in request(
+            f"{base}/pulls/{p['number']}/files?per_page=100", hdrs,
+            timeout=HTTP_TIMEOUT, source="github")}
         common = sorted(files & theirs)
         if common:
             out.append({"number": p["number"], "title": p.get("title", ""),
@@ -237,9 +250,10 @@ def open_prs(repo: str, pr: int | None, files: set[str], token: str) -> list[dic
 
 
 def brain_memory(url: str, key: str, query: str) -> list[dict[str, str]]:
-    resp = http_json("brain", f"{url.rstrip('/')}/instances/{BRAIN_INSTANCE}/search",
-                     {"X-API-Key": key, "Authorization": f"Bearer {key}"},
-                     {"query": query, "limit": MAX_MEMORY * 2})
+    resp = request(f"{url.rstrip('/')}/instances/{BRAIN_INSTANCE}/search",
+                   {"X-API-Key": key, "Authorization": f"Bearer {key}"},
+                   body={"query": query, "limit": MAX_MEMORY * 2},
+                   timeout=HTTP_TIMEOUT, source="brain")
     if resp.get("instance_id", BRAIN_INSTANCE) != BRAIN_INSTANCE:
         raise Degraded("brain: la respuesta no es de la instancia local-ops")
     hits = []
@@ -251,6 +265,51 @@ def brain_memory(url: str, key: str, query: str) -> list[dict[str, str]]:
         summary = " ".join(str(doc.get("text", "")).split())[:200]
         hits.append({"source": str(source), "summary": summary})
     return hits[:MAX_MEMORY]
+
+
+# ── contract findings (inline determinista, sin depender del modelo) ───────
+
+
+FINDING_MARK = "<!--contrato:{cid}-->"  # la lectura del marcador vive en review-distribute.py
+
+
+def _value_repr(value: object) -> str:
+    """El value en el comentario: una línea, sin acentos de markdown que rompan el `code`,
+    acotado (un value de contrato es corto; si no lo es, el YAML está como puede estar)."""
+    text = " ".join(str(value if value is not None else "").split()).replace("`", "'")
+    return text[:120] + "…" if len(text) > 120 else text
+
+
+def finding_body(t: dict[str, Any], consumers: list[str]) -> str:
+    cons = ", ".join(consumers) if consumers else "el registry no lista consumidores"
+    return (FINDING_MARK.format(cid=t["id"]) + "\n"
+            f"**Severidad alta · contrato `{t['id']}`**: el `value` de una entrada activa no muta. "
+            f"Cambiado `{_value_repr(t.get('old_value'))}` → `{_value_repr(t.get('value'))}`. Consumidores: {cons}. "
+            "Regla de la casa: un cambio incompatible es una entrada nueva `.vN+1` y la vieja pasa "
+            "a `deprecated` (nunca se borra): restaura el value y añade la entrada nueva, o el "
+            "bloque `exception` si procede. Lo publica el CI, no un modelo.")
+
+
+def build_findings(ctx: dict[str, Any]) -> list[dict[str, Any]]:
+    """Valor mutado in situ, sin trailer `Contract-Change` del id y sin bloque exception.
+
+    Las mismas condiciones que `[artifacts].artifact_instructions` piden al modelo: aquí se
+    deciden de forma determinista sobre los hechos ya calculados. Sin línea en head no hay
+    ancla inline: el hecho sigue en context.md para la tabla de la review."""
+    trailer_ids = {cid for _, _, cid, _, _ in ctx["trailers"]}
+    out = []
+    for t in ctx["touched"]:
+        if not any(f.startswith("value cambió") for f in t["facts"]):
+            continue
+        if any("bloque exception" in f for f in t["facts"]) or t["id"] in trailer_ids:
+            continue
+        if not str(t["line"]).isdigit():
+            continue
+        consumers = sorted({c for _, cons, _ in ctx["consumers"].get(t["id"], []) for c in cons})
+        out.append({"id": t["id"], "file": t["file"], "line": int(t["line"]),
+                    "old_value": t.get("old_value"), "value": t.get("value"),
+                    "consumers": consumers, "body": finding_body(t, consumers)})
+    return out
 
 
 # ── render ──────────────────────────────────────────────────────────────────
@@ -393,6 +452,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
+    findings_path = out.with_name("contract-findings.json")
     try:
         ctx = collect(args)
     except AuthError as exc:
@@ -400,10 +460,14 @@ def main(argv: list[str] | None = None) -> int:
         empty = {"touched": [], "trailers": [], "consumers": {}, "prs": [], "memory": [],
                  "degraded": [(exc.source, f"{exc} — credencial rechazada")]}
         out.write_text(render(empty))
+        findings_path.write_text("[]\n")  # sin contexto no hay hallazgo que publicar
         print(f"review-context: {exc}", file=sys.stderr)
         return 4
     out.write_text(render(ctx))
-    print(f"review-context: {out} ({len(ctx['degraded'])} degradaciones)")
+    findings = build_findings(ctx)
+    findings_path.write_text(json.dumps(findings, ensure_ascii=False, indent=2) + "\n")
+    print(f"review-context: {out} ({len(ctx['degraded'])} degradaciones, "
+          f"{len(findings)} hallazgos de contrato inline)")
     return 0
 
 

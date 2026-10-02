@@ -62,6 +62,24 @@ jobs:
           mkdir -p "$yaml_lib"
           python3 -m zipfile -e "$wheel" "$yaml_lib"
           echo "PYTHONPATH=$yaml_lib" >> "$GITHUB_ENV"
+      - name: Install verified Node.js (duplicados)
+        # scripts/duplicados.py llama a jscpd por npx y sus tests lo ejercitan
+        # de verdad: el mismo tarball exacto y con sha256 de reusable-ci.yml.
+        run: |
+          set -euo pipefail
+          version=v22.23.2
+          case "$(uname -m)" in
+            x86_64|amd64) arch=x64; expected=b294a556e639d64338823920e5866c21c02741742d2e1529ee1a225c1ec9252a ;;
+            aarch64|arm64) arch=arm64; expected=013b59cfd2819703a6f4a14ab891fc46fc2a4e3f5bcd92de3fb4929b43e35b30 ;;
+            *) echo "Unsupported Node runner architecture: $(uname -m)"; exit 1 ;;
+          esac
+          archive="$RUNNER_TEMP/node-${version}-${arch}.tar.gz"
+          curl --retry 3 --retry-all-errors -fsSL \
+            "https://nodejs.org/dist/${version}/node-${version}-linux-${arch}.tar.gz" \
+            -o "$archive"
+          echo "${expected}  ${archive}" | sha256sum --check --strict
+          tar xzf "$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/node-${version}-linux-${arch}/bin" >> "$GITHUB_PATH"
       - run: python3 scripts/check-workflow-pins.py
       - run: python3 scripts/check-manifest-promotion.py
       - run: python3 scripts/check-release-supply-chain.py
@@ -70,4 +88,21 @@ jobs:
       # INFRA-352: a release retry on an already published commit converges.
       - run: python3 -m unittest tests/test_release_retry_idempotence.py
       - run: python3 -m unittest tests/test_synapse_sre_foundation_app.py
+      - run: python3 -m unittest tests/test_review_http.py
       - run: python3 -m unittest tests/test_review_context.py
+      - run: python3 -m unittest tests/test_review_distribute.py
+      - run: python3 -m unittest tests/test_review_health.py
+      - run: python3 -m unittest tests/test_duplicados.py
+      - name: PR-Agent config and secret distribution (INFRA-331)
+        run: |
+          set -euo pipefail
+          # configuration.toml de PR-Agent v0.46.0 (commit del tag, el de la imagen fijada
+          # sha256:42c7833a…), verificado por hash: contra él se valida cada clave.
+          upstream="$RUNNER_TEMP/pr-agent-configuration.toml"
+          curl --retry 3 --retry-all-errors -fsSL \
+            "https://raw.githubusercontent.com/The-PR-Agent/pr-agent/1d01f24f455bb879c1d9c557ad7de3d72dcc7975/pr_agent/settings/configuration.toml" \
+            -o "$upstream"
+          echo "9051dcb7234c4c413b5350735cfded740ec6ced158aac883530be752a896afe0  $upstream" \
+            | sha256sum --check --strict
+          python3 scripts/check-pr-agent-config.py --upstream "$upstream"
+          PR_AGENT_UPSTREAM_CONFIG="$upstream" python3 -m unittest tests/test_pr_agent_config.py

@@ -1,0 +1,114 @@
+# PR-Agent 0.46.0: configuración central de la review de PRs (INFRA-298, historia INFRA-331).
+#
+# El workflow reusable (INFRA-332) la monta como configuración de HOST del contenedor:
+#   -v <checkout de k8s-gitops-pocharlies>/.pr_agent.toml:/app/pr_agent/settings_prod/.secrets.toml:ro
+# En este repo sirve además como su propio .pr_agent.toml (mismo contenido, sin conflicto).
+#
+# Aquí no va ningún secreto ni ningún endpoint: llegan por entorno desde el workflow.
+#   OPENAI_KEY            <- secreto PR_AGENT_LITELLM_KEY (key propia `pr-agent-ci`, no LITELLM_CI_KEY)
+#   OPENAI__API_BASE      <- input litellm_url del reusable (http://litellm.litellm.svc.cluster.local:4000)
+#   JIRA__JIRA_API_EMAIL  <- secreto JIRA_EMAIL   (cuenta de solo lectura, Request SC-1400)
+#   JIRA__JIRA_API_TOKEN  <- secreto JIRA_API_TOKEN
+#
+# Valores medidos en F0 (INFRA-329, 50-entrega.md adjunto 14031) y aceptados por el CTO.
+# PR-Agent se traga en silencio un TOML roto o una clave mal escrita y arranca con sus valores
+# por defecto (auto_describe encendido, restricted_mode apagado, modelo gpt-5.6). Antes de
+# cambiar nada: python3 scripts/check-pr-agent-config.py (el CI lo corre contra el
+# configuration.toml de la versión fijada).
+
+[config]
+git_provider = "github"
+# D4: Qwen3.8-Flash en Alibaba vía LiteLLM, nunca el residente de los Sparks.
+model = "openai/alibaba-q38-flash"
+# El valor por defecto trae gpt-5.6-terra: sin fallback.
+fallback_models = []
+# 3 llamadas por PR (review, improve, reflexión) de ~35k tokens caben en el tpm de la key.
+max_model_tokens = 32000
+# El alias no declara ventana en LiteLLM; 32k probado (34 676 tokens de prompt aceptados).
+custom_model_max_tokens = 32000
+# p95 medido por llamada con un diff de 120 KB: 27,0 s. Margen x2,2.
+ai_timeout = 60
+retry_same_model_on_timeout = false
+# Sin esto el modelo razona (~15k tokens, 219 s). PR-Agent descarta reasoning_effort en
+# silencio si no conoce el modelo: hace falta listarlo en additional_reasoning_effort_models.
+reasoning_effort = "none"
+additional_reasoning_effort_models = ["openai/alibaba-q38-flash"]
+response_language = "es-ES"
+# Sin push de código: con pull-requests:write + issues:write basta (F0, run 36717726502).
+restricted_mode = true
+
+[github_action_config]
+# PR-Agent enciende estas tres si no se declaran (None = sí): van todas explícitas.
+auto_review = true
+# D5: apagado hasta F3 (reescribe título y cuerpo de la PR).
+auto_describe = false
+# Decisión 5 del CTO: /improve no toca título ni cuerpo: pr_code_suggestions.py del commit
+# 1d01f24 solo publica comentarios y sugerencias (veredicto del arquitecto, INFRA-298
+# comentario 17487). Nota INFRA-332 (rework qa): F0 §5 decía que en 0.46.0 el inline solo
+# salía por /improve; medido sobre la fuente fijada, /review también publica inline con
+# pr_reviewer.inline_key_issues (pr_reviewer.py::_publish_key_issues_as_inline_comments).
+auto_improve = true
+# Una review por push, como el motor propio. Sin `synchronize` PR-Agent 0.46.0 ignora los pushes
+# a un PR abierto (github_action_runner.py: por defecto solo opened/reopened/ready_for_review/
+# review_requested, y handle_push_trigger=false). INFRA-332.
+pr_actions = ["opened", "reopened", "ready_for_review", "review_requested", "synchronize"]
+
+[pr_reviewer]
+# Un único comentario de review que se edita en cada run, en vez de uno nuevo.
+persistent_comment = true
+# D3 (contrato pr_review.v1 §2): la recomendación la da el modelo; el glue la traduce.
+require_merge_recommendation = true
+# Una sola etiqueta de seguridad: PR-Agent pondría «Possible security concern» y la señal de
+# pr-watcher es `possible security issue` (decisión del CTO, INFRA-298 comentario 17496).
+# PR-Agent 0.46.0 la lee como pr_reviewer.enable_review_labels_security (pr_reviewer.py).
+enable_review_labels_security = false
+# INFRA-332 (rework qa, criterio 1): intención de los puntos clave de la review en la línea.
+# MEDIDO en 0.46.0 (run 36879060762): con esto en true, /review logged «Inline key-issue
+# publishing is not verifiable for this provider; keeping findings in the review summary» —
+# GitHubProvider no implementa get_persistent_comment_bodies/get_recent_inline_comment_bodies
+# (inline_comment_dedup.can_verify_inline_comment_publication → False); solo Bitbucket y
+# Azure las tienen. El inline del hallazgo de contrato en GitHub no depende ya de PR-Agent:
+# lo publica el CI por la API (seguimiento D del arquitecto; ver suggestions_score_threshold
+# más abajo). Se deja en true: inofensiva hoy, activa el día que upstream añada la
+# verificación a GitHub. Es clave host-only por directorio (config_security.py).
+inline_key_issues = true
+
+[pr_code_suggestions]
+persistent_comment = true
+# Las sugerencias salen inline por publish_inline_comments (medido en #191: 2 inline).
+commitable_code_suggestions = true
+# Vuelta al valor con el que nació el fichero (default de 0.46.0; #466 lo bajó a 0 y el
+# seguimiento D del arquitecto lo revierte): con 0 se publicaban TODAS las sugerencias que
+# generate emite, incluidas las flojas que self_reflect_on_suggestions marcaba con 0 — ruido
+# en todos los repos con `engine: pr-agent`. El motivo de aquel 0 era que la sugerencia de
+# contrato se filtraba y el hallazgo no salía en la línea: ya no hace falta, porque el
+# comentario en línea del contrato lo publica el CI de forma determinista (review-context.py
+# → review-distribute.py, marcador `<!--contrato:…-->`), sin depender de que el modelo
+# obedezca ni de que la reflexión le ponga nota. El filtro de calidad vuelve a valer.
+# Se deja explícito (no borrado): la política del fichero es declarar hasta los defaults.
+suggestions_score_threshold = 1
+# Con el rpm de la key, varios chunks en paralelo más la reflexión dan 429.
+max_number_of_calls = 1
+parallel_calls = false
+# Sin sugerencias, PR-Agent publica «No code suggestions found for the PR» DESPUÉS de la review,
+# y ese comentario vacío pasa a ser el último del PR (INFRA-332).
+publish_output_no_suggestions = false
+
+[artifacts]
+# El workflow reusable (INFRA-332) pone ARTIFACT_PATH=.review/pr-agent-context.md: la salida de
+# scripts/review-context.py (6 secciones de hechos) más «Tickets Jira citados en el PR». PR-Agent
+# lo añade a extra_instructions de review e improve, seguido de estas instrucciones.
+artifact_label = "Contexto del CI (hechos verificados, no opiniones)"
+artifact_instructions = """
+Este bloque lo genera el CI y solo contiene HECHOS: no inventes contratos, consumidores ni tickets que no aparezcan aquí o en el diff.
+1. Contratos. Si «Contratos tocados» lista una entrada de CONTRACTS.yaml cuyo value cambió, y ni «Trailers Contract-Change» trae un trailer con ese id ni hay el hecho «bloque exception», es una ruptura de contrato de severidad ALTA: en esta casa lo existente no muta (un cambio incompatible es una entrada nueva .vN+1 y la vieja pasa a deprecated).
+   - NO emitas una sugerencia de código para este hallazgo: el CI ya lo publica como comentario en línea sobre la línea del value, de forma determinista y con los consumidores del registry. Repetirlo en /improve es ruido.
+   - En la review: ponlo como PRIMER punto clave (key issue) con relevant_file = la ruta de CONTRACTS.yaml y las líneas del value cambiado, con el mismo id y los mismos consumidores que «Consumidores del registry» lista para ese id (si no lista ninguno, escribe «el registry no lista consumidores»).
+2. Ticket. Si «Tickets Jira citados en el PR» dice «ninguno», añade en la review un punto clave titulado exactamente «sin criterios de aceptación que verificar», con «Severidad media» en el texto: el PR no cita ninguna clave Jira y no hay criterios de aceptación contra los que comprobarlo. Si cita alguna, no añadas ese punto.
+3. PRs que solapan, memoria local-ops y degradaciones: contexto; menciónalos solo si cambian lo que hay que revisar.
+"""
+
+[jira]
+jira_site = "e-dani"
+# Allowlist: solo se consulta Jira para claves de estos proyectos.
+project_keys = ["SC", "INFRA", "DGX", "SKIRM", "OWU"]
