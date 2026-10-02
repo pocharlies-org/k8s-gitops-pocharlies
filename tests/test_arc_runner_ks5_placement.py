@@ -77,9 +77,9 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertIn("imagePullPolicy: IfNotPresent", self.openclaw_values)
 
     def test_all_runner_and_dind_images_are_digest_pinned(self) -> None:
-        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 31)
-        self.assertEqual(self.manifest.count(f"image: {DIND_IMAGE}"), 15)
-        self.assertEqual(self.manifest.count("imagePullPolicy: IfNotPresent"), 46)
+        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 53)
+        self.assertEqual(self.manifest.count(f"image: {DIND_IMAGE}"), 26)
+        self.assertEqual(self.manifest.count("imagePullPolicy: IfNotPresent"), 79)
         self.assertNotIn("image: docker:dind", self.manifest)
         self.assertNotIn("image: ghcr.io/actions/actions-runner:2.335.1\n", self.manifest)
 
