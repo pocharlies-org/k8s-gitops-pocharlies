@@ -9,6 +9,7 @@ from pathlib import Path
 GIT_PUBLIC = [
     "https://github.com/pocharlies-org/k8s-gitops-pocharlies",
     "https://github.com/pocharlies-org/k8s-shopify-affiliate-pocharlies",
+    "https://github.com/pocharlies-org/k8s-gbp-festivos-pocharlies",
     "https://github.com/pocharlies-org/k8s-shopify-chatbot-pocharlies",
     "https://github.com/pocharlies-org/k8s-shopify-collections-tree-pocharlies",
     "https://github.com/pocharlies-org/k8s-skirmshop-drive-mirror-pocharlies",
