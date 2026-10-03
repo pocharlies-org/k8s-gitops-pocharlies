@@ -442,7 +442,7 @@ directories:
     repo: https://github.com/pocharlies/skirmshop-chatbot.git
     entrypoint: node dist/src/main.js
     secrets: chatbot-secrets
-    database: was live SQLite on k8s PVC chatbot-data (PVC still present; runtime removed)
+    database: was live SQLite on k8s PVC chatbot-data (runtime removed 2026-10-03; PVC deliberately retained with the history, sole off-node copy via x86-localpath-pull)
     ingress: none (skirmshop.e-dani.com/chatbot removed 2026-10-03)
     cron: none (chatbot-sync and chatbot-daily-report CronJobs removed with the app)
     k8sTarget: k8s-shopify-chatbot-pocharlies
@@ -459,7 +459,7 @@ directories:
     cron: none
     k8sTarget: vault-audit
     priority: p2
-    activation: retired-2026-10-03; the app they backed up was retired
+    activation: audit-before-delete (SC-1669 — the folder is still on disk with secrets; security decides its removal or rotation)
   - name: skirmshop-collections
     status: empty-or-archive
     path: /home/ubuntu/skirmshop/skirmshop-collections
