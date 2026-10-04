@@ -76,6 +76,7 @@ resources:
   - apps/agentgateway-mcp.yaml
   - apps/picqer-mcp.yaml
   - apps/shopify-admin-mcp.yaml
+  - apps/playwright-mcp.yaml
   - argocd/ingressroute.yaml
   - argocd/repositories.yaml
   - argocd/notifications-externalsecret.yaml
