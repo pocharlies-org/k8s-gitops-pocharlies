@@ -20,13 +20,15 @@ configs:
     # ExternalSecret of the `onepassword` store (key: <item>/<field>) as one of
     # `onepassword-connect` (key: <item>, property: <field>). Without this,
     # every app with such an ExternalSecret would be OutOfSync forever and
-    # self-heal would re-apply it in a loop. Remove these paths once no repo
-    # declares the old form any more.
+    # self-heal would re-apply it in a loop. Only the two 1Password stores:
+    # an ExternalSecret of any other store keeps its full diff. ArgoCD runs
+    # each expression as del(...) in order, so the store name goes last (the
+    # other two select on it). Remove once no repo declares the old form.
     resource.customizations.ignoreDifferences.external-secrets.io_ExternalSecret: |
       jqPathExpressions:
-        - .spec.secretStoreRef.name
-        - .spec.data[]?.remoteRef.key
-        - .spec.data[]?.remoteRef.property
+        - '.spec | select(.secretStoreRef.name == "onepassword" or .secretStoreRef.name == "onepassword-connect") | .data[]?.remoteRef.key'
+        - '.spec | select(.secretStoreRef.name == "onepassword" or .secretStoreRef.name == "onepassword-connect") | .data[]?.remoteRef.property'
+        - '.spec.secretStoreRef | select(.name == "onepassword" or .name == "onepassword-connect") | .name'
     timeout.reconciliation: 60s
     statusbadge.enabled: "true"
 
