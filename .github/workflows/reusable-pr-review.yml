@@ -382,6 +382,12 @@ jobs:
       # Registro de Synapse para la seccion «Consumidores del registry». Synapse
       # es privado: sin un token que lo alcance el checkout falla y
       # review-context.py lo anota en «Degradaciones» (exit 0). No bloquea nada.
+      # `fetch-depth: 1` (INFRA-334): sin el, sparse-checkout trae AUN el historial
+      # completo y el paso costaba 28-39 s por job (medido en los pilotos, runs
+      # 37003693367 / 37002861160 / 36919102089: era el tramo mas largo del camino
+      # critico, por delante del pull de la imagen). El registry se lee como fichero
+      # del HEAD (review-context.py: registry_consumers sobre registry.yaml; ningun
+      # git -C .review-synapse), asi que la historia no hace falta.
       - name: Check out the Synapse contract registry
         id: registry
         if: ${{ steps.guarda.outputs.fork != 'true' }}
@@ -392,6 +398,7 @@ jobs:
           token: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
           persist-credentials: false
           path: .review-synapse
+          fetch-depth: 1
           sparse-checkout: libs/synapse-contracts
           sparse-checkout-cone-mode: true
 

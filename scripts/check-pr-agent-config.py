@@ -40,15 +40,15 @@ REQUIRED = {
     ("config", "fallback_models"): [],
     ("config", "restricted_mode"): True,
     ("github_action_config", "auto_describe"): False,
-    # Decisión 5 del CTO: /improve está encendido y no toca título ni cuerpo. (F0 §5 decía que
-    # el inline solo salía por /improve; medido sobre la fuente fijada, /review publica inline
-    # con pr_reviewer.inline_key_issues — criterio 1, rework qa de INFRA-332.)
+    # Decisión 5 del CTO: /improve está encendido y no toca título ni cuerpo. El inline de
+    # la review en GitHub lo pone /improve (publish_inline_comments); el de /review,
+    # pr_reviewer.inline_key_issues, fue REQUIRED hasta INFRA-334: en 0.46.0 es inerte en
+    # GitHub (can_verify_inline_comment_publication → False; run 36879060762) y el inline
+    # del contrato lo publica el CI por API (seguimiento D), así que se retiró del REQUIRED
+    # y del .pr_agent.toml — decisión del CTO (INFRA-334 comentario 18462). Si upstream lo
+    # activa en GitHub, vuelve aquí y en el .toml en el mismo commit.
     ("github_action_config", "auto_review"): True,
     ("github_action_config", "auto_improve"): True,
-    # Criterio 1 (INFRA-332): intención de inline en /review. En 0.46.0 es inerte en GitHub
-    # (el provider no implementa la verificación; run 36879060762) — el inline del contrato
-    # lo publica el CI por API (seguimiento D), no este flag ni las sugerencias.
-    ("pr_reviewer", "inline_key_issues"): True,
     # Seguimiento D del arquitecto (INFRA-332/333): vuelta al 1 (el default con el que nació
     # el fichero; #466 lo bajó a 0 y llenaba las PRs de sugerencias flojas). El inline del
     # hallazgo de contrato ya no pasa por aquí: lo publica el CI determinísticamente

@@ -124,9 +124,10 @@ class ConfigTest(unittest.TestCase):
         self.assertIs(data["github_action_config"]["auto_review"], True)
         self.assertIs(data["github_action_config"]["auto_improve"], True)
         self.assertIs(data["pr_reviewer"]["enable_review_labels_security"], False)
-        # INFRA-332 (rework qa, criterio 1): intención de inline en /review (inerte en
-        # GitHub 0.46.0; el inline del contrato lo publica el CI por API).
-        self.assertIs(data["pr_reviewer"]["inline_key_issues"], True)
+        # INFRA-334: `inline_key_issues` es inerte en GitHub en 0.46.0 (ver comentario en
+        # [pr_reviewer] del .toml) y se retiró con su REQUIRED. Que no vuelva por inercia:
+        # si upstream la activa, vuelve con su REQUIRED en el mismo commit.
+        self.assertNotIn("inline_key_issues", data.get("pr_reviewer", {}))
         # Seguimiento D del arquitecto: el umbral vuelve al 1 (default con el que nació el
         # fichero, antes de #466); el inline del contrato lo publica el CI, no /improve.
         self.assertEqual(data["pr_code_suggestions"]["suggestions_score_threshold"], 1)
@@ -143,7 +144,6 @@ class ConfigTest(unittest.TestCase):
                                     ("github_action_config", "auto_improve", "false"),
                                     ("github_action_config", "auto_review", "false"),
                                     ("pr_reviewer", "enable_review_labels_security", "true"),
-                                    ("pr_reviewer", "inline_key_issues", "false"),
                                     ("pr_code_suggestions", "suggestions_score_threshold", "0"),
                                     ("config", "restricted_mode", "false"),
                                     ("config", "model", '"openai/tooling"'),
@@ -156,12 +156,10 @@ class ConfigTest(unittest.TestCase):
                 self.assertIn(f"{section}.{key}", r.stdout)
 
     def test_missing_auto_flags_fail(self):
-        # Sin declarar, PR-Agent usa su default (auto_*: todas sí; inline_key_issues: no):
-        # tienen que ir explícitas. El caso inline_key_issues es el rework qa de INFRA-332:
-        # sin la línea, el hallazgo de contrato vuelve al comentario-resumen y pulls/N/comments
-        # queda vacío (medido en #187).
-        for line in ["auto_describe = false", "auto_improve = true", "auto_review = true",
-                     "inline_key_issues = true"]:
+        # Sin declarar, PR-Agent usa su default (auto_*: todas sí): tienen que ir
+        # explícitas. `inline_key_issues` ya no está: es inerte en GitHub en 0.46.0 y se
+        # retiró en INFRA-334 (su ausencia la vigila test_decisions_in_file).
+        for line in ["auto_describe = false", "auto_improve = true", "auto_review = true"]:
             with self.subTest(line=line):
                 text = CONFIG.read_text(encoding="utf-8").replace(line + "\n", "")
                 r = self.run_check(text)

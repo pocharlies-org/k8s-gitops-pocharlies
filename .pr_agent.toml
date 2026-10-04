@@ -44,9 +44,9 @@ auto_review = true
 auto_describe = false
 # Decisión 5 del CTO: /improve no toca título ni cuerpo: pr_code_suggestions.py del commit
 # 1d01f24 solo publica comentarios y sugerencias (veredicto del arquitecto, INFRA-298
-# comentario 17487). Nota INFRA-332 (rework qa): F0 §5 decía que en 0.46.0 el inline solo
-# salía por /improve; medido sobre la fuente fijada, /review también publica inline con
-# pr_reviewer.inline_key_issues (pr_reviewer.py::_publish_key_issues_as_inline_comments).
+# comentario 17487). El inline de la review en GitHub lo pone /improve por
+# publish_inline_comments; el de /review (pr_reviewer.inline_key_issues) es inerte en
+# GitHub en 0.46.0 — ver el comentario en [pr_reviewer].
 auto_improve = true
 # Una review por push, como el motor propio. Sin `synchronize` PR-Agent 0.46.0 ignora los pushes
 # a un PR abierto (github_action_runner.py: por defecto solo opened/reopened/ready_for_review/
@@ -62,16 +62,17 @@ require_merge_recommendation = true
 # pr-watcher es `possible security issue` (decisión del CTO, INFRA-298 comentario 17496).
 # PR-Agent 0.46.0 la lee como pr_reviewer.enable_review_labels_security (pr_reviewer.py).
 enable_review_labels_security = false
-# INFRA-332 (rework qa, criterio 1): intención de los puntos clave de la review en la línea.
-# MEDIDO en 0.46.0 (run 36879060762): con esto en true, /review logged «Inline key-issue
-# publishing is not verifiable for this provider; keeping findings in the review summary» —
-# GitHubProvider no implementa get_persistent_comment_bodies/get_recent_inline_comment_bodies
-# (inline_comment_dedup.can_verify_inline_comment_publication → False); solo Bitbucket y
-# Azure las tienen. El inline del hallazgo de contrato en GitHub no depende ya de PR-Agent:
-# lo publica el CI por la API (seguimiento D del arquitecto; ver suggestions_score_threshold
-# más abajo). Se deja en true: inofensiva hoy, activa el día que upstream añada la
-# verificación a GitHub. Es clave host-only por directorio (config_security.py).
-inline_key_issues = true
+# `inline_key_issues` RETIRADA aquí en INFRA-334 (decisión del CTO, INFRA-334 comentario
+# 18462; nota del arquitecto 18448): en 0.46.0 fijada es INERTE en GitHub — medido sobre la
+# fuente de la imagen (rootfs de @sha256:42c7833a…): pr_reviewer.py:1159 la lee, pero
+# _publish_key_issues_as_inline_comments pasa por
+# inline_comment_dedup.can_verify_inline_comment_publication, que exige
+# get_persistent_comment_bodies/get_recent_inline_comment_bodies y solo bitbucket_provider
+# las implementa; GitHub sale por «not verifiable for this provider» (run 36879060762).
+# El inline del hallazgo de contrato en GitHub no depende de PR-Agent: lo publica el CI por
+# la API (seguimiento D del arquitecto; ver suggestions_score_threshold más abajo). Si un
+# día upstream activa la verificación en GitHub, la clave vuelve con su REQUIRED en
+# scripts/check-pr-agent-config.py — no antes.
 
 [pr_code_suggestions]
 persistent_comment = true
