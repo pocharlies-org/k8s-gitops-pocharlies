@@ -43,6 +43,10 @@ csi:
   resizerReplicaCount: 2
   snapshotterReplicaCount: 2
 defaultSettings:
+  # INFRA-166 (P1a→P1b): el bump a 1.12.1 deja los engines de los volúmenes en
+  # v1.11.2. Con este setting > 0 Longhorn los actualiza solo, hasta 1 concurrente
+  # por nodo. Los detached: comprobar tras el sync y si no, por API/UI de Longhorn.
+  concurrentAutomaticEngineUpgradePerNodeLimit: 1
   concurrentReplicaRebuildPerNodeLimit: 1
   createDefaultDiskLabeledNodes: true
   defaultDataPath: /var/lib/longhorn
