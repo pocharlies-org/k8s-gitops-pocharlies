@@ -1549,7 +1549,11 @@ spec:
     # par se recree junto). Activa el orden del campo `priority` que ya inyecta LiteLLM
     # (priority_by_alias: -10 Hermes/Open WebUI, +10 hermes-batch). Mismo PR en main: k8s-ai #108.
     # Reinicia el TP=2 con la norma de hooks de b5df721. ROLLBACK: b5df721eeb7d9d8bf71cce7a3fd00aa11795dc48.
-    targetRevision: 45c8ed5a7197e6e77a6afc3b3eb602197352859b
+    # 05-10-2026 (DGX-582, Dani): 04678a3 = 45c8ed5 + MAX_NUM_SEQS 16 -> 24 en head y worker. La cola del
+    # vLLM se formaba por el tope de 16 ranuras (running a 16, waiting > 0 el 35% de la noche) con la KV al
+    # 55% p95 / 62% max y 0 preempciones. Mismo PR en main: k8s-ai #111. Reinicia el TP=2 con la norma de
+    # hooks de b5df721. ROLLBACK: 45c8ed5a7197e6e77a6afc3b3eb602197352859b.
+    targetRevision: 04678a3ef7b9b085c4b89c25f3e1354afa032190
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
