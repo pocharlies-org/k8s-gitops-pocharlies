@@ -1561,7 +1561,15 @@ spec:
     # (antes 120,2), 6,2 tok/s por petición (antes 10,2), cola el 29 % del tiempo (antes 16 %), TTFT p95 112 s (antes 23)
     # y 1.949 peticiones terminadas (antes 4.037). Incumple los criterios de DGX-582. Reinicia el TP=2 (~33 min con la
     # norma de hooks de b5df721). ROLLBACK de esto: 04678a3ef7b9b085c4b89c25f3e1354afa032190.
-    targetRevision: 45c8ed5a7197e6e77a6afc3b3eb602197352859b
+    # 05-10-2026 (DGX-583, IT): f6578d7 = 45c8ed5 + corrección de los hooks llm-deploy-* (solo toca
+    # k8s/llm-deploy-hooks-{jobs,rbac}.yaml: head/worker identicos, NO reinicia el TP=2; el sync del
+    # repin ejecuta los hooks nuevos: ~2-3 min de voz fuera, el gate /health pasa al instante con el
+    # residente sano). El resume ya no sube la voz fiandose del Healthy de ArgoCD ni del SyncFail: exige
+    # /health 200 en qwen38-flash-next-head:8000 (gate propio, fail-closed a 3600 s); el pause
+    # re-pausa sin pelear si hereda sync-paused de un sync reemplazado. Mismo cambio en main: k8s-ai #113.
+    # ATENCIÓN al mergear: no solapar con un sync en vuelo (reemplazar la operación como a las 11:50Z).
+    # ROLLBACK de esto: 45c8ed5a7197e6e77a6afc3b3eb602197352859b.
+    targetRevision: f6578d7acd76c6efabefafbae4e4d821e924de8e
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
