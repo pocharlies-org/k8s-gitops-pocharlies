@@ -185,6 +185,22 @@ spec:
         # saturado. Ocupaban 4 plazas sin correr nada. Sigue fuera por taint.
         # Riesgo aceptado: hasta 4 runners por ks5 (control-plane + etcd, 8
         # cores). Si el apiserver o etcd se resienten, bajar maxRunners aqui.
+        #
+        # 2026-10-05 devops · INFRA-549 (P3 de INFRA-400). Medidas de la cola
+        # en INFRA-547 (docs/ci-queue-diagnosis-2026-10.md, 7 dias, 8128
+        # jobs): pool ARC p95 97 s, pico de concurrencia en ejecucion 28 con
+        # estos 16 (el pico suma arc-k8s + arc-openclaw + x86-hermes). Los
+        # 86401 s de hermes-agent son un label sin runner (INFRA-548), no
+        # falta de capacidad: no cuentan para dimensionar. El informe sugiere
+        # >=42 plazas; NO se sube con esa cifra: es aproximacion a nivel de
+        # run (el atajo run_started_at sesga el p95 a la baja) y esta en
+        # recuento exacto. El techo lo pone la rafaga de prueba sobre ks5
+        # (control-plane + etcd): <=70 % de CPU real, readyz passed y etcd
+        # sin slow fdatasync durante la rafaga; la lanza qa tras el
+        # despliegue. Ademas INFRA-123 (ks5-cp al 99 % de CPU solicitada)
+        # sigue abierto: mientras no se cierre, maxRunners no sube. Se deja
+        # el tope en 16 y documentado; con remedicion de cifra firme y
+        # rafaga limpia, se sube en otra PR con su propio comentario.
         maxRunners: 16
         minRunners: 0
         runnerScaleSetName: arc-k8s
