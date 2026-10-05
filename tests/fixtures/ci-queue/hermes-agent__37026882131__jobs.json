@@ -1,0 +1,73 @@
+{
+ "total_count": 2,
+ "jobs": [
+  {
+   "id": 110903649840,
+   "run_id": 37026882131,
+   "workflow_name": "Nix flake check",
+   "head_branch": "fix/api-server-sse-disconnect-keeps-run",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ0l9mMA",
+   "head_sha": "f127674607667113c2fd2ec7c0c2c7402282e784",
+   "status": "completed",
+   "conclusion": "success",
+   "created_at": "2026-10-02T15:25:33Z",
+   "started_at": "2026-10-02T15:25:36Z",
+   "completed_at": "2026-10-02T15:25:46Z",
+   "name": "Detect affected areas",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Detect affected areas",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/110903649840",
+   "labels": [
+    "ubuntu-latest"
+   ],
+   "runner_group_name": "GitHub Actions"
+  },
+  {
+   "id": 110903736067,
+   "run_id": 37026882131,
+   "workflow_name": "Nix flake check",
+   "head_branch": "fix/api-server-sse-disconnect-keeps-run",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ0mC3Aw",
+   "head_sha": "f127674607667113c2fd2ec7c0c2c7402282e784",
+   "status": "completed",
+   "conclusion": "cancelled",
+   "created_at": "2026-10-02T15:25:46Z",
+   "started_at": "2026-10-02T15:25:46Z",
+   "completed_at": "2026-10-02T15:42:48Z",
+   "name": "nix flake check",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/110903736067",
+   "labels": [
+    "ubuntu-latest-32-core"
+   ],
+   "runner_group_name": ""
+  }
+ ]
+}

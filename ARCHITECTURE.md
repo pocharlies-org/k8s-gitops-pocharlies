@@ -16,6 +16,9 @@ Un solo «cliente»: ArgoCD.
 
 - **Depende de** — cada repo `k8s-*` y `dgx-infra` (cada `Application` apunta a su repo/rama), charts externos
   (Helm), Vault/external-secrets, runners ARC `arc-k8s`.
+- **Medición de cola** — `ci-queue/ci_queue.py` es la librería canónica de medición de cola y clasificación de
+  labels de CI; el exportador `ci-queue-exporter` (ns `monitoring`, desplegado por `infra/ci-queue-exporter.yaml`,
+  INFRA-550) la reutiliza. Ningún otro sitio mide la cola por su cuenta.
 - **Dependen de él** — **todos los repos de la compañía**: su CI usa `reusable-ci.yml`; el chequeo de contratos es
   `scripts/check-contracts.py` (hook global y respaldo de CI); `docs/ci-cd-gitops-standard.md` es el estándar.
 - **Applications que posee este repo (15, medidas por el CTO)**: `root`, `argocd`, `cert-manager`, `descheduler`,
@@ -47,6 +50,7 @@ Un solo «cliente»: ArgoCD.
 | Staging | `reusable-deploy-stg.yml` | ídem | repos con overlay `stg` |
 | Estándar CI/CD | `docs/ci-cd-gitops-standard.md` | `docs/` | todos |
 | Verificación de runners ARC | `scripts/verify_arc_runner_render.sh` | `scripts/` | CI |
+| Medición de cola CI | `ci-queue/ci_queue.py` (cliente, clasificador, percentiles, pools) + CLI `scripts/ci_queue_report.py` | `ci-queue/`, `scripts/` | informe de diagnóstico, medición 48 h (INFRA-547/551) y exporter `ci-queue/exporter.py` (INFRA-550) |
 | Runbooks | evacuar nodo, restore etcd/Velero, unseal de Vault | `docs/runbook-*.md` | operación |
 
 ## 5. Cómo se construye aquí
@@ -60,11 +64,13 @@ fotos históricas, no estado.
 ## 6. Tests y validaciones
 
 ```sh
-python3 -m unittest discover -s tests -p 'test_*.py'     # contrato de synapse-sre-foundation
+python3 -m unittest discover -s tests -p 'test_*.py'     # contrato synapse-sre-foundation + librería ci-queue
 kustomize build .                                         # reusable-ci con kustomize_paths "."
 bash scripts/verify_arc_runner_render.sh
+python3 scripts/ci_queue_report.py --org pocharlies-org --days 7   # informe de cola (requiere gh auth)
 ```
-Nº de tests: **pendiente de medir**.
+Nº de tests: 34 en `tests/test_ci_queue.py` (herméticos, fixtures en `tests/fixtures/ci-queue/`) + los del
+contrato synapse-sre-foundation.
 
 ## 7. CI/CD y despliegue
 
@@ -84,5 +90,10 @@ Nº de tests: **pendiente de medir**.
 - `2026-08-14` · postmortem «renombrado y guerras del controlador» (`docs/postmortem-20260814-…md`): dos controladores
   peleando por el mismo recurso; leer antes de renombrar Applications.
 - `bootstrap/app-of-apps.yaml` es el arranque manual del `root`; no se aplica en el día a día.
+- La lista de pools válidos de runners = los `runnerScaleSetName` de `infra/arc.yaml` + los extras declarados en
+  `ci-queue/ci_queue.py` (`EXTRA_POOLS`, p. ej. `x86-hermes`); fuente única, no se copia en ningún otro sitio.
+- La API de runs de la org (`GET /orgs/{org}/actions/runs`) responde 404 con token de usuario sin permisos de
+  admin de Actions: la medición recorre repos (`ci-queue/ci_queue.py`), y con ~6000 runs/semana y 5000 llamadas/h
+  de cuota los runs rápidos se miden con `run_started_at` sin pedir la API de jobs.
 
 Última verificación contra el código: 2026-10-01 · f2a8ce0 (origin/deploy/prod)

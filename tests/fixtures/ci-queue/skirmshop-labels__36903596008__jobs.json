@@ -1,0 +1,189 @@
+{
+ "total_count": 2,
+ "jobs": [
+  {
+   "id": 110508494250,
+   "run_id": 36903596008,
+   "workflow_name": "ci",
+   "head_branch": "fix/labels-wa-restricted-terminal",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSQFUBM8AAAAZutHNqg",
+   "head_sha": "886f827df1f50b518ba8ec1c41ecab8c47ca8131",
+   "status": "completed",
+   "conclusion": "cancelled",
+   "created_at": "2026-10-01T18:00:25Z",
+   "started_at": "2026-10-01T18:00:55Z",
+   "completed_at": "2026-10-01T18:04:21Z",
+   "name": "monorepo (lint + typecheck + test + compose)",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Checkout",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Setup pnpm",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Setup Node.js",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Install dependencies",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Prettier check",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Shopify Admin entrypoint guard",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Lint",
+     "status": "completed",
+     "conclusion": "cancelled"
+    },
+    {
+     "name": "Typecheck",
+     "status": "completed",
+     "conclusion": "skipped"
+    },
+    {
+     "name": "Build",
+     "status": "completed",
+     "conclusion": "skipped"
+    },
+    {
+     "name": "Test (unit)",
+     "status": "completed",
+     "conclusion": "skipped"
+    },
+    {
+     "name": "Install docker compose v2 plugin (arc-k8s runner lacks it)",
+     "status": "completed",
+     "conclusion": "skipped"
+    },
+    {
+     "name": "Validate docker-compose",
+     "status": "completed",
+     "conclusion": "skipped"
+    },
+    {
+     "name": "Post Setup Node.js",
+     "status": "completed",
+     "conclusion": "skipped"
+    },
+    {
+     "name": "Post Setup pnpm",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Checkout",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/skirmshop-labels/check-runs/110508494250",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": "default"
+  },
+  {
+   "id": 110508494464,
+   "run_id": 36903596008,
+   "workflow_name": "ci",
+   "head_branch": "fix/labels-wa-restricted-terminal",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSQFUBM8AAAAZutHOgA",
+   "head_sha": "886f827df1f50b518ba8ec1c41ecab8c47ca8131",
+   "status": "completed",
+   "conclusion": "success",
+   "created_at": "2026-10-01T18:00:25Z",
+   "started_at": "2026-10-01T18:01:01Z",
+   "completed_at": "2026-10-01T18:02:07Z",
+   "name": "security (npm audit + actionlint)",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/checkout@v4",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Setup pnpm",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/setup-node@v4",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Install (ignore scripts for audit-only run)",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Audit (high severity fails)",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "actionlint",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Run actions/setup-node@v4",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Setup pnpm",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Run actions/checkout@v4",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/skirmshop-labels/check-runs/110508494464",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": "default"
+  }
+ ]
+}

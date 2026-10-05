@@ -1,0 +1,202 @@
+{
+ "total_count": 5,
+ "jobs": [
+  {
+   "id": 111564892692,
+   "run_id": 37246340385,
+   "workflow_name": "CI",
+   "head_branch": "INFRA-166-engine-upgrade-limit",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSkN3Es8AAAAZ-ckqFA",
+   "head_sha": "6213b50fb996c9e92fb1067c7d41f45a78e3b1c7",
+   "status": "completed",
+   "conclusion": "success",
+   "created_at": "2026-10-05T00:08:58Z",
+   "started_at": "2026-10-05T00:09:19Z",
+   "completed_at": "2026-10-05T00:09:42Z",
+   "name": "Synapse SRE foundation Application contract",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/checkout@v4",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/setup-python@v5",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run pip install --quiet pyyaml",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run python3 -m unittest discover -s tests -p 'test_*.py'",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Run actions/setup-python@v5",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Run actions/checkout@v4",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/k8s-gitops-pocharlies/check-runs/111564892692",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": "default"
+  },
+  {
+   "id": 111564892873,
+   "run_id": 37246340385,
+   "workflow_name": "CI",
+   "head_branch": "INFRA-166-engine-upgrade-limit",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSkN3Es8AAAAZ-ckqyQ",
+   "head_sha": "6213b50fb996c9e92fb1067c7d41f45a78e3b1c7",
+   "status": "completed",
+   "conclusion": "success",
+   "created_at": "2026-10-05T00:08:58Z",
+   "started_at": "2026-10-05T00:09:20Z",
+   "completed_at": "2026-10-05T00:09:51Z",
+   "name": "standard / Lint and validate manifests",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/checkout@v4",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Install YAML and Kubernetes tools",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Verify rendered ARC runner contract",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "YAML lint",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "kubeconform raw manifests",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Configure git auth for private kustomize bases",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Render kustomize overlays",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Run actions/checkout@v4",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/k8s-gitops-pocharlies/check-runs/111564892873",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": "default"
+  },
+  {
+   "id": 111564893938,
+   "run_id": 37246340385,
+   "workflow_name": "CI",
+   "head_branch": "INFRA-166-engine-upgrade-limit",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSkN3Es8AAAAZ-cku8g",
+   "head_sha": "6213b50fb996c9e92fb1067c7d41f45a78e3b1c7",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-05T00:08:58Z",
+   "started_at": "2026-10-05T00:08:58Z",
+   "completed_at": "2026-10-05T00:08:58Z",
+   "name": "standard / Build images",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/k8s-gitops-pocharlies/check-runs/111564893938",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": null
+  },
+  {
+   "id": 111564894046,
+   "run_id": 37246340385,
+   "workflow_name": "CI",
+   "head_branch": "INFRA-166-engine-upgrade-limit",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSkN3Es8AAAAZ-ckvXg",
+   "head_sha": "6213b50fb996c9e92fb1067c7d41f45a78e3b1c7",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-05T00:08:58Z",
+   "started_at": "2026-10-05T00:08:58Z",
+   "completed_at": "2026-10-05T00:08:58Z",
+   "name": "standard / Lint, test, build",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/k8s-gitops-pocharlies/check-runs/111564894046",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": null
+  },
+  {
+   "id": 111565068252,
+   "run_id": 37246340385,
+   "workflow_name": "CI",
+   "head_branch": "INFRA-166-engine-upgrade-limit",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSkN3Es8AAAAZ-cvX3A",
+   "head_sha": "6213b50fb996c9e92fb1067c7d41f45a78e3b1c7",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-05T00:09:51Z",
+   "started_at": "2026-10-05T00:09:51Z",
+   "completed_at": "2026-10-05T00:09:51Z",
+   "name": "standard / Notify OpenClaw on failure",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/k8s-gitops-pocharlies/check-runs/111565068252",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": null
+  }
+ ]
+}

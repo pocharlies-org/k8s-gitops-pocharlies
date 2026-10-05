@@ -1,0 +1,218 @@
+{
+ "total_count": 5,
+ "jobs": [
+  {
+   "id": 111088176603,
+   "run_id": 37083265620,
+   "workflow_name": "CI",
+   "head_branch": "security/op-ratelimit-sc1640",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSkN3Es8AAAAZ3V8N2w",
+   "head_sha": "1998a56ae77cf8a0b87cdbdfff88a8df82056539",
+   "status": "completed",
+   "conclusion": "failure",
+   "created_at": "2026-10-03T00:43:42Z",
+   "started_at": "2026-10-03T00:44:05Z",
+   "completed_at": "2026-10-03T00:44:24Z",
+   "name": "Synapse SRE foundation Application contract",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/checkout@v4",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/setup-python@v5",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run pip install --quiet pyyaml",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run python3 -m unittest discover -s tests -p 'test_*.py'",
+     "status": "completed",
+     "conclusion": "failure"
+    },
+    {
+     "name": "Post Run actions/setup-python@v5",
+     "status": "completed",
+     "conclusion": "skipped"
+    },
+    {
+     "name": "Post Run actions/checkout@v4",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/k8s-gitops-pocharlies/check-runs/111088176603",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": "default"
+  },
+  {
+   "id": 111088176993,
+   "run_id": 37083265620,
+   "workflow_name": "CI",
+   "head_branch": "security/op-ratelimit-sc1640",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSkN3Es8AAAAZ3V8PYQ",
+   "head_sha": "1998a56ae77cf8a0b87cdbdfff88a8df82056539",
+   "status": "completed",
+   "conclusion": "cancelled",
+   "created_at": "2026-10-03T00:43:42Z",
+   "started_at": "2026-10-03T00:44:21Z",
+   "completed_at": "2026-10-03T00:44:55Z",
+   "name": "standard / Lint and validate manifests",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/checkout@v4",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Install YAML and Kubernetes tools",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Verify rendered ARC runner contract",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "YAML lint",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "kubeconform raw manifests",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Configure git auth for private kustomize bases",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Render kustomize overlays",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Run actions/checkout@v4",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/k8s-gitops-pocharlies/check-runs/111088176993",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": "default"
+  },
+  {
+   "id": 111088177472,
+   "run_id": 37083265620,
+   "workflow_name": "CI",
+   "head_branch": "security/op-ratelimit-sc1640",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSkN3Es8AAAAZ3V8RQA",
+   "head_sha": "1998a56ae77cf8a0b87cdbdfff88a8df82056539",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-03T00:43:42Z",
+   "started_at": "2026-10-03T00:43:42Z",
+   "completed_at": "2026-10-03T00:43:42Z",
+   "name": "standard / Lint, test, build",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/k8s-gitops-pocharlies/check-runs/111088177472",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": null
+  },
+  {
+   "id": 111088177608,
+   "run_id": 37083265620,
+   "workflow_name": "CI",
+   "head_branch": "security/op-ratelimit-sc1640",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSkN3Es8AAAAZ3V8RyA",
+   "head_sha": "1998a56ae77cf8a0b87cdbdfff88a8df82056539",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-03T00:43:42Z",
+   "started_at": "2026-10-03T00:43:42Z",
+   "completed_at": "2026-10-03T00:43:42Z",
+   "name": "standard / Build images",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/k8s-gitops-pocharlies/check-runs/111088177608",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": null
+  },
+  {
+   "id": 111088424002,
+   "run_id": 37083265620,
+   "workflow_name": "CI",
+   "head_branch": "security/op-ratelimit-sc1640",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSkN3Es8AAAAZ3WLUQg",
+   "head_sha": "1998a56ae77cf8a0b87cdbdfff88a8df82056539",
+   "status": "completed",
+   "conclusion": "success",
+   "created_at": "2026-10-03T00:44:55Z",
+   "started_at": "2026-10-03T00:45:17Z",
+   "completed_at": "2026-10-03T00:45:25Z",
+   "name": "standard / Notify OpenClaw on failure",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Send failure report",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/k8s-gitops-pocharlies/check-runs/111088424002",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": "default"
+  }
+ ]
+}

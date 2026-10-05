@@ -1,0 +1,23 @@
+{
+ "total_count": 3,
+ "repositories": [
+  {
+   "name": "skirmshop-labels",
+   "pushed_at": "2026-10-02T11:55:15Z",
+   "archived": false,
+   "default_branch": "main"
+  },
+  {
+   "name": "hermes-agent",
+   "pushed_at": "2026-10-05T00:34:42Z",
+   "archived": false,
+   "default_branch": "main"
+  },
+  {
+   "name": "k8s-gitops-pocharlies",
+   "pushed_at": "2026-10-05T00:18:58Z",
+   "archived": false,
+   "default_branch": "main"
+  }
+ ]
+}

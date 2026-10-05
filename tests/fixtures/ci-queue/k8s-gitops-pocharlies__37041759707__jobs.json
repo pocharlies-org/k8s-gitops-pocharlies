@@ -1,0 +1,324 @@
+{
+ "total_count": 6,
+ "jobs": [
+  {
+   "id": 110953309973,
+   "run_id": 37041759707,
+   "workflow_name": "CI",
+   "head_branch": "sc-1359/framework-token-app",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSkN3Es8AAAAZ1VUnFQ",
+   "head_sha": "3d6e6d5382e9125ee761fe071d73b86707d9410f",
+   "status": "completed",
+   "conclusion": "cancelled",
+   "created_at": "2026-10-02T17:35:39Z",
+   "started_at": "2026-10-02T17:36:02Z",
+   "completed_at": "2026-10-02T17:37:06Z",
+   "name": "GitOps and release security contracts",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Install verified Python",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Install hash-locked checker dependency",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Install verified Node.js (duplicados)",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run python3 scripts/check-workflow-pins.py",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run python3 scripts/check-manifest-promotion.py",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run python3 scripts/check-release-supply-chain.py",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run python3 scripts/check-release-image-linkage.py",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run python3 -m unittest tests/test_release_image_linkage_runtime.py",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run python3 -m unittest tests/test_release_retry_idempotence.py",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run python3 -m unittest tests/test_synapse_sre_foundation_app.py",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run python3 -m unittest tests/test_review_http.py",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run python3 -m unittest tests/test_review_context.py",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run python3 -m unittest tests/test_review_distribute.py",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run python3 -m unittest tests/test_review_health.py",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run python3 -m unittest tests/test_duplicados.py",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "PR-Agent config and secret distribution (INFRA-331)",
+     "status": "completed",
+     "conclusion": "cancelled"
+    },
+    {
+     "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/k8s-gitops-pocharlies/check-runs/110953309973",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": "default"
+  },
+  {
+   "id": 110953310501,
+   "run_id": 37041759707,
+   "workflow_name": "CI",
+   "head_branch": "sc-1359/framework-token-app",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSkN3Es8AAAAZ1VUpJQ",
+   "head_sha": "3d6e6d5382e9125ee761fe071d73b86707d9410f",
+   "status": "completed",
+   "conclusion": "success",
+   "created_at": "2026-10-02T17:35:40Z",
+   "started_at": "2026-10-02T17:36:03Z",
+   "completed_at": "2026-10-02T17:36:20Z",
+   "name": "standard / Lint and validate manifests",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Install verified Python",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Install YAML and Kubernetes tools",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "YAML lint",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "kubeconform raw manifests",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Configure git auth for private kustomize bases",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Render kustomize overlays",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/k8s-gitops-pocharlies/check-runs/110953310501",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": "default"
+  },
+  {
+   "id": 110953310588,
+   "run_id": 37041759707,
+   "workflow_name": "CI",
+   "head_branch": "sc-1359/framework-token-app",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSkN3Es8AAAAZ1VUpfA",
+   "head_sha": "3d6e6d5382e9125ee761fe071d73b86707d9410f",
+   "status": "completed",
+   "conclusion": "success",
+   "created_at": "2026-10-02T17:35:40Z",
+   "started_at": "2026-10-02T17:36:04Z",
+   "completed_at": "2026-10-02T17:36:16Z",
+   "name": "standard / Contract surface",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Detect CONTRACTS.yaml",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Install verified Python",
+     "status": "completed",
+     "conclusion": "skipped"
+    },
+    {
+     "name": "Check out the contract checker",
+     "status": "completed",
+     "conclusion": "skipped"
+    },
+    {
+     "name": "Enforce the contract rules",
+     "status": "completed",
+     "conclusion": "skipped"
+    },
+    {
+     "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/k8s-gitops-pocharlies/check-runs/110953310588",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": "default"
+  },
+  {
+   "id": 110953312558,
+   "run_id": 37041759707,
+   "workflow_name": "CI",
+   "head_branch": "sc-1359/framework-token-app",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSkN3Es8AAAAZ1VUxLg",
+   "head_sha": "3d6e6d5382e9125ee761fe071d73b86707d9410f",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-02T17:35:40Z",
+   "started_at": "2026-10-02T17:35:40Z",
+   "completed_at": "2026-10-02T17:35:39Z",
+   "name": "standard / Build images",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/k8s-gitops-pocharlies/check-runs/110953312558",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": null
+  },
+  {
+   "id": 110953312647,
+   "run_id": 37041759707,
+   "workflow_name": "CI",
+   "head_branch": "sc-1359/framework-token-app",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSkN3Es8AAAAZ1VUxhw",
+   "head_sha": "3d6e6d5382e9125ee761fe071d73b86707d9410f",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-02T17:35:40Z",
+   "started_at": "2026-10-02T17:35:40Z",
+   "completed_at": "2026-10-02T17:35:39Z",
+   "name": "standard / Lint, test, build",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/k8s-gitops-pocharlies/check-runs/110953312647",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": null
+  },
+  {
+   "id": 110953576230,
+   "run_id": 37041759707,
+   "workflow_name": "CI",
+   "head_branch": "sc-1359/framework-token-app",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSkN3Es8AAAAZ1Vk3Jg",
+   "head_sha": "3d6e6d5382e9125ee761fe071d73b86707d9410f",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-02T17:36:21Z",
+   "started_at": "2026-10-02T17:36:21Z",
+   "completed_at": "2026-10-02T17:36:20Z",
+   "name": "standard / Notify OpenClaw on failure",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/k8s-gitops-pocharlies/check-runs/110953576230",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": null
+  }
+ ]
+}
