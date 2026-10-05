@@ -1561,7 +1561,11 @@ spec:
     # (antes 120,2), 6,2 tok/s por petición (antes 10,2), cola el 29 % del tiempo (antes 16 %), TTFT p95 112 s (antes 23)
     # y 1.949 peticiones terminadas (antes 4.037). Incumple los criterios de DGX-582. Reinicia el TP=2 (~33 min con la
     # norma de hooks de b5df721). ROLLBACK de esto: 04678a3ef7b9b085c4b89c25f3e1354afa032190.
-    targetRevision: 45c8ed5a7197e6e77a6afc3b3eb602197352859b
+    # 05-10-2026 (DGX-588, Dani): d017c92 = 45c8ed5 + MAX_NUM_SEQS 16 -> 10 en head y worker. Medido 3 días por
+    # peticiones en curso: el agregado toca techo con 9-10 (129 tok/s) y cae con 13-16 (107); por petición 13,6 frente
+    # a 7,2 tok/s. Mismo PR en main: k8s-ai #114. Reinicia el TP=2 (~33 min, norma de hooks de b5df721).
+    # ROLLBACK: 45c8ed5a7197e6e77a6afc3b3eb602197352859b.
+    targetRevision: d017c92dcf7bb34b5e60c9e14ea41441581f3ca0
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
