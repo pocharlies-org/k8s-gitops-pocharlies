@@ -1556,7 +1556,12 @@ spec:
     # 05-10-2026 14:15: el rollback a 45c8ed5 (#499) se revirtió sin llegar a aplicarse. El arranque con
     # seqs=24 no estaba colgado: tardó ~33 min (13:38 -> 14:11) y quedó Healthy justo antes del merge de
     # #499. La app ai se congeló con skip-reconcile para no reiniciar otra vez el TP=2. Sigue 04678a3.
-    targetRevision: 04678a3ef7b9b085c4b89c25f3e1354afa032190
+    # 05-10-2026 19:00 (DGX-582, Dani: «¿qué es más realista? hazlo»): VUELTA a 45c8ed5 (seqs=16). Medido 14:30-19:00
+    # contra la misma franja del día anterior (job=qwen38-flash-next-head): 24 ranuras dieron 58,8 tok/s agregados
+    # (antes 120,2), 6,2 tok/s por petición (antes 10,2), cola el 29 % del tiempo (antes 16 %), TTFT p95 112 s (antes 23)
+    # y 1.949 peticiones terminadas (antes 4.037). Incumple los criterios de DGX-582. Reinicia el TP=2 (~33 min con la
+    # norma de hooks de b5df721). ROLLBACK de esto: 04678a3ef7b9b085c4b89c25f3e1354afa032190.
+    targetRevision: 45c8ed5a7197e6e77a6afc3b3eb602197352859b
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
