@@ -1553,11 +1553,10 @@ spec:
     # vLLM se formaba por el tope de 16 ranuras (running a 16, waiting > 0 el 35% de la noche) con la KV al
     # 55% p95 / 62% max y 0 preempciones. Mismo PR en main: k8s-ai #111. Reinicia el TP=2 con la norma de
     # hooks de b5df721. ROLLBACK: 45c8ed5a7197e6e77a6afc3b3eb602197352859b.
-    # 05-10-2026 14:15 (DGX-582, ROLLBACK): 04678a3 (seqs=24) no arranca. Los dos rangos se colgaron a las
-    # 11:50:13Z justo tras reservar la KV (CPU 2%, GPU 0%, 20+ min sin log) y la voz seguía arriba en la
-    # ventana (STT en gx10-ec3d con 4,4 GiB libres; TTS arrancando en nvidia-dgx con pgmajfault 162/s).
-    # Vuelta a 45c8ed5 (seqs=16), el último que arrancó bien.
-    targetRevision: 45c8ed5a7197e6e77a6afc3b3eb602197352859b
+    # 05-10-2026 14:15: el rollback a 45c8ed5 (#499) se revirtió sin llegar a aplicarse. El arranque con
+    # seqs=24 no estaba colgado: tardó ~33 min (13:38 -> 14:11) y quedó Healthy justo antes del merge de
+    # #499. La app ai se congeló con skip-reconcile para no reiniciar otra vez el TP=2. Sigue 04678a3.
+    targetRevision: 04678a3ef7b9b085c4b89c25f3e1354afa032190
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
