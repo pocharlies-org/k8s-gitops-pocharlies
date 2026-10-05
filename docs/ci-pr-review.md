@@ -125,10 +125,19 @@ un volumen en `/var/lib/docker`); no hay store que perdurar entre jobs, y un pre
 initContainer solo movería los 27 s a la cola, que el comando de medida del p95 también
 cuenta (`run_started_at` → `updated_at`).
 
-Lo que sí estaba en el camino crítico era el checkout del registry de Synapse: 28–39 s por
-job (sparse-checkout sin `fetch-depth` trae el historial completo). Con `fetch-depth: 1`
-el tramo pasa a segundos y el p95 del job baja del entorno de 101–112 s a < 90 s (criterio
-del CTO, INFRA-334 comentario 18462; los 10 runs de evidencia van en el `50-entrega.md`).
+Lo que sí estaba en el camino crítico era el checkout del registry de Synapse: 25–41 s por
+job. La causa **no** es el historial del fetch: sin `FRAMEWORK_REPO_TOKEN` en el repo
+llamador, `actions/checkout` recibe **404** al resolver el ref de `pocharlies-org/synapse`
+(repo privado) y **reintenta con backoff** («Waiting 19 seconds before trying again», medido
+en los logs del run 37265193905). Fijar `ref:` no lo evita (el backoff está también en el
+fetch de autenticación — medido en runs aislados: el paso seguía en 28–35 s). El fix es la
+**puerta determinista** del paso (INFRA-334, delta del architect): sin
+`FRAMEWORK_REPO_TOKEN` el paso no se ejecuta (`if: ... && env.FRAMEWORK_REPO_TOKEN != ''`,
+con el secret mapeado a `env:` del job — el contexto `secrets` no está disponible en un `if:`
+de paso); `review-context.py` anota la fuente en «Degradaciones» y sale 0, igual que con el
+checkout fallido. `fetch-depth: 1` se mantiene (el registry se lee como fichero del HEAD).
+El p95 del job sobre la muestra vieja era 101–112 s; la evidencia de los 10 runs con la
+puerta va en el `50-entrega.md` de INFRA-334 (criterio del CTO, comentario 18462).
 El comando de medida es el del spec de INFRA-332 criterio 4, sobre runs del piloto con diff
 ≤ 120 KB:
 
