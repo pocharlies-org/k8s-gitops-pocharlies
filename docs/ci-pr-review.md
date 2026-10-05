@@ -48,7 +48,10 @@ de lanzar PR-Agent.
 
 El inline del hallazgo de contrato NO pasa por PR-Agent: lo publica el CI por la API de GitHub
 (`review-context.py` → `review-distribute.py`, marcador `<!--contrato:…-->`, anclado a la línea del
-value en head, idempotente entre pushes). Por eso `suggestions_score_threshold` vale 1 (el default con
+value en head, idempotente entre pushes). La clave `pr_reviewer.inline_key_issues` se retiró del
+fichero y del REQUIRED del validador en INFRA-334: en 0.46.0 es inerte en GitHub (el provider no
+implementa la verificación que exige `can_verify_inline_comment_publication`; solo bitbucket la
+tiene). Por eso `suggestions_score_threshold` vale 1 (el default con
 el que nació el fichero; #466 lo bajó a 0 y publicaba todas las sugerencias, también las flojas que
 `self_reflect_on_suggestions` puntuaba 0 — ruido en todos los repos `engine: pr-agent`). El filtro de
 calidad vuelve a valer; `artifact_instructions` pide ahora al modelo NO repetir el hallazgo como
@@ -109,6 +112,59 @@ credenciales; con ellos, ninguno (sí puede cambiar ajustes no críticos, p. ej.
 
 Imagen: `harbor.e-dani.com/homelab/pr-agent:0.46.0-github_action@sha256:42c7833a…` (espejo del manifiesto
 linux/amd64). La vigila la entrada `pr-agent` de `dgx-infra ci/update-watch.yaml` (aviso, sin PR automático).
+
+## Tiempo del job `pr-agent`: el pull y el camino crítico (INFRA-334)
+
+El `docker pull` de la imagen arranca en el paso 2 del job y corre en segundo plano
+(`Wait for the image pull` solo recoge el rc). Medido sobre los pilotos: **27 s de pull**
+(p. ej. run 37003693367, `pull: rc=0 en 27 s`), que solapa con los checkouts. Pre-pull
+«imagen ya en el runner» es **estructuralmente imposible** con este pool: en ARC v2
+(`gha-runner-scale-set` 0.14.1) el pod del runner es efímero por job y el sidecar `dind`
+lo inyecta el chart con args y volúmenes fijos (sin knob para `--registry-mirror` ni para
+un volumen en `/var/lib/docker`); no hay store que perdurar entre jobs, y un pre-pull en
+initContainer solo movería los 27 s a la cola, que el comando de medida del p95 también
+cuenta (`run_started_at` → `updated_at`).
+
+Lo que sí estaba en el camino crítico era el checkout del registry de Synapse: 25–41 s por
+job. La causa **no** es el historial del fetch: sin `FRAMEWORK_REPO_TOKEN` en el repo
+llamador, `actions/checkout` recibe **404** al resolver el ref de `pocharlies-org/synapse`
+(repo privado) y **reintenta con backoff** («Waiting 19 seconds before trying again», medido
+en los logs del run 37265193905). Fijar `ref:` no lo evita (el backoff está también en el
+fetch de autenticación — medido en runs aislados: el paso seguía en 28–35 s). El fix es la
+**puerta determinista** del paso (INFRA-334, delta del architect): sin
+`FRAMEWORK_REPO_TOKEN` el paso no se ejecuta (`if: ... && env.FRAMEWORK_REPO_TOKEN != ''`,
+con el secret mapeado a `env:` del job — el contexto `secrets` no está disponible en un `if:`
+de paso); `review-context.py` anota la fuente en «Degradaciones» y sale 0, igual que con el
+checkout fallido. `fetch-depth: 1` se mantiene (el registry se lee como fichero del HEAD).
+El p95 del job sobre la muestra vieja era 101–112 s; la evidencia de los 10 runs con la
+puerta va en el `50-entrega.md` de INFRA-334 (criterio del CTO, comentario 18462).
+El comando de medida es el del spec de INFRA-332 criterio 4, sobre runs del piloto con diff
+≤ 120 KB:
+
+    gh api "repos/pocharlies-org/<piloto>/actions/workflows/<WF>/runs?per_page=100" \
+      --jq '[.workflow_runs[] | ((.updated_at|fromdate) - (.run_started_at|fromdate))] | sort | .[((length*0.95)|floor)]'
+
+## Puerta del pr-watcher: etiquetas y códigos 6 y 7 (INFRA-353 / INFRA-392)
+
+El `pr-watcher` (`~/.claude/skills/pr-watcher`) es el consumidor de la etiqueta
+`changes_required` que pone `review-distribute.py`: solo bloquea la etiqueta **vigente**
+(check-run `<job del llamador> / Review del PR (PR-Agent)` con `head_sha` = HEAD y
+`success`); sin run del HEAD actual la etiqueta es obsoleta y no hace nada. Salidas:
+**6** = bloqueada por `changes_required` vigente (la review del HEAD pide cambios: no se
+fusiona, no se reintentará el merge); **7** = check-runs caído con la etiqueta puesta
+(la puerta no pudo comprobar la vigencia: reintento uno, y si vuelve a fallar no fusiona;
+la PR queda para el siguiente ciclo y quien la relanza es el consumidor al despertar).
+Nunca fusiona por defecto: `merge`/`needs_human`/`unknown` del artefacto no autorizan, solo
+dejan aplicar las demás puertas.
+
+## Dependencia externa: SC-1400
+
+El ticket Jira y la memoria del brain van **degradados** hasta que SC-1400 dé la cuenta de
+solo lectura (`JIRA_EMAIL`/`JIRA_API_TOKEN`) y `BRAIN_CI_KEY` por repo: sin ellas el
+push-ingest sale `sin_clave` (la señal nocturna lo informa aparte, no cuenta como omitido)
+y la sección «Tickets Jira citados» del contexto va a Degradaciones. El reparto de esas
+claves y las oleadas de `engine: pr-agent` a los 108 repos son el resto de INFRA-334
+(criterios 0–2 y 7), tras el visto bueno de security y el sign-off de INFRA-333.
 
 ## Señal de salud nocturna (`review-health.yml`, INFRA-333)
 
