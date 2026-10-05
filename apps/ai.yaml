@@ -1561,15 +1561,21 @@ spec:
     # (antes 120,2), 6,2 tok/s por petición (antes 10,2), cola el 29 % del tiempo (antes 16 %), TTFT p95 112 s (antes 23)
     # y 1.949 peticiones terminadas (antes 4.037). Incumple los criterios de DGX-582. Reinicia el TP=2 (~33 min con la
     # norma de hooks de b5df721). ROLLBACK de esto: 04678a3ef7b9b085c4b89c25f3e1354afa032190.
-    # 05-10-2026 (DGX-583, IT): f6578d7 = 45c8ed5 + corrección de los hooks llm-deploy-* (solo toca
+    # 05-10-2026 (DGX-588, Dani): d017c92 = 45c8ed5 + MAX_NUM_SEQS 16 -> 10 en head y worker. Medido 3 días por
+    # peticiones en curso: el agregado toca techo con 9-10 (129 tok/s) y cae con 13-16 (107); por petición 13,6 frente
+    # a 7,2 tok/s. Mismo PR en main: k8s-ai #114. Reinicia el TP=2 (~33 min, norma de hooks de b5df721).
+    # ROLLBACK: 45c8ed5a7197e6e77a6afc3b3eb602197352859b.
+    # 06-10-2026 (DGX-583, IT): 6abeb19 = d017c92 + corrección de los hooks llm-deploy-* (solo toca
     # k8s/llm-deploy-hooks-{jobs,rbac}.yaml: head/worker identicos, NO reinicia el TP=2; el sync del
     # repin ejecuta los hooks nuevos: ~2-3 min de voz fuera, el gate /health pasa al instante con el
-    # residente sano). El resume ya no sube la voz fiandose del Healthy de ArgoCD ni del SyncFail: exige
-    # /health 200 en qwen38-flash-next-head:8000 (gate propio, fail-closed a 3600 s); el pause
-    # re-pausa sin pelear si hereda sync-paused de un sync reemplazado. Mismo cambio en main: k8s-ai #113.
-    # ATENCIÓN al mergear: no solapar con un sync en vuelo (reemplazar la operación como a las 11:50Z).
-    # ROLLBACK de esto: 45c8ed5a7197e6e77a6afc3b3eb602197352859b.
-    targetRevision: f6578d7acd76c6efabefafbae4e4d821e924de8e
+    # residente sano). El resume ya no sube la voz fiandose del Healthy de ArgoCD ni del SyncFail:
+    # exige /health 200 en el svc tooling del pool (el residente en vivo, sin nombre duro — nota
+    # architect en DGX-583; gate propio, fail-closed a 3600 s); el pause re-pausa sin pelear si
+    # hereda sync-paused de un sync reemplazado. Mismo cambio en main: k8s-ai #113 (70-qa.md: CUMPLE).
+    # ATENCION al mergear: no solapar con un sync de ai en vuelo (un operation nuevo reemplaza al
+    # anterior — así se lió la ventana de las 11:50Z del 05-10).
+    # ROLLBACK de esto: d017c92dcf7bb34b5e60c9e14ea41441581f3ca0.
+    targetRevision: 6abeb19f8a278a511a34258e32ee4c062ee89ecd
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
