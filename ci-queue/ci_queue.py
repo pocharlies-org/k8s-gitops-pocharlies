@@ -270,20 +270,27 @@ class Job:
         return f"{self.repo}#{self.run_number}{pr}·{self.name}"
 
 
-# Runs cuya espera a nivel de run está por debajo (segundos): se miden con
-# `run_started_at` de la propia lista y NO se pide la API de jobs (la espera del
-# job no puede superar a la del run más que en segundos; con ~6000 runs/semana
-# en la org y 5000 llamadas/h de cuota, preguntar por cada run no cabe).
+# Umbral (segundos) del atajo SOLO en modo aproximado (`exact=False`): runs
+# cuya espera a nivel de run está por debajo se miden con `run_started_at` de
+# la propia lista, sin pedir la API de jobs (con ~6000 runs/semana y 5000
+# llamadas/h de cuota, preguntar por cada run no cabe en 7 días). ES UNA
+# APROXIMACIÓN A LA BAJA: un job `needs` o de otro pool puede esperar minutos
+# dentro de un run marcado rápido, y el atajo mete 1 muestra por run rápido
+# frente a N por run lento. Por eso los asserts (C1/C5) y las ventanas
+# cortas (--since/--hours) usan `exact=True`, que pide siempre la API de jobs
+# (~1700 llamadas para 48 h: cabe de sobra en la cuota).
 FAST_RUN_SECONDS = 30
 
 
 def collect_jobs(client, org: str, since: dt.datetime, until: dt.datetime,
                  now: dt.datetime | None = None,
-                 repos: list[str] | None = None) -> list[Job]:
+                 repos: list[str] | None = None,
+                 exact: bool = False) -> list[Job]:
     """Jobs de la org en [since, until]: runs por repo (no hay endpoint org de
-    runs accesible sin admin) + runs en cola ahora mismo. Los runs lentos,
-    cancelados, en cola o con re-runs se miden con la API de jobs por intento;
-    los rápidos, con `run_started_at` (ver FAST_RUN_SECONDS)."""
+    runs accesible sin admin) + runs en cola ahora mismo. Con `exact=True`
+    cada run se mide job a job con la API de jobs; con `exact=False` los runs
+    rápidos se miden con `run_started_at` (aproximación a la baja, ver
+    FAST_RUN_SECONDS)."""
     from concurrent.futures import ThreadPoolExecutor
 
     now = now or dt.datetime.now(dt.timezone.utc)
@@ -300,7 +307,7 @@ def collect_jobs(client, org: str, since: dt.datetime, until: dt.datetime,
                 if run["id"] in seen:
                     continue
                 seen.add(run["id"])
-                out.extend(_measure_run(client, org, repo, run, now))
+                out.extend(_measure_run(client, org, repo, run, now, exact))
         return out
 
     with ThreadPoolExecutor(max_workers=8) as pool:
@@ -309,11 +316,14 @@ def collect_jobs(client, org: str, since: dt.datetime, until: dt.datetime,
             or j.queued_now]
 
 
-def _measure_run(client, org: str, repo: str, run: dict, now: dt.datetime) -> list[Job]:
+def _measure_run(client, org: str, repo: str, run: dict, now: dt.datetime,
+                 exact: bool = False) -> list[Job]:
     created = parse_iso(run.get("created_at"))
     started = parse_iso(run.get("run_started_at"))
     if created is None:
         return []
+    if exact:
+        return _run_jobs(client, org, repo, run, now)
     interesting = (
         run.get("conclusion") == "cancelled"
         or run.get("status") != "completed"
@@ -340,8 +350,12 @@ def _run_jobs(client, org: str, repo: str, run: dict, now: dt.datetime) -> list[
     """Jobs del run (el último intento: la API de jobs por `attempt` devuelve
     los mismos timestamps para todos los intentos, no aporta nada y gasta
     cuota). `floor` es la espera a nivel de run — desde `created_at` hasta que
-    el run arrancó de verdad — que la API de jobs oculta en runs en cola y con
-    re-runs; cada job se mide al menos con ella."""
+    el run arrancó de verdad — que la API de jobs oculta en runs aún en cola;
+    se aplica SOLO a los jobs que ya existían durante esa cola (los creados
+    después, p. ej. por `needs`, tienen su propia espera). Con re-runs no hay
+    suelo: los timestamps del último intento son los que hay y un `started_at`
+    anterior solo es un residuo de un intento previo — usarlo sobreestima
+    (verificado a mano en skirmshop-labels#151: 96 s, no 1189 s)."""
     created = parse_iso(run.get("created_at"))
     run_started = parse_iso(run.get("run_started_at"))
     if run.get("status") != "completed":
@@ -349,7 +363,7 @@ def _run_jobs(client, org: str, repo: str, run: dict, now: dt.datetime) -> list[
     elif run_started and int(run.get("run_attempt") or 1) == 1:
         floor = (run_started - created).total_seconds()
     else:
-        floor = None  # re-run: se calcula con el primer started_at abajo
+        floor = 0.0  # re-run: cada job con su espera a nivel de job
     try:
         page = client.get(f"/repos/{org}/{repo}/actions/runs/{run['id']}/jobs",
                           {"per_page": 100})[0]
@@ -378,20 +392,10 @@ def _run_jobs(client, org: str, repo: str, run: dict, now: dt.datetime) -> list[
             status=job.get("status"), conclusion=job.get("conclusion"),
             wait=wait, queued_now=job.get("status") != "completed", prs=prs,
         ))
-    if floor is None and created:
-        # Con re-runs, la cola real solo es recuperable si algún job del último
-        # intento arrastra un `started_at` anterior al inicio de ese intento
-        # (timestamp filtrado de un intento previo — también cuando `started`
-        # es anterior al `created` del intento, visto en runs reales). Si no,
-        # el hueco es tiempo entre re-ejecuciones manuales, no cola.
-        starts = [j.started_at for j in out if j.started_at]
-        if starts and (run_started is None or min(starts) < run_started):
-            floor = (min(starts) - created).total_seconds()
-        else:
-            floor = 0.0
     if floor and floor > 0:
         for j in out:
-            j.wait = max(j.wait, floor)
+            if run_started is None or j.created_at <= run_started:
+                j.wait = max(j.wait, floor)
     return out
 
 

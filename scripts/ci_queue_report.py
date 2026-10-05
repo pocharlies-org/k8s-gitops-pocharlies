@@ -8,8 +8,13 @@ CLI fino sobre `ci-queue/ci_queue.py`. Ejemplos:
   python3 scripts/ci_queue_report.py --org pocharlies-org \
       --since 2026-10-05T00:00:00Z --hours 48 --assert-p95 600 --assert-max 1800
 
-Imprime `p95=<s> max=<s>` (segundos) y sale con código != 0 si algún assert se
-incumple. Sin servicios ni timers: es un cliente de la API que se lanza a mano.
+Con `--since`/`--hours` o `--assert-*` la medición es exacta (API de jobs para
+cada run); sin ellos, el diagnóstico de 7 días usa el atajo de `run_started_at`
+para los runs rápidos (aproximación a la baja, declarada en `Conclusiones`).
+La última línea de la salida es siempre `p95=<s> max=<s>` (segundos; con
+`--assert-*` es lo único que se imprime, salvo el error por stderr) y el exit
+es != 0 si algún assert se incumple. Sin servicios ni timers: es un cliente de
+la API que se lanza a mano.
 """
 
 from __future__ import annotations
@@ -134,6 +139,7 @@ def build_report(jobs: list[cq.Job], pools: frozenset[str], since: dt.datetime,
                      f"{max((j.wait for j in started), default=0.0):.0f} s | "
                      f"{len(waiting)} |")
 
+    approx = any(j.synthetic for j in measured)
     peak = cq.peak_concurrency(measured)
     pool_jobs = [j for j in measured if not j.synthetic
                  and any(l in pools for l in j.labels)]
@@ -160,6 +166,16 @@ def build_report(jobs: list[cq.Job], pools: frozenset[str], since: dt.datetime,
         f"- Para P4 (N minutos de alerta): p95 de pool ARC = {p95_pool:.0f} s "
         f"≈ {p95_pool / 60:.1f} min; la espera máx. medida fue {mx:.0f} s.",
     ]
+    if approx:
+        lines += [
+            "",
+            "> Nota: las filas `(run rápido)` se midieron con `run_started_at` "
+            "a nivel de run (atajo de cuota, no API de jobs): un job `needs` o "
+            "de otro pool dentro de un run rápido no se ve. El p95 y el pico "
+            "de concurrencia de este informe son un **suelo provisional**; la "
+            "medida exacta (C5) se toma con `--since/--hours` o `--assert-*`, "
+            "que usan la API de jobs para todos los runs.",
+        ]
     return "\n".join(lines) + "\n"
 
 
@@ -191,9 +207,12 @@ def main(argv: list[str] | None = None, client: cq.Client | None = None,
         until = now
         since = now - dt.timedelta(days=args.days or 7)
 
+    exact = bool(args.since) or args.assert_p95 is not None \
+        or args.assert_max is not None
     client = client or cq.Client()
     pools = cq.load_pools((REPO_ROOT / "infra" / "arc.yaml").read_text())
-    jobs = cq.collect_jobs(client, args.org, since, until, now=now, repos=args.repo)
+    jobs = cq.collect_jobs(client, args.org, since, until, now=now,
+                            repos=args.repo, exact=exact)
     cases = []
     for c in args.case:
         repo, number = c.rsplit("#", 1)
@@ -204,9 +223,11 @@ def main(argv: list[str] | None = None, client: cq.Client | None = None,
             pass
         cases.append((repo, int(number), branch))
     report = build_report(jobs, pools, since, until, now, cases=cases)
+    # La línea de resultado es SIEMPRE lo último (y lo único con --assert-*):
+    # C5 la lee sin ambigüedad.
     if args.out:
         Path(args.out).write_text(report)
-    else:
+    elif not (args.assert_p95 is not None or args.assert_max is not None):
         print(report)
 
     waits = [j.wait for j in jobs if not j.queued_now or j.wait > 0]

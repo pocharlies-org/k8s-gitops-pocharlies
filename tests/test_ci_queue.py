@@ -148,6 +148,84 @@ class TestQueuedAge(unittest.TestCase):
         self.assertEqual(got[0].wait, 1800)  # edad hasta `now`, criterio del spec
 
 
+class TestExactMode(unittest.TestCase):
+    """El atajo de `run_started_at` es aproximación: los asserts van exactos."""
+
+    def _transport(self):
+        run = {"workflow_runs": [{"id": 1, "run_number": 1, "name": "ci",
+                                  "run_attempt": 1, "event": "push",
+                                  "head_branch": "main",
+                                  "created_at": "2026-10-01T10:00:00Z",
+                                  "run_started_at": "2026-10-01T10:00:02Z",
+                                  "updated_at": "2026-10-01T10:20:00Z",
+                                  "status": "completed", "conclusion": "success"}]}
+        jobs = {"jobs": [{"name": "lento", "labels": ["arc-k8s"],
+                          "status": "completed", "conclusion": "success",
+                          "created_at": "2026-10-01T10:00:02Z",
+                          "started_at": "2026-10-01T10:05:02Z",
+                          "completed_at": "2026-10-01T10:10:00Z"}]}
+
+        def transport(url, headers):
+            if url.endswith("/jobs?per_page=100"):
+                return 200, {}, json.dumps(jobs).encode()
+            return 200, {}, json.dumps(run).encode()
+        return transport
+
+    def test_exact_measures_job_level(self):
+        # run «rápido» (2 s a nivel de run) con un job que esperó 300 s:
+        # exact=True debe dar 300; el atajo daría 2.
+        for exact, want in ((True, 300), (False, 2)):
+            got = cq.collect_jobs(
+                cq.Client(token="t", transport=self._transport()), ORG,
+                SINCE, NOW, now=NOW, repos=["r"], exact=exact)
+            self.assertEqual(len(got), 1)
+            self.assertEqual(got[0].wait, want, f"exact={exact}")
+
+
+class TestRerunFloor(unittest.TestCase):
+    def test_rerun_uses_job_level_only(self):
+        # Caso del fixture (hermes-agent#4, intento 2): «Detect affected areas»
+        # arrastra un started_at de un intento anterior (8 h antes de su
+        # created). Usarlo como suelo sobreestima (así se midió mal
+        # skirmshop-labels#151: 1189 s cuando a mano eran 96 s). Con la regla
+        # corregida: 0 s ese job y 70 s el fantasma, sin suelo.
+        jobs = cq.collect_jobs(fixture_client(), ORG, SINCE, NOW)
+        got = {j.name: j.wait for j in jobs
+               if j.repo == "hermes-agent" and j.run_number == 4}
+        self.assertEqual(got, {"Detect affected areas": 0,
+                               "nix flake check": 70})
+
+    def test_floor_only_for_jobs_that_existed_in_the_queue(self):
+        # run en cola 600 s (intento 1): el job que ya existía cuenta 600; el
+        # creado después del arranque (needs) conserva su espera propia (30).
+        run = {"workflow_runs": [{"id": 1, "run_number": 1, "name": "ci",
+                                  "run_attempt": 1, "event": "push",
+                                  "head_branch": "main",
+                                  "created_at": "2026-10-01T10:00:00Z",
+                                  "run_started_at": "2026-10-01T10:10:00Z",
+                                  "updated_at": "2026-10-01T10:30:00Z",
+                                  "status": "completed", "conclusion": "success"}]}
+        jobs = {"jobs": [
+            {"name": "primero", "labels": ["arc-k8s"], "status": "completed",
+             "conclusion": "success", "created_at": "2026-10-01T10:00:01Z",
+             "started_at": "2026-10-01T10:10:00Z",
+             "completed_at": "2026-10-01T10:20:00Z"},
+            {"name": "needs", "labels": ["arc-k8s"], "status": "completed",
+             "conclusion": "success", "created_at": "2026-10-01T10:20:00Z",
+             "started_at": "2026-10-01T10:20:30Z",
+             "completed_at": "2026-10-01T10:30:00Z"}]}
+
+        def transport(url, headers):
+            if url.endswith("/jobs?per_page=100"):
+                return 200, {}, json.dumps(jobs).encode()
+            return 200, {}, json.dumps(run).encode()
+
+        got = cq.collect_jobs(cq.Client(token="t", transport=transport), ORG,
+                              SINCE, NOW, now=NOW, repos=["r"])
+        self.assertEqual({j.name: j.wait for j in got},
+                         {"primero": 600, "needs": 30})
+
+
 class TestCancelled(unittest.TestCase):
     def test_rule_concurrency(self):
         old = job(conclusion="cancelled", started_at=None,
