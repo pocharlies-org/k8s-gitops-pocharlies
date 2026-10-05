@@ -297,6 +297,10 @@ jobs:
       # nueva a Harbor (crane cp) y cambiar ESTA linea, con check-pr-agent-config
       # contra el configuration.toml de la version nueva.
       PR_AGENT_IMAGE: harbor.e-dani.com/homelab/pr-agent:0.46.0-github_action@sha256:42c7833a3fbdf354387ab3469fe67c34e11b38f9b90370553398a36b47ad6bc0
+      # Espejo del secret para poder compararlo en un `if:` de paso (el contexto
+      # `secrets` no esta disponible ahi); lo usa la puerta del checkout del
+      # registry de Synapse (INFRA-334).
+      FRAMEWORK_REPO_TOKEN: ${{ secrets.FRAMEWORK_REPO_TOKEN }}
     outputs:
       veredicto: ${{ steps.estado.outputs.veredicto || 'omitido' }}
       resumen: ${{ steps.estado.outputs.resumen || steps.guarda.outputs.motivo }}
@@ -382,25 +386,24 @@ jobs:
       # Registro de Synapse para la seccion «Consumidores del registry». Synapse
       # es privado: sin un token que lo alcance el checkout falla y
       # review-context.py lo anota en «Degradaciones» (exit 0). No bloquea nada.
-      # `ref: main` (INFRA-334): sin el, actions/checkout llama a GET
-      # /repos/pocharlies-org/synapse para resolver el default branch; con el token
-      # del llamador (los pilotos no tienen FRAMEWORK_REPO_TOKEN) eso da 404 y el
-      # action REINTENTA con backoff (esperas de 19 s y 14 s en el log del run
-      # 37265193905) antes de rendirse: 25-41 s perdidos en el camino critico, sin
-      # relation con el tamano del repo. Fijando el ref se salta el lookup y el
-      # fetch posterior falla rapido (403/404 de auth), que continue-on-error recoge
-      # igual. `fetch-depth: 1`: el registry se lee como fichero del HEAD
+      # Puerta determinista (INFRA-334, fijada por el architect en el delta-review
+      # del #493): sin FRAMEWORK_REPO_TOKEN el paso NO se ejecuta. Intentar el
+      # checkout sin token costaba 25-41 s por job: actions/checkout reintenta con
+      # backoff el 404 de la resolucion de ref/fetch (esperas de 19 s y 14 s en el
+      # log del run 37265193905), y `ref: main` no lo evita (medido en los runs
+      # aislados del PR #211: el paso seguia en 28-35 s). El token se compara via
+      # env del JOB porque el contexto `secrets` no esta disponible en un `if:` de
+      # paso. `fetch-depth: 1`: el registry se lee como fichero del HEAD
       # (review-context.py: registry_consumers sobre registry.yaml; ningun
       # git -C .review-synapse), no hace falta el historial.
       - name: Check out the Synapse contract registry
         id: registry
-        if: ${{ steps.guarda.outputs.fork != 'true' }}
+        if: ${{ steps.guarda.outputs.fork != 'true' && env.FRAMEWORK_REPO_TOKEN != '' }}
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: pocharlies-org/synapse
-          ref: main
-          token: ${{ secrets.FRAMEWORK_REPO_TOKEN || github.token }}
+          token: ${{ secrets.FRAMEWORK_REPO_TOKEN }}
           persist-credentials: false
           path: .review-synapse
           fetch-depth: 1

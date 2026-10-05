@@ -138,10 +138,16 @@ class ReviewContext(unittest.TestCase):
 
 
     def test_missing_registry_degrades_exit_0(self):
+        # INFRA-334: sin FRAMEWORK_REPO_TOKEN el paso del registry ni se ejecuta
+        # (puerta `if: env.FRAMEWORK_REPO_TOKEN != ''` en el workflow); el
+        # contrato que sigue vigente es que registry.yaml ausente NO puede hacer
+        # fallar el job: la fuente va a la seccion 6 (Degradaciones) y exit 0.
         out = self.tmp / "context.md"
         repo = make_repo(self.tmp, "value-changed")
         r = run(repo, out, "--registry", str(self.tmp / "nope.yaml"))
-        assert r.returncode == 0 and "`registry`" in out.read_text()
+        txt = out.read_text()
+        assert r.returncode == 0 and "`registry`" in txt
+        assert "Aviso · `registry`" in txt.split("## Degradaciones", 1)[-1]
 
 
     def test_brain_down_and_secret_not_printed(self):
