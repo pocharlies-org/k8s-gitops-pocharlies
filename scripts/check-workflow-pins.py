@@ -167,7 +167,11 @@ require(validate_overlay < stamp_overlay < commit_overlay, "deploy overlay valid
 # workflow es el destino del aviso (thread de Telegram): fronteras de entrada
 # intactas —ningun `inputs.` interpolado en shell— y el orden validar ->
 # estampar -> commitear se mantiene, que es lo que esta guarda protege.
-expected_deploy_digest = "a5d13835f0b4a655b44804cd7a238246af415b96093b1c82fa8c5b5bf7fc3929"
+# Revisado el 06-10-2026 (INFRA-607): fuera `actions: read` del job notify —
+# un job reusable no puede pedir mas permisos de los que el caller otorga y
+# rompia la expansion de todo caller sin `actions`. Fronteras de entrada
+# intactas: el diff toca solo el bloque `permissions:` del notify.
+expected_deploy_digest = "7f6aba5bee90d4ec76b36cd99d17a63e40906f6586e069c945ee731aa5258b6d"
 require(
     hashlib.sha256(deploy_workflow.encode()).hexdigest() == expected_deploy_digest,
     "deploy workflow changed without reviewing input boundaries",
