@@ -172,7 +172,9 @@ for label, mutated_release, mutated_manifest in [
         continue
     raise SystemExit(f"linkage mutation self-test unexpectedly passed: {label}")
 
-expected_release_sha256 = "31388886a1012009d41738986ab54176b6bb87b428970a6050fc833205a62cc8"
+# 06-10-2026 (INFRA-607): fuera `actions: read` del job notify del reusable de
+# release; la linkage (firmar -> verificar digest -> estampar manifest) no cambia.
+expected_release_sha256 = "2fe05c76923f96a45ed1fd8b266003bff747ad42104fc004df05cf9417d42879"
 expected_manifest_sha256 = "1fafa1bf555d04971e1019b59fcb1e33dfead54f7591f239c07fd115a789de28"
 release_sha256 = hashlib.sha256(release.encode()).hexdigest()
 manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()
