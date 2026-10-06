@@ -22,7 +22,7 @@ Un solo «cliente»: ArgoCD.
   `external-dns`, `external-secrets`, `gpu-operator`, `harbor`, `kyverno`, `longhorn`, `metallb`, `nfs-cold`,
   `nfs-warm`, `reflector`, `velero`. Todas **multi-source**: chart Helm externo + `values` de este repo, con
   `targetRevision: deploy/prod`. Charts medidos: argo-cd 9.5.14, cert-manager v1.20.2, descheduler 0.36.0,
-  external-dns 1.21.1, external-secrets 2.5.0, gpu-operator v26.3.1, harbor 1.19.0, kyverno 3.8.1, longhorn 1.11.2,
+  external-dns 1.21.1, external-secrets 2.5.0, gpu-operator v26.3.1, harbor 1.19.0, kyverno 3.8.1, longhorn 1.13.0,
   metallb 0.15.3, reflector 10.0.65, velero 12.0.1.
 - **Tronco**: **`deploy/prod`**. Además **registra** (sin ser dueño de su código) las Applications de ~40 apps de
   otros repos en `apps/*.yaml` y ~30 en `infra/*.yaml` (observability, traefik, arc, keda, kyverno…). `apps-disabled/`
