@@ -92,6 +92,7 @@ jobs:
       - run: python3 -m unittest tests/test_review_context.py
       - run: python3 -m unittest tests/test_review_distribute.py
       - run: python3 -m unittest tests/test_review_health.py
+      - run: python3 -m unittest tests/test_review_missing_key.py
       - run: python3 -m unittest tests/test_duplicados.py
       - name: PR-Agent config and secret distribution (INFRA-331)
         run: |

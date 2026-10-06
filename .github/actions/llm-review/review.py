@@ -436,15 +436,21 @@ def main():
         return terminar('ok', 'sin cambios que revisar', 0, cuerpo)
 
     if not key:
-        # Falta el secreto, que NO es lo mismo que una key rechazada: durante
-        # el despliegue por los 113 repos habra repos activos antes de que el
-        # secreto de organizacion llegue. Verde y aviso, no rojo.
-        print('::warning::sin LITELLM_CI_KEY; review omitida')
-        cuerpo = componer('omitido', [], 'Falta el secreto LITELLM_CI_KEY.',
+        # SC-1916: sin credencial la review NO ocurre, y eso es un fallo de
+        # config del repo, no «no aplicaba». El verde con warning hacia
+        # invisible la caida (medido: opencode-company llevava asi desde su
+        # creacion y el skipping pasaba por check en verde). El despliegue
+        # que justificaba el verde (INFRA-334) termino: rojo y aviso.
+        print('::error::sin LITELLM_CI_KEY: la review con modelo no puede '
+              'ejecutarse en este repo (secreto de repo ausente)')
+        cuerpo = componer('omitido', [],
+                          'Falta el secreto LITELLM_CI_KEY: la revision con '
+                          'modelo no esta activa en este repo. Reparalo con '
+                          '`gh secret set LITELLM_CI_KEY --repo <repo>` (SC-1916).',
                           None, [], modelo, 0)
         if token:
             publicar(token, repo, pr, sha, cuerpo)
-        return terminar('omitido', 'falta LITELLM_CI_KEY', 0, cuerpo)
+        return terminar('omitido', 'falta LITELLM_CI_KEY', 0, cuerpo, codigo=1)
 
     recortado, fuera = recortar(diff, max_bytes)
     ficheros = len(trocear_por_ficheros(recortado))
