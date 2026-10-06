@@ -29,6 +29,7 @@ resources:
   - infra/reflector.yaml
   - infra/descheduler.yaml
   - infra/longhorn.yaml
+  - infra/longhorn-zombie-test/application.yaml
   - infra/argocd.yaml
   - infra/harbor.yaml
   - apps/adguard.yaml
