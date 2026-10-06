@@ -1,0 +1,53 @@
+# Guard de keys directas de Alibaba, estandar de la org (DGX-619/DGX-625).
+#
+# Copia este fichero tal cual a `.github/workflows/alibaba-key-guard.yml` de
+# tu repo. No necesita secretos: el job solo lee el arbol.
+#
+# La implementacion vive en el repo del framework, no aqui:
+#   pocharlies-org/k8s-gitops-pocharlies
+#     .github/workflows/reusable-alibaba-key-guard.yml  <- orquestacion
+#     scripts/alibaba-key-guard.py                     <- detector
+#
+# El check se llama `alibaba-key-guard / alibaba-key-guard`: ese nombre es el
+# que exigira el guardia de merge. No cambies ni el `name:` de arriba ni la
+# clave del job.
+#
+# Falla si el arbol cita los patrones de key directa (item `alibaba-...` de
+# 1Password, env `DASHSCOPE_API_KEY`, host `maas.aliyuncs.com`, `secretKeyRef`
+# o `secretRef` a los secretos `litellm-alibaba*` del dueno) fuera de la lista
+# `permitidos`. TODO lo que gasta el Token Plan pasa por LiteLLM (chat) o por
+# el plan-gateway (media): si te salta esto, no pidas un globo: cambia el
+# consumidor para que apunte al proxy.
+#
+# Los consumidores pendientes de migrar se declaran con el input `permitidos`
+# en el bloque `with:` de abajo, un globo por fichero con su motivo y su
+# historia, p. ej.:
+#   with:
+#     permitidos: >
+#       services/dashboard/studio_cloud_media.py=pendiente DGX-622 (Studio -> plan-gateway),
+#       k8s/apps/galan-proposal/*=pendiente DGX-623 (galan quita sus respaldos)
+# El globo es deuda: se retira el mismo dia que la historia que cubre mergea.
+#
+# Este repo (k8s-gitops) NO se cablea el guard: su propio
+# `scripts/alibaba-key-guard.py` contiene los patrones y el job saldria rojo
+# contra el detector.
+#
+# `workflow_dispatch` escanea el ultimo commit del tronco: es el modo con el
+# que se valida el repo sin abrir un PR de prueba.
+#
+# `pull_request` a proposito, NUNCA `pull_request_target`: el segundo ejecuta
+# con los secretos del repo base sobre codigo de un fork.
+name: alibaba-key-guard
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  alibaba-key-guard:
+    uses: pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-alibaba-key-guard.yml@main
+    secrets: inherit
