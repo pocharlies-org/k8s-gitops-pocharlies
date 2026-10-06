@@ -103,6 +103,9 @@ permiso que el llamador no concede tumba el run entero al arrancar, y la plantil
 
 Rojo solo por 401/403 (LiteLLM, GitHub, Harbor, brain) o uso inválido (D3). Sin `PR_AGENT_LITELLM_KEY`, sin
 `HARBOR_*`, modelo caído, timeout o config inválida: verde con aviso y `status` `skipped`/`degraded`.
+El 401/403 de PR-Agent lo decide `scripts/pr-agent-auth-check.py` (INFRA-620): solo cuentan las líneas de log
+ERROR/WARNING/CRITICAL, la excepción adjunta o un traceback suelto; el volcado DEBUG/INFO del diff y del prompt
+no (un diff con `status_code == 401` no es una credencial rota).
 
 Defensa contra la config: los valores críticos van también por entorno del contenedor
 (`CONFIG__RESTRICTED_MODE`, `GITHUB_ACTION_CONFIG__AUTO_DESCRIBE`, `CONFIG__MODEL`, `CONFIG__FALLBACK_MODELS`,

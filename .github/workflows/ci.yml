@@ -95,6 +95,8 @@ jobs:
       - run: python3 -m unittest tests/test_duplicados.py
       # DGX-625: self-check del guard de keys de Alibaba (vive junto al script, no en tests/).
       - run: python3 scripts/test-alibaba-key-guard.py
+      # INFRA-620: la deteccion de credencial rota de PR-Agent mira solo ERROR/WARNING/CRITICAL.
+      - run: python3 scripts/test-pr-agent-auth-check.py
       - name: PR-Agent config and secret distribution (INFRA-331)
         run: |
           set -euo pipefail
