@@ -163,7 +163,11 @@ require("refs/(heads|tags)" not in workflow, "mutable certificate reference acce
 # la MISMA verificacion Sigstore de identidad exacta y revision del llamante
 # que un build nuevo antes de promocionarse. Firma, SBOM, SLSA, Trivy y la
 # creacion atomica de tags no cambian para el camino de build.
-expected_workflow_digest = "31388886a1012009d41738986ab54176b6bb87b428970a6050fc833205a62cc8"
+# Revisado el 06-10-2026 (INFRA-607): fuera `actions: read` del job notify —
+# un job reusable no puede pedir mas permisos de los que el caller otorga y
+# rompia la expansion de todo caller sin `actions` (synapse, startup_failure).
+# El notify solo llama a Telegram; firma, SBOM, SLSA, Trivy y tags intactos.
+expected_workflow_digest = "2fe05c76923f96a45ed1fd8b266003bff747ad42104fc004df05cf9417d42879"
 workflow_digest = hashlib.sha256(workflow.encode()).hexdigest()
 require(
     workflow_digest == expected_workflow_digest,
