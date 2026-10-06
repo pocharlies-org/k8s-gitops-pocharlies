@@ -590,8 +590,8 @@ jobs:
           [ "$rc" = 124 ] && docker rm -f "pr-agent-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" > /dev/null 2>&1
           # 401/403 = credencial rota (key de LiteLLM, token de GitHub): rojo (D3).
           # Timeout, cola, 429, 5xx o conexion rechazada = modelo no disponible: verde.
-          # Decide scripts/pr-agent-auth-check.py (INFRA-620): solo lineas ERROR/WARNING/
-          # CRITICAL o traceback; el volcado DEBUG del diff y del prompt no cuenta.
+          # Decide el script de abajo (INFRA-620): solo lineas ERROR/WARNING/CRITICAL
+          # o traceback; el volcado DEBUG del diff y del prompt no cuenta.
           python3 .llm-review-framework/scripts/pr-agent-auth-check.py \
             "$PR_AGENT_DIR/pr-agent.log" >> "$GITHUB_OUTPUT"
           exit 0

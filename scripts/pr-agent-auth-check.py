@@ -10,7 +10,7 @@ registro, o texto suelto fuera de un registro de log (traceback de un proceso).
 El volcado DEBUG/INFO del diff y del prompt NO cuenta: un PR cuyo diff contiene
 `status_code == 401` no es una credencial rota.
 
-Formatos de PR-Agent 0.46 (loguru):
+Formatos de PR-Agent 0.46 (la del PR_AGENT_IMAGE del workflow; loguru):
   JSON   {"text": "...", "record": {"level": {"name": "ERROR"}, "message": "...",
           "exception": null | {"type": ..., "value": ...}}}
   plano  2026-10-06 18:54:29.373 | WARNING  | modulo:funcion:65 - mensaje
@@ -27,13 +27,15 @@ AUTH = re.compile(
     r"|status[_ ]code[=: ]*40[13]|40[13] (Unauthorized|Forbidden)|Bad credentials")
 PLANO = re.compile(r"^\d{4}-\d\d-\d\d[ T][\d:.]+\s*\|\s*([A-Z]+)\s*\|")
 CUENTAN = {"ERROR", "WARNING", "CRITICAL"}
-# un traceback impreso por un proceso cuenta aunque venga tras una linea DEBUG
-SUELTO = re.compile(
-    r"^(Traceback \(most recent call last\)|[\w.]*(AuthenticationError|PermissionDeniedError)\b)")
+# un traceback impreso por un proceso cuenta entero (hasta el siguiente registro) aunque
+# venga tras una linea DEBUG/INFO: su ultima linea es la excepcion, del tipo que sea
+TRAZA = re.compile(r"Traceback \(most recent call last\)")
+SUELTO = re.compile(r"^[\w.]*(AuthenticationError|PermissionDeniedError)\b")
 
 
 def textos_que_cuentan(lineas):
     nivel = None  # nivel del registro en curso; None = fuera de un registro
+    traza = False  # dentro de un traceback crudo: cuenta entero, acabe como acabe
     for linea in lineas:
         linea = linea.rstrip("\n")
         if linea.startswith("{"):
@@ -42,6 +44,7 @@ def textos_que_cuentan(lineas):
             except (ValueError, KeyError, TypeError):
                 reg = None
             if isinstance(reg, dict):
+                traza = False
                 nivel = (reg.get("level") or {}).get("name")
                 if nivel in CUENTAN:
                     yield nivel, f"{reg.get('message', '')} {reg.get('exception') or ''}"
@@ -50,8 +53,10 @@ def textos_que_cuentan(lineas):
                 continue
         m = PLANO.match(linea)
         if m:
-            nivel = m.group(1)
-        if nivel is None or nivel in CUENTAN or SUELTO.match(linea):
+            nivel, traza = m.group(1), False
+        elif TRAZA.match(linea):
+            traza = True
+        if nivel is None or nivel in CUENTAN or traza or SUELTO.match(linea):
             yield nivel or "SIN-NIVEL", linea
 
 

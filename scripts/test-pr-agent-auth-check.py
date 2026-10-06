@@ -3,7 +3,8 @@
 
     python3 scripts/test-pr-agent-auth-check.py
 
-Las lineas reproducen la forma real del log de PR-Agent 0.46 (JSON de loguru con
+Las lineas reproducen la forma real del log de PR-Agent 0.46 (la del PR_AGENT_IMAGE
+del reusable; si se sube la imagen hay que volver a medir el formato) (JSON de loguru con
 `text` y `record.level.name`, y lineas planas `| NIVEL |`), tomadas del run
 37514639554 de k8s-litellm-pocharlies#229. Falla si alguien vuelve a poner el
 grep ancho sobre el fichero entero.
@@ -12,6 +13,7 @@ grep ancho sobre el fichero entero.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -100,6 +102,26 @@ class TestAuthCheck(unittest.TestCase):
             "litellm.exceptions.AuthenticationError: Error code: 401",
         ), "auth=true")
 
+    def test_traceback_crudo_acaba_en_excepcion_de_github(self):
+        # el token de GitHub roto: el constructor del proveedor lanza fuera de todo registro
+        # y la ultima linea del traceback no es *AuthenticationError
+        self.assertEqual(auth(
+            INFO_OK,
+            "Traceback (most recent call last):",
+            '  File "x.py", line 1, in f',
+            'github.GithubException.BadCredentialsException: 401 {"message": "Bad credentials"}',
+        ), "auth=true")
+
+    def test_traceback_se_cierra_en_el_siguiente_registro(self):
+        # el estado «dentro de un traceback» acaba con el siguiente registro: el 401 del diff
+        # que viene despues, en una linea cruda bajo un DEBUG, no cuenta
+        self.assertEqual(auth(
+            "Traceback (most recent call last):",
+            '  File "x.py", line 1, in f',
+            registro("DEBUG", "Diff:\n" + DIFF_229),
+            "    assert resp.status_code == 401",
+        ), "auth=false")
+
     def test_plano_debug_multilinea_no_cuenta(self):
         # volcado DEBUG en formato plano: las lineas de continuacion heredan el nivel
         self.assertEqual(auth(
@@ -119,9 +141,13 @@ class TestAuthCheck(unittest.TestCase):
         # C3/C4: el reusable decide con el script, no con un grep sobre el log entero
         wf = (CHECK.parent.parent / ".github/workflows/reusable-pr-review.yml").read_text(
             encoding="utf-8")
-        self.assertIn("scripts/pr-agent-auth-check.py", wf)
-        self.assertNotIn("Bad credentials", wf)
-        self.assertNotIn("PermissionDeniedError", wf)
+        wf = re.sub(r"\\\n\s*", " ", wf)  # une las continuaciones de linea
+        self.assertNotRegex(wf, r"\bgrep\b[^\n]*pr-agent\.log")
+        self.assertNotIn("auth=true", wf)  # el unico emisor de `auth=` es el script
+        self.assertEqual(wf.count("pr-agent-auth-check.py"), 1)
+        llamada = next(l for l in wf.splitlines() if "pr-agent-auth-check.py" in l)
+        self.assertIn("pr-agent.log", llamada)
+        self.assertIn('>> "$GITHUB_OUTPUT"', llamada)
 
     def test_log_inexistente(self):
         r = subprocess.run([sys.executable, str(CHECK), "/no/existe.log"],
