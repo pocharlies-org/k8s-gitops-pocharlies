@@ -1,0 +1,89 @@
+name: Reusable alibaba-key-guard
+
+# Guard de keys directas de Alibaba, estándar de la org (DGX-619/DGX-625).
+# Nada del Token Plan gasta una key montada fuera de LiteLLM: este job falla
+# si el árbol del repo cita `alibaba-model-studio`, `DASHSCOPE_API_KEY`,
+# `maas.aliyuncs.com` o un `secretKeyRef`/`secretRef` a `litellm-alibaba*`
+# fuera de la lista `permitidos` (deuda declarada, globo=motivo por entrada).
+# Cada repo se enciende copiando `templates/ci/alibaba-key-guard.yml`; la
+# lógica vive en `scripts/alibaba-key-guard.py` (solo stdlib: sin Node, sin
+# PyYAML — el árbol se lee como texto, no se parsea).
+#
+# Copia las decisiones de `reusable-duplicados.yml`, que son las que mandan:
+#
+# 1. `pull_request`, NUNCA `pull_request_target`: el segundo ejecuta con el
+#    token del repo base y sus secretos sobre código de un fork. Aquí no hacen
+#    falta secretos, así que un PR de fork también recibe su check.
+#
+# 2. El script NO se invoca con `uses:`: `scripts/check-workflow-pins.py`
+#    rechaza cualquier `uses:` que no sea `./` o un SHA de 40 hex, y `./`
+#    dentro de un reutilizable se resuelve contra el workspace de quien llama.
+#    Se hace como en duplicados: checkout del framework a un subdirectorio y
+#    ejecución directa. Ese subdirectorio está en la lista de ignores del
+#    script, para no escanearse a sí mismo.
+#
+# 3. Este repo (k8s-gitops) NO se cablea el guard: `scripts/alibaba-key-guard.py`
+#    contiene literalmente los patrones que busca y el job saldría rojo contra
+#    su propio detector. Es la única casa que no lo lleva; los demás repos, sí.
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: Runner ARC del cluster.
+        type: string
+        default: arc-k8s
+      permitidos:
+        description: >
+          Deuda declarada: globs separados por comas, cada uno `glob` o
+          `glob=motivo` (el motivo se lista en el resumen). Vacio = no se
+          permite ningun hit.
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  alibaba-key-guard:
+    name: alibaba-key-guard
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    concurrency:
+      # Un push encima cancela el escaneo anterior: revisamos el ultimo
+      # commit, no el penultimo.
+      group: alibaba-key-guard-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Check out the alibaba-key-guard framework
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Mismo truco que duplicados: `job.workflow_*` no es contexto
+          # documentado; si no resuelve quedan vacios y el fallback deja las
+          # dos ramas apuntando al framework.
+          repository: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
+          ref: ${{ job.workflow_sha || 'main' }}
+          token: ${{ github.token }}
+          persist-credentials: false
+          path: .alibaba-key-guard-framework
+
+      - name: Guard direct Alibaba keys
+        env:
+          # El input entra por entorno, nunca interpolado en el `run`:
+          # `check-workflow-pins.py` lo rechaza y es texto de terceros.
+          GUARD_PERMITIDOS: ${{ inputs.permitidos }}
+        run: |
+          set -uo pipefail
+          guard=.alibaba-key-guard-framework/scripts/alibaba-key-guard.py
+          if [ ! -f "$guard" ]; then
+            echo "::error::no se pudo traer el framework de alibaba-key-guard"
+            exit 1
+          fi
+          # `--permitidos` se pasa siempre: vacio, ningun hit se declara.
+          python3 "$guard" --workdir . --permitidos "$GUARD_PERMITIDOS"
