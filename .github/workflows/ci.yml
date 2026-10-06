@@ -92,6 +92,7 @@ jobs:
       - run: python3 -m unittest tests/test_review_context.py
       - run: python3 -m unittest tests/test_review_distribute.py
       - run: python3 -m unittest tests/test_review_health.py
+      - run: python3 -m unittest tests/test_review_missing_key.py
       - run: python3 -m unittest tests/test_duplicados.py
       # DGX-625: self-check del guard de keys de Alibaba (vive junto al script, no en tests/).
       - run: python3 scripts/test-alibaba-key-guard.py

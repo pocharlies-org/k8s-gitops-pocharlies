@@ -1,8 +1,10 @@
 # Review automatica de pull requests con DeepSeek, servido por LiteLLM.
 #
 # Copia este fichero tal cual a `.github/workflows/pr-review.yml` de tu repo.
-# Los secretos (LITELLM_CI_KEY, TELEGRAM_CI_BOT_TOKEN, TELEGRAM_CI_CHAT_ID)
-# son de ORGANIZACION y entran solos con `secrets: inherit`.
+# Los secretos (LITELLM_CI_KEY, TELEGRAM_CI_BOT_TOKEN, TELEGRAM_CI_CHAT_ID) son
+# de ORGANIZACION y entran solos con `secrets: inherit` en los repos PUBLICOS;
+# en los PRIVADOS el secreto de org no llega (plan `free`, INFRA-331) y hace
+# falta como secreto de repo: sin el, el check sale en ROJO (SC-1916).
 #
 # La implementacion vive en el repo del framework, no aqui:
 #   pocharlies-org/k8s-gitops-pocharlies

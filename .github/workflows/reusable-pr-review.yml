@@ -93,6 +93,9 @@ on:
       # Nombres deliberados con prefijo CI: un secreto de organizacion queda
       # ENSOMBRECIDO por uno de repo con el mismo nombre, y ya hay repos con
       # TELEGRAM_BOT_TOKEN propio (release-bot-pocharlies).
+      # LITELLM_CI_KEY: en los repos PRIVADOS debe ser secreto de REPO: el plan
+      # de la org es `free` y un secreto de organizacion no llega a ellos
+      # (INFRA-331). Sin el, review.py sale en ROJO, no en skipping verde (SC-1916).
       LITELLM_CI_KEY:
         required: false
       TELEGRAM_CI_BOT_TOKEN:
