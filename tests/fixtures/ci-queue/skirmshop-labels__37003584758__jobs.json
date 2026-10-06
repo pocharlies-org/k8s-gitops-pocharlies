@@ -1,0 +1,185 @@
+{
+ "total_count": 4,
+ "jobs": [
+  {
+   "id": 110826587905,
+   "run_id": 37003584758,
+   "workflow_name": "PR review",
+   "head_branch": "fix/cex-pudo-country-ord19080",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSQFUBM8AAAAZzceHAQ",
+   "head_sha": "77fc683a8d98476a2a0a0777e82f6cf8fb19cffa",
+   "status": "completed",
+   "conclusion": "cancelled",
+   "created_at": "2026-10-02T11:54:14Z",
+   "started_at": "2026-10-02T11:54:36Z",
+   "completed_at": "2026-10-02T11:55:57Z",
+   "name": "review / Review del PR (PR-Agent)",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Skip pull requests from forks",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Start pulling the PR-Agent image",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Check out the review framework",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Check out the Synapse contract registry",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Install hash-locked PyYAML for the context script",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Build the review context",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Wait for the image pull",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Validate the mounted PR-Agent configuration",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Add the Jira keys the PR cites",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run PR-Agent",
+     "status": "completed",
+     "conclusion": "cancelled"
+    },
+    {
+     "name": "Distribute the review",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Upload the review record",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Review verdict",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Check out the Synapse contract registry",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Check out the review framework",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/skirmshop-labels/check-runs/110826587905",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": "default"
+  },
+  {
+   "id": 110826589212,
+   "run_id": 37003584758,
+   "workflow_name": "PR review",
+   "head_branch": "fix/cex-pudo-country-ord19080",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSQFUBM8AAAAZzceMHA",
+   "head_sha": "77fc683a8d98476a2a0a0777e82f6cf8fb19cffa",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-02T11:54:14Z",
+   "started_at": "2026-10-02T11:54:14Z",
+   "completed_at": "2026-10-02T11:54:14Z",
+   "name": "review / Review del ultimo commit",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/skirmshop-labels/check-runs/110826589212",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": null
+  },
+  {
+   "id": 110826589511,
+   "run_id": 37003584758,
+   "workflow_name": "PR review",
+   "head_branch": "fix/cex-pudo-country-ord19080",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSQFUBM8AAAAZzceNRw",
+   "head_sha": "77fc683a8d98476a2a0a0777e82f6cf8fb19cffa",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-02T11:54:15Z",
+   "started_at": "2026-10-02T11:54:15Z",
+   "completed_at": "2026-10-02T11:54:14Z",
+   "name": "review / Review del PR",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/skirmshop-labels/check-runs/110826589511",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": null
+  },
+  {
+   "id": 110827105443,
+   "run_id": 37003584758,
+   "workflow_name": "PR review",
+   "head_branch": "fix/cex-pudo-country-ord19080",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOSQFUBM8AAAAZzc9sow",
+   "head_sha": "77fc683a8d98476a2a0a0777e82f6cf8fb19cffa",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-02T11:55:58Z",
+   "started_at": "2026-10-02T11:55:58Z",
+   "completed_at": "2026-10-02T11:55:58Z",
+   "name": "review / Aviso en Telegram",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/skirmshop-labels/check-runs/110827105443",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": null
+  }
+ ]
+}
