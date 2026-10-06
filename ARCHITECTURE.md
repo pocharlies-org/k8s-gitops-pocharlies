@@ -17,9 +17,10 @@ Un solo «cliente»: ArgoCD.
 - **Depende de** — cada repo `k8s-*` y `dgx-infra` (cada `Application` apunta a su repo/rama), charts externos
   (Helm), Vault/external-secrets, runners ARC `arc-k8s`.
 - **Medición de cola** — `ci-queue/ci_queue.py` es la librería canónica de medición de cola y clasificación de
-  labels de CI. Ningún otro sitio mide la cola por su cuenta. (En INFRA-550 se añadirán encima el exportador
-  `ci-queue/exporter.py` y su Application `infra/ci-queue-exporter.yaml`, que reutilizan esta librería; hoy no
-  existen todavía.)
+  labels de CI. Ningún otro sitio mide la cola por su cuenta. Encima viven ya (INFRA-550) el exportador
+  `ci-queue/exporter.py` (Deployment en ns `monitoring`, métricas `ci_queue_*`) y su Application
+  `infra/ci-queue-exporter.yaml`, ambos reutilizando esta librería. El scrape y las alertas están en
+  `k8s-observability-pocharlies` (`manifests/arc-scrape.yaml`, `manifests/arc-rules.yaml`).
 - **Dependen de él** — **todos los repos de la compañía**: su CI usa `reusable-ci.yml`; el chequeo de contratos es
   `scripts/check-contracts.py` (hook global y respaldo de CI); `docs/ci-cd-gitops-standard.md` es el estándar.
 - **Applications que posee este repo (15, medidas por el CTO)**: `root`, `argocd`, `cert-manager`, `descheduler`,
@@ -51,7 +52,8 @@ Un solo «cliente»: ArgoCD.
 | Staging | `reusable-deploy-stg.yml` | ídem | repos con overlay `stg` |
 | Estándar CI/CD | `docs/ci-cd-gitops-standard.md` | `docs/` | todos |
 | Verificación de runners ARC | `scripts/verify_arc_runner_render.sh` | `scripts/` | CI |
-| Medición de cola CI | `ci-queue/ci_queue.py` (cliente, clasificador, percentiles, pools) + CLI `scripts/ci_queue_report.py` | `ci-queue/`, `scripts/` | informe de diagnóstico y medición 48 h (INFRA-547/551); el exporter de INFRA-550 la reutilizará |
+| Medición de cola CI | `ci-queue/ci_queue.py` (cliente, clasificador, percentiles, pools) + CLI `scripts/ci_queue_report.py` | `ci-queue/`, `scripts/` | informe de diagnóstico y medición 48 h (INFRA-547/551) |
+| Exporter de cola CI | `ci-queue/exporter.py` + `ci-queue/kustomization.yaml` (Deployment, Service, token por generator `GithubAccessToken` de external-secrets — sin PAT) | `ci-queue/`, Application `infra/ci-queue-exporter.yaml` | scrape `ci_queue_*` en ns monitoring → reglas ARC en observability (INFRA-550) |
 | Runbooks | evacuar nodo, restore etcd/Velero, unseal de Vault | `docs/runbook-*.md` | operación |
 
 ## 5. Cómo se construye aquí
@@ -70,8 +72,9 @@ kustomize build .                                         # reusable-ci con kust
 bash scripts/verify_arc_runner_render.sh
 python3 scripts/ci_queue_report.py --org pocharlies-org --days 7   # informe de cola (requiere gh auth)
 ```
-Nº de tests: 38 (medido con `unittest discover` el 2026-10-05; 23 de ellos en `tests/test_ci_queue.py`,
-herméticos, fixtures en `tests/fixtures/ci-queue/`).
+Nº de tests: 49 (medido con `unittest discover` el 2026-10-06; 23 en `tests/test_ci_queue.py` y 6 en
+`tests/test_ci_queue_exporter.py` + `tests/test_ci_queue_pools.py`, herméticos, fixtures en
+`tests/fixtures/ci-queue/`).
 
 ## 7. CI/CD y despliegue
 
@@ -93,6 +96,10 @@ herméticos, fixtures en `tests/fixtures/ci-queue/`).
 - `bootstrap/app-of-apps.yaml` es el arranque manual del `root`; no se aplica en el día a día.
 - La lista de pools válidos de runners = los `runnerScaleSetName` de `infra/arc.yaml` + los extras declarados en
   `ci-queue/ci_queue.py` (`EXTRA_POOLS`, p. ej. `x86-hermes`); fuente única, no se copia en ningún otro sitio.
+  Excepción mecánica: el exporter monta `ci-queue/pools.txt`, copia DERIVADA (kustomize no lee ficheros fuera de
+  su raíz); `tests/test_ci_queue_pools.py` falla si diverge de `infra/arc.yaml`. Al cambiar un pool: regenerar
+  pools.txt conservando sus 3 líneas de cabecera (`head -3 pools.txt > t && grep -E '^\s*runnerScaleSetName:'
+  infra/arc.yaml >> t && mv t pools.txt`).
 - La API de runs de la org (`GET /orgs/{org}/actions/runs`) responde 404 con token de usuario sin permisos de
   admin de Actions: la medición recorre repos (`ci-queue/ci_queue.py`). Con ~6000 runs/semana y 5000 llamadas/h
   de cuota, el diagnóstico de 7 días mide los runs rápidos con `run_started_at` — **aproximación a la baja**

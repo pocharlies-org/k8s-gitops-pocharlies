@@ -1,0 +1,24 @@
+# Exporter de cola CI (INFRA-550): su código vive en este repo (path ci-queue),
+# se despliega él solo — no es un servicio en el x86. El scrape y las reglas
+# están en k8s-observability-pocharlies (manifests/arc-scrape.yaml,
+# manifests/arc-rules.yaml). prune: false: patrón del repo.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ci-queue-exporter
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-gitops-pocharlies
+    targetRevision: deploy/prod
+    path: ci-queue
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false

@@ -1,0 +1,75 @@
+# Token del exporter sin PAT (INFRA-550): la GitHub App `arc-github-app` que
+# ya usa ARC, vía external-secrets. Cadena en 3 piezas, estándar del operador
+# (docs external-secrets.io, generator GitHubAccessToken):
+#
+#   1Password item `arc-github-app` --ESO(ClusterSecretStore onepassword-connect)-->
+#   Secret ci-queue-github-app (monitoring) --generator GitHubAccessToken-->
+#   Secret ci-queue-github-token (key `token`, JWT de instalación, 1 h)
+#
+# El generator firma el JWT él solo y `refreshInterval: 30m` lo renueva antes
+# de caducar; el exporter solo lee el fichero. appID/installID son
+# identificadores (no secretos) — la clave privada vive en el Secret. Si el
+# item rota, force-sync del primer ExternalSecret (refreshPolicy OnChange).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: ci-queue-github-app
+spec:
+  refreshPolicy: OnChange
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: onepassword-connect
+  target:
+    name: ci-queue-github-app
+  data:
+    - secretKey: github_app_id
+      remoteRef:
+        key: arc-github-app
+        property: app_id
+    - secretKey: github_app_installation_id
+      remoteRef:
+        key: arc-github-app
+        property: installation_id
+    - secretKey: github_app_private_key
+      remoteRef:
+        key: arc-github-app
+        property: private_key
+---
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: GithubAccessToken
+metadata:
+  name: ci-queue-github-app
+spec:
+  # ids de la App (identificadores, no secretos): los mismos del item
+  # `arc-github-app` de 1Password que consume ARC (infra/arc.yaml).
+  appID: "3818379"
+  installID: "134778186"
+  # mínimo privilegio: leer runs/jobs de la org (la App ya tiene actions:read
+  # para los runners).
+  permissions:
+    actions: read
+  auth:
+    privateKey:
+      secretRef:
+        name: ci-queue-github-app
+        key: github_app_private_key
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: ci-queue-github-token
+spec:
+  # no OnChange: esto no es un valor de 1Password, es un token de 1 h que hay
+  # que regenerar antes de que caduque (CLAUDE.md reserva OnChange para los
+  # ExternalSecret de secretos estáticos). <60m por caducidad de GitHub.
+  refreshInterval: 30m
+  # patrón oficial v1: dataFrom + generatorRef (data[].sourceRef.generatorRef
+  # está deprecado y el CRD instalado no lo admite sin remoteRef).
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: GithubAccessToken
+          name: ci-queue-github-app
+  target:
+    name: ci-queue-github-token
