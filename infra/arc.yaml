@@ -59,6 +59,9 @@ spec:
           namespace: arc-systems
         githubConfigSecret: arc-github-app
         githubConfigUrl: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
+        # SC-2019: sin fallback a sauvage (role=edge): md3 al 100 % de IO y 307 ms
+        # de escritura medidos el 07-10; el validate cayo alli y tardo el triple.
+        # Misma razon que arc-k8s. Si md3 se libera, se revierte.
         # Dedicated OpenClaw pool. The shared arc-k8s pool is organization-wide
         # and can be saturated by unrelated repos; beta deploys need deterministic
         # access to the in-cluster BuildKit/Harbor network.
@@ -79,10 +82,6 @@ spec:
                         - key: node-pool
                           operator: In
                           values: [ks5-nvme]
-                    - matchExpressions:
-                        - key: role
-                          operator: In
-                          values: [edge]
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
                     preference:
@@ -106,10 +105,6 @@ spec:
                 key: pool
                 operator: Equal
                 value: dev
-              - effect: NoSchedule
-                key: role
-                operator: Equal
-                value: edge
             containers:
               - name: runner
                 image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4

@@ -32,11 +32,11 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertNotIn("kubernetes.io/hostname:", runner_values)
         self.assertNotIn("workload: cpu", runner_values)
 
-    def test_edge_node_is_tolerated_by_openclaw(self) -> None:
-        """arc-openclaw conserva su fallback a edge (su carga es otra)."""
-        self.assertIn("key: role", self.openclaw_values)
-        self.assertIn("value: edge", self.openclaw_values)
-        self.assertIn("values: [edge]", self.openclaw_values)
+    def test_openclaw_does_not_fall_back_to_edge(self) -> None:
+        """arc-openclaw no cae en sauvage (SC-2019): md3 saturado, mismo motivo que arc-k8s."""
+        self.assertIn("values: [ks5-nvme]", self.openclaw_values)
+        self.assertNotIn("values: [edge]", self.openclaw_values)
+        self.assertNotIn("value: edge", self.openclaw_values)
 
     def test_shared_pool_does_not_tolerate_edge(self) -> None:
         """arc-k8s NO tolera role=edge, y por eso no aterriza en sauvage.
