@@ -125,8 +125,8 @@ Each repository using the reusable workflows needs GitHub Actions secrets:
 - `OPENCLAW_GITHUB_NOTIFY_URL` or `OPENCLAW_IDENTITY_B64`
 
 Every new repository in the organization also needs the repo secret
-`LITELLM_CI_KEY`, used by the `pr-review.yml` and `duplicados.yml` templates (the `duplicados`
-template and reusable live on the `main` branch of this repo, not on `deploy/prod`). On the free
+`LITELLM_CI_KEY`, used by the `pr-review.yml` workflow (template: `templates/ci/pr-review.yml` on
+the `main` branch of this repo). On the free
 GitHub plan, organization secrets do not reach private repositories
 (INFRA-331), so it is set per repo. The key lives in 1Password as item
 `litellm-ci-review-key` (vault `k8s-pocharlies`); distribute it by pipe with
