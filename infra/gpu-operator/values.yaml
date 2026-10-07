@@ -125,3 +125,11 @@ validator:
     env:
     - name: DISABLE_DEV_CHAR_SYMLINK_CREATION
       value: "true"
+# INFRA-628 P2-b: NFD master p95 6,3m / max 7,2m (7 d); el default del subchart es 100m.
+# La clave del subchart es `node-feature-discovery` (el bloque `nfd:` de arriba solo
+# activa el subchart: `nfd.master.*` no llega al subchart). Solo cambia requests.cpu.
+node-feature-discovery:
+  master:
+    resources:
+      requests:
+        cpu: 10m
