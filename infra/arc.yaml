@@ -59,7 +59,8 @@ spec:
           namespace: arc-systems
         githubConfigSecret: arc-github-app
         githubConfigUrl: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-        # SC-2019: sin fallback a sauvage (role=edge): md3 al 100 % de IO y 307 ms
+        # SC-2019: KS5 preferido, sin required (desborda a ubuntu, no queda Pending);
+        # sin fallback a sauvage (role=edge): md3 al 100 % de IO y 307 ms
         # de escritura medidos el 07-10; el validate cayo alli y tardo el triple.
         # Misma razon que arc-k8s. Si md3 se libera, se revierte.
         # Dedicated OpenClaw pool. The shared arc-k8s pool is organization-wide
@@ -76,12 +77,6 @@ spec:
           spec:
             affinity:
               nodeAffinity:
-                requiredDuringSchedulingIgnoredDuringExecution:
-                  nodeSelectorTerms:
-                    - matchExpressions:
-                        - key: node-pool
-                          operator: In
-                          values: [ks5-nvme]
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
                     preference:
