@@ -34,7 +34,8 @@ configs:
     # sync de la app en cualquier ola (INFRA-477 company-dreaming; DGX-626
     # keycloak-role-drift, detector que falla a proposito). La visibilidad de un
     # CronJob que falla es la regla K8sCronJobFailed (topic Crons), no el health de ArgoCD.
-    resource.customizations.health.batch/CronJob: |
+    # La clave va como group_Kind (batch_CronJob): la `/` no es valida en una clave de ConfigMap.
+    resource.customizations.health.batch_CronJob: |
       health = {
         status = 'Healthy',
         message = 'CronJob: no gatea el sync; visibilidad via K8sCronJobFailed (topic Crons)'
