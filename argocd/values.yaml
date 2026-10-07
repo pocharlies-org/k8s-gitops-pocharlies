@@ -35,11 +35,16 @@ configs:
     # keycloak-role-drift, detector que falla a proposito). La visibilidad de un
     # CronJob que falla es la regla K8sCronJobFailed (topic Crons), no el health de ArgoCD.
     # La clave va como group_Kind (batch_CronJob): la `/` no es valida en una clave de ConfigMap.
+    # SC-2082: el script TIENE que acabar en `return health`. Sin el, devuelve nil, ArgoCD lo
+    # lee como un health vacio (ni Healthy ni Degraded) y toda operacion de sync multi-paso
+    # (la que lleva un hook PostSync) se queda en Running para siempre en
+    # "waiting for healthy state of batch/CronJob/..." (litellm y k8s-infra, 12 h).
     resource.customizations.health.batch_CronJob: |
       health = {
         status = 'Healthy',
         message = 'CronJob: no gatea el sync; visibilidad via K8sCronJobFailed (topic Crons)'
       }
+      return health
     timeout.reconciliation: 60s
     statusbadge.enabled: "true"
 

@@ -30,6 +30,15 @@ class ArgocdCmCustomizationsTest(unittest.TestCase):
         self.assertIn("status = 'Healthy'", self.cm[key])
         self.assertNotIn("resource.customizations.health.batch/CronJob", self.cm)
 
+    def test_every_health_script_returns_its_table(self) -> None:
+        # SC-2082: sin `return` el script da nil, ArgoCD lo lee como un health vacio (ni
+        # Healthy ni Degraded) y el sync multi-paso espera "healthy state of" para siempre.
+        keys = [k for k in self.cm if k.startswith("resource.customizations.health.")]
+        self.assertTrue(keys, "no resource.customizations.health.* keys found")
+        for key in keys:
+            lines = [ln.strip() for ln in self.cm[key].splitlines() if ln.strip()]
+            self.assertRegex(lines[-1], r"^return\s+\w+$", f"{key} must end in `return <table>`")
+
 
 if __name__ == "__main__":
     unittest.main()
