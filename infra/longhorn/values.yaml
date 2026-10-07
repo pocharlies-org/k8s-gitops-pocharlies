@@ -9,10 +9,14 @@
 # Es la capa de ALMACENAMIENTO: `persistence.defaultClass: true` la convierte en la
 # StorageClass por defecto del cluster. `prune: false` y ninguna prisa.
 #
-# `guaranteedInstanceManagerCPU: 12` es el 12 % de CPU RESERVADO en cada nodo de
-# Longhorn (~960m en los ks5). Es la respuesta a "por que el instance-manager come
-# tanto": no lo consume, lo tiene reservado. Bajarlo libera requests pero le quita
-# margen al plano de datos.
+# `guaranteedInstanceManagerCPU` es el % de CPU RESERVADO en cada nodo de Longhorn por
+# el instance-manager. Es la respuesta a "por que el instance-manager come tanto": no
+# lo consume, lo tiene reservado. Bajarlo libera requests pero le quita margen al plano
+# de datos. Hoy v1 = 5 % (~400m en los ks5) y v2 = 12 %. El valor v1 lo bajo EN VIVO la
+# sesion de INFRA-623 el 07-10-2026 (de 12 % / ~960m a 5 %) y esta linea lo reconcilia
+# en git (INFRA-628). Va como string JSON compacto, identico al Setting vivo: el escalar
+# 5 se normalizaria a v1=5 y v2=5. Solo aplica a pods IM nuevos; los existentes
+# conservan su reserva hasta que se recreen.
 #
 # `reclaimPolicy: Retain`: borrar un PVC NO borra el volumen. Es lo que salva los
 # datos cuando alguien borra algo por error.
@@ -51,7 +55,7 @@ defaultSettings:
   createDefaultDiskLabeledNodes: true
   defaultDataPath: /var/lib/longhorn
   defaultReplicaCount: '{"v1":"3","v2":"3"}'
-  guaranteedInstanceManagerCPU: 12
+  guaranteedInstanceManagerCPU: '{"v1":"5","v2":"12"}'
   replicaAutoBalance: best-effort
   replicaSoftAntiAffinity: true
   replicaZoneSoftAntiAffinity: true
