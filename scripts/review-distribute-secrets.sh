@@ -12,9 +12,9 @@
 #   --dry-run     no escribe nada: dice qué haría por repo y secreto, sin valores.
 #   --rotate      sobrescribe también los que ya existen (rotación). Sin él, un secreto
 #                 presente no se toca: reejecutar es idempotente.
-#   --secrets     qué repartir, separado por comas, de PR_AGENT_LITELLM_KEY, LITELLM_CI_KEY, JIRA_EMAIL,
-#                 JIRA_API_TOKEN. Por defecto los de PR-Agent (PR_AGENT_LITELLM_KEY, JIRA_EMAIL,
-#                 JIRA_API_TOKEN); el juez (SC-2182) usa --secrets LITELLM_CI_KEY,JIRA_EMAIL,JIRA_API_TOKEN.
+#   --secrets     qué repartir, separado por comas, de PR_AGENT_LITELLM_KEY, JIRA_EMAIL, JIRA_API_TOKEN
+#                 (PR-Agent, el juego por defecto) y LITELLM_JUEZ_KEY, JIRA_JUEZ_EMAIL, JIRA_JUEZ_TOKEN,
+#                 JIRA_JUEZ_URL (el juez, SC-2182): --secrets LITELLM_JUEZ_KEY,JIRA_JUEZ_EMAIL,JIRA_JUEZ_TOKEN,JIRA_JUEZ_URL.
 #   --from-vault  ruta KV v2 bajo el montaje `secret/` (p. ej. pr-review-ci); las claves se
 #                 llaman igual que el secreto. Necesita VAULT_ADDR y VAULT_TOKEN en el entorno.
 #
@@ -31,7 +31,7 @@ set -Eeuo pipefail
 set +x 2>/dev/null || true
 
 SECRETS=(PR_AGENT_LITELLM_KEY JIRA_EMAIL JIRA_API_TOKEN)
-KNOWN=" PR_AGENT_LITELLM_KEY LITELLM_CI_KEY JIRA_EMAIL JIRA_API_TOKEN "
+KNOWN=" PR_AGENT_LITELLM_KEY JIRA_EMAIL JIRA_API_TOKEN LITELLM_JUEZ_KEY JIRA_JUEZ_EMAIL JIRA_JUEZ_TOKEN JIRA_JUEZ_URL "
 KV_MOUNT="${KV_MOUNT:-secret}"
 
 ORG="pocharlies-org"; REPOS=""; DRY=0; ROTATE=0; VAULT_PATH=""

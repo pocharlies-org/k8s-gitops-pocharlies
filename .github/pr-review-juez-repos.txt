@@ -4,8 +4,9 @@
 # LE, ACC; LE y ACC no tienen repos). Dos entradas no son el nombre del repo de GitHub y se traducen:
 #   /home/dibanez/src/company-roles → pocharlies-org/opencode-company
 #   openchamber-side-chat           → pocharlies-org/openchamber (fork de la org; el clon local se llama así)
-#   skirmshop-picqer                → pocharlies/skirmshop-picqer (cuenta personal, no la org)
 # Un repo en dos proyectos (dgx-infra, k8s-agentgateway-pocharlies) sale una vez, con los dos.
+# Fuera de la lista a propósito: skirmshop-picqer (cuenta personal, `runner: ubuntu-latest`: no alcanza el LiteLLM
+# del cluster, así que el juez no puede correr allí; queda en `engine: propio`, PR pocharlies/skirmshop-picqer#7).
 #
 # Formato (una línea por repo, columnas separadas por TAB):
 #   owner/repo  llama|no-llama  proyectos  nota
@@ -88,4 +89,3 @@ pocharlies-org/skirmshopshopifyapp	llama	SKIRM
 pocharlies-org/synapse	llama	SKIRM	
 pocharlies-org/synapse-document-intake	llama	SKIRM	
 pocharlies-org/x86-host-runtime-pocharlies	llama	SC	
-pocharlies/skirmshop-picqer	llama	SKIRM	cuenta personal: su pr-review.yml fija runner: ubuntu-latest y desde ahi no se alcanza el LiteLLM del cluster; el juez saldria SIN_VEREDICTO con cualquier secreto

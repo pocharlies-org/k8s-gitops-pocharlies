@@ -327,22 +327,22 @@ class DistributeTest(unittest.TestCase):
         self.assertEqual(self.run_dist("--dry-run", "--repos", "o/a;rm").returncode, 2)
 
     def test_secrets_elige_el_juego_del_juez_sin_tocar_el_de_pr_agent(self):
-        # SC-2182: el juez necesita LITELLM_CI_KEY en vez de PR_AGENT_LITELLM_KEY; el default no cambia
-        juez = ["LITELLM_CI_KEY", "JIRA_EMAIL", "JIRA_API_TOKEN"]
-        valores = {**VALUES, "LITELLM_CI_KEY": "sk-fake-ci-0004"}
+        # SC-2182: el juez necesita sus cuatro secretos propios (LITELLM_JUEZ_KEY y JIRA_JUEZ_*), no los de PR-Agent; el default no cambia
+        juez = ["LITELLM_JUEZ_KEY", "JIRA_JUEZ_EMAIL", "JIRA_JUEZ_TOKEN", "JIRA_JUEZ_URL"]
+        valores = {**VALUES, **{n: f"fake-juez-{i}" for i, n in enumerate(juez)}}
         r = self.run_dist("--dry-run", "--secrets", ",".join(juez), "--repos", "o/a,o/b", env=valores)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("repo=o/a secreto=LITELLM_CI_KEY estado=ausente accion=crear", r.stdout)
+        self.assertIn("repo=o/a secreto=LITELLM_JUEZ_KEY estado=ausente accion=crear", r.stdout)
         self.assertNotIn("PR_AGENT_LITELLM_KEY", r.stdout)
-        self.assertIn("RESUMEN modo=dry-run repos=2 crear=5 rotar=0 ya-presente=1", r.stdout)
+        self.assertIn("RESUMEN modo=dry-run repos=2 crear=8 rotar=0 ya-presente=0", r.stdout)
         r = self.run_dist("--repos", "o/a", "--secrets", ",".join(juez), env=valores)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(sorted(self.repo("o/a")["names"]), sorted(juez))
-        self.assertNotIn("sk-fake-ci-0004", r.stdout + r.stderr)
+        self.assertNotIn("fake-juez-", r.stdout + r.stderr)
         # sin --secrets sigue siendo el juego de PR-Agent
         d = self.run_dist("--dry-run", "--repos", "o/b", env=VALUES)
         self.assertIn("secreto=PR_AGENT_LITELLM_KEY", d.stdout)
-        self.assertNotIn("LITELLM_CI_KEY", d.stdout)
+        self.assertNotIn("JUEZ", d.stdout)
 
     def test_secrets_rechaza_lo_que_no_conoce(self):
         for malo in ("BRAIN_CI_KEY", "JIRA_EMAIL,;rm", ""):
