@@ -7,11 +7,17 @@
 # El SHA es el de FUSION del PR de k8s-ai-pocharlies que cambia `lab/`: un cambio del laboratorio es un PR AQUI,
 # nunca solo un merge alli (no sigue `main`).
 #
+# DGX-690 (H8): `lab/` lleva la receta de un Spark de MiaAI-Lab en DOS FASES. A: el Job `qwen38-lab-prepare` (sin GPU:
+# descarga, verifica, parches contra la imagen, tabla PLE); es lo unico que arranca al mover este SHA. B: el Deployment
+# `qwen38-lab` con `replicas: 0`; se enciende con OTRO PR (replicas 1 en k8s-ai y SHA nuevo aqui), nunca de madrugada
+# y solo con la respuesta de Dani sobre el SAI. Marcha atras de la fase A: un PR que devuelve `targetRevision` a
+# d8a32d7c130ce98655e9e442096df6e6a93bc480 (el prune retira el Job y el Deployment; el hostPath no se toca).
+#
 # prune: true es seguro en este namespace: solo hay cargas del laboratorio, ningun PVC, y los datos del hostPath
 # (/srv/ai-lab en dgx3) no los toca Argo. El Namespace lleva Prune=false.
 #
 # RETIRADA, en dos pasos:
-#  1. PR que vacia `lab/`: esta app (prune: true) retira el Pod. Deja el Namespace y el hostPath, y la Application.
+#  1. PR que vacia `lab/`: esta app (prune: true) retira la carga (Job y Deployment). Deja el Namespace y el hostPath, y la Application.
 #  2. Retirar la Application misma: PR que borra este fichero y su linea en `kustomization.yaml`, MAS la poda
 #     acotada de `root` sobre `Application/ai-lab` (`operation.sync.prune: true` + `resources`, patron de
 #     ARCHITECTURE.md §5, precedente `hermes-despliegue poda`). `root` tiene prune: false: sin esa poda, borrar el
@@ -32,7 +38,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies-org/k8s-ai-pocharlies
-    targetRevision: d8a32d7c130ce98655e9e442096df6e6a93bc480
+    targetRevision: 19a0591fb48ded74d2f116ee2b93439140247404
     path: lab
   destination:
     server: https://kubernetes.default.svc

@@ -5,6 +5,18 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
+# DGX-690 (G1 del architect): `spec.source.kustomize` (patches, commonLabels, images, namePrefix) lo aplica Argo al
+# render igual que un `labels:` en lab/kustomization.yaml, que el contrato de k8s-ai ya prohibe (comentario 28759):
+# la misma puerta trasera un nivel mas arriba y fuera de lo que ve ese contrato.
+SOURCE_KEYS = {"repoURL", "targetRevision", "path"}
+
+
+def source_violations(spec: dict) -> list[str]:
+    out = [f"spec.source.{key}: no se admite, solo repoURL, targetRevision y path" for key in sorted(set(spec["source"]) - SOURCE_KEYS)]
+    out += [f"spec.source.{key}: falta" for key in sorted(SOURCE_KEYS - set(spec["source"]))]
+    if "sources" in spec:
+        out.append("spec.sources: una sola fuente")
+    return out
 
 
 class AiLabApplicationTest(unittest.TestCase):
@@ -22,6 +34,26 @@ class AiLabApplicationTest(unittest.TestCase):
         self.assertEqual(source["path"], "lab")
         # Un SHA, no una rama: cambiar el laboratorio tiene que ser un PR aqui.
         self.assertRegex(source["targetRevision"], r"^[0-9a-f]{40}$")
+
+    def test_source_is_only_repo_revision_and_path(self) -> None:
+        self.assertEqual(source_violations(self.spec), [])
+        self.assertEqual(set(self.spec["source"]), SOURCE_KEYS)
+
+    def test_negative_source_cannot_carry_a_transform(self) -> None:
+        for extra in (
+            {"kustomize": {"patches": [{"patch": "- op: add\n  path: /metadata/annotations/argocd.argoproj.io~1hook\n  value: PreSync"}]}},
+            {"kustomize": {"commonLabels": {"gpu.dgx-infra/role": "resident"}}},
+            {"kustomize": {"images": ["docker.io/vllm/vllm-openai:latest"]}},
+            {"kustomize": {"namePrefix": "qwen38-flash-next-"}},
+            {"directory": {"recurse": True}},
+            {"helm": {"values": "a: b"}},
+            {"plugin": {"name": "x"}},
+        ):
+            bad = source_violations({**self.spec, "source": {**self.spec["source"], **extra}})
+            self.assertTrue(any(next(iter(extra)) in v for v in bad), extra)
+        missing = {key: value for key, value in self.spec["source"].items() if key != "path"}
+        self.assertTrue(any("path" in v and "falta" in v for v in source_violations({**self.spec, "source": missing})))
+        self.assertTrue(any("sources" in v for v in source_violations({**self.spec, "sources": [self.spec["source"]]})))
 
     def test_lives_outside_the_arbiter_namespace(self) -> None:
         self.assertEqual(self.spec["destination"]["namespace"], "ai-lab")
