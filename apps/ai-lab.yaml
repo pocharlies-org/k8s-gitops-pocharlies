@@ -11,11 +11,10 @@
 # descarga, verifica, parches contra la imagen, tabla PLE); ya hecha (SHA 19a0591f). B: el Deployment `qwen38-lab` con
 # `replicas: 1` en el SHA 99e10cd0 (k8s-ai-pocharlies#120), encendida por decision de Dani; el motor lleva el vigilante de
 # memoria y del SAI (serve.sh) y se enciende y apaga por PR, nunca `kubectl scale`.
-# ESTADO ACTUAL: RE-ENCENDIDO tras el corte de CA de dgx3 (la GPU estaba clavada a 611 MHz por el PD en modo seguro; ya
-# responde), para comprobar el reloj con carga y medir el lab a reloj completo: `targetRevision` en
-# 99e10cd08e23687c8b233e7293af38b0605f7e95 (replicas 1). Se APAGA a las 02:13, antes de la noche 1 del residente (03:00 a
-# 09:00 con fallback a Alibaba), con un PR que devuelve `targetRevision` a 19a0591fb48ded74d2f116ee2b93439140247404
-# (replicas 0).
+# ESTADO ACTUAL: APAGADO PARA LA NOCHE 1 (el residente corre de 03:00 a 09:00 con fallback a Alibaba): `targetRevision` en
+# 19a0591fb48ded74d2f116ee2b93439140247404 (replicas 0). Se habia re-encendido tras el corte de CA de dgx3 (la GPU estaba
+# clavada a 611 MHz por el PD en modo seguro) para medir a reloj completo. VOLVER A ENCENDER = un PR que devuelve
+# `targetRevision` a 99e10cd08e23687c8b233e7293af38b0605f7e95, con la respuesta de Dani y fuera de la noche del residente.
 # El apagado (fase B hacia atras) no borra nada mas: el Job de la fase A y el hostPath siguen como estan. Marcha atras de la fase A: un PR que
 # devuelve `targetRevision` a d8a32d7c130ce98655e9e442096df6e6a93bc480 (el prune retira el Job y el Deployment; el
 # hostPath no se toca).
@@ -45,7 +44,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies-org/k8s-ai-pocharlies
-    targetRevision: 99e10cd08e23687c8b233e7293af38b0605f7e95
+    targetRevision: 19a0591fb48ded74d2f116ee2b93439140247404
     path: lab
   destination:
     server: https://kubernetes.default.svc
