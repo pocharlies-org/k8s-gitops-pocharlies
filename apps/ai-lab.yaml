@@ -8,10 +8,13 @@
 # nunca solo un merge alli (no sigue `main`).
 #
 # DGX-690 (H8): `lab/` lleva la receta de un Spark de MiaAI-Lab en DOS FASES. A: el Job `qwen38-lab-prepare` (sin GPU:
-# descarga, verifica, parches contra la imagen, tabla PLE); es lo unico que arranca al mover este SHA. B: el Deployment
-# `qwen38-lab` con `replicas: 0`; se enciende con OTRO PR (replicas 1 en k8s-ai y SHA nuevo aqui), nunca de madrugada
-# y solo con la respuesta de Dani sobre el SAI. Marcha atras de la fase A: un PR que devuelve `targetRevision` a
-# d8a32d7c130ce98655e9e442096df6e6a93bc480 (el prune retira el Job y el Deployment; el hostPath no se toca).
+# descarga, verifica, parches contra la imagen, tabla PLE); ya hecha (SHA 19a0591f). B (ENCENDIDA, decision de Dani): el
+# Deployment `qwen38-lab` con `replicas: 1`, en el SHA 99e10cd0 (k8s-ai-pocharlies#120); el motor lleva el vigilante de
+# memoria y del SAI (serve.sh) y se apaga por PR, nunca `kubectl scale`.
+# MARCHA ATRAS de la fase B: un PR que devuelve `targetRevision` a 19a0591fb48ded74d2f116ee2b93439140247404 (replicas 0;
+# el prune no borra nada mas, y el Job de la fase A y el hostPath siguen como estan). Marcha atras de la fase A: un PR que
+# devuelve `targetRevision` a d8a32d7c130ce98655e9e442096df6e6a93bc480 (el prune retira el Job y el Deployment; el
+# hostPath no se toca).
 #
 # prune: true es seguro en este namespace: solo hay cargas del laboratorio, ningun PVC, y los datos del hostPath
 # (/srv/ai-lab en dgx3) no los toca Argo. El Namespace lleva Prune=false.
@@ -38,7 +41,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies-org/k8s-ai-pocharlies
-    targetRevision: 19a0591fb48ded74d2f116ee2b93439140247404
+    targetRevision: 99e10cd08e23687c8b233e7293af38b0605f7e95
     path: lab
   destination:
     server: https://kubernetes.default.svc
