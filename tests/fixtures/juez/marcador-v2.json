@@ -1,0 +1,102 @@
+{
+  "_": "Contrato ci.llm-review-bot.marcador.v2 (SC-2181/SC-2182). Mismo fichero, byte a byte, en k8s-gitops-pocharlies (lado escritor: review.py) y en x86-host-runtime-pocharlies (lado lector: company-aprobar). Si cambia aqui, cambia alli en la misma historia.",
+  "regex": "^<!-- llm-review-bot:v2 sha=[0-9a-f]{40} veredicto=(PASA|NO_PASA|SIN_VEREDICTO) riesgo=(normal|alto) motivos=[a-z0-9_,]* -->$",
+  "motivos": [
+    "cita_epica",
+    "criterio_incumplido",
+    "diff_recortado",
+    "hallazgos",
+    "jira_caido",
+    "modelo_caido",
+    "respuesta_invalida",
+    "sin_clave",
+    "sin_credencial",
+    "sin_criterios",
+    "sin_evidencia",
+    "ticket_inexistente"
+  ],
+  "validos": [
+    "<!-- llm-review-bot:v2 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=normal motivos= -->",
+    "<!-- llm-review-bot:v2 sha=0123456789abcdef0123456789abcdef01234567 veredicto=NO_PASA riesgo=alto motivos=criterio_incumplido,hallazgos -->",
+    "<!-- llm-review-bot:v2 sha=0123456789abcdef0123456789abcdef01234567 veredicto=SIN_VEREDICTO riesgo=normal motivos=modelo_caido -->"
+  ],
+  "invalidos": [
+    "<!-- llm-review-bot:v1 -->",
+    "<!-- llm-review-bot:v2 sha=0123456789abcdef0123456789abcdef0123456 veredicto=PASA riesgo=normal motivos= -->",
+    "<!-- llm-review-bot:v2 sha=0123456789ABCDEF0123456789ABCDEF01234567 veredicto=PASA riesgo=normal motivos= -->",
+    "<!-- llm-review-bot:v2 sha=0123456789abcdef0123456789abcdef01234567 veredicto=pasa riesgo=normal motivos= -->",
+    "<!-- llm-review-bot:v2 sha=0123456789abcdef0123456789abcdef01234567 veredicto=SIN_TICKET riesgo=normal motivos= -->",
+    "<!-- llm-review-bot:v2 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=medio motivos= -->",
+    "<!-- llm-review-bot:v2 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=normal motivos=un bug en la linea 3 -->",
+    "<!-- llm-review-bot:v2 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=normal motivos=Hallazgos -->",
+    "<!-- llm-review-bot:v2 veredicto=PASA sha=0123456789abcdef0123456789abcdef01234567 riesgo=normal motivos= -->",
+    "<!-- llm-review-bot:v2 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=normal motivos= --> ",
+    " <!-- llm-review-bot:v2 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=normal motivos= -->",
+    "<!-- llm-review-bot:v2 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=normal motivos="
+  ],
+  "comentario": {
+    "_": "`entrada` es lo que recibe componer_juez() de review.py; `cuerpo`, el comentario que publica. Los hallazgos que ve el maker son las lineas `- ` de `### Hallazgos` hasta la primera linea en blanco (sin el `- `): company-aprobar hallazgos las devuelve tal cual.",
+    "entrada": {
+      "sha": "0123456789abcdef0123456789abcdef01234567",
+      "veredicto": "NO_PASA",
+      "riesgo": "alto",
+      "motivos": [
+        "criterio_incumplido",
+        "diff_recortado",
+        "hallazgos"
+      ],
+      "clave": "SC-2182",
+      "titulo": "P1 Validación: la PR review es el juez único",
+      "modelo": "alibaba-q38-flash",
+      "respaldo": true,
+      "detalle": "",
+      "criterios": [
+        {
+          "n": 1,
+          "texto": "El motor juez publica un marcador v2 en la primera línea",
+          "cumple": true,
+          "evidencia": "src/juez.py:120",
+          "evidencia_ok": true,
+          "nota": "lo publica con publicar()"
+        },
+        {
+          "n": 2,
+          "texto": "Un test fija la exclusión",
+          "cumple": false,
+          "evidencia": "",
+          "evidencia_ok": false,
+          "nota": "no hay test"
+        }
+      ],
+      "hallazgos": [
+        {
+          "file": "src/juez.py",
+          "line": "88",
+          "severity": "alta",
+          "tipo": "correccion",
+          "summary": "la condición está invertida",
+          "bloquea": true
+        },
+        {
+          "file": "docs/ci.md",
+          "line": "3",
+          "severity": "baja",
+          "tipo": "arquitectura",
+          "summary": "mejor un nombre más corto",
+          "bloquea": false
+        }
+      ],
+      "fuera": [
+        [
+          "docs/grande.md",
+          130000
+        ]
+      ]
+    },
+    "cuerpo": "<!-- llm-review-bot:v2 sha=0123456789abcdef0123456789abcdef01234567 veredicto=NO_PASA riesgo=alto motivos=criterio_incumplido,diff_recortado,hallazgos -->\n## Review del juez · NO_PASA\n\nTicket `SC-2182` — P1 Validación: la PR review es el juez único\n\n### Criterios\n- **C1** ✅ `src/juez.py:120` El motor juez publica un marcador v2 en la primera línea — lo publica con publicar()\n- **C2** ❌ Un test fija la exclusión — no hay test\n\n### Hallazgos\n- **[criterio]** C2 no cumple: no hay test\n- **[alta]** `src/juez.py:88` (correccion) — la condición está invertida\n\n### Observaciones (no bloquean)\n- **[baja]** `docs/ci.md:3` (arquitectura) — mejor un nombre más corto\n\nDiff recortado: 1 fichero(s) fuera del tope, riesgo alto:\n- `docs/grande.md` (130000 B)\n\n<sub>juez · modelo `alibaba-q38-flash` (respaldo) · head `0123456789ab`</sub>",
+    "hallazgos": [
+      "**[criterio]** C2 no cumple: no hay test",
+      "**[alta]** `src/juez.py:88` (correccion) — la condición está invertida"
+    ]
+  }
+}

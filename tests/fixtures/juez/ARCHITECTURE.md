@@ -64,7 +64,7 @@ El `kustomization.yaml` raíz también difiere entre ramas: el que se aplica es 
 | Guard contra keys directas de Alibaba | `reusable-alibaba-key-guard.yml` (lógica en `scripts/alibaba-key-guard.py`, DGX-619/625) | `.github/workflows/`, `scripts/` | repos cableados vía `templates/ci/alibaba-key-guard.yml` |
 | Regla de pins | `scripts/check-workflow-pins.py` | `scripts/` | CI de este repo y consumidores |
 | Chequeo de contratos | `scripts/check-contracts.py` | `scripts/` | hook global y CI de todos los repos |
-| Marco de `pr-review` | `reusable-pr-review.yml` + `scripts/{review-{context,distribute,health},pr-agent-auth-check}.py` y `review_http.py`, esquema `schemas/pr_review.v1.json`, acciones `.github/actions/llm-review` y `.github/actions/notify-telegram` | `.github/`, `scripts/`, `schemas/` | revisión de PRs de la org (cable vía `templates/ci/pr-review.yml`; docs en `docs/ci-pr-review.md`); tres motores por `inputs.engine`, uno solo por evento: `propio`, `pr-agent` y `juez` (SC-2182; opt-in, contrasta el PR con los criterios de su ticket y publica el marcador v2 `ci.llm-review-bot.marcador.v2`, que lee `company-aprobar` del x86; el fixture `tests/fixtures/juez/marcador-v2.json` es idéntico en los dos repos); `pr-agent-auth-check.py` es el ÚNICO sitio que decide credencial rota (401/403) de PR-Agent, solo sobre líneas ERROR/WARNING/CRITICAL o traceback (INFRA-620) |
+| Marco de `pr-review` | `reusable-pr-review.yml` + `scripts/{review-{context,distribute,health},pr-agent-auth-check}.py` y `review_http.py`, esquema `schemas/pr_review.v1.json`, acciones `.github/actions/llm-review` y `.github/actions/notify-telegram` | `.github/`, `scripts/`, `schemas/` | revisión de PRs de la org (cable vía `templates/ci/pr-review.yml`; docs en `docs/ci-pr-review.md`); `pr-agent-auth-check.py` es el ÚNICO sitio que decide credencial rota (401/403) de PR-Agent, solo sobre líneas ERROR/WARNING/CRITICAL o traceback (INFRA-620) |
 | Cable por repo | `templates/ci/*.yml` (`duplicados`, `pr-review`, `alibaba-key-guard`) | `templates/ci/` | cada repo lo copia a `.github/workflows/<job>.yml` |
 | Auto-instalación de ArgoCD | `argocd/values.yaml` (valores Helm que consume la Application `argocd` de `deploy/prod`), `argocd/ingressroute.yaml`, `argocd/repositories.yaml` (**generado por `argocd/gen_repositories.py`: editar el generador, no el fichero**) | `argocd/` | el `kustomization.yaml` raíz lista los dos últimos |
 | Estándar CI/CD | `docs/ci-cd-gitops-standard.md` | `docs/` | todos |
@@ -138,7 +138,6 @@ En `main` (medido 2026-10-06):
 python3 -m unittest discover -s tests -p 'test_*.py'     # 153 tests: contratos de release, pr-review, duplicados, synapse-sre-foundation…
 python3 scripts/test-alibaba-key-guard.py                # self-check del guard (DGX-625), fixture en tmp
 python3 scripts/test-pr-agent-auth-check.py            # self-check del detector de credencial rota de PR-Agent (INFRA-620)
-python3 -m unittest tests.test_llm_review_juez tests.test_reusable_pr_review   # motor juez y un solo motor por evento (SC-2182)
 python3 scripts/test-check-contracts.py                  # reglas de contratos
 python3 scripts/check-workflow-pins.py                   # regla de pins de §4
 kustomize build .

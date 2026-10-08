@@ -1,0 +1,4 @@
+- [ ] C1 Sin LITELLM_CI_KEY, `review.py` termina con codigo de salida 1 (check en rojo) y escribe un `::error::`, en vez de un aviso en verde.
+- [ ] C2 El comentario que publica el bot explica que falta el secreto y como repararlo con `gh secret set`.
+- [ ] C3 Un test fija el rojo sin key (`tests/test_review_missing_key.py`) y el CI lo ejecuta.
+- [ ] C4 La plantilla `templates/ci/pr-review.yml` documenta que en los repos privados LITELLM_CI_KEY es un secreto de repo.

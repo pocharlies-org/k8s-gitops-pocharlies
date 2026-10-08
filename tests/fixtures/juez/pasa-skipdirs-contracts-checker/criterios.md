@@ -1,0 +1,2 @@
+- [ ] C1 `.contracts-checker` se excluye del escaneo de marcadores del checker (entra en `SKIP_DIRS`).
+- [ ] C2 Un test fija esa exclusion.

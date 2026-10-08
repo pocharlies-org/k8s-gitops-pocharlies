@@ -1,0 +1,330 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 84c5f90..0ead612 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -95,6 +95,8 @@ jobs:
+       - run: python3 -m unittest tests/test_duplicados.py
+       # DGX-625: self-check del guard de keys de Alibaba (vive junto al script, no en tests/).
+       - run: python3 scripts/test-alibaba-key-guard.py
++      # INFRA-620: la deteccion de credencial rota de PR-Agent mira solo ERROR/WARNING/CRITICAL.
++      - run: python3 scripts/test-pr-agent-auth-check.py
+       - name: PR-Agent config and secret distribution (INFRA-331)
+         run: |
+           set -euo pipefail
+diff --git a/.github/workflows/reusable-pr-review.yml b/.github/workflows/reusable-pr-review.yml
+index fb09308..e2b743b 100644
+--- a/.github/workflows/reusable-pr-review.yml
++++ b/.github/workflows/reusable-pr-review.yml
+@@ -590,10 +590,10 @@ jobs:
+           [ "$rc" = 124 ] && docker rm -f "pr-agent-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" > /dev/null 2>&1
+           # 401/403 = credencial rota (key de LiteLLM, token de GitHub): rojo (D3).
+           # Timeout, cola, 429, 5xx o conexion rechazada = modelo no disponible: verde.
+-          if grep -qE 'AuthenticationError|PermissionDeniedError|Error code: 40[13]|status[_ ]code[=: ]*40[13]|40[13] (Unauthorized|Forbidden)|Bad credentials' \
+-               "$PR_AGENT_DIR/pr-agent.log"; then
+-            echo "auth=true" >> "$GITHUB_OUTPUT"
+-          fi
++          # Decide el script de abajo (INFRA-620): solo lineas ERROR/WARNING/CRITICAL
++          # o traceback; el volcado DEBUG del diff y del prompt no cuenta.
++          python3 .llm-review-framework/scripts/pr-agent-auth-check.py \
++            "$PR_AGENT_DIR/pr-agent.log" >> "$GITHUB_OUTPUT"
+           exit 0
+ 
+       - name: Distribute the review
+diff --git a/ARCHITECTURE.md b/ARCHITECTURE.md
+index 3b2f4f1..d3c52aa 100644
+--- a/ARCHITECTURE.md
++++ b/ARCHITECTURE.md
+@@ -64,7 +64,7 @@ El `kustomization.yaml` raíz también difiere entre ramas: el que se aplica es
+ | Guard contra keys directas de Alibaba | `reusable-alibaba-key-guard.yml` (lógica en `scripts/alibaba-key-guard.py`, DGX-619/625) | `.github/workflows/`, `scripts/` | repos cableados vía `templates/ci/alibaba-key-guard.yml` |
+ | Regla de pins | `scripts/check-workflow-pins.py` | `scripts/` | CI de este repo y consumidores |
+ | Chequeo de contratos | `scripts/check-contracts.py` | `scripts/` | hook global y CI de todos los repos |
+-| Marco de `pr-review` | `reusable-pr-review.yml` + `scripts/review-{context,distribute,health}.py` y `review_http.py`, esquema `schemas/pr_review.v1.json`, acciones `.github/actions/llm-review` y `.github/actions/notify-telegram` | `.github/`, `scripts/`, `schemas/` | revisión de PRs de la org (cable vía `templates/ci/pr-review.yml`; docs en `docs/ci-pr-review.md`) |
++| Marco de `pr-review` | `reusable-pr-review.yml` + `scripts/{review-{context,distribute,health},pr-agent-auth-check}.py` y `review_http.py`, esquema `schemas/pr_review.v1.json`, acciones `.github/actions/llm-review` y `.github/actions/notify-telegram` | `.github/`, `scripts/`, `schemas/` | revisión de PRs de la org (cable vía `templates/ci/pr-review.yml`; docs en `docs/ci-pr-review.md`); `pr-agent-auth-check.py` es el ÚNICO sitio que decide credencial rota (401/403) de PR-Agent, solo sobre líneas ERROR/WARNING/CRITICAL o traceback (INFRA-620) |
+ | Cable por repo | `templates/ci/*.yml` (`duplicados`, `pr-review`, `alibaba-key-guard`) | `templates/ci/` | cada repo lo copia a `.github/workflows/<job>.yml` |
+ | Auto-instalación de ArgoCD | `argocd/values.yaml` (valores Helm que consume la Application `argocd` de `deploy/prod`), `argocd/ingressroute.yaml`, `argocd/repositories.yaml` (**generado por `argocd/gen_repositories.py`: editar el generador, no el fichero**) | `argocd/` | el `kustomization.yaml` raíz lista los dos últimos |
+ | Estándar CI/CD | `docs/ci-cd-gitops-standard.md` | `docs/` | todos |
+@@ -137,6 +137,7 @@ En `main` (medido 2026-10-06):
+ ```sh
+ python3 -m unittest discover -s tests -p 'test_*.py'     # 153 tests: contratos de release, pr-review, duplicados, synapse-sre-foundation…
+ python3 scripts/test-alibaba-key-guard.py                # self-check del guard (DGX-625), fixture en tmp
++python3 scripts/test-pr-agent-auth-check.py            # self-check del detector de credencial rota de PR-Agent (INFRA-620)
+ python3 scripts/test-check-contracts.py                  # reglas de contratos
+ python3 scripts/check-workflow-pins.py                   # regla de pins de §4
+ kustomize build .
+@@ -145,8 +146,8 @@ kustomize build .
+ ## 7. CI/CD y despliegue
+ 
+ - `ci.yml` (`arc-k8s`): `standard` (reusable local, `kustomize_paths: "."`) + `synapse-sre-foundation-contract`
+-  + el job `release-contract`, que lista cada suite (`check-*.py`, los `tests/test_*.py` y desde DGX-625 también
+-  `scripts/test-alibaba-key-guard.py`).
++  + el job `release-contract`, que lista cada suite (`check-*.py`, los `tests/test_*.py` y desde DGX-625/INFRA-620 también
++  `scripts/test-alibaba-key-guard.py` y `scripts/test-pr-agent-auth-check.py`).
+ - `release.yml` (tags / `workflow_dispatch image_tag`): llama a `reusable-ci.yml` local y publica.
+ - **Cambiar un reusable afecta a ~40 repos a la vez**: los repos que lo llaman por `@main` lo sufren al instante; los
+   que lo pinnean por SHA no (p. ej. `ai`, `dgx-synapse-mcp` → `@ac96743b…`).
+diff --git a/docs/ci-pr-review.md b/docs/ci-pr-review.md
+index b0cd477..169e898 100644
+--- a/docs/ci-pr-review.md
++++ b/docs/ci-pr-review.md
+@@ -103,6 +103,11 @@ permiso que el llamador no concede tumba el run entero al arrancar, y la plantil
+ 
+ Rojo solo por 401/403 (LiteLLM, GitHub, Harbor, brain) o uso inválido (D3). Sin `PR_AGENT_LITELLM_KEY`, sin
+ `HARBOR_*`, modelo caído, timeout o config inválida: verde con aviso y `status` `skipped`/`degraded`.
++El 401/403 de PR-Agent lo decide `scripts/pr-agent-auth-check.py` (INFRA-620): solo cuentan las líneas de log
++ERROR/WARNING/CRITICAL, la excepción adjunta o un traceback crudo entero (hasta el siguiente registro de log; así cuenta un
++`BadCredentialsException: 401` del token de GitHub); el volcado DEBUG/INFO del diff y del prompt no (un diff con
++`status_code == 401` no es una credencial rota). El formato del log se midió con PR-Agent 0.46 (la del
++`PR_AGENT_IMAGE`); si se sube la imagen hay que volver a medirlo.
+ 
+ Defensa contra la config: los valores críticos van también por entorno del contenedor
+ (`CONFIG__RESTRICTED_MODE`, `GITHUB_ACTION_CONFIG__AUTO_DESCRIBE`, `CONFIG__MODEL`, `CONFIG__FALLBACK_MODELS`,
+diff --git a/scripts/pr-agent-auth-check.py b/scripts/pr-agent-auth-check.py
+new file mode 100644
+index 0000000..6b1009c
+--- /dev/null
++++ b/scripts/pr-agent-auth-check.py
+@@ -0,0 +1,79 @@
++#!/usr/bin/env python3
++"""¿El log de PR-Agent dice «credencial rota» (401/403)? (INFRA-620, regla D3)
++
++    python3 scripts/pr-agent-auth-check.py <pr-agent.log> >> "$GITHUB_OUTPUT"
++
++Imprime `auth=true` o `auth=false` (el paso «Run PR-Agent» lo vuelca tal cual a
++su salida) y sale siempre 0. Solo cuentan los errores que PR-Agent reporta como
++tales: lineas de nivel ERROR/WARNING/CRITICAL, la excepcion adjunta a un
++registro, o texto suelto fuera de un registro de log (traceback de un proceso).
++El volcado DEBUG/INFO del diff y del prompt NO cuenta: un PR cuyo diff contiene
++`status_code == 401` no es una credencial rota.
++
++Formatos de PR-Agent 0.46 (la del PR_AGENT_IMAGE del workflow; loguru):
++  JSON   {"text": "...", "record": {"level": {"name": "ERROR"}, "message": "...",
++          "exception": null | {"type": ..., "value": ...}}}
++  plano  2026-10-06 18:54:29.373 | WARNING  | modulo:funcion:65 - mensaje
++"""
++
++from __future__ import annotations
++
++import json
++import re
++import sys
++
++AUTH = re.compile(
++    r"AuthenticationError|PermissionDeniedError|Error code: 40[13]"
++    r"|status[_ ]code[=: ]*40[13]|40[13] (Unauthorized|Forbidden)|Bad credentials")
++PLANO = re.compile(r"^\d{4}-\d\d-\d\d[ T][\d:.]+\s*\|\s*([A-Z]+)\s*\|")
++CUENTAN = {"ERROR", "WARNING", "CRITICAL"}
++# un traceback impreso por un proceso cuenta entero (hasta el siguiente registro) aunque
++# venga tras una linea DEBUG/INFO: su ultima linea es la excepcion, del tipo que sea
++TRAZA = re.compile(r"Traceback \(most recent call last\)")
++SUELTO = re.compile(r"^[\w.]*(AuthenticationError|PermissionDeniedError)\b")
++
++
++def textos_que_cuentan(lineas):
++    nivel = None  # nivel del registro en curso; None = fuera de un registro
++    traza = False  # dentro de un traceback crudo: cuenta entero, acabe como acabe
++    for linea in lineas:
++        linea = linea.rstrip("\n")
++        if linea.startswith("{"):
++            try:
++                reg = json.loads(linea)["record"]
++            except (ValueError, KeyError, TypeError):
++                reg = None
++            if isinstance(reg, dict):
++                traza = False
++                nivel = (reg.get("level") or {}).get("name")
++                if nivel in CUENTAN:
++                    yield nivel, f"{reg.get('message', '')} {reg.get('exception') or ''}"
++                elif reg.get("exception"):  # excepcion adjunta, sea cual sea el nivel
++                    yield nivel, str(reg["exception"])
++                continue
++        m = PLANO.match(linea)
++        if m:
++            nivel, traza = m.group(1), False
++        elif TRAZA.match(linea):
++            traza = True
++        if nivel is None or nivel in CUENTAN or traza or SUELTO.match(linea):
++            yield nivel or "SIN-NIVEL", linea
++
++
++def main(ruta: str) -> bool:
++    try:
++        with open(ruta, encoding="utf-8", errors="replace") as f:
++            for nivel, texto in textos_que_cuentan(f):
++                m = AUTH.search(texto)
++                if m:
++                    print(f"::notice::credencial rota ({nivel}): «{m.group(0)}»", file=sys.stderr)
++                    return True
++    except OSError as e:  # sin log no hay prueba de credencial rota
++        print(f"::warning::no se pudo leer {ruta}: {e}", file=sys.stderr)
++    return False
++
++
++if __name__ == "__main__":
++    if len(sys.argv) != 2:
++        sys.exit(f"uso: {sys.argv[0]} <pr-agent.log>")
++    print("auth=true" if main(sys.argv[1]) else "auth=false")
+diff --git a/scripts/test-pr-agent-auth-check.py b/scripts/test-pr-agent-auth-check.py
+new file mode 100644
+index 0000000..787d346
+--- /dev/null
++++ b/scripts/test-pr-agent-auth-check.py
+@@ -0,0 +1,159 @@
++#!/usr/bin/env python3
++"""Self-check de scripts/pr-agent-auth-check.py (INFRA-620).
++
++    python3 scripts/test-pr-agent-auth-check.py
++
++Las lineas reproducen la forma real del log de PR-Agent 0.46 (la del PR_AGENT_IMAGE
++del reusable; si se sube la imagen hay que volver a medir el formato) (JSON de loguru con
++`text` y `record.level.name`, y lineas planas `| NIVEL |`), tomadas del run
++37514639554 de k8s-litellm-pocharlies#229. Falla si alguien vuelve a poner el
++grep ancho sobre el fichero entero.
++"""
++
++from __future__ import annotations
++
++import json
++import re
++import subprocess
++import sys
++import tempfile
++import unittest
++from pathlib import Path
++
++CHECK = Path(__file__).resolve().parent / "pr-agent-auth-check.py"
++
++# Un test del diff de #229, tal cual: es lo que el prompt de PR-Agent vuelca.
++DIFF_229 = ("+    assert resp.status_code == 401\n"
++            "+    assert 'Error code: 401' in str(exc)\n"
++            "+    # 403 Forbidden y Bad credentials no deben degradar el gateway\n")
++
++
++def registro(nivel: str, mensaje: str, exception=None) -> str:
++    """Una linea JSON de loguru como las que escribe PR-Agent 0.46."""
++    no = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}[nivel]
++    return json.dumps({
++        "text": f"{mensaje}\n",
++        "record": {
++            "elapsed": {"repr": "0:00:11.811090", "seconds": 11.81109},
++            "exception": exception, "extra": {},
++            "file": {"name": "pr_processing.py", "path": "/app/pr_agent/algo/pr_processing.py"},
++            "function": "get_pr_diff",
++            "level": {"icon": "x", "name": nivel, "no": no},
++            "line": 168, "message": mensaje, "module": "pr_processing",
++            "name": "pr_agent.algo.pr_processing",
++            "process": {"id": 7, "name": "MainProcess"},
++            "thread": {"id": 1, "name": "MainThread"},
++            "time": {"repr": "2026-10-06 18:54:40.402+00:00", "timestamp": 1791312880.4},
++        }}, ensure_ascii=False)
++
++
++INFO_OK = registro("INFO", "PR main language: Python")
++
++
++def auth(*lineas: str) -> str:
++    with tempfile.TemporaryDirectory() as tmp:
++        log = Path(tmp) / "pr-agent.log"
++        log.write_text("\n".join(lineas) + "\n", encoding="utf-8")
++        r = subprocess.run([sys.executable, str(CHECK), str(log)],
++                           capture_output=True, text=True)
++    assert r.returncode == 0, r.stdout + r.stderr
++    return r.stdout.strip()
++
++
++class TestAuthCheck(unittest.TestCase):
++    def test_falso_positivo_debug_con_diff(self):
++        # C1: el diff con `status_code == 401` en una linea DEBUG no es credencial rota
++        self.assertEqual(auth(
++            INFO_OK,
++            registro("DEBUG", "full_prompt:\nDiff:\n" + DIFF_229),
++            registro("DEBUG", "Generating prediction with openai/alibaba-q38-flash"),
++        ), "auth=false")
++
++    def test_ruido_info_con_prompt(self):
++        # el extra_instructions del prompt menciona 401 Unauthorized en nivel INFO
++        self.assertEqual(auth(
++            registro("INFO", "extra_instructions: un 401 Unauthorized es rojo, un 429 verde"),
++        ), "auth=false")
++
++    def test_error_real_json(self):
++        # C2: un ERROR de PR-Agent con el 401 del proveedor
++        self.assertEqual(auth(
++            INFO_OK,
++            registro("ERROR", "Failed to generate prediction: litellm.AuthenticationError: "
++                              "OpenAIException - Error code: 401: Unauthorized"),
++        ), "auth=true")
++
++    def test_error_real_formato_plano(self):
++        self.assertEqual(auth(
++            "2026-10-06 18:54:29.373 | ERROR    | pr_agent.algo.ai_handlers:chat_completion:"
++            "180 - Error code: 403 - Forbidden",
++        ), "auth=true")
++
++    def test_excepcion_adjunta_a_un_registro_warning(self):
++        self.assertEqual(auth(
++            registro("WARNING", "Failed to review PR",
++                     {"type": "AuthenticationError", "value": "Bad credentials", "traceback": True}),
++        ), "auth=true")
++
++    def test_traceback_suelto_tras_debug(self):
++        self.assertEqual(auth(
++            registro("DEBUG", "Generating prediction"),
++            "Traceback (most recent call last):",
++            "litellm.exceptions.AuthenticationError: Error code: 401",
++        ), "auth=true")
++
++    def test_traceback_crudo_acaba_en_excepcion_de_github(self):
++        # el token de GitHub roto: el constructor del proveedor lanza fuera de todo registro
++        # y la ultima linea del traceback no es *AuthenticationError
++        self.assertEqual(auth(
++            INFO_OK,
++            "Traceback (most recent call last):",
++            '  File "x.py", line 1, in f',
++            'github.GithubException.BadCredentialsException: 401 {"message": "Bad credentials"}',
++        ), "auth=true")
++
++    def test_traceback_se_cierra_en_el_siguiente_registro(self):
++        # el estado «dentro de un traceback» acaba con el siguiente registro: el 401 del diff
++        # que viene despues, en una linea cruda bajo un DEBUG, no cuenta
++        self.assertEqual(auth(
++            "Traceback (most recent call last):",
++            '  File "x.py", line 1, in f',
++            registro("DEBUG", "Diff:\n" + DIFF_229),
++            "    assert resp.status_code == 401",
++        ), "auth=false")
++
++    def test_plano_debug_multilinea_no_cuenta(self):
++        # volcado DEBUG en formato plano: las lineas de continuacion heredan el nivel
++        self.assertEqual(auth(
++            "2026-10-06 18:54:29.373 | DEBUG    | pr_agent.algo.pr_processing:get_pr_diff:1 - Diff:",
++            "+    assert resp.status_code == 401",
++            "+    assert 'Error code: 401' in str(exc)",
++        ), "auth=false")
++
++    def test_429_y_5xx_no_son_credencial(self):
++        # D3: modelo no disponible degrada a verde
++        self.assertEqual(auth(
++            registro("ERROR", "litellm.RateLimitError: Error code: 429"),
++            registro("ERROR", "Error code: 503 Service Unavailable"),
++        ), "auth=false")
++
++    def test_workflow_no_vuelve_al_grep_ancho(self):
++        # C3/C4: el reusable decide con el script, no con un grep sobre el log entero
++        wf = (CHECK.parent.parent / ".github/workflows/reusable-pr-review.yml").read_text(
++            encoding="utf-8")
++        wf = re.sub(r"\\\n\s*", " ", wf)  # une las continuaciones de linea
++        self.assertNotRegex(wf, r"\bgrep\b[^\n]*pr-agent\.log")
++        self.assertNotIn("auth=true", wf)  # el unico emisor de `auth=` es el script
++        self.assertEqual(wf.count("pr-agent-auth-check.py"), 1)
++        llamada = next(l for l in wf.splitlines() if "pr-agent-auth-check.py" in l)
++        self.assertIn("pr-agent.log", llamada)
++        self.assertIn('>> "$GITHUB_OUTPUT"', llamada)
++
++    def test_log_inexistente(self):
++        r = subprocess.run([sys.executable, str(CHECK), "/no/existe.log"],
++                           capture_output=True, text=True)
++        self.assertEqual((r.returncode, r.stdout.strip()), (0, "auth=false"))
++
++
++if __name__ == "__main__":
++    unittest.main()
