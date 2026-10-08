@@ -22,7 +22,9 @@ jobs:
       runner: arc-k8s
       run_node: false
       run_docker_build: false
-      kustomize_paths: "."
+      # `ci-queue` no cuelga del raíz: lo despliega la Application infra/ci-queue-exporter.yaml
+      # (path: ci-queue); sin listarlo aquí un error suyo solo salía al sincronizar. INFRA-550.
+      kustomize_paths: ". ci-queue"
     secrets: inherit
   synapse-sre-foundation-contract:
     name: Synapse SRE foundation Application contract
