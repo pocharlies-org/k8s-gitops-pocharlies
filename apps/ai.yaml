@@ -1565,7 +1565,11 @@ spec:
     # peticiones en curso: el agregado toca techo con 9-10 (129 tok/s) y cae con 13-16 (107); por petición 13,6 frente
     # a 7,2 tok/s. Mismo PR en main: k8s-ai #114. Reinicia el TP=2 (~33 min, norma de hooks de b5df721).
     # ROLLBACK: 45c8ed5a7197e6e77a6afc3b3eb602197352859b.
-    targetRevision: d017c92dcf7bb34b5e60c9e14ea41441581f3ca0
+    # 08-10-2026 (DGX-684, A/B de palancas TP=2 de DGX-680): ARRANQUE DE PRUEBA, no es un pin de producción.
+    # 1f76b4a = d017c92 + --moe-backend marlin (EP intacto) y "moe_backend":"auto" en SPECULATIVE_CONFIG de head y worker
+    # (rama test/dgx-680-moe-marlin de k8s-ai; no entra en main). Reinicia el TP=2 (~33 min, norma de hooks de b5df721).
+    # ROLLBACK: d017c92dcf7bb34b5e60c9e14ea41441581f3ca0.
+    targetRevision: 1f76b4ae959d36d80620d1d281cfe604309169be
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
