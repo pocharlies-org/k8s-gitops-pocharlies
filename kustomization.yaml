@@ -14,6 +14,7 @@ resources:
   - infra/renovate.yaml
   - infra/voicelab.yaml
   - infra/ofimatica.yaml
+  - infra/galan-proposal.yaml
   - infra/traefik-lan.yaml
   - infra/traefik-edge.yaml
   - infra/arc.yaml
@@ -65,9 +66,11 @@ resources:
   - apps/synapse-sre-foundation.yaml
   - apps/teslamate.yaml
   - apps/tomorrowland.yaml
+  - apps/company-crm.yaml
   - apps/cv.yaml
   - apps/blog.yaml
   - apps/web.yaml
+  - apps/videovigilancia.yaml
   - apps/agentjake-browser-mcp.yaml
   - apps/stt-mcp.yaml
   - apps/teslamate-mcp.yaml

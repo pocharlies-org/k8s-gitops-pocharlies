@@ -1,0 +1,30 @@
+# SC-1771 (épica SC-1722): CRM propio. Sync MANUAL hasta que la CI de
+# company-crm (SC-1770) publique la primera imagen y k8s-infra-pocharlies #235
+# (base company_crm + rol) esté aplicado: un sync antes dejaría el hook de
+# migración en ImagePull/ConnectionRefused. Con imagen pineada y la base viva,
+# primer sync manual y pasar a automated{prune,selfHeal} como el resto de apps.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: company-crm
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-company-crm-pocharlies
+  labels:
+    e-dani.com/tier: app
+    app.kubernetes.io/part-of: company
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-company-crm-pocharlies
+    targetRevision: deploy/prod
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: company-crm
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

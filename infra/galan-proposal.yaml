@@ -1,0 +1,49 @@
+# galan-proposal — propuesta GALAN + chat/voz (dgx-infra k8s/apps/galan-proposal, DGX-634, épica DGX-619).
+#
+# Mismo patron que voicelab / ofimatica / opencode: los manifiestos viven en dgx-infra
+# (k8s/apps/galan-proposal/k8s.yaml) y aqui solo se declara la Application. El path
+# trae tambien codigo fuente (backend/, site/, mockups/), pero ArgoCD lee el directorio
+# SIN recursion: solo `k8s.yaml` es manifiesto.
+#
+# Hasta DGX-634 los objetos se aplicaron a mano con `kubectl apply` (ns traefik-edge,
+# 18 dias); esta Application los adopta tal cual estan (kubectl diff tronco/vivo: vacio
+# con master, ver PR). Los Secrets `galan-chat-llm` y `galan-basicauth` siguen siendo
+# out-of-band (no estan en git y ArgoCD no los toca).
+#
+# prune:false: nada fuera del manifiesto se borra. `galan-chat-alibaba` (Secret creado a
+# mano, DGX-623) no esta en git, asi que ArgoCD jamas lo prunaria aunque prune fuera true:
+# su retirada es un paso aparte (patron del architect, DGX-619).
+#
+# Sin CreateNamespace: `traefik-edge` ya existe y lo posee la Application traefik-edge.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: galan-proposal
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/dgx-infra/tree/master/k8s/apps/galan-proposal
+  labels:
+    e-dani.com/tier: app
+    app.kubernetes.io/part-of: dgx-infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/dgx-infra
+    targetRevision: master
+    path: k8s/apps/galan-proposal
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: traefik-edge
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m

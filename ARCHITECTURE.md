@@ -61,7 +61,11 @@ Un solo «cliente»: ArgoCD.
 ## 5. Cómo se construye aquí
 
 Una app nueva = `apps/<x>.yaml` (o `infra/<x>.yaml`) con su `Application` **y** una línea en `kustomization.yaml`
-raíz; `prune: false` en las apps normales. **Nunca** `kubectl delete` de una Application (el finalizer arrastra
+raíz; `prune: false` en las apps normales.
+
+Retirar un recurso en una app con `prune: false`: se quita de git por PR y se poda con una operación de sync acotada a ese recurso (`operation.sync.prune: true` + `resources`), nunca con `prune` global ni `kubectl delete`; precedente: `hermes-despliegue poda` (SC-1574). El Secret de un ExternalSecret `Owner` se borra con su ES, aunque sea `deletionPolicy: Retain`. Lo creado a mano fuera de ArgoCD no lo poda nadie: borrado nombrado y firmado por el CTO (precedente: `galan-chat-alibaba`, DGX-634). Detalle y pasos: `nota-architect-patron-retiro-sin-mano.md` en DGX-619.
+
+**Nunca** `kubectl delete` de una Application (el finalizer arrastra
 workloads y PVC). Cambiar el `targetRevision` o `path` de una app existente (p. ej. `ai.yaml`, pinneada a un SHA con
 rollbacks comentados) es un cambio de producción: PR + revisión, y no solo merge. `docs/audit-2026-05-22*` son
 fotos históricas, no estado.
@@ -75,13 +79,13 @@ kustomize build ci-queue                                  # el exporter no cuelg
 bash scripts/verify_arc_runner_render.sh
 python3 scripts/ci_queue_report.py --org pocharlies-org --days 7   # informe de cola (requiere gh auth)
 ```
-Nº de tests: 49 (medido con `unittest discover` el 2026-10-06; 23 en `tests/test_ci_queue.py` y 6 en
-`tests/test_ci_queue_exporter.py` + `tests/test_ci_queue_pools.py`, herméticos, fixtures en
+Nº de tests: 58 (medido con `unittest discover` el 2026-10-08; 23 en `tests/test_ci_queue.py`, 11 en
+`tests/test_ci_queue_exporter.py` y 1 en `tests/test_ci_queue_pools.py`, herméticos, fixtures en
 `tests/fixtures/ci-queue/`).
 
 ## 7. CI/CD y despliegue
 
-- `ci.yml` (`arc-k8s`): `standard` (reusable local, `kustomize_paths: "."`) + `synapse-sre-foundation-contract`.
+- `ci.yml` (`arc-k8s`): `standard` (reusable local, `kustomize_paths: ". ci-queue"`) + `synapse-sre-foundation-contract`.
 - `release.yml` (tags / `workflow_dispatch image_tag`): llama a `reusable-ci.yml` local y publica.
 - **Cambiar un reusable afecta a ~40 repos a la vez**: los repos que lo llaman por `@main` lo sufren al instante; los
   que lo pinnean por SHA no (p. ej. `ai`, `dgx-synapse-mcp` → `@ac96743b…`).
@@ -113,4 +117,4 @@ Nº de tests: 49 (medido con `unittest discover` el 2026-10-06; 23 en `tests/tes
   (un job `needs` o de otro pool dentro de un run rápido no se ve). Los asserts C1/C5 y las ventanas
   `--since/--hours` activan `exact=True`, que pide la API de jobs para todos los runs (~1700 llamadas para 48 h).
 
-Última verificación contra el código: 2026-10-01 · f2a8ce0 (origin/deploy/prod)
+Última verificación contra el código: 2026-10-06 · a5698db (origin/deploy/prod)

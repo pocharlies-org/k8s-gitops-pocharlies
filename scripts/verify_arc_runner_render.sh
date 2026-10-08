@@ -102,16 +102,11 @@ def validate_common(
         ]
     }
     if edge_fallback:
-        # arc-openclaw: KS5 fijado, con fallback a edge (sauvage).
+        # arc-openclaw (SC-2019): KS5 solo PREFERIDO (sin required: si no cabe,
+        # desborda a ubuntu en vez de quedar Pending) y sin tolerar role=edge
+        # (sauvage, md3 saturado).
         node_affinity = pod_spec["affinity"]["nodeAffinity"]
-        edge_term = {
-            "matchExpressions": [
-                {"key": "role", "operator": "In", "values": ["edge"]}
-            ]
-        }
-        assert node_affinity["requiredDuringSchedulingIgnoredDuringExecution"] == {
-            "nodeSelectorTerms": [ks5_term, edge_term]
-        }
+        assert "requiredDuringSchedulingIgnoredDuringExecution" not in node_affinity
         node_preferences = node_affinity[
             "preferredDuringSchedulingIgnoredDuringExecution"
         ]
@@ -121,7 +116,7 @@ def validate_common(
             "key": "role",
             "operator": "Equal",
             "value": "edge",
-        } in pod_spec["tolerations"]
+        } not in pod_spec["tolerations"]
     else:
         # arc-k8s (2026-09-22, Dani): sigue sin nodeAffinity — no se fijan
         # hostnames —, pero YA NO tolera role=edge, y por eso no aterriza en
@@ -163,9 +158,11 @@ def scheduler_eligible(pod_spec: dict, labels: dict[str, str]) -> bool:
         # Sin nodeAffinity (arc-k8s): acotan el nodeSelector (arch) y el taint
         # de arriba. No se fija hostname a proposito.
         return True
-    terms = node_affinity["requiredDuringSchedulingIgnoredDuringExecution"][
-        "nodeSelectorTerms"
-    ]
+    required = node_affinity.get("requiredDuringSchedulingIgnoredDuringExecution")
+    if required is None:
+        # Solo preferred (arc-openclaw): no excluye ningun nodo.
+        return True
+    terms = required["nodeSelectorTerms"]
     return any(
         all(
             expression["operator"] == "In"
@@ -207,8 +204,8 @@ eligibility_matrix = {
 expected_eligibility = {
     "arc-openclaw": {
         "ks5": True,
-        "sauvage": True,
-        "ubuntu-gpu": False,
+        "sauvage": False,
+        "ubuntu-gpu": True,
         "arm-gpu": False,
     },
     "arc-k8s": {
