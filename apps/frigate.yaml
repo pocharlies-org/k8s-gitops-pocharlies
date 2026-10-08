@@ -1,0 +1,30 @@
+# INFRA-710 (P1 de INFRA-701). Igual que argocd/application.yaml de k8s-frigate-pocharlies (R4).
+# `prune: true`, a diferencia de las apps normales: las NetworkPolicy suman y una regla quitada de git debe
+# desaparecer. Lo irrecuperable queda fuera del prune: los PVC llevan Prune=false,Delete=false, el Secret de MQTT
+# tiene deletionPolicy Retain y el namespace lo crea CreateNamespace=true, que ArgoCD no rastrea.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: frigate
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-frigate-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-frigate-pocharlies
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: frigate
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
