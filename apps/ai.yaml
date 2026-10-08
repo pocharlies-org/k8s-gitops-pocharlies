@@ -1573,7 +1573,8 @@ spec:
     # 1f76b4a = d017c92 + --moe-backend marlin (EP intacto) y "moe_backend":"auto" en SPECULATIVE_CONFIG de head y worker
     # (rama test/dgx-680-moe-marlin de k8s-ai; no entra en main). Apilado sobre fadbbdd (mtp-k1): se fusiona DESPUÉS de él.
     # Reinicia el TP=2 (~33 min, norma de hooks de b5df721). ROLLBACK: d017c92dcf7bb34b5e60c9e14ea41441581f3ca0.
-    targetRevision: 1f76b4ae959d36d80620d1d281cfe604309169be
+    # ROLLBACK de 1f76b4a: vuelta a d017c92 (DGX-683 §7).
+    targetRevision: d017c92dcf7bb34b5e60c9e14ea41441581f3ca0
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
