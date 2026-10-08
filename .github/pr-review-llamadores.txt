@@ -1,0 +1,205 @@
+# Repos que llaman a `reusable-pr-review.yml` (SC-2182, parte C). Lista MEDIDA el 2026-10-08/09, no supuesta.
+#
+# Cómo se midió: el árbol `.github/workflows` de la rama por defecto de CADA repo de `pocharlies-org`
+# (184) y de la cuenta `pocharlies` (45), con `gh api graphql`, buscando `uses: …reusable-pr-review.yml@…`.
+# La búsqueda de código de GitHub (`reusable-pr-review.yml@`) no vale como medida: devolvió 2 repos de los 170
+# de la org (no indexa los privados). Los 14 repos de la org sin llamada están fuera de esta lista.
+#
+# Los tres repos activos de la cuenta `pocharlies` (claude-archive-close-tab, skirmshop-picqer, skirmshop-theme)
+# fijan `runner: ubuntu-latest`: desde ahí no se alcanza el LiteLLM del cluster, así que el juez saldría
+# SIN_VEREDICTO aunque tuvieran los secretos. Además, sin LITELLM_CI_KEY su PR review ya sale en rojo en cualquier PR
+# desde SC-1916, así que cambiar de motor no cambia nada: quedan `excluido`, sin los secretos del juez y sin
+# `engine:` fijado (se cerraron sin fusionar las PR de `engine: propio` que se abrieron para ellos).
+#
+# Formato (una línea por repo, columnas separadas por TAB):
+#   owner/repo  estado  engine  ref  cobertura  [motivo]
+#   estado     activo | archivado   (un repo archivado es de solo lectura: no recibe PR, el workflow no corre)
+#   engine     default (no fija `engine:`, sigue lo que valga el default del reusable) | propio | pr-agent | juez
+#   ref        main | sha:<12 hex>  (a qué versión del reusable apunta; un SHA no recibe el cambio del default)
+#   cobertura  qué impide que el cambio de `engine` por defecto a `juez` ponga un SIN_VEREDICTO rojo en el repo:
+#              secretos  (los cuatro del juez, LITELLM_JUEZ_KEY y JIRA_JUEZ_EMAIL/TOKEN/URL, medidos como secretos del repo)
+#              propio    (el repo fija `engine: propio` en su pr-review.yml)
+#              pr-agent  (el repo fija `engine: pr-agent`: el default no le afecta)
+#              archivado (sin PR posible)
+#              excluido  (el repo no recibe el juez ni fija un motor; el sexto campo, `motivo`, es obligatorio)
+#              pendiente (nada de lo anterior; con el default en `juez` es un fallo del test)
+#
+# Se actualiza en el mismo PR que reparte secretos o fija `engine:`; la comprobación viva es
+#   scripts/review-distribute-secrets.sh --dry-run --secrets LITELLM_JUEZ_KEY,JIRA_JUEZ_EMAIL,JIRA_JUEZ_TOKEN,JIRA_JUEZ_URL --repos <unión>
+# y el test `tests.test_reusable_pr_review -k cobertura` la cruza con el default del reusable.
+pocharlies-org/IACharlies	archivado	default	main	archivado
+pocharlies-org/MCP-instagram	activo	default	main	secretos
+pocharlies-org/Peekaboo	activo	default	main	secretos
+pocharlies-org/Qwen3.8-Flash-Next-NVFP4-vLLM-DGX-Spark-k8s	activo	default	main	secretos
+pocharlies-org/agent-browser-extension	activo	default	main	secretos
+pocharlies-org/agent-browser-server	activo	default	main	secretos
+pocharlies-org/agent-jake-browser-mcp-extension	activo	default	main	secretos
+pocharlies-org/agent-jake-browser-mcp-server	activo	default	main	secretos
+pocharlies-org/agent-rag-memory	archivado	default	main	archivado
+pocharlies-org/aurora	activo	default	main	secretos
+pocharlies-org/bambulab-openclaw	activo	default	main	secretos
+pocharlies-org/claude-codex-bridge	activo	default	main	secretos
+pocharlies-org/claude-config	activo	default	main	secretos
+pocharlies-org/claude-local-router	activo	default	main	secretos
+pocharlies-org/claude-ui	activo	default	main	secretos
+pocharlies-org/cloudblue-knowledge	activo	default	main	secretos
+pocharlies-org/cofounderlab	activo	default	main	secretos
+pocharlies-org/company-config-pocharlies	activo	default	main	secretos
+pocharlies-org/company-crm	activo	default	main	secretos
+pocharlies-org/company-vscode	activo	default	main	secretos
+pocharlies-org/cursor-agents	activo	default	main	secretos
+pocharlies-org/deepseek-v4-flash-rank1-refusal-projection	activo	default	main	secretos
+pocharlies-org/desktop-mcp	activo	default	main	secretos
+pocharlies-org/dgx-control-ios	activo	default	main	secretos
+pocharlies-org/dgx-infra	activo	default	main	secretos
+pocharlies-org/dgx-messages	activo	default	main	secretos
+pocharlies-org/docker-jenkins	activo	default	main	secretos
+pocharlies-org/docker-jenkins-slave-dind	activo	default	main	secretos
+pocharlies-org/factura-mcp-server	activo	default	main	secretos
+pocharlies-org/hermes-agent	activo	default	main	secretos
+pocharlies-org/hermes-quick-ack	activo	default	main	secretos
+pocharlies-org/home-assistant	activo	default	main	secretos
+pocharlies-org/jarvis	activo	default	main	secretos
+pocharlies-org/job-dsl-test	activo	default	main	secretos
+pocharlies-org/k3s-gitops	activo	default	main	secretos
+pocharlies-org/k8s-adguard-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-agentgateway-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-agentjake-browser-mcp-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-ai-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-auto-reply-worker-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-blog-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-brain-mcp-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-company-crm-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-cv-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-dgx-synapse-mcp-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-document-intake-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-firecrawl-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-frigate-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-gbp-festivos-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-gitops-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-infra-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-jarvis-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-langfuse-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-libreplay-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-litellm-pocharlies	activo	pr-agent	main	pr-agent
+pocharlies-org/k8s-observability-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-offers-mcp-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-openclaw-qwen36-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-picqer-mcp-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-playwright-mcp-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-pocharlies-webgui-pocharlies	archivado	default	main	archivado
+pocharlies-org/k8s-serpientetool-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-shopify-admin-mcp-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-shopify-affiliate-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-shopify-back-in-stock-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-shopify-bundles-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-shopify-chatbot-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-shopify-collections-tree-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-shopify-framework-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-shopify-label-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-shopify-picker-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-shopify-product-ai-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-shopify-serial-numbers-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-shopify-sii-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-shopify-sync-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-shopify-translations-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-skills-catalog-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-skirmbooks-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-skirmshop-competitor-crawler-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-skirmshop-control-panel-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-skirmshop-drive-mirror-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-skirmshop-wiki-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-skirmshopshopifyapp-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-socialmedia-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-stt-mcp-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-synapse-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-tesla-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-teslamate-mcp-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-teslamate-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-tomorrowland-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-video-mcp-pocharlies	archivado	default	main	archivado
+pocharlies-org/k8s-videovigilancia-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-web-pocharlies	activo	default	main	secretos
+pocharlies-org/libreplay	activo	default	main	secretos
+pocharlies-org/litellm-model-sync	activo	default	main	secretos
+pocharlies-org/llm-status	activo	default	main	secretos
+pocharlies-org/llm-status-ios	activo	default	main	secretos
+pocharlies-org/mcp-17track	activo	default	main	secretos
+pocharlies-org/mcp-aimharder	activo	default	main	secretos
+pocharlies-org/mcp-brain-search	activo	default	main	secretos
+pocharlies-org/mcp-dgx	activo	default	main	secretos
+pocharlies-org/mcp-openclaw	activo	default	main	secretos
+pocharlies-org/mcp-sendcloud	activo	default	main	secretos
+pocharlies-org/mcp-telegram	activo	default	main	secretos
+pocharlies-org/mcp-whatsapp	activo	default	main	secretos
+pocharlies-org/n8n-k8s	activo	default	main	secretos
+pocharlies-org/n8n-workflow-backups	activo	default	main	secretos
+pocharlies-org/oficinas-pocharlies	activo	default	main	secretos
+pocharlies-org/op-mcp-personal	activo	default	main	secretos
+pocharlies-org/op-safe	activo	default	main	secretos
+pocharlies-org/openchamber	activo	default	main	secretos
+pocharlies-org/openchamber-build-pocharlies	activo	default	main	secretos
+pocharlies-org/openchamber-company-board	activo	default	main	secretos
+pocharlies-org/openclaw-mem	activo	default	main	secretos
+pocharlies-org/openclaw-vault-tools-pocharlies	activo	default	main	secretos
+pocharlies-org/opencode-claude	activo	default	main	secretos
+pocharlies-org/opencode-company	activo	default	main	secretos
+pocharlies-org/opencode-config-pocharlies	activo	default	main	secretos
+pocharlies-org/pocharlies-aiops	activo	default	main	secretos
+pocharlies-org/pocharlies-gmail-cleaner	activo	default	main	secretos
+pocharlies-org/pocharlies-lora	activo	default	main	secretos
+pocharlies-org/pocharlies-openclaw	activo	default	main	secretos
+pocharlies-org/pocharlies-rag	activo	default	main	secretos
+pocharlies-org/pocharlies-webgui	activo	default	main	secretos
+pocharlies-org/proxy-claude	activo	default	main	secretos
+pocharlies-org/python-skeleton	activo	default	main	secretos
+pocharlies-org/qwen38-27b-rank1-refusal-projection	activo	default	main	secretos
+pocharlies-org/qwen38-flash-next-dgx-spark-sglang	activo	default	main	secretos
+pocharlies-org/refusal-probe	activo	default	main	secretos
+pocharlies-org/release-bot-pocharlies	activo	default	main	secretos
+pocharlies-org/sauvagebottelegram	archivado	default	main	archivado
+pocharlies-org/sauvageclubbot	activo	default	main	secretos
+pocharlies-org/sauvageserver	activo	default	main	secretos
+pocharlies-org/sc-pilot-sandbox	activo	default	main	secretos
+pocharlies-org/shared-infra	activo	default	main	secretos
+pocharlies-org/shield	activo	default	main	secretos
+pocharlies-org/shopify-app-framework	activo	default	main	secretos
+pocharlies-org/shopify-back-in-stock	activo	default	main	secretos
+pocharlies-org/shopify-bundle-app	activo	default	main	secretos
+pocharlies-org/shopify-collections-tree-app	activo	default	main	secretos
+pocharlies-org/shopify-product-creator	activo	default	main	secretos
+pocharlies-org/shopify-sii-app	activo	default	main	secretos
+pocharlies-org/shopify-skirmshoptemplate	activo	default	main	secretos
+pocharlies-org/shopify-sync-app	activo	default	main	secretos
+pocharlies-org/shopify-translation-app	activo	default	main	secretos
+pocharlies-org/skirmbooks-drive-ingest	activo	default	main	secretos
+pocharlies-org/skirmbooks-gestoria-src	activo	default	main	secretos
+pocharlies-org/skirmshop-affiliate-api	activo	default	main	secretos
+pocharlies-org/skirmshop-brain-k8s	activo	default	main	secretos
+pocharlies-org/skirmshop-brain-v2	activo	default	main	secretos
+pocharlies-org/skirmshop-chatbot	activo	default	sha:8956ad01c473	secretos
+pocharlies-org/skirmshop-control-panel	activo	default	main	secretos
+pocharlies-org/skirmshop-firecrawl	activo	default	main	secretos
+pocharlies-org/skirmshop-gestoria	activo	default	main	secretos
+pocharlies-org/skirmshop-labels	activo	pr-agent	main	pr-agent
+pocharlies-org/skirmshop-monitoring	activo	default	main	secretos
+pocharlies-org/skirmshop-serial-numbers	activo	default	main	secretos
+pocharlies-org/skirmshopes-theme	activo	default	main	secretos
+pocharlies-org/skirmshopshopifyapp	activo	default	main	secretos
+pocharlies-org/synapse	activo	default	main	secretos
+pocharlies-org/synapse-client	activo	default	main	secretos
+pocharlies-org/synapse-document-intake	activo	default	main	secretos
+pocharlies-org/synapse-mac-bridge-py	activo	default	main	secretos
+pocharlies-org/terraform-aws-pritunl	activo	default	main	secretos
+pocharlies-org/terraform-aws-transfer-server	activo	default	main	secretos
+pocharlies-org/terraform-provider-pritunl	activo	default	main	secretos
+pocharlies-org/test-infra	activo	default	main	secretos
+pocharlies-org/test-kata	activo	default	main	secretos
+pocharlies-org/trisplit	activo	default	main	secretos
+pocharlies-org/x86-host-runtime-pocharlies	activo	default	main	secretos
+pocharlies/claude-archive-close-tab	activo	default	main	excluido	SC-1916: sin LITELLM_CI_KEY su PR review ya sale en rojo en cualquier PR y en ubuntu-latest no alcanza el LiteLLM del cluster; cambiar de motor no cambia nada
+pocharlies/libreplay	archivado	default	main	archivado
+pocharlies/mcp-instagram	archivado	default	main	archivado
+pocharlies/mcp-telegram	archivado	default	main	archivado
+pocharlies/skirmshop-picqer	activo	default	main	excluido	SC-1916: sin LITELLM_CI_KEY su PR review ya sale en rojo en cualquier PR y en ubuntu-latest no alcanza el LiteLLM del cluster; cambiar de motor no cambia nada
+pocharlies/skirmshop-theme	activo	default	main	excluido	SC-1916: sin LITELLM_CI_KEY su PR review ya sale en rojo en cualquier PR y en ubuntu-latest no alcanza el LiteLLM del cluster; cambiar de motor no cambia nada

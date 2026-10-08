@@ -67,7 +67,9 @@ Equivalencias con los nombres del encargo: «output_language» es `config.respon
     scripts/review-distribute-secrets.sh --repos <r1,r2> [--from-vault pr-review-ci] [--rotate]
 
 Reparte `PR_AGENT_LITELLM_KEY`, `JIRA_EMAIL` y `JIRA_API_TOKEN` (`BRAIN_CI_KEY` no, hasta que security
-responda SC-1400). Valor: variable de entorno del mismo nombre o, con `--from-vault`, Vault KV v2
+responda SC-1400). `--secrets A,B` elige el juego (los de PR-Agent de arriba o los del juez); el del juez (SC-2182) es
+`--secrets LITELLM_JUEZ_KEY,JIRA_JUEZ_EMAIL,JIRA_JUEZ_TOKEN,JIRA_JUEZ_URL`, con nombres propios para no tocar ni rotar
+`LITELLM_CI_KEY`, `JIRA_EMAIL` y `JIRA_API_TOKEN`. Valor: variable de entorno del mismo nombre o, con `--from-vault`, Vault KV v2
 `secret/<ruta>` (necesita `VAULT_ADDR` y `VAULT_TOKEN`; el token va a curl por `-H @fichero` 0600, nunca en
 su argv). Viaja por stdin a `gh secret set`; nunca se imprime.
 Un secreto ya presente no se toca sin `--rotate`, así que reejecutar no cambia nada. Salida: una línea
@@ -278,3 +280,33 @@ Corre el juez con el modelo real sobre los 8 casos de `tests/fixtures/juez/` (4 
 bug, norma de arquitectura, sin tests; los PASA son commits reales de este repo y los NO_PASA, diffs reales estropeados a propósito: sin el test, con una condición
 invertida, con una interpolación en un `run`) y sale 0 solo si acierta al menos 7 de 8. Un `SIN_VEREDICTO` cuenta como fallo. Tests sin red:
 `python3 -m unittest tests.test_llm_review_juez` (un LiteLLM, un Jira y una API de GitHub de pega).
+
+## Cobertura: qué repos pasan a `juez` y con qué (SC-2182, parte C)
+
+Cambiar el `engine` por defecto del reusable a `juez` afecta a todo repo que lo llama sin fijar `engine:`. Dos listas
+medidas (el 2026-10-08, leyendo el árbol de workflows de cada repo, no por búsqueda de código: esa no indexa los
+privados) dicen a quién:
+
+- `.github/pr-review-llamadores.txt`: TODOS los repos que llaman a `reusable-pr-review.yml` (176 entre `pocharlies-org`
+  y la cuenta `pocharlies`) con su estado, el `engine` que fijan, a qué versión apuntan y su **cobertura**: `secretos`
+  (los cuatro del juez como secretos del repo), `propio` (el repo fija `engine: propio`), `pr-agent`, `archivado` (sin
+  PR posible), `excluido` (con su motivo en un sexto campo) o `pendiente`.
+- `.github/pr-review-juez-repos.txt`: los repos donde la compañía abre PRs (`tracker.projects` de `company-options.json`),
+  con si llaman ya al reusable. Esos nunca fijan `engine: propio`: quedan en `juez`. `skirmshop-picqer` está fuera a
+  propósito (cuenta personal, `runner: ubuntu-latest`: no alcanza el LiteLLM del cluster).
+
+**Los cuatro secretos del juez** (SC-2182): `LITELLM_JUEZ_KEY` (key `ci-review-juez`), `JIRA_JUEZ_EMAIL`, `JIRA_JUEZ_TOKEN`
+y `JIRA_JUEZ_URL` (cuenta de servicio de Jira de solo lectura). Sus valores están en 1Password (`k8s-pocharlies`:
+`litellm-ci-review-juez` y `jira-juez-pr-review`) y se reparten por repo a todos los llamadores activos salvo los tres de
+la cuenta personal (`skirmshop-picqer`, `skirmshop-theme`, `claude-archive-close-tab`), que quedan `excluido`: corren en
+`ubuntu-latest`, no alcanzan el LiteLLM del cluster y, sin `LITELLM_CI_KEY`, su PR review ya sale en rojo en cualquier PR
+desde SC-1916, así que cambiar de motor no cambia nada.
+
+Un repo con la cobertura `pendiente` vería un `SIN_VEREDICTO` rojo con el default en `juez`. El test
+`python3 -m unittest tests.test_reusable_pr_review -k cobertura` falla si el default es `juez` y queda alguno. Comprobación
+viva, sin escribir nada ni imprimir valores (`estado=ausente` es lo que hay que borrar de la salida):
+
+    scripts/review-distribute-secrets.sh --dry-run --secrets LITELLM_JUEZ_KEY,JIRA_JUEZ_EMAIL,JIRA_JUEZ_TOKEN,JIRA_JUEZ_URL --repos <unión de las dos listas>
+
+Un secreto de organización no vale como cobertura: el plan de la org es `free` y no llega a los repos privados ni a los de
+la cuenta personal, así que el reparto es por repo.
