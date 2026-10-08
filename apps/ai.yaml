@@ -1569,6 +1569,8 @@ spec:
     # fadbbdd = d017c92 + MTP k=1 plano (num_speculative_tokens 1, tabla [[1,16,1]]) en head y worker: un fichero,
     # dos líneas (rama test/dgx-680-mtp-k1 de k8s-ai; no entra en main). Reinicia el TP=2 (~33 min, norma de hooks de b5df721).
     # ROLLBACK: d017c92dcf7bb34b5e60c9e14ea41441581f3ca0.
+    # ROLLBACK de fadbbdd: vuelta a d017c92 (DGX-683 §7).
+    # VUELTA a fadbbdd: mtp-k1 ganó y no se hizo el brazo MoE (DGX-705). Solo se fusiona en ese resultado.
     targetRevision: fadbbdda1a6a3f85aaeed7138f924cd066210e8c
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
