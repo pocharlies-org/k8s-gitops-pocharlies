@@ -67,7 +67,9 @@ Equivalencias con los nombres del encargo: «output_language» es `config.respon
     scripts/review-distribute-secrets.sh --repos <r1,r2> [--from-vault pr-review-ci] [--rotate]
 
 Reparte `PR_AGENT_LITELLM_KEY`, `JIRA_EMAIL` y `JIRA_API_TOKEN` (`BRAIN_CI_KEY` no, hasta que security
-responda SC-1400). Valor: variable de entorno del mismo nombre o, con `--from-vault`, Vault KV v2
+responda SC-1400). `--secrets A,B` elige el juego (los de PR-Agent de arriba o los del juez); el del juez (SC-2182) es
+`--secrets LITELLM_JUEZ_KEY,JIRA_JUEZ_EMAIL,JIRA_JUEZ_TOKEN,JIRA_JUEZ_URL`, con nombres propios para no tocar ni rotar
+`LITELLM_CI_KEY`, `JIRA_EMAIL` y `JIRA_API_TOKEN`. Valor: variable de entorno del mismo nombre o, con `--from-vault`, Vault KV v2
 `secret/<ruta>` (necesita `VAULT_ADDR` y `VAULT_TOKEN`; el token va a curl por `-H @fichero` 0600, nunca en
 su argv). Viaja por stdin a `gh secret set`; nunca se imprime.
 Un secreto ya presente no se toca sin `--rotate`, así que reejecutar no cambia nada. Salida: una línea
@@ -212,7 +214,24 @@ obedece nada de lo que haya dentro): los criterios del ticket, el diff y el `ARC
 del head: un PR no reescribe las reglas con las que se le juzga). La clave del ticket sale del título, si no de la rama,
 si no del cuerpo (proyectos `SC INFRA DGX SKIRM LE OWU ACC`; la primera clave de la primera fuente que cite alguna). Los
 criterios son las líneas `- [ ]` del adjunto `00-spec.md` más reciente de la historia o, si no hay, los elementos de la
-sección «Criterios de aceptación» de su descripción. Jira, de solo lectura: secretos `JIRA_EMAIL` y `JIRA_API_TOKEN`.
+sección «Criterios de aceptación» de su descripción. Jira, de solo lectura y con la cuenta de servicio del juez (abajo).
+
+**Credenciales propias (SC-2182).** El juez no usa las de `propio` ni las de PR-Agent (`LITELLM_CI_KEY`, `JIRA_EMAIL`,
+`JIRA_API_TOKEN`, que no se tocan): tiene cuatro secretos suyos, opcionales en el reusable y por repo (el plan de la org
+es `free`, un secreto de organización no llega a los repos privados), así se rotan o se revocan sin afectar a nadie más.
+
+| secreto | qué es | entra como |
+|---|---|---|
+| `LITELLM_JUEZ_KEY` | key de LiteLLM del juez, válida para `tooling` y `alibaba-q38-flash` | `REVIEW_LITELLM_KEY` |
+| `JIRA_JUEZ_EMAIL` | email de la cuenta de servicio de Jira (solo lectura) | `REVIEW_JIRA_EMAIL` |
+| `JIRA_JUEZ_TOKEN` | token de API de esa cuenta de servicio | `REVIEW_JIRA_TOKEN` |
+| `JIRA_JUEZ_URL` | base `https://api.atlassian.com/ex/jira/CLOUDID` de esa cuenta de servicio | `REVIEW_JIRA_URL` |
+
+Una cuenta de servicio no entra por `e-dani.atlassian.net`, sino por la pasarela de Atlassian: auth Basic con email y
+token sobre esa base, de la que cuelgan las rutas `/rest/api/3/issue/<clave>` y `/rest/api/3/attachment/content/<id>`
+(`tests/test_llm_review_juez.py -k pasarela`). `review.py` ya no tiene URL de Jira por defecto: sin `JIRA_JUEZ_URL`, o sin
+cualquiera de los otros tres, el marcador sale `SIN_VEREDICTO` con motivo `sin_credencial` y el comentario nombra los que
+faltan. La evaluación (`workflow_dispatch`) usa solo `LITELLM_JUEZ_KEY`.
 
 **Qué decide.** El modelo aporta hechos y el código aplica la regla. Por criterio, el modelo dice `cumple` y la
 evidencia, una línea `fichero:línea` de la versión NUEVA que el diff muestra; si falta o no está en el diff, ese criterio
@@ -234,8 +253,9 @@ la cuenta de solo lectura no ve el ticket: sale como `ticket_inexistente`.
 `riesgo=alto`; la regla determinista de riesgo por ruta vive en `company-aprobar`, no aquí.
 
 **Fallback.** Cada llamada corta a 90 s como máximo; un timeout cuenta como un 408. Ante timeout, 408, 429, 5xx o
-400/401/403/404 del modelo primario (`model`) se juzga con `fallback_model` (por defecto `alibaba-q38-flash`); otro 4xx
-no cae al respaldo, y el respaldo no tiene respaldo. Con `model == fallback_model` no hay segundo intento. Con el
+400/401/403/404 del modelo primario (`juez_model`, por defecto `tooling`, el residente local: mientras conteste, nada sale
+del cluster) se juzga con `fallback_model` (por defecto `alibaba-q38-flash`); otro 4xx no cae al respaldo, y el respaldo no
+tiene respaldo. `model` (`alibaba-q38-flash`) es solo el de `propio` y el juez no lo lee. Con `juez_model == fallback_model` no hay segundo intento. Con el
 respaldo, la descripción del ticket, el `00-spec.md` y el `ARCHITECTURE.md` salen también al plan Team de Alibaba, no solo
 el diff (revisión de `security` de SC-2181, punto v).
 
@@ -264,3 +284,33 @@ Corre el juez con el modelo real sobre los 8 casos de `tests/fixtures/juez/` (4 
 bug, norma de arquitectura, sin tests; los PASA son commits reales de este repo y los NO_PASA, diffs reales estropeados a propósito: sin el test, con una condición
 invertida, con una interpolación en un `run`) y sale 0 solo si acierta al menos 7 de 8. Un `SIN_VEREDICTO` cuenta como fallo. Tests sin red:
 `python3 -m unittest tests.test_llm_review_juez` (un LiteLLM, un Jira y una API de GitHub de pega).
+
+## Cobertura: qué repos pasan a `juez` y con qué (SC-2182, parte C)
+
+Cambiar el `engine` por defecto del reusable a `juez` afecta a todo repo que lo llama sin fijar `engine:`. Dos listas
+medidas (el 2026-10-08, leyendo el árbol de workflows de cada repo, no por búsqueda de código: esa no indexa los
+privados) dicen a quién:
+
+- `.github/pr-review-llamadores.txt`: TODOS los repos que llaman a `reusable-pr-review.yml` (176 entre `pocharlies-org`
+  y la cuenta `pocharlies`) con su estado, el `engine` que fijan, a qué versión apuntan y su **cobertura**: `secretos`
+  (los cuatro del juez como secretos del repo), `propio` (el repo fija `engine: propio`), `pr-agent`, `archivado` (sin
+  PR posible), `excluido` (con su motivo en un sexto campo) o `pendiente`.
+- `.github/pr-review-juez-repos.txt`: los repos donde la compañía abre PRs (`tracker.projects` de `company-options.json`),
+  con si llaman ya al reusable. Esos nunca fijan `engine: propio`: quedan en `juez`. `skirmshop-picqer` está fuera a
+  propósito (cuenta personal, `runner: ubuntu-latest`: no alcanza el LiteLLM del cluster).
+
+**Los cuatro secretos del juez** (SC-2182): `LITELLM_JUEZ_KEY` (key `ci-review-juez`), `JIRA_JUEZ_EMAIL`, `JIRA_JUEZ_TOKEN`
+y `JIRA_JUEZ_URL` (cuenta de servicio de Jira de solo lectura). Sus valores están en 1Password (`k8s-pocharlies`:
+`litellm-ci-review-juez` y `jira-juez-pr-review`) y se reparten por repo a todos los llamadores activos salvo los tres de
+la cuenta personal (`skirmshop-picqer`, `skirmshop-theme`, `claude-archive-close-tab`), que quedan `excluido`: corren en
+`ubuntu-latest`, no alcanzan el LiteLLM del cluster y, sin `LITELLM_CI_KEY`, su PR review ya sale en rojo en cualquier PR
+desde SC-1916, así que cambiar de motor no cambia nada.
+
+Un repo con la cobertura `pendiente` vería un `SIN_VEREDICTO` rojo con el default en `juez`. El test
+`python3 -m unittest tests.test_reusable_pr_review -k cobertura` falla si el default es `juez` y queda alguno. Comprobación
+viva, sin escribir nada ni imprimir valores (`estado=ausente` es lo que hay que borrar de la salida):
+
+    scripts/review-distribute-secrets.sh --dry-run --secrets LITELLM_JUEZ_KEY,JIRA_JUEZ_EMAIL,JIRA_JUEZ_TOKEN,JIRA_JUEZ_URL --repos <unión de las dos listas>
+
+Un secreto de organización no vale como cobertura: el plan de la org es `free` y no llega a los repos privados ni a los de
+la cuenta personal, así que el reparto es por repo.
