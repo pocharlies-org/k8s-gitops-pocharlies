@@ -80,8 +80,9 @@ separada de `ci-review-bot` (equipo `ci-review`, 3 rpm / 120 000 tpm).
 
 # PR review: el workflow reusable v2 y `inputs.engine` (INFRA-332)
 
-`.github/workflows/reusable-pr-review.yml` tiene tres motores (el tercero, `juez`, en la sección siguiente). `engine: propio` (por defecto) es `review.py`,
-sin cambios: lo siguen usando los 108 repos de la plantilla hasta INFRA-334. `engine: pr-agent` lo encienden
+`.github/workflows/reusable-pr-review.yml` tiene tres motores: `juez` (el de por defecto desde SC-2182, en la sección siguiente), `propio` y `pr-agent`.
+`engine: propio` es `review.py`, sin cambios: lo fija en su `pr-review.yml` el repo que no recibe los secretos del juez.
+`engine: pr-agent` lo encienden
 solo los pilotos, en su `.github/workflows/pr-review.yml`; la lista operativa de esos repos es
 `.github/pr-agent-repos.txt` (única: la mide la señal nocturna y la siguen las oleadas de INFRA-334):
 
@@ -191,8 +192,10 @@ dispatch puntual). Lee los runs de `PR review` de las últimas 24 h —la ventan
 # PR review: el motor `juez` (SC-2182)
 
 `engine: juez` no revisa el diff: **juzga** si el PR cumple los criterios de aceptación de su ticket de Jira. Es el
-motor que sustituye a qa + architect en las historias de la compañía. Nace **opt-in** (`propio` sigue siendo el
-default; el cambio de default es otra PR, solo con la lista medida de repos cubierta de secretos):
+motor que sustituye a qa + architect en las historias de la compañía. Nació opt-in y es el **motor por defecto** desde
+la etapa (c) de SC-2182 (`tests/test_reusable_pr_review.py -k default_juez`): un llamador que no fija `engine:` lo recibe.
+El cambio solo es seguro con la lista medida de repos cubierta (cada repo con los secretos del juez o con
+`engine: propio` fijado, `-k cobertura`); `propio` y `pr-agent` siguen seleccionables. Para pedirlo explícito:
 
     uses: pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-pr-review.yml@main
     with:
@@ -201,7 +204,8 @@ default; el cambio de default es otra PR, solo con la lista medida de repos cubi
 Job `Review del PR (juez)` (`revisar_pr_juez`), solo en `pull_request`; el check se llama `<job del llamador> / Review del
 PR (juez)`. Un solo motor por evento (`tests/test_reusable_pr_review.py -k un_solo_motor`): `revisar_pr` y
 `revisar_commit` corren solo con `engine: propio`, `revisar_pr_agent` con `pr-agent`; un motor que no existe pone
-rojo el job `Motor de review no valido`. Con `engine: juez`, `workflow_dispatch` corre la evaluación (abajo).
+rojo el job `Motor de review no valido`. Con `engine: juez` (el de por defecto), `workflow_dispatch` corre la evaluación
+(abajo) y ya no comenta el último commit como hacía `propio`: quien quiera ese modo fija `engine: propio`.
 
 **Qué lee.** Todo entra por entorno y como datos delimitados con una marca aleatoria por ejecución (el modelo no
 obedece nada de lo que haya dentro): los criterios del ticket, el diff y el `ARCHITECTURE.md` **del commit base** (no el
