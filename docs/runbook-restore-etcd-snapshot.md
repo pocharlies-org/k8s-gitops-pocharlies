@@ -41,6 +41,7 @@ ssh x86 sudo systemctl stop k3s
 # On all workers (not strictly required but avoids confusion)
 ssh dgx1 sudo systemctl stop k3s-agent
 ssh dgx2 sudo systemctl stop k3s-agent
+ssh dgx3 sudo systemctl stop k3s-agent
 ssh sauvage sudo systemctl stop k3s-agent
 ```
 
@@ -87,6 +88,7 @@ Workers will reconnect automatically once the master is back. If they don't reco
 # On each worker
 ssh dgx1 sudo systemctl restart k3s-agent
 ssh dgx2 sudo systemctl restart k3s-agent
+ssh dgx3 sudo systemctl restart k3s-agent
 ssh sauvage sudo systemctl restart k3s-agent
 ```
 
