@@ -378,7 +378,8 @@ jobs:
     name: Notify OpenClaw on manifest release failure
     permissions:
       contents: read
-      actions: read
+      # No actions: read: un job reusable no puede pedir mas de lo que el
+      # caller otorga, y este paso solo llama a Telegram (INFRA-607).
     runs-on: ${{ inputs.runner }}
     needs: [publish]
     if: ${{ always() && (needs.publish.result == 'failure' || needs.publish.result == 'cancelled') }}

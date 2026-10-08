@@ -293,7 +293,8 @@ jobs:
     name: Notify OpenClaw on staging failure
     permissions:
       contents: read
-      actions: read
+      # No actions: read: un job reusable no puede pedir mas de lo que el
+      # caller otorga, y este paso solo llama a Telegram (INFRA-607).
     runs-on: ${{ inputs.runner }}
     needs: [deploy]
     if: ${{ always() && (needs.deploy.result == 'failure' || needs.deploy.result == 'cancelled') }}
