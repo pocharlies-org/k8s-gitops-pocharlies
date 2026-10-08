@@ -2,9 +2,11 @@ name: Reusable PR review
 
 # Bot de review de PRs. Tres motores, elegidos con `inputs.engine` (INFRA-298, D6; SC-2182):
 #
-#   propio   (por defecto) review.py: manda el diff a un LLM por LiteLLM y publica
-#            UN comentario con los hallazgos. Es lo que siguen usando los 108 repos
-#            de la plantilla hasta el rollout (INFRA-334); se retira en F4.
+#   juez     (por defecto desde SC-2182, etapa c) review.py --juez: contrasta el PR con
+#            los criterios de su ticket de Jira y publica el marcador v2 que lee
+#            `company-aprobar`. Runbook: docs/ci-pr-review.md.
+#   propio   review.py: manda el diff a un LLM por LiteLLM y publica UN comentario con
+#            los hallazgos. Se elige con `engine: propio`; se retira en F4.
 #   pr-agent PR-Agent 0.46.0 en contenedor, orquestado en tres pasos (INFRA-332):
 #            contexto (scripts/review-context.py) -> PR-Agent (imagen de Harbor por
 #            digest) -> distribucion (scripts/review-distribute.py: payload del
@@ -41,12 +43,12 @@ on:
   workflow_call:
     inputs:
       engine:
-        # D6 de INFRA-298: `propio` hasta que el piloto F1 de verde y el rollout
-        # (INFRA-334) cambie la plantilla. Un valor que no sea uno de los dos es
-        # uso invalido y pone el check en rojo (no se adivina el motor).
-        description: "Motor de review: `propio` (review.py), `pr-agent` o `juez` (review.py --juez)."
+        # SC-2182, etapa c: `juez` por defecto, solo con la lista medida de repos cubierta de
+        # secretos (tests/test_reusable_pr_review.py -k cobertura). Un valor que no sea uno de
+        # los tres es uso invalido y pone el check en rojo (no se adivina el motor).
+        description: "Motor de review: `juez` (review.py --juez), `propio` (review.py) o `pr-agent`."
         type: string
-        default: propio
+        default: juez
       runner:
         description: Runner ARC del cluster.
         type: string
