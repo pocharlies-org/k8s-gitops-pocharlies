@@ -2,7 +2,7 @@
 # Lo despliega la Application infra/ci-queue-exporter.yaml (path: ci-queue).
 # Nada en el x86: 1 réplica en k8s, imagen python por digest, código por
 # configMap. Sin PAT: el token de instalación lo genera external-secrets con
-# su generator GitHubAccessToken sobre la App `arc-github-app` existente
+# su generator GithubAccessToken sobre la App `arc-github-app` existente
 # (item de 1Password `arc-github-app`, la misma que consume ARC).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization

@@ -23,9 +23,11 @@ Un solo «cliente»: ArgoCD.
   `k8s-observability-pocharlies` (`manifests/arc-scrape.yaml`, `manifests/arc-rules.yaml`).
 - **Dependen de él** — **todos los repos de la compañía**: su CI usa `reusable-ci.yml`; el chequeo de contratos es
   `scripts/check-contracts.py` (hook global y respaldo de CI); `docs/ci-cd-gitops-standard.md` es el estándar.
-- **Applications que posee este repo (15, medidas por el CTO)**: `root`, `argocd`, `cert-manager`, `descheduler`,
+- **Applications que posee este repo (16: las 15 medidas por el CTO + `ci-queue-exporter`)**: `root`, `argocd`, `cert-manager`, `descheduler`,
   `external-dns`, `external-secrets`, `gpu-operator`, `harbor`, `kyverno`, `longhorn`, `metallb`, `nfs-cold`,
-  `nfs-warm`, `reflector`, `velero`. Todas **multi-source**: chart Helm externo + `values` de este repo, con
+  `nfs-warm`, `reflector`, `velero`. Las 15 son **multi-source**: chart Helm externo + `values` de este repo; la
+  16.ª, `ci-queue-exporter` (INFRA-550), es **single-source** `path: ci-queue` de este repo, sin chart (Kustomize
+  con `configMapGenerator`). Todas con
   `targetRevision: deploy/prod`. Charts medidos: argo-cd 9.5.14, cert-manager v1.20.2, descheduler 0.36.0,
   external-dns 1.21.1, external-secrets 2.5.0, gpu-operator v26.3.1, harbor 1.19.0, kyverno 3.8.1, longhorn 1.13.0,
   metallb 0.15.3, reflector 10.0.65, velero 12.0.1.
@@ -68,7 +70,8 @@ fotos históricas, no estado.
 
 ```sh
 python3 -m unittest discover -s tests -p 'test_*.py'     # contrato synapse-sre-foundation + librería ci-queue
-kustomize build .                                         # reusable-ci con kustomize_paths "."
+kustomize build .                                         # reusable-ci con kustomize_paths ". ci-queue"
+kustomize build ci-queue                                  # el exporter no cuelga del raíz: la CI lo construye aparte
 bash scripts/verify_arc_runner_render.sh
 python3 scripts/ci_queue_report.py --org pocharlies-org --days 7   # informe de cola (requiere gh auth)
 ```
@@ -97,9 +100,13 @@ Nº de tests: 49 (medido con `unittest discover` el 2026-10-06; 23 en `tests/tes
 - La lista de pools válidos de runners = los `runnerScaleSetName` de `infra/arc.yaml` + los extras declarados en
   `ci-queue/ci_queue.py` (`EXTRA_POOLS`, p. ej. `x86-hermes`); fuente única, no se copia en ningún otro sitio.
   Excepción mecánica: el exporter monta `ci-queue/pools.txt`, copia DERIVADA (kustomize no lee ficheros fuera de
-  su raíz); `tests/test_ci_queue_pools.py` falla si diverge de `infra/arc.yaml`. Al cambiar un pool: regenerar
-  pools.txt conservando sus 3 líneas de cabecera (`head -3 pools.txt > t && grep -E '^\s*runnerScaleSetName:'
-  infra/arc.yaml >> t && mv t pools.txt`).
+  su raíz); `tests/test_ci_queue_pools.py` falla si diverge de `infra/arc.yaml` y su mensaje trae el comando. Al
+  cambiar un pool, desde la raíz del repo:
+  `{ head -3 ci-queue/pools.txt; grep -E '^\s*runnerScaleSetName:' infra/arc.yaml; } > ci-queue/pools.txt.new &&
+  mv ci-queue/pools.txt.new ci-queue/pools.txt`.
+- Límite del exporter de cola (`ci-queue/exporter.py`): `status=queued` solo lista runs SIN ningún job arrancado;
+  un job con label sin pool dentro de un run cuyos otros jobs ya corren es invisible. «En cola» se decide por el
+  `status` del job, no por `started_at` (la API lo rellena en jobs que nunca tuvieron runner).
 - La API de runs de la org (`GET /orgs/{org}/actions/runs`) responde 404 con token de usuario sin permisos de
   admin de Actions: la medición recorre repos (`ci-queue/ci_queue.py`). Con ~6000 runs/semana y 5000 llamadas/h
   de cuota, el diagnóstico de 7 días mide los runs rápidos con `run_started_at` — **aproximación a la baja**

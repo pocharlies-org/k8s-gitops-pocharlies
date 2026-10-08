@@ -18,7 +18,12 @@ class PoolsDerivationTest(unittest.TestCase):
     def test_pools_txt_matches_arc_yaml(self):
         arc = (ROOT / "infra" / "arc.yaml").read_text()
         pools_txt = (ROOT / "ci-queue" / "pools.txt").read_text()
-        self.assertEqual(cq.load_pools(arc), cq.load_pools(pools_txt))
+        self.assertEqual(
+            cq.load_pools(arc), cq.load_pools(pools_txt),
+            msg="ci-queue/pools.txt no coincide con los runnerScaleSetName de infra/arc.yaml. "
+                "Regenerar desde la raíz del repo: { head -3 ci-queue/pools.txt; "
+                "grep -E '^\\s*runnerScaleSetName:' infra/arc.yaml; } > ci-queue/pools.txt.new "
+                "&& mv ci-queue/pools.txt.new ci-queue/pools.txt")
 
 
 if __name__ == "__main__":

@@ -16,12 +16,19 @@ Los jobs con label sin pool nunca llegan al listener ARC, por eso la fuente es
 la API de GitHub (decisión del architect, nota-architect-plan.md §1B).
 
 Auth: token de instalación de la GitHub App `arc-github-app` montado como
-Secret — lo genera external-secrets con el generator GitHubAccessToken (ver
+Secret — lo genera external-secrets con el generator GithubAccessToken (ver
 kustomization.yaml); sin PAT. La validez del token (1 h) la gestiona ESO, no
 aquí: el fichero se relee en cada request.
 
 La API nunca es de fiar: respuestas con campos ausentes o repos que fallan
 suman a `ci_queue_errors_total` y no matan el scrape.
+
+Límite conocido (plan del architect §1B): `status=queued` solo lista runs SIN
+ningún job arrancado. Un job con label sin pool dentro de un run cuyos otros
+jobs ya corren es invisible para este exporter (y para la prueba de disparo de
+un run de un solo job, que sí lo ve). El discriminador de «en cola» de cada job
+es su `status`, no `started_at`: la API rellena `started_at == created_at` en
+jobs que nunca tuvieron runner (`ci_queue.Job.never_ran`).
 """
 from __future__ import annotations
 
@@ -30,7 +37,6 @@ import http.server
 import os
 import sys
 import threading
-import time
 import urllib.error
 import urllib.request
 
@@ -51,16 +57,21 @@ def _token(path: str = TOKEN_FILE) -> str:
         return f.read().strip()
 
 
-def make_transport(token_path: str = TOKEN_FILE, stats: dict | None = None):
-    """urllib con el token del fichero en cada request; captura X-RateLimit."""
+def _http(url: str, headers: dict):
+    req = urllib.request.Request(url, headers=headers)  # noqa: S310
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
+            return resp.status, dict(resp.headers), resp.read()
+    except urllib.error.HTTPError as exc:
+        return exc.code, dict(exc.headers), exc.read()
+
+
+def make_transport(token_path: str = TOKEN_FILE, stats: dict | None = None, http=_http):
+    """`http` con el token del fichero en cada request; deja en `stats` el
+    X-RateLimit-Remaining de la última respuesta (también en 304)."""
     def transport(url: str, headers: dict):
         headers["Authorization"] = f"Bearer {_token(token_path)}"
-        req = urllib.request.Request(url, headers=headers)  # noqa: S310
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
-                status, hdrs, body = resp.status, dict(resp.headers), resp.read()
-        except urllib.error.HTTPError as exc:
-            status, hdrs, body = exc.code, dict(exc.headers), exc.read()
+        status, hdrs, body = http(url, headers)
         if stats is not None:
             rem = {k.lower(): v for k, v in hdrs.items()}.get("x-ratelimit-remaining")
             if rem is not None:
@@ -75,7 +86,7 @@ def active_repos(client, org: str, now: dt.datetime,
     org tiene ~60; si pasara de 100, paginate lo cubre igual)."""
     return sorted(
         r["name"] for r in client.paginate(f"/orgs/{org}/repos", "repositories")
-        if not r.get("archived")
+        if r.get("name") and not r.get("archived")
         and (pushed := ci_queue.parse_iso(r.get("pushed_at"))) is not None
         and pushed >= now - dt.timedelta(days=days))
 
@@ -104,8 +115,8 @@ def scrape(client, pools, cache: dict, now: dt.datetime,
                     f"/repos/{org}/{repo}/actions/runs/{run['id']}/jobs",
                     {"per_page": 100})[0]
                 for job in (jobs or {}).get("jobs", []):
-                    if job.get("status") == "completed" or job.get("started_at"):
-                        continue  # ya no está en la cola
+                    if job.get("status") != "queued":
+                        continue  # in_progress/completed/waiting: no es cola de runners
                     created = ci_queue.parse_iso(job.get("created_at"))
                     if created is None:
                         errors += 1  # respuesta rara: se anota, no se muere el ciclo
@@ -117,9 +128,17 @@ def scrape(client, pools, cache: dict, now: dt.datetime,
                     age = max(0.0, (now - created).total_seconds())
                     k3 = (label, pool, repo)
                     oldest[k3] = max(oldest.get(k3, 0.0), age)
-        except (ci_queue.GitHubError, ci_queue.RateLimited, OSError):
+        except (ci_queue.GitHubError, ci_queue.RateLimited, OSError,
+                KeyError, TypeError, ValueError, AttributeError):  # respuesta con forma rara
             errors += 1
     return {"queued": queued, "oldest": oldest, "errors": errors}
+
+
+def _esc(v: str) -> str:
+    """Valor de label del texto de exposición: `label` sale del `runs-on` de un
+    workflow que cualquier miembro edita en una PR; una comilla, una barra o un
+    salto de línea rompería la línea o inyectaría una serie falsa."""
+    return str(v).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
 
 def render(scrape_result: dict, ts_success: float, rate_remaining: int,
@@ -130,11 +149,12 @@ def render(scrape_result: dict, ts_success: float, rate_remaining: int,
         "# TYPE ci_queue_queued_jobs gauge",
     ]
     for (label, pool), n in sorted(scrape_result["queued"].items()):
-        out.append(f'ci_queue_queued_jobs{{label="{label}",pool="{pool}"}} {n}')
+        out.append(f'ci_queue_queued_jobs{{label="{_esc(label)}",pool="{_esc(pool)}"}} {n}')
     out += ["# HELP ci_queue_oldest_queued_job_age_seconds edad del job mas viejo en cola (desde created_at)",
             "# TYPE ci_queue_oldest_queued_job_age_seconds gauge"]
     for (label, pool, repo), s in sorted(scrape_result["oldest"].items()):
-        out.append(f'ci_queue_oldest_queued_job_age_seconds{{label="{label}",pool="{pool}",repo="{repo}"}} {s:.0f}')
+        out.append(f'ci_queue_oldest_queued_job_age_seconds{{label="{_esc(label)}",'
+                   f'pool="{_esc(pool)}",repo="{_esc(repo)}"}} {s:.0f}')
     out += [
         "# HELP ci_queue_scrape_success_timestamp_seconds epoch del ultimo scrape completo (0 = ninguno)",
         "# TYPE ci_queue_scrape_success_timestamp_seconds gauge",
@@ -169,19 +189,27 @@ class Handler(http.server.BaseHTTPRequestHandler):  # pragma: no cover - servido
         pass
 
 
-def loop(client, pools, stop: threading.Event) -> None:  # pragma: no cover - servidor
+def run_cycle(client, pools, cache: dict, state: dict, now: dt.datetime) -> str:
+    """Un ciclo completo → texto de exposición. `state` = {rate_remaining,
+    ts_success, errors_total}: es el mismo dict que `make_transport(stats=…)`
+    rellena con X-RateLimit-Remaining. `ts_success` solo avanza con 0 errores:
+    un repo que falle siempre deja `CIQueueExporterBlind` disparado (fallar con
+    ruido es intencionado, ver nota del architect)."""
+    result = scrape(client, pools, cache, now)
+    state["errors_total"] += result["errors"]
+    if result["errors"] == 0:
+        state["ts_success"] = now.timestamp()
+    return render(result, state["ts_success"], state["rate_remaining"], state["errors_total"])
+
+
+def loop(client, pools, stop: threading.Event, state: dict) -> None:  # pragma: no cover - servidor
     cache: dict = {}
-    ts_success, errors_total, stats = 0.0, 0, {"rate_remaining": 0}
     while not stop.is_set():
         try:
-            result = scrape(client, pools, cache, dt.datetime.now(dt.timezone.utc))
-            errors_total += result["errors"]
-            if result["errors"] == 0:
-                ts_success = time.time()
-            Server.metrics = render(result, ts_success, stats["rate_remaining"],
-                                    errors_total)
+            Server.metrics = run_cycle(client, pools, cache, state,
+                                       dt.datetime.now(dt.timezone.utc))
         except Exception as exc:  # noqa: BLE001 - el hilo no puede morir
-            errors_total += 1
+            state["errors_total"] += 1
             print(f"scrape fallido: {type(exc).__name__}: {exc}", file=sys.stderr)
         stop.wait(INTERVAL)
 
@@ -189,10 +217,11 @@ def loop(client, pools, stop: threading.Event) -> None:  # pragma: no cover - se
 def main() -> int:  # pragma: no cover - servidor
     with open(POOLS_FILE) as f:
         pools = ci_queue.load_pools(f.read())
+    state = {"rate_remaining": 0, "ts_success": 0.0, "errors_total": 0}
     client = ci_queue.Client(token="montado",  # el transport pone el del fichero
-                             transport=make_transport())
+                             transport=make_transport(stats=state))
     stop = threading.Event()
-    threading.Thread(target=loop, args=(client, pools, stop), daemon=True).start()
+    threading.Thread(target=loop, args=(client, pools, stop, state), daemon=True).start()
     Server(("0.0.0.0", PORT), Handler).serve_forever()
     return 0
 

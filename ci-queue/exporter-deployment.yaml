@@ -23,6 +23,17 @@ spec:
           # Audit; el digest evita el drift de la tag).
           image: docker.io/library/python:3.12-slim@sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f
           command: ["python3", "/app/exporter.py"]
+          # Lleva un token de GitHub. python:3.12-slim no trae usuario sin
+          # privilegios: 65534 (nobody) lee el código (ConfigMap 0644) y el
+          # token (Secret 0644); sin escritura en disco (no usa /tmp ni pycache).
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: CI_QUEUE_ORG
               value: pocharlies-org

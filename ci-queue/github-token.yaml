@@ -1,9 +1,9 @@
 # Token del exporter sin PAT (INFRA-550): la GitHub App `arc-github-app` que
 # ya usa ARC, vía external-secrets. Cadena en 3 piezas, estándar del operador
-# (docs external-secrets.io, generator GitHubAccessToken):
+# (docs external-secrets.io, generator GithubAccessToken):
 #
 #   1Password item `arc-github-app` --ESO(ClusterSecretStore onepassword-connect)-->
-#   Secret ci-queue-github-app (monitoring) --generator GitHubAccessToken-->
+#   Secret ci-queue-github-app (monitoring) --generator GithubAccessToken-->
 #   Secret ci-queue-github-token (key `token`, JWT de instalación, 1 h)
 #
 # El generator firma el JWT él solo y `refreshInterval: 30m` lo renueva antes
@@ -22,14 +22,8 @@ spec:
   target:
     name: ci-queue-github-app
   data:
-    - secretKey: github_app_id
-      remoteRef:
-        key: arc-github-app
-        property: app_id
-    - secretKey: github_app_installation_id
-      remoteRef:
-        key: arc-github-app
-        property: installation_id
+    # Solo la clave privada: appID/installID van literales en el generator de
+    # abajo (identificadores públicos) y nadie leería esas dos entradas.
     - secretKey: github_app_private_key
       remoteRef:
         key: arc-github-app
