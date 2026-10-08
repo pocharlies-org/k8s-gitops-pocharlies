@@ -7,12 +7,12 @@
 #
 # Los tres repos activos de la cuenta `pocharlies` (claude-archive-close-tab, skirmshop-picqer, skirmshop-theme)
 # fijan `runner: ubuntu-latest`: desde ahí no se alcanza el LiteLLM del cluster, así que el juez saldría
-# SIN_VEREDICTO aunque tuvieran los secretos. No llevan los secretos del juez: cada uno tiene abierta una PR de una
-# línea con `engine: propio` (pocharlies/skirmshop-theme#16, pocharlies/claude-archive-close-tab#6,
-# pocharlies/skirmshop-picqer#7). Siguen `pendiente` hasta que se fusionen; entonces pasan a `propio`.
+# SIN_VEREDICTO aunque tuvieran los secretos. Además, sin LITELLM_CI_KEY su PR review ya sale en rojo en cualquier PR
+# desde SC-1916, así que cambiar de motor no cambia nada: quedan `excluido`, sin los secretos del juez y sin
+# `engine:` fijado (se cerraron sin fusionar las PR de `engine: propio` que se abrieron para ellos).
 #
 # Formato (una línea por repo, columnas separadas por TAB):
-#   owner/repo  estado  engine  ref  cobertura
+#   owner/repo  estado  engine  ref  cobertura  [motivo]
 #   estado     activo | archivado   (un repo archivado es de solo lectura: no recibe PR, el workflow no corre)
 #   engine     default (no fija `engine:`, sigue lo que valga el default del reusable) | propio | pr-agent | juez
 #   ref        main | sha:<12 hex>  (a qué versión del reusable apunta; un SHA no recibe el cambio del default)
@@ -21,6 +21,7 @@
 #              propio    (el repo fija `engine: propio` en su pr-review.yml)
 #              pr-agent  (el repo fija `engine: pr-agent`: el default no le afecta)
 #              archivado (sin PR posible)
+#              excluido  (el repo no recibe el juez ni fija un motor; el sexto campo, `motivo`, es obligatorio)
 #              pendiente (nada de lo anterior; con el default en `juez` es un fallo del test)
 #
 # Se actualiza en el mismo PR que reparte secretos o fija `engine:`; la comprobación viva es
@@ -196,9 +197,9 @@ pocharlies-org/test-infra	activo	default	main	secretos
 pocharlies-org/test-kata	activo	default	main	secretos
 pocharlies-org/trisplit	activo	default	main	secretos
 pocharlies-org/x86-host-runtime-pocharlies	activo	default	main	secretos
-pocharlies/claude-archive-close-tab	activo	default	main	pendiente
+pocharlies/claude-archive-close-tab	activo	default	main	excluido	SC-1916: sin LITELLM_CI_KEY su PR review ya sale en rojo en cualquier PR y en ubuntu-latest no alcanza el LiteLLM del cluster; cambiar de motor no cambia nada
 pocharlies/libreplay	archivado	default	main	archivado
 pocharlies/mcp-instagram	archivado	default	main	archivado
 pocharlies/mcp-telegram	archivado	default	main	archivado
-pocharlies/skirmshop-picqer	activo	default	main	pendiente
-pocharlies/skirmshop-theme	activo	default	main	pendiente
+pocharlies/skirmshop-picqer	activo	default	main	excluido	SC-1916: sin LITELLM_CI_KEY su PR review ya sale en rojo en cualquier PR y en ubuntu-latest no alcanza el LiteLLM del cluster; cambiar de motor no cambia nada
+pocharlies/skirmshop-theme	activo	default	main	excluido	SC-1916: sin LITELLM_CI_KEY su PR review ya sale en rojo en cualquier PR y en ubuntu-latest no alcanza el LiteLLM del cluster; cambiar de motor no cambia nada

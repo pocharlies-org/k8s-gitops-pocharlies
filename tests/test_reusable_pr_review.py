@@ -152,11 +152,12 @@ class TestCoberturaDelJuez(unittest.TestCase):
     Sin red: las listas son lo medido (`pr-review-llamadores.txt`: todos los repos que llaman al
     reusable; `pr-review-juez-repos.txt`: donde la compania abre PRs) y la comprobacion viva es
     `scripts/review-distribute-secrets.sh --dry-run` (docs/ci-pr-review.md). Este test cruza las listas
-    con el default del reusable: mientras valga `propio` se admite `pendiente`; con `juez`, no.
+    con el default del reusable: mientras valga `propio` se admite `pendiente`; con `juez`, no. Un repo solo
+    queda cubierto por secretos, por `engine` fijado, archivado o `excluido` con su motivo.
     """
 
     ESTADOS = {"activo", "archivado"}
-    COBERTURAS = {"secretos", "propio", "pr-agent", "archivado", "pendiente"}
+    COBERTURAS = {"secretos", "propio", "pr-agent", "archivado", "excluido", "pendiente"}
     ENGINES = {"default", "propio", "pr-agent", "juez"}
 
     def setUp(self):
@@ -167,8 +168,11 @@ class TestCoberturaDelJuez(unittest.TestCase):
         filas = _filas("pr-review-llamadores.txt")
         self.assertEqual(len(filas), len(self.llam), "un repo repetido en pr-review-llamadores.txt")
         self.assertEqual([f[0] for f in filas], sorted(self.llam))
-        for repo, estado, engine, ref, cobertura in filas:
+        for repo, estado, engine, ref, cobertura, *resto in filas:
+            motivo = resto[0].strip() if resto else ""
             self.assertRegex(repo, r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
+            # `excluido` (el repo no recibe el juez ni fija un motor) exige decir por que; el resto no lleva motivo
+            self.assertEqual(bool(motivo), cobertura == "excluido", f"{repo}: el motivo va solo con `excluido` y es obligatorio")
             self.assertIn(estado, self.ESTADOS, repo)
             self.assertIn(engine, self.ENGINES, repo)
             self.assertRegex(ref, r"^(main|sha:[0-9a-f]{12})$", repo)
@@ -176,7 +180,7 @@ class TestCoberturaDelJuez(unittest.TestCase):
 
     def test_cobertura_engine_fijado_es_coherente(self):
         # `propio` y `pr-agent` como cobertura son el engine fijado en el repo, y al reves
-        for repo, estado, engine, _, cobertura in self.llam.values():
+        for repo, estado, engine, _, cobertura, *_ in self.llam.values():
             if estado == "archivado":
                 self.assertEqual(cobertura, "archivado", repo)
             elif cobertura in ("propio", "pr-agent"):
@@ -184,14 +188,14 @@ class TestCoberturaDelJuez(unittest.TestCase):
             elif engine in ("propio", "pr-agent"):
                 self.assertEqual(cobertura, engine, repo)
             else:
-                self.assertIn(cobertura, ("secretos", "pendiente"), repo)
+                self.assertIn(cobertura, ("secretos", "excluido", "pendiente"), repo)
 
     def test_cobertura_pr_agent_es_la_lista_de_pr_agent(self):
         pilotos = {f[0] for f in _filas("pr-agent-repos.txt")}
         con_pr_agent = {r for r, f in self.llam.items() if f[2] == "pr-agent"}
         self.assertEqual(con_pr_agent, pilotos)
 
-    def test_cobertura_los_repos_del_juez_llaman_y_nunca_fijan_propio(self):
+    def test_cobertura_los_repos_del_juez_llaman_y_nunca_fijan_propio_ni_se_excluyen(self):
         repos = [f[0] for f in self.juez]
         self.assertEqual(repos, sorted(repos))
         self.assertEqual(len(repos), len(set(repos)))
@@ -200,7 +204,8 @@ class TestCoberturaDelJuez(unittest.TestCase):
             self.assertRegex(proyectos, r"^(SC|DGX|INFRA|SKIRM|OWU|LE|ACC)(,(SC|DGX|INFRA|SKIRM|OWU|LE|ACC))*$", repo)
             self.assertEqual(llama == "llama", repo in self.llam, f"{repo}: la lista del juez y la de llamadores no coinciden")
             if repo in self.llam:
-                self.assertNotEqual(self.llam[repo][4], "propio", f"{repo} es del juez: no puede fijar engine: propio")
+                self.assertNotIn(self.llam[repo][4], ("propio", "excluido"),
+                                 f"{repo} es del juez: no puede fijar engine: propio ni quedar excluido")
 
     def test_cobertura_cada_excepcion_del_juez_lleva_su_nota(self):
         for repo, llama, _, *resto in self.juez:

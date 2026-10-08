@@ -6,7 +6,7 @@
 #   openchamber-side-chat           → pocharlies-org/openchamber (fork de la org; el clon local se llama así)
 # Un repo en dos proyectos (dgx-infra, k8s-agentgateway-pocharlies) sale una vez, con los dos.
 # Fuera de la lista a propósito: skirmshop-picqer (cuenta personal, `runner: ubuntu-latest`: no alcanza el LiteLLM
-# del cluster, así que el juez no puede correr allí; queda en `engine: propio`, PR pocharlies/skirmshop-picqer#7).
+# del cluster, así que el juez no puede correr allí; queda `excluido` en pr-review-llamadores.txt).
 #
 # Formato (una línea por repo, columnas separadas por TAB):
 #   owner/repo  llama|no-llama  proyectos  nota
