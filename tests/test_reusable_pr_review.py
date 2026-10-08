@@ -91,14 +91,21 @@ class TestSuperficieEstable(unittest.TestCase):
             self.assertIn(nombre, entradas)
         self.assertEqual(entradas["fallback_model"]["default"], "alibaba-q38-flash")
         self.assertEqual(entradas["fallback_model"]["type"], "string")
+        # `model` es el de `propio` y no cambia; el juez tiene el suyo, aditivo (SC-2182)
+        self.assertEqual(entradas["model"]["default"], "alibaba-q38-flash")
+        self.assertEqual(entradas["juez_model"]["default"], "tooling")
+        self.assertEqual(entradas["juez_model"]["type"], "string")
 
     def test_el_motor_nace_opt_in(self):
         # el cambio de default es otra PR (etapa c, con la lista medida cubierta)
         self.assertEqual(CUERPO[True]["workflow_call"]["inputs"]["engine"]["default"], "propio")
 
-    def test_los_secretos_que_el_juez_necesita_ya_estaban_declarados(self):
+    def test_los_secretos_propios_del_juez_son_opcionales_y_los_de_siempre_siguen(self):
         secretos = CUERPO[True]["workflow_call"]["secrets"]
-        for nombre in ("LITELLM_CI_KEY", "JIRA_EMAIL", "JIRA_API_TOKEN"):
+        for nombre in ("LITELLM_JUEZ_KEY", "JIRA_JUEZ_EMAIL", "JIRA_JUEZ_TOKEN", "JIRA_JUEZ_URL"):
+            self.assertIn(nombre, secretos)
+            self.assertFalse(secretos[nombre]["required"], nombre)
+        for nombre in ("LITELLM_CI_KEY", "JIRA_EMAIL", "JIRA_API_TOKEN"):   # propio y pr-agent
             self.assertIn(nombre, secretos)
 
     def test_los_outputs_del_reusable_incluyen_el_juez(self):
@@ -135,6 +142,46 @@ class TestJuezAislado(unittest.TestCase):
         avisar = JOBS["avisar"]
         self.assertIn("revisar_pr_juez", avisar["needs"])
         self.assertIn("needs.revisar_pr_juez.result", str(avisar["if"]))
+
+
+def paso(job: str, nombre: str) -> dict:
+    return next(p for p in JOBS[job]["steps"] if p.get("name") == nombre)
+
+
+class TestCredencialesDelJuez(unittest.TestCase):
+    """El juez usa credenciales PROPIAS (SC-2182) y no las de `propio` ni su modelo."""
+
+    def test_el_paso_review_del_juez_usa_sus_secretos_y_su_modelo(self):
+        env = paso("revisar_pr_juez", "Review")["env"]
+        self.assertEqual({k: env[k] for k in ("REVIEW_LITELLM_KEY", "REVIEW_MODEL", "REVIEW_FALLBACK_MODEL",
+                                              "REVIEW_JIRA_URL", "REVIEW_JIRA_EMAIL", "REVIEW_JIRA_TOKEN")}, {
+            "REVIEW_LITELLM_KEY": "${{ secrets.LITELLM_JUEZ_KEY }}",
+            "REVIEW_MODEL": "${{ inputs.juez_model }}",
+            "REVIEW_FALLBACK_MODEL": "${{ inputs.fallback_model }}",
+            "REVIEW_JIRA_URL": "${{ secrets.JIRA_JUEZ_URL }}",
+            "REVIEW_JIRA_EMAIL": "${{ secrets.JIRA_JUEZ_EMAIL }}",
+            "REVIEW_JIRA_TOKEN": "${{ secrets.JIRA_JUEZ_TOKEN }}"})
+
+    def test_la_evaluacion_del_juez_usa_su_key_y_su_modelo(self):
+        env = paso("evaluar_juez", "Evaluate the judge")["env"]
+        self.assertEqual(env["REVIEW_LITELLM_KEY"], "${{ secrets.LITELLM_JUEZ_KEY }}")
+        self.assertEqual(env["REVIEW_MODEL"], "${{ inputs.juez_model }}")
+        self.assertEqual(env["REVIEW_FALLBACK_MODEL"], "${{ inputs.fallback_model }}")
+
+    def test_el_juez_no_lee_lo_de_propio(self):
+        for job in ("revisar_pr_juez", "evaluar_juez"):
+            texto = str(JOBS[job])
+            with self.subTest(job):
+                self.assertNotRegex(texto, r"secrets\.(LITELLM_CI_KEY|JIRA_EMAIL|JIRA_API_TOKEN|PR_AGENT_LITELLM_KEY)")
+                self.assertNotRegex(texto, r"inputs\.model\b")
+
+    def test_propio_y_pr_agent_no_tocan_lo_del_juez(self):
+        for job in ("revisar_pr", "revisar_pr_agent", "revisar_commit"):
+            with self.subTest(job):
+                self.assertNotRegex(str(JOBS[job]), r"JUEZ|juez_model")
+        env = paso("revisar_pr", "Review")["env"]
+        self.assertEqual(env["REVIEW_LITELLM_KEY"], "${{ secrets.LITELLM_CI_KEY }}")
+        self.assertEqual(env["REVIEW_MODEL"], "${{ inputs.model }}")
 
 
 if __name__ == "__main__":
