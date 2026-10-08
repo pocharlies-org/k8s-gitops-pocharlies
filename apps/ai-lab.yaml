@@ -32,8 +32,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies-org/k8s-ai-pocharlies
-    # PENDIENTE antes de fusionar: sustituir por el SHA de fusion de k8s-ai-pocharlies#118 (hoy, la cabeza del PR).
-    targetRevision: 0031e2ea9190a5ae95857e5acd3b8adc5d1b699d
+    targetRevision: d8a32d7c130ce98655e9e442096df6e6a93bc480
     path: lab
   destination:
     server: https://kubernetes.default.svc
