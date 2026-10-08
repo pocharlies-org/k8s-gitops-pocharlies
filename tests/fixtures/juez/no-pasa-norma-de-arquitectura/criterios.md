@@ -1,0 +1,2 @@
+- [ ] C1 Un PR cuya rama vive en el mismo repositorio (aunque ese repositorio sea un fork de otro) NO se salta la review.
+- [ ] C2 Un PR cuya rama vive en OTRO repositorio se salta con un aviso, porque no recibe secretos.

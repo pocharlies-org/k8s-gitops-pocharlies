@@ -93,6 +93,9 @@ jobs:
       - run: python3 -m unittest tests/test_review_distribute.py
       - run: python3 -m unittest tests/test_review_health.py
       - run: python3 -m unittest tests/test_review_missing_key.py
+      # SC-2182: el motor `juez` (marcador v2) y la regla de un solo motor por evento.
+      - run: python3 -m unittest tests/test_llm_review_juez.py
+      - run: python3 -m unittest tests/test_reusable_pr_review.py
       - run: python3 -m unittest tests/test_duplicados.py
       # DGX-625: self-check del guard de keys de Alibaba (vive junto al script, no en tests/).
       - run: python3 scripts/test-alibaba-key-guard.py

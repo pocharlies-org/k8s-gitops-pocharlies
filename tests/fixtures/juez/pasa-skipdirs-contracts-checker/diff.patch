@@ -1,0 +1,39 @@
+diff --git a/scripts/check-contracts.py b/scripts/check-contracts.py
+index 93b0aa8..64dbd55 100644
+--- a/scripts/check-contracts.py
++++ b/scripts/check-contracts.py
+@@ -67,7 +67,10 @@ VALID_KINDS = {
+     "allowlist",
+     "workflow-file",
+ }
+-SKIP_DIRS = {".git", "node_modules", ".venv", "dist", "build", "__pycache__", ".next"}
++# `.contracts-checker` is where the Contract surface job checks this repo out
++# inside the consumer's workspace; its test file is a pile of fixture markers no
++# consumer registry declares (k8s-litellm#124).
++SKIP_DIRS = {".git", "node_modules", ".venv", "dist", "build", "__pycache__", ".next", ".contracts-checker"}
+ TEXT_SUFFIXES = {
+     ".py", ".ts", ".tsx", ".js", ".mjs", ".cjs", ".yaml", ".yml", ".json",
+     ".toml", ".sh", ".md", ".sql", ".tf",
+diff --git a/scripts/test-check-contracts.py b/scripts/test-check-contracts.py
+index f75ff9e..be77186 100644
+--- a/scripts/test-check-contracts.py
++++ b/scripts/test-check-contracts.py
+@@ -477,3 +477,18 @@ def test_ignores_node_modules_when_hunting_markers(repo, capsys):
+     vendored.mkdir(parents=True)
+     (vendored / "index.js").write_text("// CONTRACT: vendored.junk\n", encoding="utf-8")
+     assert check(repo) == 0
++
++
++def test_ignores_the_checked_out_checker_when_hunting_markers(repo, capsys):
++    """The Contract surface job checks this repo out into the scanned tree at
++    `.contracts-checker/`, and this test file's fixtures are markers no consumer
++    registry declares. Without the exclusion, a repo's first CONTRACTS.yaml was
++    red forever (k8s-litellm#124)."""
++    checker = repo / ".contracts-checker" / "scripts"
++    checker.mkdir(parents=True)
++    (checker / "test-check-contracts.py").write_text(
++        "// CONTRACT: messaging.invented\n// CONTRACT: vendored.junk\n",
++        encoding="utf-8",
++    )
++    assert check(repo) == 0
++    assert "marker-unregistered" not in capsys.readouterr().out

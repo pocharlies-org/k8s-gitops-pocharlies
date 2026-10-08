@@ -1,6 +1,6 @@
 name: Reusable PR review
 
-# Bot de review de PRs. Dos motores, elegidos con `inputs.engine` (INFRA-298, D6):
+# Bot de review de PRs. Tres motores, elegidos con `inputs.engine` (INFRA-298, D6; SC-2182):
 #
 #   propio   (por defecto) review.py: manda el diff a un LLM por LiteLLM y publica
 #            UN comentario con los hallazgos. Es lo que siguen usando los 108 repos
@@ -44,7 +44,7 @@ on:
         # D6 de INFRA-298: `propio` hasta que el piloto F1 de verde y el rollout
         # (INFRA-334) cambie la plantilla. Un valor que no sea uno de los dos es
         # uso invalido y pone el check en rojo (no se adivina el motor).
-        description: "Motor de review: `propio` (review.py) o `pr-agent`."
+        description: "Motor de review: `propio` (review.py), `pr-agent` o `juez` (review.py --juez)."
         type: string
         default: propio
       runner:
@@ -72,6 +72,13 @@ on:
         description: Endpoint de LiteLLM.
         type: string
         default: http://litellm.litellm.svc.cluster.local:4000
+      fallback_model:
+        # Solo el motor `juez` (SC-2182): si `model` no contesta (timeout de 90 s, 408,
+        # 429, 5xx, o 400/401/403/404) juzga este. El respaldo no tiene respaldo; si
+        # tambien cae, el veredicto es SIN_VEREDICTO. Aditivo: no cambia ningun input.
+        description: Modelo de respaldo del juez.
+        type: string
+        default: alibaba-q38-flash
       max_diff_bytes:
         description: >
           Tope duro del diff. Por encima se recorta por ficheros enteros.
@@ -127,10 +134,10 @@ on:
     outputs:
       veredicto:
         description: "`ok` | `hallazgos` | `omitido`."
-        value: ${{ jobs.revisar_pr.outputs.veredicto || jobs.revisar_pr_agent.outputs.veredicto || jobs.revisar_commit.outputs.veredicto }}
+        value: ${{ jobs.revisar_pr.outputs.veredicto || jobs.revisar_pr_agent.outputs.veredicto || jobs.revisar_pr_juez.outputs.veredicto || jobs.revisar_commit.outputs.veredicto }}
       n_hallazgos:
         description: Numero de hallazgos.
-        value: ${{ jobs.revisar_pr.outputs.n_hallazgos || jobs.revisar_pr_agent.outputs.n_hallazgos || jobs.revisar_commit.outputs.n_hallazgos }}
+        value: ${{ jobs.revisar_pr.outputs.n_hallazgos || jobs.revisar_pr_agent.outputs.n_hallazgos || jobs.revisar_pr_juez.outputs.n_hallazgos || jobs.revisar_commit.outputs.n_hallazgos }}
       status:
         description: "Motor pr-agent: `ok` | `degraded` | `skipped` (contrato pr_review.v1). Vacio con `propio`."
         value: ${{ jobs.revisar_pr_agent.outputs.status }}
@@ -142,7 +149,7 @@ jobs:
   # Modo PR. Permisos minimos: escribir en el PR, leer el codigo.
   revisar_pr:
     name: Review del PR
-    if: ${{ github.event_name == 'pull_request' && inputs.engine != 'pr-agent' }}
+    if: ${{ github.event_name == 'pull_request' && inputs.engine == 'propio' }}
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 10
     permissions:
@@ -160,16 +167,6 @@ jobs:
       resumen: ${{ steps.revisar.outputs.resumen || steps.guarda.outputs.motivo }}
       n_hallazgos: ${{ steps.revisar.outputs.n_hallazgos || '0' }}
     steps:
-      - name: Check the review engine
-        env:
-          ENGINE: ${{ inputs.engine }}
-        run: |
-          set -uo pipefail
-          if [ "${ENGINE}" != "propio" ]; then
-            echo "::error::inputs.engine='${ENGINE}' no es un motor: usa 'propio' o 'pr-agent'"
-            exit 2
-          fi
-
       # Un PR desde un FORK trae GITHUB_TOKEN de solo lectura y NO recibe los
       # secretos: el bot no puede ni leer la key ni comentar. Se sale en verde
       # y se dice por que. Lo que lo "arreglaria" es `pull_request_target`, que
@@ -729,12 +726,175 @@ jobs:
             echo "::warning::review ${status}: no bloquea nada (D3). Detalle en el resumen del job."
           fi
 
+  # Motor juez (SC-2182): contrasta el PR con los criterios de su ticket y publica el marcador
+  # v2. Mismos permisos que `revisar_pr` (un job llamado que pide mas de lo que concede el
+  # llamador tumba el run entero al arrancar). Solo `pull_request`: no hay juicio de un commit.
+  #
+  # Rojo con NO_PASA y con SIN_VEREDICTO (nunca un status pendiente: exigiria
+  # `statuses: write` en las plantillas); verde solo con PASA. Un PR desde un fork no recibe
+  # secretos: sale en verde SIN marcador, y el lector del marcador, sin el, queda en su modo
+  # legado (qa + architect).
+  revisar_pr_juez:
+    name: Review del PR (juez)
+    if: ${{ github.event_name == 'pull_request' && inputs.engine == 'juez' }}
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    concurrency:
+      group: juez-review-${{ github.workflow }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    outputs:
+      # El vocabulario del reusable no cambia: PASA -> ok, NO_PASA -> hallazgos,
+      # SIN_VEREDICTO -> omitido (lo mapea review.py).
+      veredicto: ${{ steps.revisar.outputs.veredicto || 'omitido' }}
+      resumen: ${{ steps.revisar.outputs.resumen || steps.guarda.outputs.motivo }}
+      n_hallazgos: ${{ steps.revisar.outputs.n_hallazgos || '0' }}
+    steps:
+      - name: Skip pull requests from forks
+        id: guarda
+        env:
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          ESTE_REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          if [ -n "${HEAD_REPO}" ] && [ "${HEAD_REPO}" != "${ESTE_REPO}" ]; then
+            echo "::notice::PR desde un fork: sin secretos y con token de solo lectura; el juez no corre"
+            echo "fork=true" >> "$GITHUB_OUTPUT"
+            echo "motivo=PR desde un fork: sin secretos, el juez no corre" >> "$GITHUB_OUTPUT"
+          else
+            echo "fork=false" >> "$GITHUB_OUTPUT"
+            echo "motivo=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: ${{ steps.guarda.outputs.fork != 'true' }}
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check out the review framework
+        if: ${{ steps.guarda.outputs.fork != 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
+          ref: ${{ job.workflow_sha || 'main' }}
+          token: ${{ github.token }}
+          persist-credentials: false
+          path: .llm-review-framework
+
+      - name: Compute the diff and read the base ARCHITECTURE.md
+        if: ${{ steps.guarda.outputs.fork != 'true' }}
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          for s in "$PR_BASE_SHA" "$PR_HEAD_SHA"; do
+            echo "$s" | grep -Eq '^[0-9a-f]{40}$' || {
+              echo "::error::el rango del PR no trae SHAs completos"; exit 1; }
+            git cat-file -e "${s}^{commit}" 2>/dev/null || \
+              git fetch --no-tags --depth=1 origin "$s"
+          done
+          git diff -M --no-color "$PR_BASE_SHA" "$PR_HEAD_SHA" > "$RUNNER_TEMP/review.diff"
+          echo "diff: $(wc -c < "$RUNNER_TEMP/review.diff") bytes"
+          # Las normas son las del commit BASE, no las del head: un PR no puede reescribir
+          # las reglas con las que se le juzga. Sin ARCHITECTURE.md en la base, vacio.
+          git show "$PR_BASE_SHA:ARCHITECTURE.md" > "$RUNNER_TEMP/ARCHITECTURE.md" 2>/dev/null \
+            || : > "$RUNNER_TEMP/ARCHITECTURE.md"
+
+      # Titulo, rama y cuerpo del PR son texto de terceros: solo por entorno, nunca dentro del
+      # `run`. Las credenciales (LiteLLM, Jira de solo lectura) viven solo en este paso, que
+      # ejecuta el script del framework (el commit del workflow), no codigo del PR.
+      - name: Review
+        id: revisar
+        if: ${{ steps.guarda.outputs.fork != 'true' }}
+        env:
+          REVIEW_LITELLM_URL: ${{ inputs.litellm_url }}
+          REVIEW_LITELLM_KEY: ${{ secrets.LITELLM_CI_KEY }}
+          REVIEW_MODEL: ${{ inputs.model }}
+          REVIEW_FALLBACK_MODEL: ${{ inputs.fallback_model }}
+          REVIEW_JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          REVIEW_JIRA_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          REVIEW_DIFF_FILE: ${{ runner.temp }}/review.diff
+          REVIEW_ARCHITECTURE_FILE: ${{ runner.temp }}/ARCHITECTURE.md
+          REVIEW_MAX_DIFF_BYTES: ${{ inputs.max_diff_bytes }}
+          # El juez corta a 90 s por llamada (un timeout cuenta como un 408 y cae al respaldo).
+          REVIEW_TIMEOUT_SECONDS: '90'
+          REVIEW_GITHUB_TOKEN: ${{ github.token }}
+          REVIEW_REPO: ${{ github.repository }}
+          REVIEW_PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW_SHA: ${{ github.event.pull_request.head.sha }}
+          REVIEW_PR_TITLE: ${{ github.event.pull_request.title }}
+          REVIEW_PR_BODY: ${{ github.event.pull_request.body }}
+          REVIEW_PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -uo pipefail
+          revisor=.llm-review-framework/.github/actions/llm-review/review.py
+          if [ ! -f "$revisor" ]; then
+            echo "::error::no se pudo traer el framework de review"
+            exit 1
+          fi
+          python3 "$revisor" --juez
+
+  # Modo validacion del juez: mide su acierto contra el corpus commiteado del framework
+  # (tests/fixtures/juez, 8 casos reales: 4 PASA y 4 NO_PASA) con el modelo real. Es el
+  # `workflow_dispatch` del motor juez (el de `propio` comenta el ultimo commit); no corre en
+  # cada PR. Rojo si acierta menos de 7 de 8.
+  evaluar_juez:
+    name: Evaluacion del juez
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.engine == 'juez' }}
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the review framework
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
+          ref: ${{ job.workflow_sha || 'main' }}
+          token: ${{ github.token }}
+          persist-credentials: false
+          path: .llm-review-framework
+
+      - name: Evaluate the judge
+        env:
+          REVIEW_LITELLM_URL: ${{ inputs.litellm_url }}
+          REVIEW_LITELLM_KEY: ${{ secrets.LITELLM_CI_KEY }}
+          REVIEW_MODEL: ${{ inputs.model }}
+          REVIEW_FALLBACK_MODEL: ${{ inputs.fallback_model }}
+          REVIEW_TIMEOUT_SECONDS: '90'
+        run: |
+          set -uo pipefail
+          python3 .llm-review-framework/.github/actions/llm-review/review.py \
+            --evalua .llm-review-framework/tests/fixtures/juez --umbral 7/8
+
+  # Un motor que no existe es uso invalido y pone el check en rojo: no se adivina el motor
+  # (D6 de INFRA-298). Antes lo cazaba `revisar_pr` (engine != 'pr-agent'); ahora que cada
+  # motor solo corre con su valor exacto, sin este job un typo no correria NINGUN review y
+  # el check saldria verde.
+  motor_invalido:
+    name: Motor de review no valido
+    if: ${{ inputs.engine != 'propio' && inputs.engine != 'pr-agent' && inputs.engine != 'juez' }}
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 5
+    steps:
+      - name: Reject the review engine
+        env:
+          ENGINE: ${{ inputs.engine }}
+        run: |
+          set -uo pipefail
+          echo "::error::inputs.engine='${ENGINE}' no es un motor: usa 'propio', 'pr-agent' o 'juez'"
+          exit 2
+
   # Modo validacion: comenta el ultimo commit del tronco, sin ensuciar con PRs
   # de prueba. Job aparte porque la API de comentarios de commit exige
   # `contents: write`, y ese permiso no tiene por que vivir en el modo PR.
   revisar_commit:
     name: Review del ultimo commit
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.engine == 'propio' }}
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 10
     permissions:
@@ -803,15 +963,15 @@ jobs:
 
   avisar:
     name: Aviso en Telegram
-    needs: [revisar_pr, revisar_pr_agent, revisar_commit]
-    # Los dos modos son excluyentes: uno de los dos jobs queda SIEMPRE en
+    needs: [revisar_pr, revisar_pr_agent, revisar_pr_juez, revisar_commit]
+    # Los motores son excluyentes: todos menos uno quedan SIEMPRE en
     # `skipped`, y un need saltado salta tambien a quien depende de el salvo
     # que la condicion diga otra cosa. Se avisa cuando el que toco ejecutar
     # termino, con exito o con fallo (un 401 de LiteLLM es justo el aviso que
     # hace falta). `skipped` es el otro modo y `cancelled` es un push que
     # adelanto a este: ninguno de los dos merece aviso.
-    # `always()` NO es decoracion: `needs` incluye los DOS modos y solo uno
-    # corre, asi que el otro queda `skipped` — y un job cuyo `needs` tiene un
+    # `always()` NO es decoracion: `needs` incluye TODOS los motores y solo uno
+    # corre, asi que los otros quedan `skipped` — y un job cuyo `needs` tiene un
     # skipped se salta entero, por mucho que la condicion de despues sea
     # cierta. Medido en el primer PR piloto: review publicada y aviso mudo.
     if: >-
@@ -820,6 +980,8 @@ jobs:
           needs.revisar_pr.result == 'failure' ||
           needs.revisar_pr_agent.result == 'success' ||
           needs.revisar_pr_agent.result == 'failure' ||
+          needs.revisar_pr_juez.result == 'success' ||
+          needs.revisar_pr_juez.result == 'failure' ||
           needs.revisar_commit.result == 'success' ||
           needs.revisar_commit.result == 'failure') }}
     runs-on: ${{ inputs.runner }}
@@ -846,11 +1008,11 @@ jobs:
           TG_CHAT: ${{ secrets.TELEGRAM_CI_CHAT_ID }}
           # `resumen` es TEXTO DEL MODELO: entra por entorno, jamas por `${{ }}`
           # dentro del `run`.
-          VEREDICTO: ${{ needs.revisar_pr.outputs.veredicto || needs.revisar_pr_agent.outputs.veredicto || needs.revisar_commit.outputs.veredicto }}
+          VEREDICTO: ${{ needs.revisar_pr.outputs.veredicto || needs.revisar_pr_agent.outputs.veredicto || needs.revisar_pr_juez.outputs.veredicto || needs.revisar_commit.outputs.veredicto }}
           # Con pr-agent, RESUMEN es `.review/notify.txt` de review-distribute.py:
           # ese script no envia Telegram, lo envia este job (diseño §6).
-          RESUMEN: ${{ needs.revisar_pr.outputs.resumen || needs.revisar_pr_agent.outputs.resumen || needs.revisar_commit.outputs.resumen }}
-          N_HALLAZGOS: ${{ needs.revisar_pr.outputs.n_hallazgos || needs.revisar_pr_agent.outputs.n_hallazgos || needs.revisar_commit.outputs.n_hallazgos }}
+          RESUMEN: ${{ needs.revisar_pr.outputs.resumen || needs.revisar_pr_agent.outputs.resumen || needs.revisar_pr_juez.outputs.resumen || needs.revisar_commit.outputs.resumen }}
+          N_HALLAZGOS: ${{ needs.revisar_pr.outputs.n_hallazgos || needs.revisar_pr_agent.outputs.n_hallazgos || needs.revisar_pr_juez.outputs.n_hallazgos || needs.revisar_commit.outputs.n_hallazgos }}
           PR_NUMERO: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |

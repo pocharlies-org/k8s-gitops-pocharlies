@@ -1,0 +1,31 @@
+diff --git a/scripts/review-distribute.py b/scripts/review-distribute.py
+index 7a173ef..1311402 100755
+--- a/scripts/review-distribute.py
++++ b/scripts/review-distribute.py
+@@ -172,6 +172,17 @@ def validate(instance: Any, schema: dict[str, Any], path: str = "$") -> list[str
+     return errs
+ 
+ 
++def invariants(p: dict[str, Any]) -> list[str]:
++    """Rules of INFRA-298 §6 that the JSON schema cannot say."""
++    errs = []
++    if p["changes_required"] != (p["merge_recommendation"] == "changes_required"):
++        errs.append("changes_required debe ser (merge_recommendation == changes_required)")
++    if p["status"] != "ok" and (p["changes_required"] or p["possible_security_issue"]
++                                or p["merge_recommendation"] != "unknown"):
++        errs.append("con status != ok no hay recomendación ni etiquetas (una review caída no bloquea nada)")
++    return errs
++
++
+ def notify_text(p: dict[str, Any]) -> str:
+     lines = [f"{p['repo']}#{p['pr']} · recomendación: {p['merge_recommendation']} · "
+              f"{len(p['findings'])} hallazgos",
+@@ -265,7 +276,7 @@ def main(argv: list[str] | None = None) -> int:
+     out = Path(args.out_dir)
+     out.mkdir(parents=True, exist_ok=True)
+     payload = build_payload(args.repo, args.pr, head, review)
+-    errors = validate(payload, json.loads(SCHEMA_FILE.read_text()))
++    errors = validate(payload, json.loads(SCHEMA_FILE.read_text())) + invariants(payload)
+     if errors:  # a bug here, not a runtime condition
+         print("review-distribute: payload inválido: " + "; ".join(errors), file=sys.stderr)
+         return 2

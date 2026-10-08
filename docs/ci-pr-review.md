@@ -80,7 +80,7 @@ separada de `ci-review-bot` (equipo `ci-review`, 3 rpm / 120 000 tpm).
 
 # PR review: el workflow reusable v2 y `inputs.engine` (INFRA-332)
 
-`.github/workflows/reusable-pr-review.yml` tiene dos motores. `engine: propio` (por defecto) es `review.py`,
+`.github/workflows/reusable-pr-review.yml` tiene tres motores (el tercero, `juez`, en la sección siguiente). `engine: propio` (por defecto) es `review.py`,
 sin cambios: lo siguen usando los 108 repos de la plantilla hasta INFRA-334. `engine: pr-agent` lo encienden
 solo los pilotos, en su `.github/workflows/pr-review.yml`; la lista operativa de esos repos es
 `.github/pr-agent-repos.txt` (única: la mide la señal nocturna y la siguen las oleadas de INFRA-334):
@@ -187,3 +187,76 @@ dispatch puntual). Lee los runs de `PR review` de las últimas 24 h —la ventan
 - **No cuentan**: runs sin el motor PR-Agent (`engine: propio`, forks), anteriores a `--since`, sin datos por retención, y
   `push_ingest: sin_clave` (falta `BRAIN_CI_KEY`, SC-1400): se informa aparte como dependencia.
 - Si no se puede medir (GitHub caído) sale 3, no verde. Es la puerta de cada oleada de INFRA-334.
+
+# PR review: el motor `juez` (SC-2182)
+
+`engine: juez` no revisa el diff: **juzga** si el PR cumple los criterios de aceptación de su ticket de Jira. Es el
+motor que sustituye a qa + architect en las historias de la compañía. Nace **opt-in** (`propio` sigue siendo el
+default; el cambio de default es otra PR, solo con la lista medida de repos cubierta de secretos):
+
+    uses: pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-pr-review.yml@main
+    with:
+      engine: juez
+
+Job `Review del PR (juez)` (`revisar_pr_juez`), solo en `pull_request`; el check se llama `<job del llamador> / Review del
+PR (juez)`. Un solo motor por evento (`tests/test_reusable_pr_review.py -k un_solo_motor`): `revisar_pr` y
+`revisar_commit` corren solo con `engine: propio`, `revisar_pr_agent` con `pr-agent`; un motor que no existe pone
+rojo el job `Motor de review no valido`. Con `engine: juez`, `workflow_dispatch` corre la evaluación (abajo).
+
+**Qué lee.** Todo entra por entorno y como datos delimitados con una marca aleatoria por ejecución (el modelo no
+obedece nada de lo que haya dentro): los criterios del ticket, el diff y el `ARCHITECTURE.md` **del commit base** (no el
+del head: un PR no reescribe las reglas con las que se le juzga). La clave del ticket sale del título, si no de la rama,
+si no del cuerpo (proyectos `SC INFRA DGX SKIRM LE OWU ACC`; la primera clave de la primera fuente que cite alguna). Los
+criterios son las líneas `- [ ]` del adjunto `00-spec.md` más reciente de la historia o, si no hay, los elementos de la
+sección «Criterios de aceptación» de su descripción. Jira, de solo lectura: secretos `JIRA_EMAIL` y `JIRA_API_TOKEN`.
+
+**Qué decide.** El modelo aporta hechos y el código aplica la regla. Por criterio, el modelo dice `cumple` y la
+evidencia, una línea `fichero:línea` de la versión NUEVA que el diff muestra; si falta o no está en el diff, ese criterio
+no cuenta (`sin_evidencia`). Además cuenta todo hallazgo de severidad alta o media salvo los de tipo `estilo` u
+`otro`: el tipo se normaliza (minúsculas, sin tildes) y un tipo desconocido o vacío (`bug`, `corrección` mal escrito)
+bloquea, porque el motivo de no bloquear es el estilo, no una etiqueta que el modelo escribió distinta. Un `NO_PASA`
+sin hallazgos del modelo (`sin_clave`, `ticket_inexistente`, `cita_epica`, `sin_criterios`) lleva su motivo como
+línea `**[ticket]**` de `### Hallazgos`, para que el maker tenga algo que arreglar. Jira devuelve 404 también cuando
+la cuenta de solo lectura no ve el ticket: sale como `ticket_inexistente`.
+
+| veredicto | cuándo | job |
+|---|---|---|
+| `PASA` | todos los criterios cumplen con evidencia en el diff y ningún hallazgo bloquea | verde |
+| `NO_PASA` | sin clave de ticket (`sin_clave`), ticket inexistente, ticket de tipo épica (`cita_epica`), sin criterios, criterio incumplido, sin evidencia o hallazgo bloqueante | rojo |
+| `SIN_VEREDICTO` | sin credencial (LiteLLM o Jira), Jira o los dos modelos caídos, respuesta del modelo inservible | rojo |
+
+`SIN_VEREDICTO` no es culpa de quien abrió el PR. El juez no conoce `SIN_TICKET`: esa exención es solo de
+`company-aprobar` (x86), que en un PR exento ignora este check. Un diff recortado por `max_diff_bytes` fuerza
+`riesgo=alto`; la regla determinista de riesgo por ruta vive en `company-aprobar`, no aquí.
+
+**Fallback.** Cada llamada corta a 90 s como máximo; un timeout cuenta como un 408. Ante timeout, 408, 429, 5xx o
+400/401/403/404 del modelo primario (`model`) se juzga con `fallback_model` (por defecto `alibaba-q38-flash`); otro 4xx
+no cae al respaldo, y el respaldo no tiene respaldo. Con `model == fallback_model` no hay segundo intento. Con el
+respaldo, la descripción del ticket, el `00-spec.md` y el `ARCHITECTURE.md` salen también al plan Team de Alibaba, no solo
+el diff (revisión de `security` de SC-2181, punto v).
+
+**El marcador v2** (contrato `ci.llm-review-bot.marcador.v2`, marcado en `review.py`). Un comentario por PR, que se
+actualiza en cada head, escrito por `github-actions[bot]` (un comentario ajeno con la misma marca no se toca). Su
+PRIMERA línea es exactamente
+
+    <!-- llm-review-bot:v2 sha=<40 hex> veredicto=PASA|NO_PASA|SIN_VEREDICTO riesgo=normal|alto motivos=<enum> -->
+
+con `motivos` un enum cerrado (`MOTIVOS` en `review.py`), nunca texto libre; lo que escribe el modelo o el ticket llega
+al comentario en una línea y sin `<`, así que un marcador falso dentro de un hallazgo no cuenta. Bajo `### Hallazgos`
+va una línea `- ` por cosa que arreglar (criterio incumplido, sin evidencia, hallazgo bloqueante): es lo que el maker
+recibe. El lector (`company-aprobar`, x86) y este escritor comparten `tests/fixtures/juez/marcador-v2.json`, idéntico
+byte a byte en los dos repos. Si el comentario no se puede publicar (llamador sin `pull-requests: write`) el job sale en
+rojo: un veredicto que nadie puede leer no vale.
+
+**Un PR desde un fork** no recibe secretos: el job sale en verde sin marcador, y `company-aprobar` sin marcador queda
+en su modo legado.
+
+**Evaluación** (`workflow_dispatch` con `engine: juez`, o a mano):
+
+    REVIEW_LITELLM_URL=… REVIEW_LITELLM_KEY=… REVIEW_MODEL=… \
+      python3 .github/actions/llm-review/review.py --evalua tests/fixtures/juez --umbral 7/8
+
+Corre el juez con el modelo real sobre los 8 casos de `tests/fixtures/juez/` (4 PASA y 4 NO_PASA: criterio incumplido,
+bug, norma de arquitectura, sin tests; los PASA son commits reales de este repo y los NO_PASA, diffs reales estropeados a propósito: sin el test, con una condición
+invertida, con una interpolación en un `run`) y sale 0 solo si acierta al menos 7 de 8. Un `SIN_VEREDICTO` cuenta como fallo. Tests sin red:
+`python3 -m unittest tests.test_llm_review_juez` (un LiteLLM, un Jira y una API de GitHub de pega).

@@ -1,0 +1,4 @@
+- [ ] C1 Con `status != ok` el payload no puede traer recomendacion ni etiquetas (`changes_required`, `possible_security_issue`, `merge_recommendation` distinto de `unknown`): se rechaza como payload invalido.
+- [ ] C2 `changes_required` es coherente con `merge_recommendation == changes_required`; si no, el payload es invalido.
+- [ ] C3 `main()` aplica esas invariantes ademas del esquema JSON y sale con 2 si fallan.
+- [ ] C4 Hay pruebas de cada invariante en `tests/test_review_distribute.py`.

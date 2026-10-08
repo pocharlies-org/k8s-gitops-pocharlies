@@ -1,0 +1,4 @@
+- [ ] C1 La credencial rota de PR-Agent (401/403) se decide solo sobre lineas de nivel ERROR/WARNING/CRITICAL o un traceback, no con un grep de todo el log.
+- [ ] C2 Esa decision vive en UN script (`scripts/pr-agent-auth-check.py`) que el workflow reusable llama.
+- [ ] C3 El script tiene su propio self-check y el CI lo ejecuta.
+- [ ] C4 `ARCHITECTURE.md` y `docs/ci-pr-review.md` reflejan el cambio.
