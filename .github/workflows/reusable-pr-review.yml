@@ -72,8 +72,15 @@ on:
         description: Endpoint de LiteLLM.
         type: string
         default: http://litellm.litellm.svc.cluster.local:4000
+      juez_model:
+        # Solo el motor `juez` (SC-2182): su modelo primario, el residente local (`tooling`),
+        # para que el diff, el ticket y ARCHITECTURE.md no salgan del cluster mientras el
+        # residente conteste. `model` sigue siendo el de `propio` y el juez ya no lo lee.
+        description: Modelo primario del juez.
+        type: string
+        default: tooling
       fallback_model:
-        # Solo el motor `juez` (SC-2182): si `model` no contesta (timeout de 90 s, 408,
+        # Solo el motor `juez` (SC-2182): si `juez_model` no contesta (timeout de 90 s, 408,
         # 429, 5xx, o 400/401/403/404) juzga este. El respaldo no tiene respaldo; si
         # tambien cae, el veredicto es SIN_VEREDICTO. Aditivo: no cambia ningun input.
         description: Modelo de respaldo del juez.
@@ -130,6 +137,21 @@ on:
         description: Pull de la imagen de PR-Agent desde harbor.e-dani.com/homelab (privado).
         required: false
       HARBOR_PASSWORD:
+        required: false
+      # Motor juez (SC-2182): credenciales PROPIAS, distintas de las de `propio` y PR-Agent, para
+      # poder rotarlas o revocarlas sin tocarlas. Por repo (plan `free`, como las de arriba).
+      # Sin alguna, el juez sale en rojo con SIN_VEREDICTO y dice cual falta.
+      LITELLM_JUEZ_KEY:
+        description: Key LiteLLM del juez (modelos `tooling` y `alibaba-q38-flash`).
+        required: false
+      JIRA_JUEZ_EMAIL:
+        description: Email de la cuenta de servicio de Jira del juez (solo lectura).
+        required: false
+      JIRA_JUEZ_TOKEN:
+        description: Token de API de esa cuenta de servicio.
+        required: false
+      JIRA_JUEZ_URL:
+        description: Base `https://api.atlassian.com/ex/jira/<cloudId>` de esa cuenta de servicio.
         required: false
     outputs:
       veredicto:
@@ -805,18 +827,19 @@ jobs:
             || : > "$RUNNER_TEMP/ARCHITECTURE.md"
 
       # Titulo, rama y cuerpo del PR son texto de terceros: solo por entorno, nunca dentro del
-      # `run`. Las credenciales (LiteLLM, Jira de solo lectura) viven solo en este paso, que
+      # `run`. Las credenciales (LiteLLM, cuenta de servicio de Jira) viven solo en este paso, que
       # ejecuta el script del framework (el commit del workflow), no codigo del PR.
       - name: Review
         id: revisar
         if: ${{ steps.guarda.outputs.fork != 'true' }}
         env:
           REVIEW_LITELLM_URL: ${{ inputs.litellm_url }}
-          REVIEW_LITELLM_KEY: ${{ secrets.LITELLM_CI_KEY }}
-          REVIEW_MODEL: ${{ inputs.model }}
+          REVIEW_LITELLM_KEY: ${{ secrets.LITELLM_JUEZ_KEY }}
+          REVIEW_MODEL: ${{ inputs.juez_model }}
           REVIEW_FALLBACK_MODEL: ${{ inputs.fallback_model }}
-          REVIEW_JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
-          REVIEW_JIRA_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          REVIEW_JIRA_URL: ${{ secrets.JIRA_JUEZ_URL }}
+          REVIEW_JIRA_EMAIL: ${{ secrets.JIRA_JUEZ_EMAIL }}
+          REVIEW_JIRA_TOKEN: ${{ secrets.JIRA_JUEZ_TOKEN }}
           REVIEW_DIFF_FILE: ${{ runner.temp }}/review.diff
           REVIEW_ARCHITECTURE_FILE: ${{ runner.temp }}/ARCHITECTURE.md
           REVIEW_MAX_DIFF_BYTES: ${{ inputs.max_diff_bytes }}
@@ -862,8 +885,8 @@ jobs:
       - name: Evaluate the judge
         env:
           REVIEW_LITELLM_URL: ${{ inputs.litellm_url }}
-          REVIEW_LITELLM_KEY: ${{ secrets.LITELLM_CI_KEY }}
-          REVIEW_MODEL: ${{ inputs.model }}
+          REVIEW_LITELLM_KEY: ${{ secrets.LITELLM_JUEZ_KEY }}
+          REVIEW_MODEL: ${{ inputs.juez_model }}
           REVIEW_FALLBACK_MODEL: ${{ inputs.fallback_model }}
           REVIEW_TIMEOUT_SECONDS: '90'
         run: |

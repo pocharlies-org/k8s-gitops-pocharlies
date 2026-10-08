@@ -76,6 +76,7 @@ class _Mundo:
         self.adjuntos: dict[str, bytes] = {}
         self.jira_auth: list[str | None] = []
         self.jira_rutas: list[str] = []
+        self.jira_caminos: list[str] = []   # el camino entero, con el prefijo de la pasarela si lo hay
         self.blob_auth: list[str | None] = []
         self.comentarios: list[dict] = []
         self.escrituras: list[tuple[str, str]] = []
@@ -135,15 +136,19 @@ def _manejador(mundo: _Mundo):
             self._json(404, {})
 
         def do_GET(self):
-            ruta = self.path.split('?')[0]
+            ruta = crudo = self.path.split('?')[0]
+            # la pasarela de la cuenta de servicio antepone /ex/jira/<cloudId>: se anota y se quita para enrutar
+            ruta = re.sub(r'^/ex/jira/[\w-]+', '', ruta)
             m = re.fullmatch(r'/rest/api/3/issue/([A-Z]+-\d+)', ruta)
             if m:
+                mundo.jira_caminos.append(crudo)
                 mundo.jira_auth.append(self.headers.get('Authorization'))
                 mundo.jira_rutas.append(m.group(1))
                 status, issue = mundo.jira.get(m.group(1), (404, None))
                 return self._json(status, issue or {})
             m = re.fullmatch(r'/rest/api/3/attachment/content/(\d+)', ruta)
             if m:
+                mundo.jira_caminos.append(crudo)
                 mundo.jira_auth.append(self.headers.get('Authorization'))
                 self.send_response(303)
                 self.send_header('Location', f'http://127.0.0.1:{self.server.server_port}/blob/{m.group(1)}')
@@ -458,6 +463,31 @@ class TestSinVeredicto(Base):
         self.assertEqual(self.correr(REVIEW_JIRA_TOKEN=''), 1)
         self.assertVeredicto('SIN_VEREDICTO', motivos='sin_credencial')
         self.assertEqual(self.mundo.llamadas, [])
+
+    def test_sin_url_de_jira(self):
+        self.assertEqual(self.correr(REVIEW_JIRA_URL=''), 1)
+        self.assertVeredicto('SIN_VEREDICTO', motivos='sin_credencial')
+        self.assertIn('JIRA_JUEZ_URL', self.comentario())
+        self.assertEqual((self.mundo.llamadas, self.mundo.jira_caminos), ([], []))
+
+    def test_el_aviso_nombra_los_secretos_del_juez_y_no_los_de_propio(self):
+        self.correr(REVIEW_LITELLM_KEY='', REVIEW_JIRA_URL='', REVIEW_JIRA_EMAIL='', REVIEW_JIRA_TOKEN='')
+        cuerpo = self.comentario()
+        for nombre in ('LITELLM_JUEZ_KEY', 'JIRA_JUEZ_URL', 'JIRA_JUEZ_EMAIL', 'JIRA_JUEZ_TOKEN'):
+            self.assertIn(nombre, cuerpo)
+        for viejo in ('LITELLM_CI_KEY', 'JIRA_EMAIL', 'JIRA_API_TOKEN'):
+            self.assertNotIn(viejo, cuerpo)
+
+    def test_jira_se_lee_bajo_la_base_de_la_pasarela_de_la_cuenta_de_servicio(self):
+        # https://api.atlassian.com/ex/jira/<cloudId>, con o sin barra final: las rutas /rest/api/3/... cuelgan de ella
+        base = self.env['REVIEW_JIRA_URL'] + '/ex/jira/c0ffee-nube'
+        for url in (base, base + '/'):
+            with self.subTest(url):
+                self.mundo.comentarios.clear()
+                self.mundo.jira_caminos.clear()
+                self.assertEqual(self.correr(REVIEW_JIRA_URL=url), 0, self.salida_texto)
+                self.assertEqual(self.mundo.jira_caminos, ['/ex/jira/c0ffee-nube/rest/api/3/issue/SC-2182',
+                                                           '/ex/jira/c0ffee-nube/rest/api/3/attachment/content/1'])
 
     def test_jira_rechaza_la_credencial_o_no_contesta(self):
         for status, motivo in ((401, 'sin_credencial'), (403, 'sin_credencial'), (503, 'jira_caido')):
