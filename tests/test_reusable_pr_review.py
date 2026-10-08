@@ -92,9 +92,17 @@ class TestSuperficieEstable(unittest.TestCase):
         self.assertEqual(entradas["fallback_model"]["default"], "alibaba-q38-flash")
         self.assertEqual(entradas["fallback_model"]["type"], "string")
 
-    def test_el_motor_nace_opt_in(self):
-        # el cambio de default es otra PR (etapa c, con la lista medida cubierta)
-        self.assertEqual(CUERPO[True]["workflow_call"]["inputs"]["engine"]["default"], "propio")
+    def test_default_juez(self):
+        # etapa (c) de SC-2182: el juez es el motor por defecto; `propio` y `pr-agent` siguen seleccionables
+        entrada = CUERPO[True]["workflow_call"]["inputs"]["engine"]
+        self.assertEqual(entrada["default"], "juez")
+        self.assertEqual(entrada["type"], "string")
+
+    def test_default_juez_un_llamador_sin_engine_corre_solo_el_juez(self):
+        # `inputs.engine` toma el default cuando el llamador no lo fija: es lo que ven los repos de la plantilla
+        engine = CUERPO[True]["workflow_call"]["inputs"]["engine"]["default"]
+        self.assertEqual(en_marcha("pull_request", engine), ["revisar_pr_juez"])
+        self.assertEqual(en_marcha("workflow_dispatch", engine), ["evaluar_juez"])
 
     def test_los_secretos_que_el_juez_necesita_ya_estaban_declarados(self):
         secretos = CUERPO[True]["workflow_call"]["secrets"]
