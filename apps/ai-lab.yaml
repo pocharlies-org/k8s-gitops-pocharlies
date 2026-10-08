@@ -1,0 +1,40 @@
+# DGX-689 (H7 de DGX-680): laboratorio de dgx3, FUERA del arbitro de computo (autorizacion del CTO en DGX-689).
+# Es una Application aparte de `ai` a proposito: las de `ai` llevan los hooks que pausan el arbitro
+# (llm-deploy-pause/resume) y renderizan `k8s/`; esta no lleva hooks y renderiza solo `lab/`.
+#
+# Se enciende y se apaga SOLO por PR de gitops (opcion (b)): sin `ignoreDifferences` de /spec/replicas, asi que
+# selfHeal revierte cualquier `kubectl scale`, y el panel rechaza POST /api/activity/{id}/power sobre `ai-lab`.
+# El SHA es el de FUSION del PR de k8s-ai-pocharlies que cambia `lab/`: un cambio del laboratorio es un PR AQUI,
+# nunca solo un merge alli (no sigue `main`).
+#
+# prune: true es seguro en este namespace: solo hay cargas del laboratorio, ningun PVC, y los datos del hostPath
+# (/srv/ai-lab en dgx3) no los toca Argo. El Namespace lleva Prune=false.
+# Retirar el laboratorio = PR que vacia `lab/` (la app lo prune). Borrar este fichero NO elimina la Application:
+# `root` tiene prune: false, y `kubectl delete application` esta prohibido (el finalizer arrastra los workloads).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ai-lab
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-ai-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-ai-pocharlies
+    # PENDIENTE antes de fusionar: sustituir por el SHA de fusion de k8s-ai-pocharlies#118 (hoy, la cabeza del PR).
+    targetRevision: 0031e2ea9190a5ae95857e5acd3b8adc5d1b699d
+    path: lab
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ai-lab
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

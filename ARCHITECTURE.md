@@ -116,5 +116,6 @@ Nº de tests: 58 (medido con `unittest discover` el 2026-10-08; 23 en `tests/tes
   de cuota, el diagnóstico de 7 días mide los runs rápidos con `run_started_at` — **aproximación a la baja**
   (un job `needs` o de otro pool dentro de un run rápido no se ve). Los asserts C1/C5 y las ventanas
   `--since/--hours` activan `exact=True`, que pide la API de jobs para todos los runs (~1700 llamadas para 48 h).
+- `apps/ai-lab.yaml` (DGX-689): laboratorio de dgx3, FUERA del árbitro de cómputo. Application aparte de `ai` (que lleva los hooks del árbitro): renderiza solo `lab/` de `k8s-ai-pocharlies`, pinneada a un SHA de fusión, sin hooks y sin `ignoreDifferences` de réplicas (solo un PR cambia réplicas; el panel rechaza el `power` sobre `ai-lab`). `prune: true` en su namespace; retirarla = PR que vacía `lab/`. Borrar el fichero NO elimina la Application porque `root` tiene `prune: false`.
 
 Última verificación contra el código: 2026-10-06 · a5698db (origin/deploy/prod)

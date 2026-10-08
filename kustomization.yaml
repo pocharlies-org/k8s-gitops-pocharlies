@@ -35,6 +35,7 @@ resources:
   - infra/harbor.yaml
   - apps/adguard.yaml
   - apps/ai.yaml
+  - apps/ai-lab.yaml
   - apps/bge.yaml
   - apps/voice.yaml
   - apps/firecrawl.yaml
