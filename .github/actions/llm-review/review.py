@@ -27,6 +27,7 @@ import os
 import re
 import secrets
 import sys
+import unicodedata
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -572,7 +573,9 @@ JIRA_URL = 'https://e-dani.atlassian.net'
 # Proyectos de la tabla de la compañia; uno nuevo se añade aqui. Una lista cerrada
 # evita que `SHA-256` o `UTF-8` en un titulo se lean como un ticket.
 PROYECTOS_JIRA = ('SC', 'INFRA', 'DGX', 'SKIRM', 'LE', 'OWU', 'ACC')
-TIPOS_QUE_CUENTAN = ('correccion', 'criterio', 'arquitectura')   # estilo no cuenta
+# Falla cerrado: bloquea todo hallazgo de severidad alta o media salvo los tipos que el prompt
+# excluye. Un tipo con tilde (`corrección`), `bug` o vacio es un bug real mal etiquetado.
+TIPOS_QUE_NO_CUENTAN = ('estilo', 'otro')
 SEVERIDADES_QUE_BLOQUEAN = ('alta', 'media')
 
 SISTEMA_JUEZ = (
@@ -803,11 +806,12 @@ def evaluar(dato, n_criterios, visibles):
         if not isinstance(h, dict) or not str(h.get('summary') or '').strip():
             continue
         sev = str(h.get('severity') or 'media').strip().lower()
-        tipo = str(h.get('tipo') or '').strip().lower()
+        tipo = ''.join(c for c in unicodedata.normalize('NFD', str(h.get('tipo') or '').strip().lower())
+                       if not unicodedata.combining(c))
         hallazgos.append({'file': str(h.get('file') or ''), 'line': str(h.get('line') or ''),
                           'severity': sev if sev in ORDEN_SEVERIDAD else 'media', 'tipo': tipo,
                           'summary': str(h['summary']).strip(),
-                          'bloquea': tipo in TIPOS_QUE_CUENTAN and sev in SEVERIDADES_QUE_BLOQUEAN})
+                          'bloquea': tipo not in TIPOS_QUE_NO_CUENTAN and sev in SEVERIDADES_QUE_BLOQUEAN})
     hallazgos.sort(key=lambda h: ORDEN_SEVERIDAD[h['severity']])
     return criterios, hallazgos
 
@@ -885,6 +889,8 @@ def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios,
 def hallazgos_a_arreglar(r):
     """Las lineas de `### Hallazgos`: lo que el maker tiene que arreglar, UNA linea cada una."""
     salida = []
+    if r.get('veredicto') == 'NO_PASA' and r.get('detalle'):   # sin_clave, cita_epica, sin_criterios...
+        salida.append(f"**[ticket]** {limpio(r['detalle'], 300)}")
     for c in r.get('criterios') or []:
         if c['cumple'] is False:
             salida.append(f"**[criterio]** C{c['n']} no cumple: {limpio(c.get('nota') or c.get('texto'), 300)}")

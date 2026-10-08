@@ -346,6 +346,40 @@ class TestDecision(Base):
         self.assertVeredicto('NO_PASA', motivos='hallazgos')
         self.assertIn('suma mal', self.comentario())
 
+    def test_el_tipo_se_normaliza_y_uno_desconocido_bloquea(self):
+        # falla cerrado: `corrección`, `Arquitectura`, `bug` o vacio con severidad alta son bugs reales
+        for tipo in ('corrección', 'Arquitectura', 'CORRECCIÓN', 'bug', ''):
+            with self.subTest(tipo=tipo):
+                self.mundo.comentarios.clear()
+                self.mundo.litellm['local-juez'] = [(200, respuesta(
+                    [cumple(1), cumple(2, 'tests/test_app.py:4')],
+                    [{'file': 'src/app.py', 'line': 12, 'severity': 'alta', 'tipo': tipo,
+                      'summary': 'suma mal'}]), 0)]
+                self.assertEqual(self.correr(), 1, self.salida_texto)
+                self.assertVeredicto('NO_PASA', motivos='hallazgos')
+                cuerpo = self.comentario()
+                self.assertIn('### Hallazgos', cuerpo)
+                self.assertNotIn('Observaciones', cuerpo)
+
+    def test_un_no_pasa_sin_hallazgos_del_modelo_trae_su_motivo_en_hallazgos(self):
+        casos = {
+            'sin_clave': (dict(REVIEW_PR_TITLE='sin clave', REVIEW_PR_BRANCH='feat/algo', REVIEW_PR_BODY=''),
+                          None, 'no cita ninguna clave'),
+            'ticket_inexistente': ({}, lambda m: m.jira.pop('SC-2182'), 'no tiene el ticket SC-2182'),
+            'cita_epica': ({}, lambda m: m.jira.update({'SC-2182': issue(tipo='Epic')}), 'es una epica'),
+            'sin_criterios': ({}, lambda m: m.jira.update(
+                {'SC-2182': issue(descripcion=adf(('p', 'solo prosa')))}), 'no tiene criterios'),
+        }
+        for motivo, (cambios, preparar, texto) in casos.items():
+            with self.subTest(motivo):
+                self.mundo.comentarios.clear()
+                if preparar:
+                    preparar(self.mundo)
+                self.assertEqual(self.correr(**cambios), 1)
+                self.assertVeredicto('NO_PASA', motivos=motivo)
+                seccion = self.comentario().split('### Hallazgos\n', 1)[1].split('\n\n', 1)[0]
+                self.assertRegex(seccion, rf'(?m)^- \*\*\[ticket\]\*\* .*{texto}')
+
     def test_hallazgo_de_estilo_o_baja_no_bloquea(self):
         hallazgos = [
             {'file': 'src/app.py', 'line': 11, 'severity': 'alta', 'tipo': 'estilo', 'summary': 'nombre feo'},

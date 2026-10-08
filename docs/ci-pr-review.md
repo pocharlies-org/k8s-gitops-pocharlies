@@ -212,8 +212,12 @@ sección «Criterios de aceptación» de su descripción. Jira, de solo lectura:
 
 **Qué decide.** El modelo aporta hechos y el código aplica la regla. Por criterio, el modelo dice `cumple` y la
 evidencia, una línea `fichero:línea` de la versión NUEVA que el diff muestra; si falta o no está en el diff, ese criterio
-no cuenta (`sin_evidencia`). Además cuentan los hallazgos de tipo `correccion`, `criterio` o `arquitectura` con
-severidad alta o media; el estilo no cuenta.
+no cuenta (`sin_evidencia`). Además cuenta todo hallazgo de severidad alta o media salvo los de tipo `estilo` u
+`otro`: el tipo se normaliza (minúsculas, sin tildes) y un tipo desconocido o vacío (`bug`, `corrección` mal escrito)
+bloquea, porque el motivo de no bloquear es el estilo, no una etiqueta que el modelo escribió distinta. Un `NO_PASA`
+sin hallazgos del modelo (`sin_clave`, `ticket_inexistente`, `cita_epica`, `sin_criterios`) lleva su motivo como
+línea `**[ticket]**` de `### Hallazgos`, para que el maker tenga algo que arreglar. Jira devuelve 404 también cuando
+la cuenta de solo lectura no ve el ticket: sale como `ticket_inexistente`.
 
 | veredicto | cuándo | job |
 |---|---|---|
