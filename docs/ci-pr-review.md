@@ -210,7 +210,24 @@ obedece nada de lo que haya dentro): los criterios del ticket, el diff y el `ARC
 del head: un PR no reescribe las reglas con las que se le juzga). La clave del ticket sale del título, si no de la rama,
 si no del cuerpo (proyectos `SC INFRA DGX SKIRM LE OWU ACC`; la primera clave de la primera fuente que cite alguna). Los
 criterios son las líneas `- [ ]` del adjunto `00-spec.md` más reciente de la historia o, si no hay, los elementos de la
-sección «Criterios de aceptación» de su descripción. Jira, de solo lectura: secretos `JIRA_EMAIL` y `JIRA_API_TOKEN`.
+sección «Criterios de aceptación» de su descripción. Jira, de solo lectura y con la cuenta de servicio del juez (abajo).
+
+**Credenciales propias (SC-2182).** El juez no usa las de `propio` ni las de PR-Agent (`LITELLM_CI_KEY`, `JIRA_EMAIL`,
+`JIRA_API_TOKEN`, que no se tocan): tiene cuatro secretos suyos, opcionales en el reusable y por repo (el plan de la org
+es `free`, un secreto de organización no llega a los repos privados), así se rotan o se revocan sin afectar a nadie más.
+
+| secreto | qué es | entra como |
+|---|---|---|
+| `LITELLM_JUEZ_KEY` | key de LiteLLM del juez, válida para `tooling` y `alibaba-q38-flash` | `REVIEW_LITELLM_KEY` |
+| `JIRA_JUEZ_EMAIL` | email de la cuenta de servicio de Jira (solo lectura) | `REVIEW_JIRA_EMAIL` |
+| `JIRA_JUEZ_TOKEN` | token de API de esa cuenta de servicio | `REVIEW_JIRA_TOKEN` |
+| `JIRA_JUEZ_URL` | base `https://api.atlassian.com/ex/jira/CLOUDID` de esa cuenta de servicio | `REVIEW_JIRA_URL` |
+
+Una cuenta de servicio no entra por `e-dani.atlassian.net`, sino por la pasarela de Atlassian: auth Basic con email y
+token sobre esa base, de la que cuelgan las rutas `/rest/api/3/issue/<clave>` y `/rest/api/3/attachment/content/<id>`
+(`tests/test_llm_review_juez.py -k pasarela`). `review.py` ya no tiene URL de Jira por defecto: sin `JIRA_JUEZ_URL`, o sin
+cualquiera de los otros tres, el marcador sale `SIN_VEREDICTO` con motivo `sin_credencial` y el comentario nombra los que
+faltan. La evaluación (`workflow_dispatch`) usa solo `LITELLM_JUEZ_KEY`.
 
 **Qué decide.** El modelo aporta hechos y el código aplica la regla. Por criterio, el modelo dice `cumple` y la
 evidencia, una línea `fichero:línea` de la versión NUEVA que el diff muestra; si falta o no está en el diff, ese criterio
@@ -232,8 +249,9 @@ la cuenta de solo lectura no ve el ticket: sale como `ticket_inexistente`.
 `riesgo=alto`; la regla determinista de riesgo por ruta vive en `company-aprobar`, no aquí.
 
 **Fallback.** Cada llamada corta a 90 s como máximo; un timeout cuenta como un 408. Ante timeout, 408, 429, 5xx o
-400/401/403/404 del modelo primario (`model`) se juzga con `fallback_model` (por defecto `alibaba-q38-flash`); otro 4xx
-no cae al respaldo, y el respaldo no tiene respaldo. Con `model == fallback_model` no hay segundo intento. Con el
+400/401/403/404 del modelo primario (`juez_model`, por defecto `tooling`, el residente local: mientras conteste, nada sale
+del cluster) se juzga con `fallback_model` (por defecto `alibaba-q38-flash`); otro 4xx no cae al respaldo, y el respaldo no
+tiene respaldo. `model` (`alibaba-q38-flash`) es solo el de `propio` y el juez no lo lee. Con `juez_model == fallback_model` no hay segundo intento. Con el
 respaldo, la descripción del ticket, el `00-spec.md` y el `ARCHITECTURE.md` salen también al plan Team de Alibaba, no solo
 el diff (revisión de `security` de SC-2181, punto v).
 

@@ -569,7 +569,6 @@ CODIGOS_FALLBACK = (400, 401, 403, 404)   # ademas de 408/429/5xx y del timeout
 MAX_TOKENS_JUEZ = 3000
 ARQUITECTURA_MAX = 30000           # caracteres de ARCHITECTURE.md que entran al modelo
 CRITERIO_MAX = 2000
-JIRA_URL = 'https://e-dani.atlassian.net'
 # Proyectos de la tabla de la compañia; uno nuevo se añade aqui. Una lista cerrada
 # evita que `SHA-256` o `UTF-8` en un titulo se lean como un ticket.
 PROYECTOS_JIRA = ('SC', 'INFRA', 'DGX', 'SKIRM', 'LE', 'OWU', 'ACC')
@@ -947,7 +946,8 @@ def juez():
     url_base, key, modelo = env('REVIEW_LITELLM_URL'), env('REVIEW_LITELLM_KEY'), env('REVIEW_MODEL')
     fallback = env('REVIEW_FALLBACK_MODEL', FALLBACK_JUEZ)
     token, repo, pr, sha = env('REVIEW_GITHUB_TOKEN'), env('REVIEW_REPO'), env('REVIEW_PR_NUMBER'), env('REVIEW_SHA')
-    jira_url = env('REVIEW_JIRA_URL', JIRA_URL).rstrip('/')
+    # Cuenta de servicio de Jira: la base es https://api.atlassian.com/ex/jira/<cloudId>, sin valor por defecto.
+    jira_url = env('REVIEW_JIRA_URL').rstrip('/')
     jira_email, jira_token = env('REVIEW_JIRA_EMAIL'), env('REVIEW_JIRA_TOKEN')
     # Sin PR, sin head completo o sin token no hay donde dejar un veredicto que valga: rojo, sin marcador.
     if not (url_base and modelo and repo and pr and token) or not re.fullmatch(r'[0-9a-f]{40}', sha):
@@ -980,9 +980,9 @@ def juez():
                      'La PR no cita ninguna clave de ticket (' + ', '.join(PROYECTOS_JIRA) +
                      ') en el titulo, la rama ni el cuerpo.')
     r['clave'] = claves[0]
-    if not key or not jira_email or not jira_token:
-        faltan = [n for n, v in (('LITELLM_CI_KEY', key), ('JIRA_EMAIL', jira_email),
-                                 ('JIRA_API_TOKEN', jira_token)) if not v]
+    if not (key and jira_url and jira_email and jira_token):
+        faltan = [n for n, v in (('LITELLM_JUEZ_KEY', key), ('JIRA_JUEZ_URL', jira_url),
+                                 ('JIRA_JUEZ_EMAIL', jira_email), ('JIRA_JUEZ_TOKEN', jira_token)) if not v]
         print(f"::error::sin {', '.join(faltan)}: el juez no puede ejecutarse en este repo")
         return salir('SIN_VEREDICTO', {'sin_credencial'},
                      f"Faltan los secretos {', '.join(faltan)} en este repo (SC-1916, SC-2182).")
