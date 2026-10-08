@@ -9,8 +9,14 @@
 #
 # prune: true es seguro en este namespace: solo hay cargas del laboratorio, ningun PVC, y los datos del hostPath
 # (/srv/ai-lab en dgx3) no los toca Argo. El Namespace lleva Prune=false.
-# Retirar el laboratorio = PR que vacia `lab/` (la app lo prune). Borrar este fichero NO elimina la Application:
-# `root` tiene prune: false, y `kubectl delete application` esta prohibido (el finalizer arrastra los workloads).
+#
+# RETIRADA, en dos pasos:
+#  1. PR que vacia `lab/`: esta app (prune: true) retira el Pod. Deja el Namespace y el hostPath, y la Application.
+#  2. Retirar la Application misma: PR que borra este fichero y su linea en `kustomization.yaml`, MAS la poda
+#     acotada de `root` sobre `Application/ai-lab` (`operation.sync.prune: true` + `resources`, patron de
+#     ARCHITECTURE.md §5, precedente `hermes-despliegue poda`). `root` tiene prune: false: sin esa poda, borrar el
+#     fichero deja la Application para siempre. El finalizer arrastra el Pod y el Namespace, NO el hostPath
+#     (/srv/ai-lab). Nunca `kubectl delete application`, ni `prune` global.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
