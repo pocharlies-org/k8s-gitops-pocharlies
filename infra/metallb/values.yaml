@@ -56,6 +56,11 @@ speaker:
           memory: 16Mi
   nodeSelector:
     kubernetes.io/hostname: ubuntu
+  # INFRA-630: incident INFRA-625 — a DiskPressure taint on ubuntu evicted the
+  # speaker and the LAN lost DNS for 5h18m. The toleration survives the taint;
+  # the priority (network-critical, defined in k8s-adguard-pocharlies
+  # k8s/priorityclass.yaml) survives eviction. Merge that PR first.
+  priorityClassName: network-critical
   reloader:
     resources:
       limits:
@@ -74,3 +79,7 @@ speaker:
     key: dedicated
     operator: Equal
     value: llm
+  # INFRA-630: see priorityClassName above.
+  - effect: NoSchedule
+    key: node.kubernetes.io/disk-pressure
+    operator: Exists
