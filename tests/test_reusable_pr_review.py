@@ -137,5 +137,87 @@ class TestJuezAislado(unittest.TestCase):
         self.assertIn("needs.revisar_pr_juez.result", str(avisar["if"]))
 
 
+def _filas(nombre: str) -> list[list[str]]:
+    """Filas de una lista de `.github/`: columnas por TAB; `#` y lineas en blanco son comentarios."""
+    out = []
+    for linea in (ROOT / ".github" / nombre).read_text(encoding="utf-8").splitlines():
+        if linea.strip() and not linea.lstrip().startswith("#"):
+            out.append(linea.split("\t"))
+    return out
+
+
+class TestCoberturaDelJuez(unittest.TestCase):
+    """SC-2182 C15 (N1): ningun repo ve un SIN_VEREDICTO rojo por el cambio del `engine` por defecto.
+
+    Sin red: las listas son lo medido (`pr-review-llamadores.txt`: todos los repos que llaman al
+    reusable; `pr-review-juez-repos.txt`: donde la compania abre PRs) y la comprobacion viva es
+    `scripts/review-distribute-secrets.sh --dry-run` (docs/ci-pr-review.md). Este test cruza las listas
+    con el default del reusable: mientras valga `propio` se admite `pendiente`; con `juez`, no.
+    """
+
+    ESTADOS = {"activo", "archivado"}
+    COBERTURAS = {"secretos", "propio", "pr-agent", "archivado", "pendiente"}
+    ENGINES = {"default", "propio", "pr-agent", "juez"}
+
+    def setUp(self):
+        self.llam = {f[0]: f for f in _filas("pr-review-llamadores.txt")}
+        self.juez = _filas("pr-review-juez-repos.txt")
+
+    def test_cobertura_formato_y_sin_repetidos(self):
+        filas = _filas("pr-review-llamadores.txt")
+        self.assertEqual(len(filas), len(self.llam), "un repo repetido en pr-review-llamadores.txt")
+        self.assertEqual([f[0] for f in filas], sorted(self.llam))
+        for repo, estado, engine, ref, cobertura in filas:
+            self.assertRegex(repo, r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
+            self.assertIn(estado, self.ESTADOS, repo)
+            self.assertIn(engine, self.ENGINES, repo)
+            self.assertRegex(ref, r"^(main|sha:[0-9a-f]{12})$", repo)
+            self.assertIn(cobertura, self.COBERTURAS, repo)
+
+    def test_cobertura_engine_fijado_es_coherente(self):
+        # `propio` y `pr-agent` como cobertura son el engine fijado en el repo, y al reves
+        for repo, estado, engine, _, cobertura in self.llam.values():
+            if estado == "archivado":
+                self.assertEqual(cobertura, "archivado", repo)
+            elif cobertura in ("propio", "pr-agent"):
+                self.assertEqual(engine, cobertura, repo)
+            elif engine in ("propio", "pr-agent"):
+                self.assertEqual(cobertura, engine, repo)
+            else:
+                self.assertIn(cobertura, ("secretos", "pendiente"), repo)
+
+    def test_cobertura_pr_agent_es_la_lista_de_pr_agent(self):
+        pilotos = {f[0] for f in _filas("pr-agent-repos.txt")}
+        con_pr_agent = {r for r, f in self.llam.items() if f[2] == "pr-agent"}
+        self.assertEqual(con_pr_agent, pilotos)
+
+    def test_cobertura_los_repos_del_juez_llaman_y_nunca_fijan_propio(self):
+        repos = [f[0] for f in self.juez]
+        self.assertEqual(repos, sorted(repos))
+        self.assertEqual(len(repos), len(set(repos)))
+        for repo, llama, proyectos, *_ in self.juez:
+            self.assertIn(llama, ("llama", "no-llama"), repo)
+            self.assertRegex(proyectos, r"^(SC|DGX|INFRA|SKIRM|OWU|LE|ACC)(,(SC|DGX|INFRA|SKIRM|OWU|LE|ACC))*$", repo)
+            self.assertEqual(llama == "llama", repo in self.llam, f"{repo}: la lista del juez y la de llamadores no coinciden")
+            if repo in self.llam:
+                self.assertNotEqual(self.llam[repo][4], "propio", f"{repo} es del juez: no puede fijar engine: propio")
+
+    def test_cobertura_cada_excepcion_del_juez_lleva_su_nota(self):
+        for repo, llama, _, *resto in self.juez:
+            nota = resto[0] if resto else ""
+            f = self.llam.get(repo)
+            excepcion = f is None or f[1] == "activo" and (f[2] != "default" or f[3] != "main")
+            if excepcion and not (f is None and nota.startswith("archivado")):
+                self.assertTrue(nota.strip(), f"{repo}: llama a mano, fija engine o apunta por SHA y no lo dice")
+
+    def test_cobertura_con_el_default_en_juez_no_queda_ningun_pendiente(self):
+        default = CUERPO[True]["workflow_call"]["inputs"]["engine"]["default"]
+        pendientes = sorted(r for r, f in self.llam.items() if f[4] == "pendiente")
+        if default == "juez":
+            self.assertEqual(pendientes, [], "el default pasa a juez con repos sin secretos ni engine fijado")
+        else:
+            self.assertEqual(default, "propio")
+
+
 if __name__ == "__main__":
     unittest.main()

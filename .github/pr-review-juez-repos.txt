@@ -1,0 +1,91 @@
+# Repos donde la compañía abre PRs (SC-2182, parte C). Lista MEDIDA el 2026-10-08, no supuesta.
+#
+# Fuente: `tracker.projects[*].repos` de `company-options.json` (los 7 proyectos: SC, DGX, INFRA, SKIRM, OWU,
+# LE, ACC; LE y ACC no tienen repos). Dos entradas no son el nombre del repo de GitHub y se traducen:
+#   /home/dibanez/src/company-roles → pocharlies-org/opencode-company
+#   openchamber-side-chat           → pocharlies-org/openchamber (fork de la org; el clon local se llama así)
+#   skirmshop-picqer                → pocharlies/skirmshop-picqer (cuenta personal, no la org)
+# Un repo en dos proyectos (dgx-infra, k8s-agentgateway-pocharlies) sale una vez, con los dos.
+#
+# Formato (una línea por repo, columnas separadas por TAB):
+#   owner/repo  llama|no-llama  proyectos  nota
+#   llama      el repo llama a `reusable-pr-review.yml` (consta en pr-review-llamadores.txt)
+#   no-llama   no lo llama: necesita `pr-review.yml` (templates/ci/pr-review.yml) para tener juez
+#   nota       lo que impide que el juez corra tal cual con el default (puede ir vacía)
+#
+# Todo repo de esta lista debe quedar en `juez` (nunca `engine: propio`): por eso su cobertura en
+# pr-review-llamadores.txt solo puede ser `secretos` o `pr-agent`/`archivado` con la nota que lo explique.
+pocharlies-org/deepseek-v4-flash-rank1-refusal-projection	llama	DGX	
+pocharlies-org/dgx-infra	llama	DGX,OWU	
+pocharlies-org/k8s-adguard-pocharlies	llama	INFRA	
+pocharlies-org/k8s-agentgateway-pocharlies	llama	OWU,SC	
+pocharlies-org/k8s-ai-pocharlies	llama	DGX	
+pocharlies-org/k8s-auto-reply-worker-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-brain-mcp-pocharlies	llama	SC	
+pocharlies-org/k8s-cv-pocharlies	llama	INFRA	
+pocharlies-org/k8s-dgx-synapse-mcp-pocharlies	llama	DGX	
+pocharlies-org/k8s-document-intake-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-firecrawl-pocharlies	llama	INFRA	
+pocharlies-org/k8s-gitops-pocharlies	llama	INFRA	
+pocharlies-org/k8s-infra-pocharlies	llama	INFRA	
+pocharlies-org/k8s-jarvis-pocharlies	llama	INFRA	
+pocharlies-org/k8s-langfuse-pocharlies	llama	INFRA	
+pocharlies-org/k8s-libreplay-pocharlies	llama	INFRA	
+pocharlies-org/k8s-litellm-pocharlies	llama	DGX	fija engine: pr-agent: no recibe el juez hasta que cambie a engine: juez
+pocharlies-org/k8s-n8n-pocharlies	no-llama	INFRA	archivado y sin pr-review.yml: no recibe PR, no necesita cableado
+pocharlies-org/k8s-observability-pocharlies	llama	INFRA	
+pocharlies-org/k8s-offers-mcp-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-openclaw-qwen36-pocharlies	llama	DGX	
+pocharlies-org/k8s-picqer-mcp-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-pocharlies-webgui-pocharlies	llama	INFRA	
+pocharlies-org/k8s-serpientetool-pocharlies	llama	INFRA	
+pocharlies-org/k8s-shopify-admin-mcp-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-shopify-affiliate-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-shopify-back-in-stock-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-shopify-bundles-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-shopify-chatbot-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-shopify-collections-tree-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-shopify-label-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-shopify-picker-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-shopify-product-ai-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-shopify-serial-numbers-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-shopify-sii-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-shopify-sync-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-shopify-translations-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-skills-catalog-pocharlies	llama	SC	
+pocharlies-org/k8s-skirmbooks-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-skirmshop-competitor-crawler-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-skirmshop-control-panel-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-skirmshop-drive-mirror-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-skirmshop-wiki-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-skirmshopshopifyapp-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-socialmedia-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-stt-mcp-pocharlies	llama	DGX	
+pocharlies-org/k8s-synapse-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-teslamate-mcp-pocharlies	llama	INFRA	
+pocharlies-org/k8s-teslamate-pocharlies	llama	INFRA	
+pocharlies-org/k8s-tomorrowland-pocharlies	llama	INFRA	
+pocharlies-org/k8s-video-mcp-pocharlies	llama	DGX	
+pocharlies-org/libreplay	llama	INFRA	
+pocharlies-org/llm-status-ios	llama	DGX	
+pocharlies-org/openchamber	llama	SC	
+pocharlies-org/openclaw-vault-tools-pocharlies	llama	INFRA	
+pocharlies-org/opencode-company	llama	SC	
+pocharlies-org/proxy-claude	llama	SC	
+pocharlies-org/qwen38-27b-rank1-refusal-projection	llama	DGX	
+pocharlies-org/shopify-back-in-stock	llama	SKIRM	
+pocharlies-org/shopify-product-creator	llama	SKIRM	
+pocharlies-org/shopify-sii-app	llama	SKIRM	
+pocharlies-org/shopify-sync-app	llama	SKIRM	
+pocharlies-org/shopify-translation-app	llama	SKIRM	
+pocharlies-org/skirmbooks-drive-ingest	llama	SKIRM	
+pocharlies-org/skirmbooks-gestoria-src	llama	SKIRM	
+pocharlies-org/skirmshop-brain-v2	llama	SKIRM	
+pocharlies-org/skirmshop-chatbot	llama	SKIRM	apunta el reusable por SHA (8956ad01c473): necesita @main para recibir el juez
+pocharlies-org/skirmshop-control-panel	llama	SKIRM	
+pocharlies-org/skirmshop-labels	llama	SKIRM	fija engine: pr-agent: no recibe el juez hasta que cambie a engine: juez
+pocharlies-org/skirmshopshopifyapp	llama	SKIRM	
+pocharlies-org/synapse	llama	SKIRM	
+pocharlies-org/synapse-document-intake	llama	SKIRM	
+pocharlies-org/x86-host-runtime-pocharlies	llama	SC	
+pocharlies/skirmshop-picqer	llama	SKIRM	cuenta personal: su pr-review.yml fija runner: ubuntu-latest y desde ahi no se alcanza el LiteLLM del cluster; el juez saldria SIN_VEREDICTO con cualquier secreto

@@ -6,11 +6,15 @@
 # Uso:
 #   scripts/review-distribute-secrets.sh --repos r1,r2 [--dry-run] [--rotate]
 #                                        [--from-vault RUTA] [--org pocharlies-org]
+#                                        [--secrets A,B]
 #
 #   --repos       lista separada por comas; `repo` (usa --org) u `owner/repo`. Obligatorio.
 #   --dry-run     no escribe nada: dice qué haría por repo y secreto, sin valores.
 #   --rotate      sobrescribe también los que ya existen (rotación). Sin él, un secreto
 #                 presente no se toca: reejecutar es idempotente.
+#   --secrets     qué repartir, separado por comas, de PR_AGENT_LITELLM_KEY, LITELLM_CI_KEY, JIRA_EMAIL,
+#                 JIRA_API_TOKEN. Por defecto los de PR-Agent (PR_AGENT_LITELLM_KEY, JIRA_EMAIL,
+#                 JIRA_API_TOKEN); el juez (SC-2182) usa --secrets LITELLM_CI_KEY,JIRA_EMAIL,JIRA_API_TOKEN.
 #   --from-vault  ruta KV v2 bajo el montaje `secret/` (p. ej. pr-review-ci); las claves se
 #                 llaman igual que el secreto. Necesita VAULT_ADDR y VAULT_TOKEN en el entorno.
 #
@@ -27,11 +31,12 @@ set -Eeuo pipefail
 set +x 2>/dev/null || true
 
 SECRETS=(PR_AGENT_LITELLM_KEY JIRA_EMAIL JIRA_API_TOKEN)
+KNOWN=" PR_AGENT_LITELLM_KEY LITELLM_CI_KEY JIRA_EMAIL JIRA_API_TOKEN "
 KV_MOUNT="${KV_MOUNT:-secret}"
 
 ORG="pocharlies-org"; REPOS=""; DRY=0; ROTATE=0; VAULT_PATH=""
 
-usage() { sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 die() { echo "ERROR: $1" >&2; exit "${2:-2}"; }
 
 while [ $# -gt 0 ]; do
@@ -40,12 +45,15 @@ while [ $# -gt 0 ]; do
     --org) ORG="${2:-}"; shift 2 ;;
     --dry-run) DRY=1; shift ;;
     --rotate) ROTATE=1; shift ;;
+    --secrets) IFS=',' read -r -a SECRETS <<< "${2:-}"; shift 2 ;;
     --from-vault) VAULT_PATH="${2:-}"; shift 2 ;;
     -h|--help) usage ;;
     *) echo "argumento desconocido: $1" >&2; usage ;;
   esac
 done
 [ -n "$REPOS" ] || { echo "falta --repos" >&2; usage; }
+[ "${#SECRETS[@]}" -gt 0 ] || die "--secrets vacío"
+for name in "${SECRETS[@]}"; do [[ "$KNOWN" == *" $name "* ]] || die "secreto desconocido: $name"; done
 [[ "$ORG" =~ ^[A-Za-z0-9._-]+$ ]] || die "org inválida: $ORG"
 if [ -n "$VAULT_PATH" ]; then
   [[ "$VAULT_PATH" =~ ^[A-Za-z0-9._/-]+$ ]] || die "ruta de Vault inválida: $VAULT_PATH"
