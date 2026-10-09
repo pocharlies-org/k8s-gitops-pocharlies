@@ -11,19 +11,20 @@
 # descarga, verifica, parches contra la imagen, tabla PLE); ya hecha (SHA 19a0591f). B: el Deployment `qwen38-lab` con
 # `replicas: 1` desde el SHA 99e10cd0 (k8s-ai-pocharlies#120), encendida por decision de Dani; el motor lleva el vigilante de
 # memoria y del SAI (serve.sh) y se enciende y apaga por PR, nunca `kubectl scale`.
-# ESTADO ACTUAL: RELANZADO SIN EL GUARD DEL SAI, con launch-revision -5 (k8s-ai-pocharlies#122, SHA 3b79a2b0): UPS_GUARD=0
-# salta la lectura previa y el corte por NUT (no el de memoria), porque Dani confirmo que dgx3 esta fuera del SAI. Antes
-# se habia relanzado con launch-revision -4 (#121, SHA da5747be, UPS_GUARD=1) tras el corte de CA de dgx3 (la GPU estaba
-# clavada a 611 MHz por el PD en modo seguro) para comprobar el reloj con carga y medir a reloj completo: `targetRevision`
-# en 3b79a2b03d6093092a284a6d0355da369431e5d8 (replicas 1). Se APAGA a las 02:13, antes de la noche 1 del residente (03:00 a
-# 09:00 con fallback a Alibaba), con un PR que devuelve `targetRevision` a 19a0591fb48ded74d2f116ee2b93439140247404
-# (replicas 0).
+# ESTADO ACTUAL (DGX-745, k8s-ai-pocharlies#127, SHA ab24d560): el lab arranca con el brazo hybrid (`launch-revision
+# dgx745-hybrid-nfs`, `replicas: 1`). Los pesos del residente se leen por NFS-RDMA desde dgx1 (PV/PVC de solo lectura
+# `hf-cache-dgx1-lab-ro`, servidor 10.0.2.1; el export es INFRA-785) y la tabla PLE se construye en el NVMe de dgx3 con el
+# Job sin GPU `qwen38-lab-prepare-hybrid`; el motor no arranca hasta que el Job deja la marca READY. Sigue sin guard del SAI
+# (UPS_GUARD=0: dgx3 esta fuera del SAI) y con el vigilante de memoria. Se apaga con un PR que devuelve `targetRevision` a
+# 19a0591fb48ded74d2f116ee2b93439140247404 (replicas 0); 3b79a2b03d6093092a284a6d0355da369431e5d8 es el lab anterior (brazo
+# nvfp4, replicas 1, sin NFS).
 # El apagado (fase B hacia atras) no borra nada mas: el Job de la fase A y el hostPath siguen como estan. Marcha atras de la fase A: un PR que
 # devuelve `targetRevision` a d8a32d7c130ce98655e9e442096df6e6a93bc480 (el prune retira el Job y el Deployment; el
 # hostPath no se toca).
 #
-# prune: true es seguro en este namespace: solo hay cargas del laboratorio, ningun PVC, y los datos del hostPath
-# (/srv/ai-lab en dgx3) no los toca Argo. El Namespace lleva Prune=false.
+# prune: true es seguro en este namespace: solo hay cargas del laboratorio y el PVC `hf-cache-dgx1-lab-ro` con su PV (NFS de solo
+# lectura desde dgx1, `Retain`), que viajan con la app: un prune los retira sin perder datos (el NFS es de dgx1, el PV es
+# Retain y los datos del hostPath, /srv/ai-lab en dgx3, no los toca Argo). El Namespace lleva Prune=false.
 #
 # RETIRADA, en dos pasos:
 #  1. PR que vacia `lab/`: esta app (prune: true) retira la carga (Job y Deployment). Deja el Namespace y el hostPath, y la Application.
@@ -47,7 +48,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies-org/k8s-ai-pocharlies
-    targetRevision: 3b79a2b03d6093092a284a6d0355da369431e5d8
+    targetRevision: ab24d5609152148419b0aa301984dfb8c6093cf9
     path: lab
   destination:
     server: https://kubernetes.default.svc
