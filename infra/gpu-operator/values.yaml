@@ -11,7 +11,9 @@
 #
 # Las tolerations `dedicated=llm:NoSchedule` estan en TODOS los daemonsets a
 # proposito: sin ellas el operador no llega a los nodos de LLM y las GPUs quedan
-# sin anunciar.
+# sin anunciar. Excepcion: los pods de node-feature-discovery (worker, master y
+# gc) NO son daemonsets del chart gpu-operator sino del subchart, y sus
+# tolerancias se ponen en el bloque `node-feature-discovery:` de abajo (INFRA-774).
 cdi:
   default: true
   enabled: true
@@ -68,39 +70,17 @@ gfd:
   enabled: true
 migManager:
   enabled: false
+# INFRA-774 (09-10-2026): el chart gpu-operator v26.3.1 SOLO lee `nfd.enabled` y
+# `nfd.nodefeaturerules` de este bloque (verificado: grep Values.nfd en templates/
+# solo da nodefeaturerules.yaml, upgrade_crd.yaml y cleanup_crd.yaml). Las
+# tolerancias que hubo aqui debajo (`nfd.worker.*`, `nfd.master.*`, `nfd.gc.*`)
+# NUNCA llegaron al subchart: NO volver a ponerlas aqui. La via real hacia el
+# subchart node-feature-discovery-0.18.3 es el bloque `node-feature-discovery:`
+# del final del fichero.
 nfd:
   enabled: true
-  gc:
-    tolerations:
-    - effect: NoSchedule
-      key: dedicated
-      operator: Equal
-      value: llm
-  master:
-    tolerations:
-    - effect: NoSchedule
-      key: node-role.kubernetes.io/control-plane
-      operator: Equal
-      value: ""
-    - effect: NoSchedule
-      key: dedicated
-      operator: Equal
-      value: llm
   nodefeaturerules:
     enabled: true
-  worker:
-    tolerations:
-    - effect: NoSchedule
-      key: node-role.kubernetes.io/control-plane
-      operator: Equal
-      value: ""
-    - effect: NoSchedule
-      key: nvidia.com/gpu
-      operator: Exists
-    - effect: NoSchedule
-      key: dedicated
-      operator: Equal
-      value: llm
 nodeStatusExporter:
   enabled: true
 operator:
@@ -128,8 +108,43 @@ validator:
 # INFRA-628 P2-b: NFD master p95 6,3m / max 7,2m (7 d); el default del subchart es 100m.
 # La clave del subchart es `node-feature-discovery` (el bloque `nfd:` de arriba solo
 # activa el subchart: `nfd.master.*` no llega al subchart). Solo cambia requests.cpu.
+#
+# INFRA-774 (09-10-2026): tolerancias aqui, que es la unica via que llega al subchart.
+# El worker y el master de NFD no corrian en los Sparks (taint dedicated=llm:NoSchedule)
+# y sus etiquetas feature.node.* estaban rancias; la gc tenia la suya puesta a mano
+# (kubectl-patch en managedFields) y aqui queda legitimada. helm mergea listas por
+# REEMPLAZO: `worker.tolerations` pisa el default del chart padre, asi que las dos
+# entradas del default (control-plane y nvidia.com/gpu) van repetidas aqui a proposito.
 node-feature-discovery:
+  gc:
+    tolerations:
+    - effect: NoSchedule
+      key: dedicated
+      operator: Equal
+      value: llm
   master:
     resources:
       requests:
         cpu: 10m
+    tolerations:
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/control-plane
+      operator: Equal
+      value: ""
+    - effect: NoSchedule
+      key: dedicated
+      operator: Equal
+      value: llm
+  worker:
+    tolerations:
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/control-plane
+      operator: Equal
+      value: ""
+    - effect: NoSchedule
+      key: nvidia.com/gpu
+      operator: Exists
+    - effect: NoSchedule
+      key: dedicated
+      operator: Equal
+      value: llm
