@@ -174,9 +174,9 @@ def _manejador(mundo: _Mundo):
     return H
 
 
-def issue(tipo='Story', resumen='Motor juez', descripcion=None, adjuntos=()):
+def issue(tipo='Story', resumen='Motor juez', descripcion=None, adjuntos=(), creado=None):
     return (200, {'key': 'SC-2182', 'fields': {
-        'summary': resumen, 'issuetype': {'name': tipo},
+        'summary': resumen, 'issuetype': {'name': tipo}, 'created': creado,
         'description': descripcion,
         'attachment': [{'id': i, 'filename': n, 'created': c} for i, n, c in adjuntos]}})
 
@@ -441,6 +441,60 @@ class TestDecision(Base):
     def test_diff_entero_es_riesgo_normal(self):
         self.correr()
         self.assertIn(' riesgo=normal ', self.marcador())
+
+
+class TestSinCriteriosAntiguos(Base):
+    """SC-2239: un ticket anterior a SC-2181 (2026-10-08T00:00Z) sin criterios se juzga contra su resumen y su
+    descripcion como un unico criterio; uno posterior, o uno antiguo sin descripcion, sigue siendo `sin_criterios`."""
+
+    DESCRIPCION = 'El juez usa el motor propio y publica su veredicto en el PR.'
+
+    def ticket(self, creado, descripcion=DESCRIPCION):
+        self.mundo.jira['SC-2182'] = issue(
+            descripcion=adf(('p', descripcion)) if descripcion else None, creado=creado)
+
+    def test_leer_ticket_devuelve_la_descripcion_como_unico_criterio(self):
+        self.ticket('2026-10-01T10:00:00.000+0200')
+        estado, dato = review.leer_ticket(self.env['REVIEW_JIRA_URL'], 'ro@example.test', 't', 'SC-2182')
+        self.assertEqual(estado, 'ok')
+        self.assertEqual(len(dato['criterios']), 1)
+        self.assertIn('Motor juez', dato['criterios'][0])
+        self.assertIn(self.DESCRIPCION, dato['criterios'][0])
+
+    def test_antiguo_sin_criterios_se_juzga_contra_la_descripcion_con_la_regla_de_siempre(self):
+        self.ticket('2026-10-01T10:00:00.000+0200')
+        self.mundo.litellm['local-juez'] = [(200, respuesta([cumple(1)]), 0)]
+        self.assertEqual(self.correr(), 0, self.salida_texto)
+        self.assertVeredicto('PASA', motivos='')
+        self.assertIn(self.DESCRIPCION, self.mundo.llamadas[0][2])
+        self.assertRegex(self.comentario(), r'(?i)no tiene criterios.*juzg\w+ contra .*descripci')
+        # la regla es `decidir`: un criterio que no se cumple sigue bloqueando
+        self.mundo.comentarios.clear()
+        self.mundo.litellm['local-juez'] = [(200, respuesta([
+            {'n': 1, 'cumple': False, 'evidencia': None, 'nota': 'no hace lo que dice el ticket'}]), 0)]
+        self.assertEqual(self.correr(), 1)
+        self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
+
+    def test_creado_desde_el_corte_sigue_siendo_sin_criterios(self):
+        for creado in ('2026-10-08T00:00:00.000+0000', '2026-10-08T02:00:00.000+0200', '2026-10-09T08:00:00.000+0200',
+                       None, 'no es una fecha'):
+            with self.subTest(creado=creado):
+                self.mundo.comentarios.clear()
+                self.ticket(creado)
+                self.assertEqual(self.correr(), 1)
+                self.assertVeredicto('NO_PASA', motivos='sin_criterios')
+        self.assertEqual(self.mundo.llamadas, [])
+
+    def test_el_corte_es_la_medianoche_utc_con_cualquier_desfase(self):
+        self.assertTrue(review._anterior_al_corte('2026-10-08T01:59:59.000+0200'))   # 23:59:59Z del dia 7
+        self.assertTrue(review._anterior_al_corte('2026-10-07T23:59:59'))           # sin desfase = UTC
+        self.assertFalse(review._anterior_al_corte('2026-10-08T00:00:00.000+0000'))
+
+    def test_antiguo_con_la_descripcion_vacia_sigue_siendo_sin_criterios(self):
+        self.ticket('2026-10-01T10:00:00.000+0200', descripcion=None)
+        self.assertEqual(self.correr(), 1)
+        self.assertVeredicto('NO_PASA', motivos='sin_criterios')
+        self.assertEqual(self.mundo.llamadas, [])
 
 
 class TestFueraDeEstaPR(Base):

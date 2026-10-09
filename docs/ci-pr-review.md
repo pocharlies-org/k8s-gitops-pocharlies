@@ -261,10 +261,17 @@ sin hallazgos del modelo (`sin_clave`, `ticket_inexistente`, `cita_epica`, `sin_
 línea `**[ticket]**` de `### Hallazgos`, para que el maker tenga algo que arreglar. Jira devuelve 404 también cuando
 la cuenta de solo lectura no ve el ticket: sale como `ticket_inexistente`.
 
+**Tickets sin criterios** (SC-2239). Un ticket sin `- [ ]` en su `00-spec.md` ni sección «Criterios» en la descripción es
+`sin_criterios`, salvo si es anterior a `SIN_CRITERIOS_DESDE` (2026-10-08T00:00Z, el despliegue de SC-2181, en
+`review.py`) y tiene descripción: entonces su resumen y su descripción son **un único criterio** y el veredicto sale de
+`decidir`, como siempre; el comentario dice que se juzgó contra la descripción porque no había criterios. Un ticket
+posterior al corte, de fecha ausente o ilegible, o antiguo con la descripción vacía sigue siendo `sin_criterios`. La
+descripción se recorta a 2000 caracteres (`CRITERIO_MAX`).
+
 | veredicto | cuándo | job |
 |---|---|---|
 | `PASA` | ningún criterio ❌, los ✅ con evidencia en el diff (los ➖ no la piden) y ningún hallazgo bloquea | verde |
-| `NO_PASA` | sin clave de ticket (`sin_clave`), ticket inexistente, ticket de tipo épica (`cita_epica`), sin criterios, criterio ❌ (incumplido), ✅ sin evidencia o hallazgo bloqueante | rojo |
+| `NO_PASA` | sin clave de ticket (`sin_clave`), ticket inexistente, ticket de tipo épica (`cita_epica`), sin criterios (salvo el respaldo de arriba), criterio ❌ (incumplido), ✅ sin evidencia o hallazgo bloqueante | rojo |
 | `SIN_VEREDICTO` | sin credencial (LiteLLM o Jira), Jira o los dos modelos caídos, respuesta del modelo inservible dos veces seguidas | rojo |
 
 `SIN_VEREDICTO` no es culpa de quien abrió el PR. El juez no conoce `SIN_TICKET`: esa exención es solo de
