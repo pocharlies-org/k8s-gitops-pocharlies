@@ -1578,7 +1578,14 @@ spec:
     # 09-10-2026 (DGX-777, Dani lo ordena ya): VUELTA a fadbbdd (MTP k=1 probabilístico: num_speculative_tokens 1, sin
     # QWEN_MTP_VOCAB ni borrador greedy). DGX-768 (8de525a) no ganaba con 7-10 peticiones. Reinicia el TP=2 (~33 min;
     # ~20 min sin log tras «GPU KV cache size» NO es cuelgue); el tráfico va a Alibaba. ROLLBACK de esto: 8de525a094d4f1d1292b4ac6b1fd3c10764849a4.
-    targetRevision: fadbbdda1a6a3f85aaeed7138f924cd066210e8c
+    # 09-10-2026 (DGX-773): 63dd55f = fadbbdd + la tabla PLE (23,84 GiB por rango) fuera de la GPU, en un fichero mapeado en el NVMe
+    # de cada nodo (k8s-ai #136, rama test/dgx-773-ple-base; no entra en main): KV_CACHE_MEMORY_BYTES 21,0 -> 36,0 GiB por rango.
+    # El PRIMER arranque construye esa tabla (initContainer ple-table, 23,84 GiB por nodo) ANTES de los ~33 min del arranque normal
+    # (norma de hooks de b5df721; ~20 min sin log tras «GPU KV cache size» NO es cuelgue); los siguientes la reutilizan (ready.json).
+    # Riesgos: cada paso copia GPU<-CPU solo las filas que usa (sincronía por paso: puede bajar tok/s y TTFT) y la memoria del head
+    # es la que hay que vigilar tras el arranque. El tráfico va a Alibaba durante el reinicio. El momento del merge lo decide Dani.
+    # ROLLBACK (el único): fadbbdda1a6a3f85aaeed7138f924cd066210e8c.
+    targetRevision: 63dd55f112190d4363b30851bec7b33fc9d7cb06
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
