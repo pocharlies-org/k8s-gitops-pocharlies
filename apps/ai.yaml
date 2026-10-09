@@ -1569,7 +1569,13 @@ spec:
     # fadbbdd = d017c92 + MTP k=1 plano (num_speculative_tokens 1, tabla [[1,16,1]]) en head y worker: un fichero,
     # dos líneas (rama test/dgx-680-mtp-k1 de k8s-ai; no entra en main). Reinicia el TP=2 (~33 min, norma de hooks de b5df721).
     # ROLLBACK: d017c92dcf7bb34b5e60c9e14ea41441581f3ca0.
-    targetRevision: fadbbdda1a6a3f85aaeed7138f924cd066210e8c
+    # 09-10-2026 (DGX-768): 8de525a = fadbbdd + el MTP del lab de dgx3 (DGX-745/759) en head y worker (k8s-ai #133,
+    # rama test/dgx-680-mtp-k1; no entra en main): k=3 con 1-4 peticiones y k=1 con 5-10 (`[[1,4,3],[5,10,1]]`),
+    # borrador greedy con argmax local (`use_local_argmax_reduction`) y vocabulario de 47.172 ids (`VLLM_MTP_DRAFT_VOCAB`,
+    # bloque `QWEN_MTP_VOCAB` de launch.sh). Reinicia el TP=2 (~33 min, norma de hooks de b5df721; ~20 min sin log tras
+    # «GPU KV cache size» NO es cuelgue). Durante el reinicio el tráfico va a Alibaba y fallan las claves sin fallback.
+    # El momento del merge lo decide Dani. ROLLBACK (el único): fadbbdda1a6a3f85aaeed7138f924cd066210e8c.
+    targetRevision: 8de525a094d4f1d1292b4ac6b1fd3c10764849a4
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
