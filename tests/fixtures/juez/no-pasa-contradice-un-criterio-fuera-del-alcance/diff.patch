@@ -1,0 +1,49 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 8a580a5..ab7bc61 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -4,3 +4,4 @@ jobs:
+       - run: python3 -m unittest tests/test_review_context.py
+       - run: python3 -m unittest tests/test_review_distribute.py
+       - run: python3 -m unittest tests/test_review_health.py
++      - run: python3 -m unittest tests/test_pr_size.py
+diff --git a/scripts/pr-size.py b/scripts/pr-size.py
+new file mode 100644
+index 0000000..e2bb2cf
+--- /dev/null
++++ b/scripts/pr-size.py
+@@ -0,0 +1,12 @@
++#!/usr/bin/env python3
++"""Clasifica una PR por las lineas que cambia (SC-9004)."""
++
++LIMITE_CHICA = 80
++LIMITE_MEDIA = 300
++
++
++def clasificar(lineas):
++    """`chica` hasta 50 lineas, `media` hasta 300 y `grande` por encima."""
++    if lineas <= LIMITE_CHICA:
++        return 'chica'
++    return 'media' if lineas <= LIMITE_MEDIA else 'grande'
+diff --git a/tests/test_pr_size.py b/tests/test_pr_size.py
+new file mode 100644
+index 0000000..2fa1b37
+--- /dev/null
++++ b/tests/test_pr_size.py
+@@ -0,0 +1,16 @@
++import importlib.util
++import unittest
++from pathlib import Path
++
++spec = importlib.util.spec_from_file_location('pr_size', Path(__file__).resolve().parent.parent / 'scripts/pr-size.py')
++size = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(size)
++
++
++class TestClasificar(unittest.TestCase):
++    def test_los_limites(self):
++        self.assertEqual([size.clasificar(n) for n in (80, 81, 300, 301)], ['chica', 'media', 'media', 'grande'])
++
++
++if __name__ == '__main__':
++    unittest.main()

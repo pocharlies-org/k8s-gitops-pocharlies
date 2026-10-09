@@ -1,0 +1,18 @@
+diff --git a/scripts/pr-size.py b/scripts/pr-size.py
+new file mode 100644
+index 0000000..a5e1b9d
+--- /dev/null
++++ b/scripts/pr-size.py
+@@ -0,0 +1,12 @@
++#!/usr/bin/env python3
++"""Clasifica una PR por las lineas que cambia (SC-9004)."""
++
++LIMITE_CHICA = 50
++LIMITE_MEDIA = 300
++
++
++def clasificar(lineas):
++    """`chica` hasta 50 lineas, `media` hasta 300 y `grande` por encima."""
++    if lineas <= LIMITE_CHICA:
++        return 'chica'
++    return 'media' if lineas <= LIMITE_MEDIA else 'grande'

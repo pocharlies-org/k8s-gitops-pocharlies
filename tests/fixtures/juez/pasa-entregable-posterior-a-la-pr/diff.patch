@@ -1,0 +1,52 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 8a580a5..0ed10ab 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -4,3 +4,4 @@ jobs:
+       - run: python3 -m unittest tests/test_review_context.py
+       - run: python3 -m unittest tests/test_review_distribute.py
+       - run: python3 -m unittest tests/test_review_health.py
++      - run: python3 -m unittest tests/test_redact_keys.py
+diff --git a/scripts/redact-keys.py b/scripts/redact-keys.py
+new file mode 100644
+index 0000000..a6679d4
+--- /dev/null
++++ b/scripts/redact-keys.py
+@@ -0,0 +1,10 @@
++#!/usr/bin/env python3
++"""Oculta las keys de LiteLLM en un texto antes de escribirlo en un log (SC-9002)."""
++import re
++
++KEY = re.compile(r'sk-[A-Za-z0-9]{16,}')
++
++
++def ocultar(texto):
++    """Sustituye por `***` toda cadena `sk-` seguida de 16 o mas caracteres alfanumericos."""
++    return KEY.sub('***', texto)
+diff --git a/tests/test_redact_keys.py b/tests/test_redact_keys.py
+new file mode 100644
+index 0000000..e903fab
+--- /dev/null
++++ b/tests/test_redact_keys.py
+@@ -0,0 +1,21 @@
++import importlib.util
++import unittest
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parent.parent
++spec = importlib.util.spec_from_file_location('redact_keys', ROOT / 'scripts/redact-keys.py')
++redact = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(redact)
++
++
++class TestOcultar(unittest.TestCase):
++    def test_dos_keys_en_la_misma_linea(self):
++        linea = 'a=sk-abcdefghijklmnop1234 b=sk-ZYXWVUTSRQPONMLK9876'
++        self.assertEqual(redact.ocultar(linea), 'a=*** b=***')
++
++    def test_una_cadena_corta_no_es_una_key(self):
++        self.assertEqual(redact.ocultar('sk-corta'), 'sk-corta')
++
++
++if __name__ == '__main__':
++    unittest.main()

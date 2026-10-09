@@ -1,0 +1,5 @@
+- [ ] C1 `ocultar(texto)` sustituye por `***` toda cadena `sk-` seguida de 16 o mas caracteres alfanumericos.
+- [ ] C2 Un test cubre el caso de dos keys en la misma linea.
+- [ ] C3 qa adjunta un `70-qa.md` con `Estado: PASA` que mide, tras el despliegue, que ningun log del job de review contiene una key real.
+- [ ] C4 Hay una captura del resumen de un job real, adjunta al ticket de Jira, que muestra `***` en lugar de la key.
+- [ ] C5 Un comentario del ticket de Jira dice la fecha en la que el script entro en produccion.

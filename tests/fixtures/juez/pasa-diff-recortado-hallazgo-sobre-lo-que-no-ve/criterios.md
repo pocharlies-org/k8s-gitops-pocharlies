@@ -1,0 +1,3 @@
+- [ ] C1 `scripts/pr-review-report.py` lee de la entrada estandar la lista de PRs con su veredicto e imprime una tabla Markdown con una fila por PR.
+- [ ] C2 `render(filas)` alinea las columnas, escapa el caracter `|` de las celdas y, sin filas, devuelve solo la cabecera.
+- [ ] C3 Un test cubre el script con una PR y con ninguna.

@@ -140,6 +140,31 @@ def nombre_fichero(bloque):
     return m.group(2) if m else '(desconocido)'
 
 
+EXT_CODIGO = frozenset(('.py .js .jsx .mjs .cjs .ts .tsx .go .rs .java .kt .rb .php .c .h .cc .cpp .cs .swift '
+                        '.sh .bash .zsh .tf .sql .lua .css .scss .html .vue .svelte .gradle .proto').split())
+EXT_CONFIG = frozenset('.yaml .yml .json .toml .ini .cfg .conf .env .properties .xml'.split())
+EXT_DOCS = frozenset('.md .mdx .rst .txt .adoc .org'.split())
+EXT_GENERADO = frozenset('.lock .snap .map .svg .csv .tsv .jsonl .ndjson .patch .diff .sum .pem .crt'.split())
+PARTES_GENERADO = ('/vendor/', '/node_modules/', '/dist/', '/generated/', '/fixtures/', '/testdata/',
+                   '/__snapshots__/', '.min.')
+
+
+def prioridad_fichero(nombre):
+    """Que se queda cuando el diff no cabe (SC-2229): 0 codigo y tests, 1 configuracion y manifiestos,
+    2 documentacion, 3 generado o datos (lockfiles, minificados, snapshots, fixtures, vendor). Un fichero
+    desconocido es configuracion: ni gana al codigo ni se tira antes que la documentacion."""
+    ruta = '/' + nombre.lower()
+    base = ruta.rsplit('/', 1)[-1]
+    ext = '.' + base.rsplit('.', 1)[-1] if '.' in base else ''
+    if ext in EXT_GENERADO or base.endswith('-lock.json') or any(p in ruta for p in PARTES_GENERADO):
+        return 3
+    if ext in EXT_DOCS:
+        return 2
+    if ext in EXT_CODIGO or '/test/' in ruta or '/tests/' in ruta:
+        return 0
+    return 1
+
+
 def recortar(diff, max_bytes):
     """Tope DURO por ficheros enteros, nunca a mitad de linea.
 
@@ -148,18 +173,22 @@ def recortar(diff, max_bytes):
     de Telegram corta en 4096. Un diff cortado a mitad de linea, ademas, hace
     que el modelo invente el resto del hunk.
 
+    Entra primero lo que mas pesa en el juicio (SC-2229): codigo y tests, luego
+    configuracion, documentacion y por ultimo lo generado; dentro de cada clase, el
+    orden del diff. Lo que entra conserva el orden del diff.
+
     Devuelve (diff_recortado, ficheros_fuera)."""
     if len(diff.encode('utf-8')) <= max_bytes:
         return diff, []
-    dentro, fuera, usado = [], [], 0
-    for bloque in trocear_por_ficheros(diff):
-        peso = len(bloque.encode('utf-8'))
+    bloques = [(i, b, nombre_fichero(b), len(b.encode('utf-8'))) for i, b in enumerate(trocear_por_ficheros(diff))]
+    entran, fuera, usado = set(), [], 0
+    for i, _, nombre, peso in sorted(bloques, key=lambda t: (prioridad_fichero(t[2]), t[0])):
         if usado + peso <= max_bytes:
-            dentro.append(bloque)
+            entran.add(i)
             usado += peso
         else:
-            fuera.append((nombre_fichero(bloque), peso))
-    return ''.join(dentro), fuera
+            fuera.append((i, nombre, peso))
+    return ''.join(b for i, b, _, _ in bloques if i in entran), [(n, p) for _, n, p in sorted(fuera)]
 
 
 # --------------------------------------------------------------------------
@@ -570,6 +599,7 @@ CODIGOS_FALLBACK = (400, 401, 403, 404)   # ademas de 408/429/5xx y del timeout
 MAX_TOKENS_JUEZ = 3000
 INTENTOS_JUEZ = 2                  # una respuesta que no es el JSON pedido se pide una vez mas antes de dar SIN_VEREDICTO
 ARQUITECTURA_MAX = 30000           # caracteres de ARCHITECTURE.md que entran al modelo
+CITA_MIN = 8                       # caracteres (con los espacios colapsados) que una cita necesita para valer como evidencia
 PR_MAX = 8000                      # caracteres del titulo y la descripcion de la PR que entran al modelo
 CRITERIO_MAX = 2000
 # despliegue de SC-2181: un ticket anterior no nacio con criterios y se juzga contra su descripcion
@@ -619,6 +649,10 @@ Un hallazgo de severidad `alta` o `media` bloquea la PR SIEMPRE: da igual que ca
 `false` o `"fuera"`, que la PR sea de un pin o solo una parte de la historia. Un criterio que no se
 cumple no es un hallazgo: va en `criterios`. Nada de estilo, formato ni preferencias. Sin nada que
 señalar, `"hallazgos": []`.
+Todo hallazgo señala su sitio: `file`, `line` y `cita`, la linea del diff donde esta el fallo, copiada
+LITERAL (sin el `+` ni el `-` del principio). El codigo comprueba que esa cita esta en el diff de ese
+fichero; sin ella, o con una que el diff no tiene, el hallazgo queda como observacion y no bloquea. Los
+ficheros del bloque `recortados` no los has visto: no escribas hallazgos sobre ellos.
 
 PREGUNTA 2, `criterios`: ¿que criterios del ticket cubre esta PR?
 1. Para CADA criterio numerado devuelve una entrada. `cumple` es uno de tres valores:
@@ -626,15 +660,26 @@ PREGUNTA 2, `criterios`: ¿que criterios del ticket cubre esta PR?
      UNA linea del diff que lo prueba, con el formato `ruta/del/fichero:linea`, la ruta SIN el
      prefijo `b/` y la linea de la version NUEVA del fichero (la que aparece tras el `+` o como
      contexto del hunk). Sin una linea asi en el diff, no es `true`.
-   - `false` (contradicho, o prometido y no hecho): el diff hace lo contrario de lo que pide el
-     criterio, o la PR dice cumplirlo y el diff no lo hace. Tambien lo es un criterio sobre
-     codigo de este repositorio que el diff no cubre, si nada lo situa en otra parte. Una sospecha
-     sobre codigo que el diff no muestra no es una contradiccion: `false` pide una linea del diff que
-     lo contradiga o una promesa de la PR que el diff no cumple.
+   - `false` (contradicho, o prometido y no hecho), de dos maneras:
+     a) contradicho: el diff hace lo contrario de lo que pide el criterio. `evidencia` es la linea que lo
+        contradice, `ruta/del/fichero:linea`, y `cita` esa linea copiada LITERAL. El codigo comprueba que
+        la cita esta en el diff de ese fichero; si no esta, el criterio deja de ser `false`. Una sospecha
+        sobre codigo que el diff no muestra no es una contradiccion.
+     b) ausente: el criterio es de esta PR (esta en el bloque `alcance`; o la PR no declara alcance y ni su
+        titulo ni su descripcion lo sitúan en otra PR) y el diff no lo cumple: la PR dice cumplirlo y no lo
+        hace, o es sobre codigo de este repositorio que el diff no toca. Si su linea de `alcance` nombra la
+        parte que cubre esta PR (`C1: solo la tabla`), solo se juzga esa parte. `evidencia` y `cita` van
+        vacias y `nota` dice que falta.
    - `"fuera"` (fuera de esta PR): lo cumple OTRO repositorio, otra PR de la misma historia (lo
      dicen el titulo o la descripcion de la PR) o una comprobacion que el propio criterio situa
      despues del merge (un despliegue, una medicion de qa). `nota` dice donde se verifica.
-     Un criterio fuera de esta PR no se pide en este diff y no tiene `evidencia`.
+     Un criterio fuera de esta PR no se pide en este diff y no tiene `evidencia`. Son siempre `"fuera"`:
+     - un criterio que el bloque `alcance` deja fuera de esta PR, salvo que una linea del diff lo
+       contradiga (entonces `false` con su `cita`);
+     - un criterio que pide algo que solo existe DESPUES de la PR: el `70-qa.md` de qa, una captura de lo
+       servido, un comentario o un adjunto de Jira, una medicion «tras el despliegue» o «24 h despues»,
+       una comprobacion en produccion. La PR no puede traerlo y no se le pide;
+     - un criterio cuyo cumplimiento estaria en un fichero del bloque `recortados`: no lo has visto.
 2. Una PR que SOLO cambia un pin (`targetRevision` de una Application, tag o digest de una
    imagen, el SHA de otro repositorio) y el comentario o la documentacion que lo describen no
    contiene el producto: el contenido pinneado es de otro repositorio. Los criterios de
@@ -645,9 +690,11 @@ PREGUNTA 2, `criterios`: ¿que criterios del ticket cubre esta PR?
 
 Responde SOLO con este JSON, con `hallazgos` antes que `criterios`:
 {{"hallazgos": [{{"file": "ruta/fichero.py", "line": 42, "severity": "alta|media|baja",
-                 "tipo": "correccion|arquitectura", "summary": "<que pasa y que hacer>",
+                 "tipo": "correccion|arquitectura", "cita": "<la linea del diff donde esta el fallo, literal>",
+                 "summary": "<que pasa y que hacer>",
                  "entrada": "<solo en correccion: la entrada concreta que falla y lo que produce>"}}],
-  "criterios": [{{"n": 1, "cumple": true|false|"fuera", "evidencia": "ruta/fichero.py:42", "nota": "<una frase>"}}]}}
+  "criterios": [{{"n": 1, "cumple": true|false|"fuera", "evidencia": "ruta/fichero.py:42",
+                 "cita": "<solo en false por contradiccion: la linea del diff, literal>", "nota": "<una frase>"}}]}}
 
 {bloques}
 """
@@ -834,6 +881,100 @@ def evidencia_valida(evidencia, visibles):
     return any(int(m.group(2)) in visibles.get(r, ()) for r in (ruta, re.sub(r'^(?:\./|[ab]/)', '', ruta)))
 
 
+# ---- alcance declarado y evidencia comprobada (SC-2229) -----------------------
+
+ALCANCE_TITULO_RE = re.compile(r'(?m)^## Alcance de esta PR[ \t]*$')
+ALCANCE_LINEA_RE = re.compile(r'^\s*[-*]\s+C(\d+)(?![\w.])\s*:?\s*(.*?)\s*$')
+
+
+def alcance_de_pr(texto, n_criterios):
+    """Los criterios que la PR dice cubrir: {n: nota}, o None si no lo declara (y entonces TODOS son suyos,
+    como siempre). Es la seccion EXACTA `## Alcance de esta PR` de la descripcion, con una linea `- C<n>`
+    o `- C<n>: texto` por criterio, `n` su posicion en la lista de criterios del ticket (la de `C1`, `C2`...
+    del comentario). Se lee hasta el siguiente titulo; la prosa y las lineas de otra forma se ignoran, igual
+    que un `n` que no esta en la lista. Una seccion sin ninguna linea valida es como no declarar alcance:
+    mas estricto, nunca mas laxo."""
+    texto = (texto or '').replace('\r\n', '\n')
+    m = ALCANCE_TITULO_RE.search(texto)
+    if not m:
+        return None
+    alcance = {}
+    for linea in texto[m.end():].split('\n'):
+        if re.match(r'^#{1,6}\s', linea):
+            break
+        d = ALCANCE_LINEA_RE.match(linea)
+        if d and 1 <= int(d.group(1)) <= n_criterios:
+            alcance.setdefault(int(d.group(1)), d.group(2))
+    return dict(sorted(alcance.items())) or None
+
+
+def _colapsar(texto):
+    return ' '.join(str(texto if texto is not None else '').split())
+
+
+def textos_por_fichero(diff):
+    """{fichero: sus lineas del diff (añadidas, quitadas y de contexto, sin el signo), en un solo texto con los
+    espacios colapsados}: donde se busca una cita. Las cabeceras (`diff --git`, `---`, `+++`, `@@`) no cuentan."""
+    textos = {}
+    for bloque in trocear_por_ficheros(diff):
+        lineas = bloque.split('\n')
+        inicio = next((i for i, l in enumerate(lineas) if l.startswith('@@')), len(lineas))
+        textos[nombre_fichero(bloque)] = ' '.join(
+            _colapsar(l[1:]) for l in lineas[inicio:] if l[:1] in ' +-' and not l.startswith('@@'))
+    return textos
+
+
+def _ruta_limpia(ruta):
+    return re.sub(r'^(?:\./|[ab]/)', '', str(ruta or '').strip().strip('`'))
+
+
+def cita_en_diff(fichero, cita, textos):
+    """¿La cita (una o varias lineas, con o sin el signo del diff) esta en el diff de ese fichero?"""
+    texto = textos.get(_ruta_limpia(fichero))
+    lineas = [l for l in str(cita if cita is not None else '').splitlines() if l.strip()]
+    if texto is None or not lineas:
+        return False
+    for candidato in (lineas, [re.sub(r'^[+-]', '', l) for l in lineas]):
+        c = _colapsar(' '.join(candidato))
+        if len(c) >= CITA_MIN and c in texto:
+            return True
+    return False
+
+
+def rojo_verificado(evidencia, cita, textos):
+    """Un ❌ por contradiccion cita `ruta:linea` (o `ruta:desde-hasta`) y la linea, y esa cita esta en el diff."""
+    m = re.fullmatch(r'([^\s:]+):\d+(?:-\d+)?', str(evidencia or '').strip().strip('`'))
+    return bool(m) and cita_en_diff(m.group(1), cita, textos)
+
+
+def aplicar_reglas(criterios, hallazgos, alcance, textos, recortados=()):
+    """Las reglas del codigo sobre lo que dijo el modelo (SC-2229), en su sitio: lo que no se sostiene deja de
+    bloquear y `baja` dice por que (el comentario lo muestra).
+    - un ❌ que cita una linea (`evidencia` + `cita`) vale si la cita esta en el diff; si no, baja a ➖;
+    - un ❌ sin cita es una AUSENCIA y solo bloquea si el criterio es de esta PR (`alcance`; sin alcance
+      declarado, todos lo son); un criterio fuera del alcance sigue ➖ salvo que el diff lo contradiga;
+    - un ✅ de un criterio fuera del alcance no pide evidencia;
+    - un hallazgo bloqueante vale con su fichero, su linea y su cita en el diff y sin ser de un fichero recortado."""
+    for c in criterios:
+        dentro = alcance is None or c['n'] in alcance
+        if c['cumple'] is False:
+            if c['evidencia'] or c.get('cita'):
+                if not rojo_verificado(c['evidencia'], c.get('cita'), textos):
+                    c['cumple'], c['baja'] = None, 'la cita del modelo no esta en el diff: no bloquea'
+            elif not dentro:
+                c['cumple'], c['baja'] = None, 'fuera del alcance declarado por la PR: no bloquea'
+        elif c['cumple'] and not dentro and not c['evidencia_ok']:
+            c['cumple'], c['baja'] = None, 'fuera del alcance declarado por la PR: no se pide evidencia'
+    fuera = {_ruta_limpia(r) for r in recortados}
+    for h in hallazgos:
+        if not h['bloquea']:
+            continue
+        if _ruta_limpia(h['file']) in fuera:
+            h['bloquea'], h['baja'] = False, 'fichero recortado, el juez no lo vio: no bloquea'
+        elif not (re.match(r'\d', h['line']) and cita_en_diff(h['file'], h.get('cita'), textos)):
+            h['bloquea'], h['baja'] = False, 'su cita no esta en el diff de ese fichero: no bloquea'
+
+
 def _numero(n):
     """El `n` de un criterio: 1, "1" o "C1" (el prompt los rotula C1, C2...)."""
     try:
@@ -859,7 +1000,7 @@ def evaluar(dato, n_criterios, visibles):
         elif not isinstance(cumple, bool):
             return None
         evidencia = str(c.get('evidencia') or '').strip().strip('`')
-        criterios.append({'n': n, 'cumple': cumple, 'evidencia': evidencia,
+        criterios.append({'n': n, 'cumple': cumple, 'evidencia': evidencia, 'cita': str(c.get('cita') or ''),
                           'evidencia_ok': cumple is True and evidencia_valida(evidencia, visibles),
                           'nota': str(c.get('nota') or '')})
     hallazgos = []
@@ -871,7 +1012,7 @@ def evaluar(dato, n_criterios, visibles):
                        if not unicodedata.combining(c))
         hallazgos.append({'file': str(h.get('file') or ''), 'line': str(h.get('line') or ''),
                           'severity': sev if sev in ORDEN_SEVERIDAD else 'media', 'tipo': tipo,
-                          'summary': str(h['summary']).strip(),
+                          'cita': str(h.get('cita') or ''), 'summary': str(h['summary']).strip(),
                           'bloquea': tipo not in TIPOS_QUE_NO_CUENTAN and sev in SEVERIDADES_QUE_BLOQUEAN})
     hallazgos.sort(key=lambda h: ORDEN_SEVERIDAD[h['severity']])
     return criterios, hallazgos
@@ -888,12 +1029,20 @@ def decidir(criterios, hallazgos):
     return ('NO_PASA' if motivos else 'PASA'), motivos
 
 
-def prompt_juez(repo, clave, resumen, criterios, diff, arquitectura, pr=''):
-    """El ticket, la PR, el diff y las normas, como DATOS con una marca que ninguno de ellos contiene."""
+def prompt_juez(repo, clave, resumen, criterios, diff, arquitectura, pr='', alcance=None, fuera=()):
+    """El ticket, la PR, el diff y las normas, como DATOS con una marca que ninguno de ellos contiene.
+    `alcance` (lo que la PR declara cubrir) y `fuera` (los ficheros que el recorte dejo fuera) tambien: la
+    descripcion y los nombres de fichero son de terceros."""
     arq = (arquitectura or '').strip()[:ARQUITECTURA_MAX] or '(el repositorio no tiene ARCHITECTURE.md)'
+    declara = ('\n'.join(f'C{n}' + (f': {nota}' if nota else '') for n, nota in alcance.items())
+               if alcance else '(la PR no declara alcance: todos los criterios del ticket son de esta PR, salvo '
+                               'lo que las reglas situan fuera)')
+    recortados = ('\n'.join(f'{n} ({b} B)' for n, b in fuera) if fuera
+                  else '(ninguno: el diff esta entero)')
     piezas = [('ticket', resumen[:300]),
               ('criterios', '\n'.join(f'C{i}. {c}' for i, c in enumerate(criterios, 1))),
               ('pr', (pr or '').strip()[:PR_MAX] or '(la PR no tiene titulo ni descripcion)'),
+              ('alcance', declara), ('recortados', recortados),
               ('diff', diff), ('arquitectura', arq)]
     marca = secrets.token_hex(8)
     while any(marca in texto for _, texto in piezas):
@@ -919,14 +1068,16 @@ def consultar_juez(url, key, modelo, fallback, prompt, timeout):
             return 'caido', dato, m
 
 
-def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios, diff, arquitectura, pr=''):
-    """Del ticket, el diff y las normas al veredicto. Lo comparten `juez` y `evalua`.
-    Devuelve {veredicto, motivos, detalle, modelo, criterios, hallazgos}."""
-    visibles = lineas_visibles(diff)
-    res = {'veredicto': 'SIN_VEREDICTO', 'motivos': set(), 'detalle': '', 'modelo': modelo,
+def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios, diff, arquitectura, pr='', fuera=()):
+    """Del ticket, el diff y las normas al veredicto. Lo comparten `juez` y `evalua`. `fuera` son los ficheros
+    que el recorte dejo fuera del diff. El alcance sale de la descripcion de la PR (`pr`).
+    Devuelve {veredicto, motivos, detalle, modelo, criterios, hallazgos, alcance}."""
+    visibles, textos = lineas_visibles(diff), textos_por_fichero(diff)
+    alcance = alcance_de_pr(pr, len(criterios))
+    res = {'veredicto': 'SIN_VEREDICTO', 'motivos': set(), 'detalle': '', 'modelo': modelo, 'alcance': alcance,
            'criterios': [{'n': i, 'texto': t, 'cumple': None, 'evidencia': '', 'evidencia_ok': False,
                           'nota': ''} for i, t in enumerate(criterios, 1)], 'hallazgos': []}
-    prompt = prompt_juez(repo, clave, resumen, criterios, diff, arquitectura, pr)
+    prompt = prompt_juez(repo, clave, resumen, criterios, diff, arquitectura, pr, alcance, fuera)
     for intento in range(1, INTENTOS_JUEZ + 1):
         estado, dato, usado = consultar_juez(url, key, modelo, fallback, prompt, timeout)
         res['modelo'] = usado
@@ -943,6 +1094,7 @@ def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios,
         res.update(motivos={'respuesta_invalida'},
                    detalle=f'La respuesta del modelo no sirve: {fallo or "no es el JSON pedido"}.')
         return res
+    aplicar_reglas(ev[0], ev[1], alcance, textos, [n for n, _ in fuera])
     for c, e in zip(res['criterios'], ev[0]):
         c.update(e)
     res['hallazgos'] = ev[1]
@@ -971,7 +1123,9 @@ def hallazgos_a_arreglar(r):
 
 def descripcion_hallazgo(h):
     donde = codigo(h['file']) + (f":{codigo(h['line'])}" if h['line'] else '')
-    return f"**[{h['severity']}]** `{donde or 'general'}` ({codigo(h['tipo'] or 'otro')}) — {limpio(h['summary'], 300)}"
+    baja = f" ({h['baja']})" if h.get('baja') else ''
+    return (f"**[{h['severity']}]** `{donde or 'general'}` ({codigo(h['tipo'] or 'otro')}) — "
+            f"{limpio(h['summary'], 300)}{baja}")
 
 
 def componer_juez(r):
@@ -982,6 +1136,9 @@ def componer_juez(r):
         lineas.append(f"Ticket `{codigo(r['clave'])}` — {limpio(r.get('titulo'), 200)}")
     if r.get('detalle'):
         lineas += ['', limpio(r['detalle'], 500)]
+    if r.get('alcance'):   # SC-2229: lo que la PR declaro cubrir; el resto se juzga ➖ salvo que el diff lo contradiga
+        lineas += ['', 'Alcance declarado en la PR: ' + ', '.join(f'C{n}' for n in r['alcance'])
+                   + '. El resto de criterios se juzga ➖ salvo que el diff los contradiga.']
     if r.get('por_descripcion'):
         lineas += ['', 'El ticket no tiene criterios de aceptacion (es anterior a SC-2181): el juez juzgo '
                        'contra su resumen y su descripcion, como un unico criterio.']
@@ -992,7 +1149,8 @@ def componer_juez(r):
             marca = {True: '✅', False: '❌', None: '➖'}[c['cumple']]
             ev = f" `{codigo(c['evidencia'])}`" if c['cumple'] and c['evidencia'] else ''
             nota = f" — {limpio(c['nota'], 200)}" if c.get('nota') else ''
-            lineas.append(f"- **C{c['n']}** {marca}{ev} {limpio(c.get('texto'), 120)}{nota}")
+            baja = f" ({c['baja']})" if c.get('baja') else ''
+            lineas.append(f"- **C{c['n']}** {marca}{ev} {limpio(c.get('texto'), 120)}{nota}{baja}")
     pendientes = hallazgos_a_arreglar(r)
     if pendientes:
         lineas += ['', '### Hallazgos'] + [f'- {p}' for p in pendientes]
@@ -1079,15 +1237,16 @@ def juez():
             pass   # sin ARCHITECTURE.md en el commit base: el prompt lo dice
     res = juzgar(url_base, key, modelo, fallback, timeout_juez(env('REVIEW_TIMEOUT_SECONDS')),
                  repo, claves[0], ticket['resumen'], ticket['criterios'], recortado, arquitectura,
-                 f"{env('REVIEW_PR_TITLE')}\n\n{env('REVIEW_PR_BODY')}")
+                 f"{env('REVIEW_PR_TITLE')}\n\n{env('REVIEW_PR_BODY')}", fuera)
     r.update(criterios=res['criterios'], hallazgos=res['hallazgos'], modelo=res['modelo'],
-             respaldo=res['modelo'] != modelo)
+             respaldo=res['modelo'] != modelo, alcance=res['alcance'])
     return salir(res['veredicto'], res['motivos'], res['detalle'])
 
 
 def evalua(directorio, umbral):
-    """Mide el juez contra un corpus: `<dir>/<caso>/{criterios.md,diff.patch,esperado[,pr.md]}` y un
-    `<dir>/ARCHITECTURE.md` comun (un caso puede traer el suyo). Sale 0 si aciertos/total >= umbral."""
+    """Mide el juez contra un corpus: `<dir>/<caso>/{criterios.md,diff.patch,esperado[,pr.md][,max_bytes]}` y un
+    `<dir>/ARCHITECTURE.md` comun (un caso puede traer el suyo). `max_bytes` fija el tope del diff de ese caso
+    (para recortar un diff pequeño). Sale 0 si aciertos/total >= umbral."""
     m = re.fullmatch(r'(\d+)/(\d+)', umbral or '')
     try:
         casos = sorted(d for d in Path(directorio).iterdir() if d.is_dir())
@@ -1102,22 +1261,25 @@ def evalua(directorio, umbral):
         return 2
     fallback, max_bytes = env('REVIEW_FALLBACK_MODEL', FALLBACK_JUEZ), entero('REVIEW_MAX_DIFF_BYTES', 120000)
     comun = Path(directorio) / 'ARCHITECTURE.md'
-    aciertos = 0
+    aciertos = falsos_pasa = 0
     for caso in casos:
         fuente = caso / 'ARCHITECTURE.md'
         fuente = fuente if fuente.is_file() else comun
         arquitectura = fuente.read_text(encoding='utf-8') if fuente.is_file() else ''
         esperado = (caso / 'esperado').read_text(encoding='utf-8').split()[0]
         pr = (caso / 'pr.md').read_text(encoding='utf-8') if (caso / 'pr.md').is_file() else ''
+        tope = int((caso / 'max_bytes').read_text(encoding='utf-8').split()[0]) if (caso / 'max_bytes').is_file() else max_bytes
+        recortado, fuera = recortar((caso / 'diff.patch').read_text(encoding='utf-8'), tope)
         res = juzgar(url_base, key, modelo, fallback, timeout_juez(env('REVIEW_TIMEOUT_SECONDS')), 'evalua',
                      caso.name, caso.name, criterios_de_spec((caso / 'criterios.md').read_text(encoding='utf-8')),
-                     recortar((caso / 'diff.patch').read_text(encoding='utf-8'), max_bytes)[0], arquitectura, pr)
+                     recortado, arquitectura, pr, fuera)
         acierto = res['veredicto'] == esperado
         aciertos += acierto
+        falsos_pasa += res['veredicto'] == 'PASA' and esperado != 'PASA'
         print(f"{'OK   ' if acierto else 'FALLO'} {caso.name}: esperado={esperado} "
               f"obtenido={res['veredicto']} motivos={','.join(sorted(res['motivos'])) or '-'}")
     minimo, de = int(m.group(1)), int(m.group(2))
-    print(f'aciertos {aciertos}/{len(casos)} (umbral {umbral})')
+    print(f'aciertos {aciertos}/{len(casos)} (umbral {umbral}); falsos PASA {falsos_pasa}')
     return 0 if aciertos * de >= minimo * len(casos) else 1
 
 
