@@ -11,7 +11,7 @@
 # descarga, verifica, parches contra la imagen, tabla PLE), hecha en el SHA 19a0591f. B: el Deployment `qwen38-lab` (desde el
 # SHA 99e10cd0, k8s-ai-pocharlies#120, por decision de Dani); se enciende y se apaga por PR, nunca `kubectl scale`.
 #
-# ESTADO ACTUAL (DGX-759, k8s-ai-pocharlies#134, SHA 08d44ce8): el lab arranca con el brazo `hybrid` (el checkpoint FP8 de
+# ESTADO ACTUAL (DGX-759, k8s-ai-pocharlies#135, SHA aa29a9f4, sobre #134): el lab arranca con el brazo `hybrid` (el checkpoint FP8 de
 # produccion: FP8 por bloques en atencion y GDN, que la imagen `fc120ece` carga con la edicion `FP8_PB_WO` de #129;
 # `replicas: 1`) con KV de 13 GiB (`--kv-cache-memory-bytes`), el vigilante de memoria de serve.sh cortando con
 # `MemAvailable < 3 GiB` durante 5 lecturas y el MTP de MiaAI: calendario `[[1,4,3],[5,8,1]]` (k=3 a 1-4 peticiones, k=1 a
@@ -20,10 +20,12 @@
 # NFS-RDMA desde dgx1 (el worker del residente); la tabla PLE del hibrido tambien esta en el NVMe (Job sin GPU
 # `qwen38-lab-prepare-hybrid`). El NFS de solo lectura `hf-cache-dgx1-lab-ro` (servidor 10.0.2.1; el export es INFRA-785)
 # sigue declarado y montado como respaldo: el motor ya no lee pesos por el, solo ese Job. El motor no lleva guard del SAI
-# (UPS_GUARD=0: dgx3 esta fuera del SAI). El primer arranque del `hybrid` con la edicion `FP8_PB_WO` no esta medido en GPU.
+# (UPS_GUARD=0: dgx3 esta fuera del SAI). La GMU del lab es 0,05 (`--gpu-memory-utilization`): solo la puerta de arranque,
+# que cumple con la cache de la PLE llena (con 0,769 el motor rebotaba al arrancar); el KV y la memoria real no cambian. El primer
+# arranque del `hybrid` con la edicion `FP8_PB_WO` no esta medido en GPU.
 #
-# MARCHA ATRAS (una sola): un PR que devuelve `targetRevision` a 727480919155d5335941f95b816c5f51b5830dff (el `hybrid` con los
-# pesos por NFS-RDMA desde dgx1) o a 19a0591fb48ded74d2f116ee2b93439140247404 (apagado, `replicas: 0`). Apagar no borra nada
+# MARCHA ATRAS (una sola): un PR que devuelve `targetRevision` a 08d44ce8b18becae91235eb40783bf76e92abb45 (el mismo `hybrid` con
+# GMU 0,769) o a 19a0591fb48ded74d2f116ee2b93439140247404 (apagado, `replicas: 0`). Apagar no borra nada
 # mas: el Job de la fase A, la copia local y el hostPath siguen como estan.
 #
 # prune: true es seguro en este namespace: solo hay cargas del laboratorio y el PVC `hf-cache-dgx1-lab-ro` con su PV (NFS de solo
@@ -52,7 +54,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies-org/k8s-ai-pocharlies
-    targetRevision: 08d44ce8b18becae91235eb40783bf76e92abb45
+    targetRevision: aa29a9f439b3c5209ef9a2d35c5af5f9d342a3cd
     path: lab
   destination:
     server: https://kubernetes.default.svc
