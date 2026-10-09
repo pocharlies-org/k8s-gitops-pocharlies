@@ -378,7 +378,6 @@ jobs:
     name: Notify OpenClaw on manifest release failure
     permissions:
       contents: read
-      actions: read
     runs-on: ${{ inputs.runner }}
     needs: [publish]
     if: ${{ always() && (needs.publish.result == 'failure' || needs.publish.result == 'cancelled') }}
