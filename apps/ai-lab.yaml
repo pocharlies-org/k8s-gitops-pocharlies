@@ -11,7 +11,13 @@
 # descarga, verifica, parches contra la imagen, tabla PLE), hecha en el SHA 19a0591f. B: el Deployment `qwen38-lab` (desde el
 # SHA 99e10cd0, k8s-ai-pocharlies#120, por decision de Dani); se enciende y se apaga por PR, nunca `kubectl scale`.
 #
-# ESTADO ACTUAL (DGX-759, k8s-ai-pocharlies#135, SHA aa29a9f4, sobre #134): el lab arranca con el brazo `hybrid` (el checkpoint FP8 de
+# ESTADO ACTUAL (2026-10-09, DGX-778/DGX-779): APAGADO. `targetRevision` vuelve a 19a0591fb48ded74d2f116ee2b93439140247404 (fase A:
+# `qwen38-lab` con `replicas: 0`) para dejar dgx3 libre al tercer rango del residente (TP=3, DGX-778). Un prune retira de
+# `ai-lab` el Job `qwen38-lab-prepare-hybrid`, el ConfigMap `qwen38-lab-kernel-det` y el PV/PVC `hf-cache-dgx1-lab-ro` (Retain); la copia local del
+# hybrid en /srv/ai-lab/models y el hostPath no se tocan. VUELTA ATRAS al lab encendido: un PR que devuelve `targetRevision` a
+# aa29a9f439b3c5209ef9a2d35c5af5f9d342a3cd (el estado de DGX-759 de aqui abajo, `replicas: 1`).
+#
+# ULTIMO ESTADO ENCENDIDO (DGX-759, k8s-ai-pocharlies#135, SHA aa29a9f4, sobre #134): el lab arranca con el brazo `hybrid` (el checkpoint FP8 de
 # produccion: FP8 por bloques en atencion y GDN, que la imagen `fc120ece` carga con la edicion `FP8_PB_WO` de #129;
 # `replicas: 1`) con KV de 13 GiB (`--kv-cache-memory-bytes`), el vigilante de memoria de serve.sh cortando con
 # `MemAvailable < 3 GiB` durante 5 lecturas y el MTP de MiaAI: calendario `[[1,4,3],[5,8,1]]` (k=3 a 1-4 peticiones, k=1 a
@@ -54,7 +60,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies-org/k8s-ai-pocharlies
-    targetRevision: aa29a9f439b3c5209ef9a2d35c5af5f9d342a3cd
+    targetRevision: 19a0591fb48ded74d2f116ee2b93439140247404
     path: lab
   destination:
     server: https://kubernetes.default.svc

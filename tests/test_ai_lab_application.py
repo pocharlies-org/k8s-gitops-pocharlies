@@ -35,6 +35,14 @@ class AiLabApplicationTest(unittest.TestCase):
         # Un SHA, no una rama: cambiar el laboratorio tiene que ser un PR aqui.
         self.assertRegex(source["targetRevision"], r"^[0-9a-f]{40}$")
 
+    def test_lab_is_off_for_dgx3_third_rank_with_documented_rollback(self) -> None:
+        """DGX-778/DGX-779: dgx3 queda libre para el tercer rango del residente (TP=3): fase A (`replicas: 0`)."""
+        self.assertEqual(self.spec["source"]["targetRevision"], "19a0591fb48ded74d2f116ee2b93439140247404")
+        comments = "\n".join(line for line in self.source_text.splitlines() if line.startswith("#"))
+        self.assertIn("DGX-778", comments)
+        # Vuelta atras: el lab encendido de DGX-759, citado entero en un comentario (no solo en `targetRevision`).
+        self.assertIn("aa29a9f439b3c5209ef9a2d35c5af5f9d342a3cd", comments)
+
     def test_source_is_only_repo_revision_and_path(self) -> None:
         self.assertEqual(source_violations(self.spec), [])
         self.assertEqual(set(self.spec["source"]), SOURCE_KEYS)
