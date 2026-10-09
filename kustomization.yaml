@@ -65,6 +65,8 @@ resources:
   - apps/socialmedia.yaml
   - apps/synapse-migrations.yaml
   - apps/synapse-sre-foundation.yaml
+  # SC-2234: puente agent-runs de los adaptadores synapse (ver comentario en apps/openclaw-synapse.yaml)
+  - apps/openclaw-synapse.yaml
   - apps/teslamate.yaml
   - apps/tomorrowland.yaml
   - apps/company-crm.yaml
