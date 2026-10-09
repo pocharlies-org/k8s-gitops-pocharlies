@@ -667,12 +667,11 @@ PREGUNTA 2, `criterios`: ¿que criterios del ticket cubre esta PR?
         la cita esta en el diff de ese fichero; si no esta, el criterio deja de ser `false`. Una sospecha
         sobre codigo que el diff no muestra no es una contradiccion.
      b) ausente: el criterio es de esta PR y el diff no lo cumple. Es de esta PR si esta en el bloque
-        `alcance`; sin alcance declarado, si la PR dice cumplirlo (su titulo o su descripcion) o pide una
-        pieza de lo que ESTE diff cambia (el test de una funcion que el diff cambia es de esta PR aunque el
+        `alcance`; sin alcance declarado, lo son todos los que ni el titulo ni la descripcion de la PR sitúan
+        en otra PR u otro repositorio: la PR dice cumplirlo y no lo hace, o es sobre codigo de este
+        repositorio que el diff no toca (el test de una funcion que el diff cambia es de esta PR aunque el
         fichero de test no aparezca). Si su linea de `alcance` nombra la parte que cubre esta PR (`C1: solo
         la tabla`), solo se juzga esa parte. `evidencia` y `cita` van vacias y `nota` dice que falta.
-        Un criterio sobre ficheros, tests, comandos o repositorios que el diff no toca y que la PR no
-        menciona es de otra parte de la historia: `"fuera"`, no `false`.
    - `"fuera"` (fuera de esta PR): lo cumple OTRO repositorio, otra PR de la misma historia (lo
      dicen el titulo o la descripcion de la PR) o una comprobacion que el propio criterio situa
      despues del merge (un despliegue, una medicion de qa). `nota` dice donde se verifica.
