@@ -247,7 +247,13 @@ tres valores (SC-2208):
 Una PR que solo cambia un pin (`targetRevision`, tag o digest de imagen, el SHA de otro repo) y lo que lo describe no
 contiene el producto: sus criterios de producto salen ➖ y se juzga la **coherencia** con el ticket y con lo que fija
 (el pin que el ticket pide, el comentario de estado que no se contradice, la marcha atrás). Un pin que el ticket no pide
-es ❌. Además cuenta todo hallazgo de severidad alta o media de tipo `correccion` o `arquitectura`: el tipo se normaliza
+es ❌. Además cuenta todo hallazgo de severidad alta o media de tipo `correccion` o `arquitectura`: el modelo contesta
+primero a esa pregunta (¿el diff es correcto y cumple las normas del `ARCHITECTURE.md`?, `hallazgos` va antes que
+`criterios` en el JSON) y después a la de los criterios, y un hallazgo bloqueante bloquea SIEMPRE, sea ✅, ❌ o ➖ cada
+criterio: un ➖ no tapa un hallazgo (SC-2197). El modelo solo ve el diff: lo que este no muestra (la firma de una
+función que llama, una constante, otro fichero) no lo da por roto, y un hallazgo `correccion` que solo se sostiene con
+un «si» no se escribe (`entrada` pide la entrada concreta que falla; el código no la exige, así que un hallazgo sin ella
+sigue bloqueando). Un criterio no es ❌ por una sospecha sobre código que el diff no muestra. El tipo se normaliza
 (minúsculas, sin tildes) y uno desconocido o vacío (`bug`, `corrección` mal escrito) bloquea, porque el motivo de no
 bloquear es el estilo, no una etiqueta que el modelo escribió distinta. `estilo`, `otro` y `criterio` no bloquean: un
 criterio que no se cumple es ❌ en `Criterios`, no un hallazgo. Un `NO_PASA`
@@ -259,11 +265,16 @@ la cuenta de solo lectura no ve el ticket: sale como `ticket_inexistente`.
 |---|---|---|
 | `PASA` | ningún criterio ❌, los ✅ con evidencia en el diff (los ➖ no la piden) y ningún hallazgo bloquea | verde |
 | `NO_PASA` | sin clave de ticket (`sin_clave`), ticket inexistente, ticket de tipo épica (`cita_epica`), sin criterios, criterio ❌ (incumplido), ✅ sin evidencia o hallazgo bloqueante | rojo |
-| `SIN_VEREDICTO` | sin credencial (LiteLLM o Jira), Jira o los dos modelos caídos, respuesta del modelo inservible | rojo |
+| `SIN_VEREDICTO` | sin credencial (LiteLLM o Jira), Jira o los dos modelos caídos, respuesta del modelo inservible dos veces seguidas | rojo |
 
 `SIN_VEREDICTO` no es culpa de quien abrió el PR. El juez no conoce `SIN_TICKET`: esa exención es solo de
 `company-aprobar` (x86), que en un PR exento ignora este check. Un diff recortado por `max_diff_bytes` fuerza
 `riesgo=alto`; la regla determinista de riesgo por ruta vive en `company-aprobar`, no aquí.
+
+**Respuesta inservible.** Una respuesta que no es el JSON pedido (vacía, truncada, sin `criterios`) se pide una vez más
+por la misma cadena (`INTENTOS_JUEZ`, el primario y, si cae, el respaldo) antes de dar `SIN_VEREDICTO` con motivo
+`respuesta_invalida`; un veredicto válido, aunque sea `NO_PASA`, no se repite, y una caída del modelo no cuenta como
+respuesta inservible.
 
 **Fallback.** Cada llamada corta a 90 s como máximo; un timeout cuenta como un 408. Ante timeout, 408, 429, 5xx o
 400/401/403/404 del modelo primario (`juez_model`, por defecto `tooling`, el residente local: mientras conteste, nada sale
