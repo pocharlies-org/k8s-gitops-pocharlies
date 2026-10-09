@@ -38,6 +38,7 @@ pocharlies-org/agent-jake-browser-mcp-server	activo	default	main	secretos
 pocharlies-org/agent-rag-memory	archivado	default	main	archivado
 pocharlies-org/aurora	activo	default	main	secretos
 pocharlies-org/bambulab-openclaw	activo	default	main	secretos
+pocharlies-org/claude-account-switcher	activo	default	main	secretos
 pocharlies-org/claude-codex-bridge	activo	default	main	secretos
 pocharlies-org/claude-config	activo	default	main	secretos
 pocharlies-org/claude-local-router	activo	default	main	secretos
