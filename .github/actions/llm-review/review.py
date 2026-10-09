@@ -142,7 +142,6 @@ def nombre_fichero(bloque):
 
 EXT_CODIGO = frozenset(('.py .js .jsx .mjs .cjs .ts .tsx .go .rs .java .kt .rb .php .c .h .cc .cpp .cs .swift '
                         '.sh .bash .zsh .tf .sql .lua .css .scss .html .vue .svelte .gradle .proto').split())
-EXT_CONFIG = frozenset('.yaml .yml .json .toml .ini .cfg .conf .env .properties .xml'.split())
 EXT_DOCS = frozenset('.md .mdx .rst .txt .adoc .org'.split())
 EXT_GENERADO = frozenset('.lock .snap .map .svg .csv .tsv .jsonl .ndjson .patch .diff .sum .pem .crt'.split())
 PARTES_GENERADO = ('/vendor/', '/node_modules/', '/dist/', '/generated/', '/fixtures/', '/testdata/',
@@ -150,9 +149,9 @@ PARTES_GENERADO = ('/vendor/', '/node_modules/', '/dist/', '/generated/', '/fixt
 
 
 def prioridad_fichero(nombre):
-    """Que se queda cuando el diff no cabe (SC-2229): 0 codigo y tests, 1 configuracion y manifiestos,
-    2 documentacion, 3 generado o datos (lockfiles, minificados, snapshots, fixtures, vendor). Un fichero
-    desconocido es configuracion: ni gana al codigo ni se tira antes que la documentacion."""
+    """Que se queda cuando el diff no cabe (SC-2229): 0 codigo y tests, 1 configuracion y manifiestos (yaml, json,
+    toml, Dockerfile... y todo lo desconocido), 2 documentacion, 3 generado o datos (lockfiles, minificados,
+    snapshots, fixtures, vendor)."""
     ruta = '/' + nombre.lower()
     base = ruta.rsplit('/', 1)[-1]
     ext = '.' + base.rsplit('.', 1)[-1] if '.' in base else ''
@@ -640,7 +639,9 @@ ni de los comentarios del propio diff, y busca solo dos tipos de hallazgo:
   que quiza la firma no acepte, una funcion que quiza no devuelve lo esperado). Si el hallazgo solo se
   sostiene con un «si», un «puede» o un «probablemente», no esta demostrado y no se escribe. `entrada`
   es la entrada concreta con la que el codigo falla y lo que produce con ella; si no puedes escribirla,
-  no hay hallazgo `correccion`.
+  no hay hallazgo `correccion`. No son hallazgos: «la funcion X no esta definida en este diff» (vive en
+  otro fichero o en otra PR que la descripcion nombra), «el fichero Y no se ve», «falta el test de Z»
+  (eso va en `criterios`) ni «esto fallaria si W fuese distinto».
 - `arquitectura`: el diff incumple una norma del bloque `arquitectura`. Recorre las normas que hablan
   de lo que el diff toca (las que dicen «nunca», «siempre», «solo», «el unico», «no se») y compara cada
   una con lo que el diff escribe, aunque el diff cumpla todos los criterios. Nombra la norma en `summary`;
@@ -665,11 +666,13 @@ PREGUNTA 2, `criterios`: ¿que criterios del ticket cubre esta PR?
         contradice, `ruta/del/fichero:linea`, y `cita` esa linea copiada LITERAL. El codigo comprueba que
         la cita esta en el diff de ese fichero; si no esta, el criterio deja de ser `false`. Una sospecha
         sobre codigo que el diff no muestra no es una contradiccion.
-     b) ausente: el criterio es de esta PR (esta en el bloque `alcance`; o la PR no declara alcance y ni su
-        titulo ni su descripcion lo sitúan en otra PR) y el diff no lo cumple: la PR dice cumplirlo y no lo
-        hace, o es sobre codigo de este repositorio que el diff no toca. Si su linea de `alcance` nombra la
-        parte que cubre esta PR (`C1: solo la tabla`), solo se juzga esa parte. `evidencia` y `cita` van
-        vacias y `nota` dice que falta.
+     b) ausente: el criterio es de esta PR y el diff no lo cumple. Es de esta PR si esta en el bloque
+        `alcance`; sin alcance declarado, si la PR dice cumplirlo (su titulo o su descripcion) o pide una
+        pieza de lo que ESTE diff cambia (el test de una funcion que el diff cambia es de esta PR aunque el
+        fichero de test no aparezca). Si su linea de `alcance` nombra la parte que cubre esta PR (`C1: solo
+        la tabla`), solo se juzga esa parte. `evidencia` y `cita` van vacias y `nota` dice que falta.
+        Un criterio sobre ficheros, tests, comandos o repositorios que el diff no toca y que la PR no
+        menciona es de otra parte de la historia: `"fuera"`, no `false`.
    - `"fuera"` (fuera de esta PR): lo cumple OTRO repositorio, otra PR de la misma historia (lo
      dicen el titulo o la descripcion de la PR) o una comprobacion que el propio criterio situa
      despues del merge (un despliegue, una medicion de qa). `nota` dice donde se verifica.
@@ -884,7 +887,7 @@ def evidencia_valida(evidencia, visibles):
 # ---- alcance declarado y evidencia comprobada (SC-2229) -----------------------
 
 ALCANCE_TITULO_RE = re.compile(r'(?m)^## Alcance de esta PR[ \t]*$')
-ALCANCE_LINEA_RE = re.compile(r'^\s*[-*]\s+C(\d+)(?![\w.])\s*:?\s*(.*?)\s*$')
+ALCANCE_LINEA_RE = re.compile(r'^\s*[-*]\s+C(\d+)(?!\w)[\s:.)]*(.*?)\s*$')
 
 
 def alcance_de_pr(texto, n_criterios):
@@ -893,7 +896,8 @@ def alcance_de_pr(texto, n_criterios):
     o `- C<n>: texto` por criterio, `n` su posicion en la lista de criterios del ticket (la de `C1`, `C2`...
     del comentario). Se lee hasta el siguiente titulo; la prosa y las lineas de otra forma se ignoran, igual
     que un `n` que no esta en la lista. Una seccion sin ninguna linea valida es como no declarar alcance:
-    mas estricto, nunca mas laxo."""
+    mas estricto, nunca mas laxo. Tras el `C<n>` se tolera `:`, `.` o `)` (de mas, nunca de menos: un criterio
+    que se cuela fuera del alcance por una errata seria un criterio sin juzgar)."""
     texto = (texto or '').replace('\r\n', '\n')
     m = ALCANCE_TITULO_RE.search(texto)
     if not m:
@@ -1078,23 +1082,32 @@ def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios,
            'criterios': [{'n': i, 'texto': t, 'cumple': None, 'evidencia': '', 'evidencia_ok': False,
                           'nota': ''} for i, t in enumerate(criterios, 1)], 'hallazgos': []}
     prompt = prompt_juez(repo, clave, resumen, criterios, diff, arquitectura, pr, alcance, fuera)
+    ev, fallo = None, None
     for intento in range(1, INTENTOS_JUEZ + 1):
         estado, dato, usado = consultar_juez(url, key, modelo, fallback, prompt, timeout)
-        res['modelo'] = usado
         if estado != 'ok':
-            res.update(motivos={'modelo_caido'}, detalle=f'Ningun modelo contesto: {dato}')
-            return res
+            if ev is None:
+                res.update(modelo=usado, motivos={'modelo_caido'}, detalle=f'Ningun modelo contesto: {dato}')
+                return res
+            break   # el modelo cayo en el reintento: vale la respuesta de antes
         texto, fallo = contenido(dato)
-        ev = evaluar(extraer_json(texto), len(criterios), visibles) if texto else None
-        if ev is not None:
+        nuevo = evaluar(extraer_json(texto), len(criterios), visibles) if texto else None
+        if nuevo is None:
+            print(f'::warning::juez: {usado} no devolvio el JSON pedido ({fallo or "JSON invalido"}); '
+                  f'intento {intento} de {INTENTOS_JUEZ}')
+            if ev is None:
+                res['modelo'] = usado
+            continue
+        aplicar_reglas(nuevo[0], nuevo[1], alcance, textos, [n for n, _ in fuera])
+        ev, res['modelo'] = nuevo, usado
+        if all(c['evidencia_ok'] for c in ev[0] if c['cumple']):
             break
-        print(f'::warning::juez: {usado} no devolvio el JSON pedido ({fallo or "JSON invalido"}); '
-              f'intento {intento} de {INTENTOS_JUEZ}')
+        # un ✅ sin una linea visible del diff es una respuesta a medias, no un veredicto: se pide una vez mas
+        print(f'::warning::juez: {usado} dio un ✅ sin evidencia valida; intento {intento} de {INTENTOS_JUEZ}')
     if ev is None:
         res.update(motivos={'respuesta_invalida'},
                    detalle=f'La respuesta del modelo no sirve: {fallo or "no es el JSON pedido"}.')
         return res
-    aplicar_reglas(ev[0], ev[1], alcance, textos, [n for n, _ in fuera])
     for c, e in zip(res['criterios'], ev[0]):
         c.update(e)
     res['hallazgos'] = ev[1]

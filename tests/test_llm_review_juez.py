@@ -675,12 +675,16 @@ class TestAlcanceDeclarado(unittest.TestCase):
         cuerpo = '## Alcance de esta PR\n- C1\n### Notas\n- C2\n'
         self.assertEqual(review.alcance_de_pr(cuerpo, 3), {1: ''})
 
+    def test_tolera_el_punto_o_el_parentesis_tras_el_numero_para_no_dejar_un_criterio_sin_juzgar(self):
+        self.assertEqual(review.alcance_de_pr('## Alcance de esta PR\n- C1. el test\n- C2) otro\n- C3 - sin dos puntos\n', 3),
+                         {1: 'el test', 2: 'otro', 3: '- sin dos puntos'})
+
     def test_acepta_saltos_de_linea_de_windows_y_espacios_al_final(self):
         # el editor web de GitHub guarda las descripciones con CRLF
         self.assertEqual(review.alcance_de_pr('## Alcance de esta PR  \r\n\r\n- C2: x\r\n- C1\r\n', 2), {1: '', 2: 'x'})
 
     def test_solo_cuentan_los_numeros_de_la_lista_de_criterios(self):
-        cuerpo = '## Alcance de esta PR\n- C0\n- C2\n- C9\n- Cx\n- C1.5\nprosa C1\n'
+        cuerpo = '## Alcance de esta PR\n- C0\n- C2\n- C9\n- Cx\n- C10x\nprosa C1\n'
         self.assertEqual(review.alcance_de_pr(cuerpo, 3), {2: ''})
         self.assertIsNone(review.alcance_de_pr('## Alcance de esta PR\n- C9\n- prosa\n', 3),
                           'sin una linea valida es como no declarar alcance')
@@ -987,6 +991,32 @@ class TestReintento(Base):
         self.assertEqual(self.correr(), 1)
         self.assertVeredicto('SIN_VEREDICTO', motivos='modelo_caido')
         self.assertEqual(len(self.mundo.llamadas), 2, 'solo primario y respaldo: el reintento es de respuestas, no de caidas')
+
+    def test_un_verde_sin_evidencia_valida_se_pide_una_vez_mas(self):
+        sin = {'n': 1, 'cumple': True, 'evidencia': '', 'nota': 'cubre el criterio'}
+        self.mundo.litellm['local-juez'] = [(200, respuesta([sin, cumple(2, 'tests/test_app.py:4')]), 0),
+                                            (200, respuesta([cumple(1), cumple(2, 'tests/test_app.py:4')]), 0)]
+        self.assertEqual(self.correr(), 0, self.salida_texto)
+        self.assertVeredicto('PASA', motivos='')
+        self.assertEqual(len(self.mundo.llamadas), 2)
+
+    def test_si_el_reintento_tampoco_trae_evidencia_vale_el_veredicto_sin_evidencia(self):
+        sin = {'n': 1, 'cumple': True, 'evidencia': 'otro.py:9', 'nota': 'x'}
+        self.mundo.litellm['local-juez'] = [(200, respuesta([sin, cumple(2, 'tests/test_app.py:4')]), 0)]
+        self.assertEqual(self.correr(), 1)
+        self.assertVeredicto('NO_PASA', motivos='sin_evidencia')
+        self.assertEqual(len(self.mundo.llamadas), 2, 'una sola repeticion')
+
+    def test_si_el_reintento_cae_o_no_es_json_vale_la_respuesta_de_antes(self):
+        sin = {'n': 1, 'cumple': True, 'evidencia': '', 'nota': 'x'}
+        for segunda in ((200, 'no es json', 0), (500, None, 0)):
+            with self.subTest(segunda[0]):
+                self.mundo.comentarios.clear()
+                self.mundo.llamadas.clear()
+                self.mundo.litellm['local-juez'] = [(200, respuesta([sin, cumple(2, 'tests/test_app.py:4')]), 0), segunda]
+                self.mundo.litellm['alibaba-q38-flash'] = [(500, None, 0)]
+                self.assertEqual(self.correr(), 1)
+                self.assertVeredicto('NO_PASA', motivos='sin_evidencia')
 
 
 class TestSinVeredicto(Base):
