@@ -762,7 +762,9 @@ jobs:
     name: Review del PR (juez)
     if: ${{ github.event_name == 'pull_request' && inputs.engine == 'juez' }}
     runs-on: ${{ inputs.runner }}
-    timeout-minutes: 10
+    # SC-2229: hasta 3 tiradas seguidas (cada una, con su respaldo y su reintento) en vez de una; si dos
+    # caen no se pide la tercera. 15 min cubre dos tiradas caidas en el peor caso (2 intentos x 2 modelos x 90 s).
+    timeout-minutes: 15
     permissions:
       contents: read
       pull-requests: write
@@ -864,14 +866,14 @@ jobs:
           python3 "$revisor" --juez
 
   # Modo validacion del juez: mide su acierto contra el corpus commiteado del framework
-  # (tests/fixtures/juez, 8 casos reales: 4 PASA y 4 NO_PASA) con el modelo real. Es el
-  # `workflow_dispatch` del motor juez (el de `propio` comenta el ultimo commit); no corre en
-  # cada PR. Rojo si acierta menos de 7 de 8.
+  # (tests/fixtures/juez, 9 casos: 5 PASA y 4 NO_PASA) con el modelo real, cada uno con sus 3
+  # tiradas (SC-2229). Es el `workflow_dispatch` del motor juez (el de `propio` comenta el ultimo
+  # commit); no corre en cada PR. Rojo si acierta, por mayoria, menos de 7 de cada 8.
   evaluar_juez:
     name: Evaluacion del juez
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.engine == 'juez' }}
     runs-on: ${{ inputs.runner }}
-    timeout-minutes: 25
+    timeout-minutes: 45
     permissions:
       contents: read
     steps:
