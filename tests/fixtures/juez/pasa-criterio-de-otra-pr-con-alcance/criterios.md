@@ -1,0 +1,4 @@
+- [ ] C1 `scripts/pr-review-stats.py` expone `contar(comentarios)`: cuenta los veredictos PASA, NO_PASA y SIN_VEREDICTO de los marcadores v2 de una lista de comentarios de la PR y devuelve un diccionario.
+- [ ] C2 Un comentario que no empieza por el marcador v2 no cuenta, y un test lo fija.
+- [ ] C3 `reusable-pr-review.yml` ejecuta el script despues del juez y escribe el recuento en el resumen del job.
+- [ ] C4 `docs/ci-pr-review.md` documenta el comando y su salida.

@@ -864,14 +864,14 @@ jobs:
           python3 "$revisor" --juez
 
   # Modo validacion del juez: mide su acierto contra el corpus commiteado del framework
-  # (tests/fixtures/juez, 8 casos reales: 4 PASA y 4 NO_PASA) con el modelo real. Es el
-  # `workflow_dispatch` del motor juez (el de `propio` comenta el ultimo commit); no corre en
-  # cada PR. Rojo si acierta menos de 7 de 8.
+  # (tests/fixtures/juez, 15 casos: 9 PASA y 6 NO_PASA, seis de SC-2229 sinteticos) con el modelo
+  # real. Es el `workflow_dispatch` del motor juez (el de `propio` comenta el ultimo commit); no
+  # corre en cada PR. Rojo si acierta menos de 7 de cada 8 (14 de 15).
   evaluar_juez:
     name: Evaluacion del juez
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.engine == 'juez' }}
     runs-on: ${{ inputs.runner }}
-    timeout-minutes: 25
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:

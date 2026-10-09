@@ -1,0 +1,58 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 8a580a5..4c1d9e2 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -4,3 +4,4 @@ jobs:
+       - run: python3 -m unittest tests/test_review_context.py
+       - run: python3 -m unittest tests/test_review_distribute.py
+       - run: python3 -m unittest tests/test_review_health.py
++      - run: python3 -m unittest tests/test_stale_prs.py
+diff --git a/scripts/stale-prs.py b/scripts/stale-prs.py
+new file mode 100644
+index 0000000..5b0f3aa
+--- /dev/null
++++ b/scripts/stale-prs.py
+@@ -0,0 +1,9 @@
++#!/usr/bin/env python3
++"""Lista las PRs sin actividad desde hace N dias (SC-9006)."""
++from datetime import timedelta
++
++
++def viejas(prs, ahora, dias):
++    """Las PRs cuyo `updatedAt` (datetime) es anterior a `ahora - dias`, en el orden de entrada."""
++    limite = ahora - timedelta(days=dias)
++    return [pr for pr in prs if pr.get('updatedAt') is not None and pr['updatedAt'] < limite]
+diff --git a/tests/test_stale_prs.py b/tests/test_stale_prs.py
+new file mode 100644
+index 0000000..7d2e0c4
+--- /dev/null
++++ b/tests/test_stale_prs.py
+@@ -0,0 +1,28 @@
++import importlib.util
++import unittest
++from datetime import datetime, timedelta
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parent.parent
++spec = importlib.util.spec_from_file_location('stale_prs', ROOT / 'scripts/stale-prs.py')
++stale = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(stale)
++
++AHORA = datetime(2026, 10, 9, 12, 0)
++
++
++class TestViejas(unittest.TestCase):
++    def test_el_limite_exacto_no_es_vieja(self):
++        justo = {'number': 1, 'updatedAt': AHORA - timedelta(days=14)}
++        vieja = {'number': 2, 'updatedAt': AHORA - timedelta(days=14, seconds=1)}
++        self.assertEqual(stale.viejas([justo, vieja], AHORA, 14), [vieja])
++
++    def test_una_pr_sin_updated_at_se_ignora(self):
++        self.assertEqual(stale.viejas([{'number': 3}, {'number': 4, 'updatedAt': None}], AHORA, 14), [])
++
++    def test_sin_prs_no_hay_viejas(self):
++        self.assertEqual(stale.viejas([], AHORA, 14), [])
++
++
++if __name__ == '__main__':
++    unittest.main()

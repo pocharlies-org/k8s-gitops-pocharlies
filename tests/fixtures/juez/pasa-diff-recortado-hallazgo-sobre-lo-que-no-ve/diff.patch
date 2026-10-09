@@ -1,0 +1,178 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 8a580a5..f388819 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -4,3 +4,4 @@ jobs:
+       - run: python3 -m unittest tests/test_review_context.py
+       - run: python3 -m unittest tests/test_review_distribute.py
+       - run: python3 -m unittest tests/test_review_health.py
++      - run: python3 -m unittest tests/test_pr_review_report.py
+diff --git a/scripts/pr-review-report.py b/scripts/pr-review-report.py
+new file mode 100644
+index 0000000..eebc48e
+--- /dev/null
++++ b/scripts/pr-review-report.py
+@@ -0,0 +1,20 @@
++#!/usr/bin/env python3
++"""Imprime la tabla de veredictos del juez de las ultimas PRs (SC-9003)."""
++import importlib.util
++import json
++import sys
++from pathlib import Path
++
++spec = importlib.util.spec_from_file_location('review_report_lib', Path(__file__).with_name('review_report_lib.py'))
++lib = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(lib)
++
++
++def main(entrada):
++    filas = [(p['repo'], str(p['pr']), p['veredicto']) for p in json.load(entrada)]
++    print(lib.render(filas), end='')
++    return 0
++
++
++if __name__ == '__main__':
++    sys.exit(main(sys.stdin))
+diff --git a/scripts/review_report_lib.py b/scripts/review_report_lib.py
+index b81500c..f472853 100644
+--- a/scripts/review_report_lib.py
++++ b/scripts/review_report_lib.py
+@@ -1,3 +1,104 @@
+ """Utilidades de formato de los informes de review (SC-9003)."""
+ 
+ ANCHO_MIN = 3
++
++def _celda(valor):
++    """Una celda de tabla Markdown: texto en una linea y con el `|` escapado."""
++    return str(valor if valor is not None else '').replace('\n', ' ').replace('|', '\\|')
++
++
++def _anchos(filas, cabecera):
++    """El ancho de cada columna: el de su celda mas larga, nunca menos que ANCHO_MIN."""
++    anchos = [max(ANCHO_MIN, len(_celda(c))) for c in cabecera]
++    for fila in filas:
++        for i, c in enumerate(fila):
++            anchos[i] = max(anchos[i], len(_celda(c)))
++    return anchos
++
++
++def render(filas, cabecera=("repo", "pr", "veredicto")):
++    """Tabla Markdown con las columnas alineadas. Sin filas, solo la cabecera."""
++    anchos = _anchos(filas, cabecera)
++    linea = lambda celdas: '| ' + ' | '.join(_celda(c).ljust(a) for c, a in zip(celdas, anchos)) + ' |'
++    sep = '| ' + ' | '.join('-' * a for a in anchos) + ' |'
++    return "\n".join([linea(cabecera), sep] + [linea(f) for f in filas]) + "\n"
++
++
++def etiqueta_pasa(n):
++    """Etiqueta de la PR cumple los criterios: icono OK y el numero de PRs afectadas."""
++    return f'OK {n} PR' + ('s' if n != 1 else '')
++
++
++def resumen_pasa(filas):
++    """Cuantas filas de la tabla tienen el veredicto `pasa`."""
++    return sum(1 for f in filas if f[2] == 'PASA')
++
++
++def etiqueta_no_pasa(n):
++    """Etiqueta de la PR no cumple algun criterio: icono NO y el numero de PRs afectadas."""
++    return f'NO {n} PR' + ('s' if n != 1 else '')
++
++
++def resumen_no_pasa(filas):
++    """Cuantas filas de la tabla tienen el veredicto `no_pasa`."""
++    return sum(1 for f in filas if f[2] == 'NO_PASA')
++
++
++def etiqueta_sin_veredicto(n):
++    """Etiqueta de el juez no pudo decidir: icono -- y el numero de PRs afectadas."""
++    return f'-- {n} PR' + ('s' if n != 1 else '')
++
++
++def resumen_sin_veredicto(filas):
++    """Cuantas filas de la tabla tienen el veredicto `sin_veredicto`."""
++    return sum(1 for f in filas if f[2] == 'SIN_VEREDICTO')
++
++
++def etiqueta_riesgo_alto(n):
++    """Etiqueta de la PR toca superficie de riesgo: icono !! y el numero de PRs afectadas."""
++    return f'!! {n} PR' + ('s' if n != 1 else '')
++
++
++def resumen_riesgo_alto(filas):
++    """Cuantas filas de la tabla tienen el veredicto `riesgo_alto`."""
++    return sum(1 for f in filas if f[2] == 'RIESGO_ALTO')
++
++
++def etiqueta_recortado(n):
++    """Etiqueta de el diff se recorto por el tope: icono <> y el numero de PRs afectadas."""
++    return f'<> {n} PR' + ('s' if n != 1 else '')
++
++
++def resumen_recortado(filas):
++    """Cuantas filas de la tabla tienen el veredicto `recortado`."""
++    return sum(1 for f in filas if f[2] == 'RECORTADO')
++
++
++def etiqueta_respaldo(n):
++    """Etiqueta de juzgo el modelo de respaldo: icono R2 y el numero de PRs afectadas."""
++    return f'R2 {n} PR' + ('s' if n != 1 else '')
++
++
++def resumen_respaldo(filas):
++    """Cuantas filas de la tabla tienen el veredicto `respaldo`."""
++    return sum(1 for f in filas if f[2] == 'RESPALDO')
++
++
++def etiqueta_sin_ticket(n):
++    """Etiqueta de la PR no cita ningun ticket: icono ?? y el numero de PRs afectadas."""
++    return f'?? {n} PR' + ('s' if n != 1 else '')
++
++
++def resumen_sin_ticket(filas):
++    """Cuantas filas de la tabla tienen el veredicto `sin_ticket`."""
++    return sum(1 for f in filas if f[2] == 'SIN_TICKET')
++
++
++def etiqueta_epica(n):
++    """Etiqueta de la PR cita una epica: icono EP y el numero de PRs afectadas."""
++    return f'EP {n} PR' + ('s' if n != 1 else '')
++
++
++def resumen_epica(filas):
++    """Cuantas filas de la tabla tienen el veredicto `epica`."""
++    return sum(1 for f in filas if f[2] == 'EPICA')
+diff --git a/tests/test_pr_review_report.py b/tests/test_pr_review_report.py
+new file mode 100644
+index 0000000..329717e
+--- /dev/null
++++ b/tests/test_pr_review_report.py
+@@ -0,0 +1,28 @@
++import importlib.util
++import io
++import json
++import unittest
++from contextlib import redirect_stdout
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parent.parent
++spec = importlib.util.spec_from_file_location('pr_review_report', ROOT / 'scripts/pr-review-report.py')
++report = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(report)
++
++
++class TestInforme(unittest.TestCase):
++    def test_una_fila_por_pr(self):
++        entrada = io.StringIO(json.dumps([{'repo': 'o/r', 'pr': 7, 'veredicto': 'PASA'}]))
++        with redirect_stdout(io.StringIO()) as salida:
++            self.assertEqual(report.main(entrada), 0)
++        self.assertIn('| o/r', salida.getvalue())
++
++    def test_sin_prs_solo_sale_la_cabecera(self):
++        with redirect_stdout(io.StringIO()) as salida:
++            report.main(io.StringIO('[]'))
++        self.assertEqual(len(salida.getvalue().splitlines()), 2)
++
++
++if __name__ == '__main__':
++    unittest.main()

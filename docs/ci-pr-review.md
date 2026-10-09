@@ -241,8 +241,8 @@ tres valores (SC-2208):
 | `cumple` | en el comentario | cuándo | bloquea |
 |---|---|---|---|
 | `true` | ✅ | el diff lo cumple, con una línea `fichero:línea` de la versión NUEVA como evidencia; si falta o no está en el diff, ese criterio no cuenta (`sin_evidencia`) | solo sin evidencia |
-| `false` | ❌ | el diff lo contradice, o la PR dice cumplirlo y no lo hace; también un criterio sobre código de este repo que el diff no cubre y que nada sitúa en otra parte | sí (`criterio_incumplido`) |
-| `"fuera"` | ➖ | lo cumple otro repo, otra PR de la misma historia (lo dicen el título o la descripción de la PR) o una comprobación que el criterio sitúa tras el merge; la `nota` dice dónde | no |
+| `false` | ❌ | el diff lo contradice (con una línea citada que está en el diff), o es una ausencia dentro del alcance de la PR: la PR dice cumplirlo y no lo hace, o es código de este repo que el diff no cubre y que nada sitúa en otra parte (SC-2229, abajo) | sí (`criterio_incumplido`) |
+| `"fuera"` | ➖ | lo cumple otro repo, otra PR de la misma historia (lo dicen el título, la descripción o la sección de alcance de la PR), un entregable que solo existe tras la PR (`70-qa.md`, captura del vivo, comentario de Jira, «tras el despliegue»), un fichero recortado del diff, o una comprobación que el criterio sitúa tras el merge; la `nota` dice dónde | no |
 
 Una PR que solo cambia un pin (`targetRevision`, tag o digest de imagen, el SHA de otro repo) y lo que lo describe no
 contiene el producto: sus criterios de producto salen ➖ y se juzga la **coherencia** con el ticket y con lo que fija
@@ -260,6 +260,37 @@ criterio que no se cumple es ❌ en `Criterios`, no un hallazgo. Un `NO_PASA`
 sin hallazgos del modelo (`sin_clave`, `ticket_inexistente`, `cita_epica`, `sin_criterios`) lleva su motivo como
 línea `**[ticket]**` de `### Hallazgos`, para que el maker tenga algo que arreglar. Jira devuelve 404 también cuando
 la cuenta de solo lectura no ve el ticket: sale como `ticket_inexistente`.
+
+**Evidencia comprobada por código y alcance declarado** (SC-2229). El modelo no es quien da por buena su propia
+evidencia: el código la comprueba y, si no se sostiene, deja de bloquear (el comentario lo dice entre paréntesis).
+
+- *Evidencia.* Un ❌ por contradicción cita `evidencia` (`ruta:línea`) y `cita` (la línea del diff, literal); un hallazgo
+  cita `file`, `line` y `cita`. `cita_en_diff` busca la cita (espacios colapsados, sin el `+`/`-`, de `CITA_MIN` = 8
+  caracteres como mínimo) en las líneas del diff de ESE fichero. Si no está, el ❌ baja a ➖ (`la cita del modelo no
+  esta en el diff`) y el hallazgo pasa a «Observaciones» (`su cita no esta en el diff de ese fichero`). Antes de bajar
+  nada, si el fichero SÍ está en el diff (el modelo vio el sitio y copió mal la línea), se le pide UNA vez, para todas las
+  citas del juicio a la vez, la línea exacta (`reintentar_citas`: ve solo el diff de esos ficheros; puede contestar vacío);
+  la nueva cita la vuelve a comprobar el código, nunca el modelo. Un fichero que el diff toca sin mostrar ninguna línea
+  (vacío, borrado sin contenido) no tiene nada que citar: vale su nombre (`sin_lineas`). Un ❌ sin cita
+  es una **ausencia** («falta el test de X») y bloquea solo si el criterio es de esta PR (siguiente punto). Un hallazgo sobre
+  un fichero que el recorte dejó fuera tampoco bloquea (`fichero recortado, el juez no lo vio`). Un ✅ sigue pidiendo su
+  `ruta:línea` visible en el diff, como siempre.
+- *Alcance.* La descripción de la PR puede llevar la sección EXACTA `## Alcance de esta PR` (título de nivel 2, sin
+  nada más en la línea) con una línea `- C<n>` o `- C<n>: texto` por criterio, `n` la posición del criterio en la lista del
+  ticket (la de `C1`, `C2`… del comentario). Se lee hasta el siguiente título; la prosa y las líneas de otra forma se
+  ignoran, igual que un `n` fuera de la lista, y una sección sin ninguna línea válida es como no declarar alcance.
+  `alcance_de_pr` lo lee de forma determinista (`\r\n` incluido). Con alcance, un criterio que no está en él es ➖ (si es
+  una ausencia, o un ✅ sin evidencia), **salvo que el diff lo contradiga** con una cita comprobada: el alcance nunca tapa
+  una contradicción. Sin la sección el comportamiento es el de siempre: todos los criterios son de la PR. El texto
+  de la sección entra al modelo como dato delimitado (bloque `alcance`) y el comentario lista el alcance usado
+  (`Alcance declarado en la PR: C1, C3.`, fuera de la primera línea: el marcador v2 no cambia de forma, ni el enum `motivos`).
+  Quien escribe la sección es el maker: `prompts/maker-flujo.md` de opencode-company la pide con este formato.
+- *Recorte.* `recortar` mete primero código y tests (`prioridad_fichero`: 0 código y tests, 1 configuración, 2
+  documentación, 3 generado: lockfiles, minificados, snapshots, fixtures, vendor) y conserva el orden del diff; el modelo
+  recibe la lista de lo que quedó fuera en el bloque `recortados` y no debe opinar sobre ello ni marcar ❌ un criterio
+  cuyo cumplimiento estaría ahí (es ➖). El diff recortado sigue forzando `riesgo=alto`.
+- *Entregables posteriores.* Un criterio que pide algo que solo existe después de la PR (un `70-qa.md`, una captura de lo
+  servido, un comentario o adjunto de Jira, una medición «tras el despliegue») es ➖ por regla del prompt, no ❌.
 
 **Tickets sin criterios** (SC-2239). Un ticket sin `- [ ]` en su `00-spec.md` ni sección «Criterios» en la descripción es
 `sin_criterios`, salvo si es anterior a `SIN_CRITERIOS_DESDE` (2026-10-08T00:00Z, el despliegue de SC-2181, en
@@ -311,11 +342,16 @@ en su modo legado.
     REVIEW_LITELLM_URL=… REVIEW_LITELLM_KEY=… REVIEW_MODEL=… \
       python3 .github/actions/llm-review/review.py --evalua tests/fixtures/juez --umbral 7/8
 
-Corre el juez con el modelo real sobre los 9 casos de `tests/fixtures/juez/` (5 PASA y 4 NO_PASA: criterio incumplido,
-bug, norma de arquitectura, sin tests; los PASA son commits reales de este repo, entre ellos la PR de pin
-k8s-gitops-pocharlies#552 (DGX-745) con su `pr.md`, y los NO_PASA, diffs reales estropeados a propósito: sin el test, con una condición
-invertida, con una interpolación en un `run`) y sale 0 solo si acierta la proporción del umbral (7/8: con 9 casos, 8). Un caso puede traer
-`pr.md` (título, línea en blanco y descripción de su PR). Un `SIN_VEREDICTO` cuenta como fallo. Tests sin red:
+Corre el juez con el modelo real sobre los 15 casos de `tests/fixtures/juez/` (9 PASA y 6 NO_PASA: criterio incumplido,
+bug, norma de arquitectura, sin tests y, de SC-2229, un ❌ dentro del alcance declarado y un diff que contradice un
+criterio fuera de él; cinco de los PASA son commits reales de este repo, entre ellos la PR de pin
+k8s-gitops-pocharlies#552 (DGX-745) con su `pr.md`, y cuatro, de SC-2229, son sintéticos —los reales de esa clase son de repos
+privados y este repo es público—: criterios de otra PR con su sección de alcance, un diff recortado con el fichero que el juez no
+ve, entregables posteriores a la PR y una sospecha sin evidencia en el diff; los NO_PASA de antes son diffs reales estropeados a propósito: sin el test, con una condición
+invertida, con una interpolación en un `run`) y sale 0 solo si acierta la proporción del umbral (7/8: con 15 casos, 14). Un caso puede traer
+`pr.md` (título, línea en blanco y descripción de su PR) y `max_bytes` (el tope del diff de ese caso, para recortar uno pequeño).
+Un `SIN_VEREDICTO` cuenta como fallo; el resumen final cuenta también los falsos PASA (un PASA donde se esperaba NO_PASA). Cada línea acaba en `bajas=`: lo que
+las reglas de SC-2229 dejaron de bloquear en ese caso, por clase (`C.alcance:3,H.cita:1`), para saber si un fallo es del modelo o de una regla. Tests sin red:
 `python3 -m unittest tests.test_llm_review_juez` (un LiteLLM, un Jira y una API de GitHub de pega).
 
 ## Cobertura: qué repos pasan a `juez` y con qué (SC-2182, parte C)

@@ -1,0 +1,3 @@
+- [ ] C1 `scripts/stale-prs.py` expone `viejas(prs, ahora, dias)`: devuelve, en el orden de entrada, las PRs cuyo `updatedAt` es anterior a `ahora` menos `dias` dias.
+- [ ] C2 Una PR cuyo `updatedAt` es exactamente `ahora - dias` no se devuelve, y un test lo fija.
+- [ ] C3 Una PR sin `updatedAt` se ignora sin lanzar excepcion, y un test lo fija.

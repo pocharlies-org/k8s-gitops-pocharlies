@@ -1,0 +1,3 @@
+- [ ] C1 `clasificar(lineas)` devuelve `chica` hasta 50 lineas, `media` hasta 300 y `grande` por encima.
+- [ ] C2 Un test fija los cuatro limites (50, 51, 300 y 301) en `tests/test_pr_size.py` y entra en `ci.yml`.
+- [ ] C3 `reusable-pr-review.yml` etiqueta la PR con el tamaño que devuelve el script.

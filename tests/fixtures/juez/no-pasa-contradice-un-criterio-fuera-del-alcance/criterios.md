@@ -1,0 +1,3 @@
+- [ ] C1 `clasificar(lineas)` existe en `scripts/pr-size.py` y devuelve `chica`, `media` o `grande`.
+- [ ] C2 El limite de `chica` es de 50 lineas: con 51 lineas `clasificar` devuelve `media`.
+- [ ] C3 `reusable-pr-review.yml` etiqueta la PR con el tamaño que devuelve el script.
