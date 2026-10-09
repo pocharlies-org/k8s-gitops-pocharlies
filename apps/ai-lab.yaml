@@ -8,19 +8,19 @@
 # nunca solo un merge alli (no sigue `main`).
 #
 # DGX-690 (H8): `lab/` lleva la receta de un Spark de MiaAI-Lab en DOS FASES. A: el Job `qwen38-lab-prepare` (sin GPU:
-# descarga, verifica, parches contra la imagen, tabla PLE); ya hecha (SHA 19a0591f). B: el Deployment `qwen38-lab` con
-# `replicas: 1` desde el SHA 99e10cd0 (k8s-ai-pocharlies#120), encendida por decision de Dani; el motor lleva el vigilante de
-# memoria y del SAI (serve.sh) y se enciende y apaga por PR, nunca `kubectl scale`.
-# ESTADO ACTUAL (DGX-745, k8s-ai-pocharlies#127, SHA ab24d560): el lab arranca con el brazo hybrid (`launch-revision
-# dgx745-hybrid-nfs`, `replicas: 1`). Los pesos del residente se leen por NFS-RDMA desde dgx1 (PV/PVC de solo lectura
-# `hf-cache-dgx1-lab-ro`, servidor 10.0.2.1; el export es INFRA-785) y la tabla PLE se construye en el NVMe de dgx3 con el
-# Job sin GPU `qwen38-lab-prepare-hybrid`; el motor no arranca hasta que el Job deja la marca READY. Sigue sin guard del SAI
-# (UPS_GUARD=0: dgx3 esta fuera del SAI) y con el vigilante de memoria. Se apaga con un PR que devuelve `targetRevision` a
-# 19a0591fb48ded74d2f116ee2b93439140247404 (replicas 0); 3b79a2b03d6093092a284a6d0355da369431e5d8 es el lab anterior (brazo
-# nvfp4, replicas 1, sin NFS).
-# El apagado (fase B hacia atras) no borra nada mas: el Job de la fase A y el hostPath siguen como estan. Marcha atras de la fase A: un PR que
-# devuelve `targetRevision` a d8a32d7c130ce98655e9e442096df6e6a93bc480 (el prune retira el Job y el Deployment; el
-# hostPath no se toca).
+# descarga, verifica, parches contra la imagen, tabla PLE), hecha en el SHA 19a0591f. B: el Deployment `qwen38-lab` (desde el
+# SHA 99e10cd0, k8s-ai-pocharlies#120, por decision de Dani); se enciende y se apaga por PR, nunca `kubectl scale`.
+#
+# ESTADO ACTUAL (DGX-745, k8s-ai-pocharlies#128, SHA 21870c14): el lab arranca con el brazo `radix` (vista
+# `qwen38fn-mtp-nvfp4` del residente, `replicas: 1`). Los pesos se leen por NFS-RDMA desde dgx1 (PV/PVC de solo lectura
+# `hf-cache-dgx1-lab-ro`, servidor 10.0.2.1; el export es INFRA-785) y la tabla PLE del hibrido ya esta construida en el NVMe
+# de dgx3 (Job sin GPU `qwen38-lab-prepare-hybrid`). El motor lleva el vigilante de memoria (serve.sh) y no lleva guard del
+# SAI (UPS_GUARD=0: dgx3 esta fuera del SAI). El brazo `hybrid` (k8s-ai-pocharlies#127, SHA ab24d560) NO carga con la imagen
+# `fc120ece`: AttributeError al cargar las proyecciones FP8_PB_WO.
+#
+# MARCHA ATRAS (una sola): un PR que devuelve `targetRevision` a ab24d5609152148419b0aa301984dfb8c6093cf9 (hybrid, no
+# arranca) o a 19a0591fb48ded74d2f116ee2b93439140247404 (apagado, `replicas: 0`). Apagar no borra nada mas: el Job de la
+# fase A y el hostPath siguen como estan.
 #
 # prune: true es seguro en este namespace: solo hay cargas del laboratorio y el PVC `hf-cache-dgx1-lab-ro` con su PV (NFS de solo
 # lectura desde dgx1, `Retain`), que viajan con la app: un prune los retira sin perder datos (el NFS es de dgx1, el PV es
@@ -48,7 +48,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies-org/k8s-ai-pocharlies
-    targetRevision: ab24d5609152148419b0aa301984dfb8c6093cf9
+    targetRevision: 21870c14d22214eadca311f5e1acfbf0ddda8c78
     path: lab
   destination:
     server: https://kubernetes.default.svc
