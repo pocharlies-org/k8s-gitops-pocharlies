@@ -602,6 +602,12 @@ ni de los comentarios del propio diff, y busca solo dos tipos de hallazgo:
   Solo cuenta un fallo que el codigo del diff produce con una entrada concreta, que `summary` nombra; una
   posibilidad abstracta («si la clave faltase», «si el valor fuese nulo») o una validacion defensiva
   que el diff no necesita no es un hallazgo.
+  Solo ves el diff, no el repositorio: la firma de una funcion que el diff llama pero no define, el valor
+  de una constante o el contenido de otro fichero no los conoces, y no supongas que fallan (un argumento
+  que quiza la firma no acepte, una funcion que quiza no devuelve lo esperado). Si el hallazgo solo se
+  sostiene con un «si», un «puede» o un «probablemente», no esta demostrado y no se escribe. `entrada`
+  es la entrada concreta con la que el codigo falla y lo que produce con ella; si no puedes escribirla,
+  no hay hallazgo `correccion`.
 - `arquitectura`: el diff incumple una norma del bloque `arquitectura`. Recorre las normas que hablan
   de lo que el diff toca (las que dicen «nunca», «siempre», «solo», «el unico», «no se») y compara cada
   una con lo que el diff escribe, aunque el diff cumpla todos los criterios. Nombra la norma en `summary`;
@@ -619,7 +625,9 @@ PREGUNTA 2, `criterios`: ¿que criterios del ticket cubre esta PR?
      contexto del hunk). Sin una linea asi en el diff, no es `true`.
    - `false` (contradicho, o prometido y no hecho): el diff hace lo contrario de lo que pide el
      criterio, o la PR dice cumplirlo y el diff no lo hace. Tambien lo es un criterio sobre
-     codigo de este repositorio que el diff no cubre, si nada lo situa en otra parte.
+     codigo de este repositorio que el diff no cubre, si nada lo situa en otra parte. Una sospecha
+     sobre codigo que el diff no muestra no es una contradiccion: `false` pide una linea del diff que
+     lo contradiga o una promesa de la PR que el diff no cumple.
    - `"fuera"` (fuera de esta PR): lo cumple OTRO repositorio, otra PR de la misma historia (lo
      dicen el titulo o la descripcion de la PR) o una comprobacion que el propio criterio situa
      despues del merge (un despliegue, una medicion de qa). `nota` dice donde se verifica.
@@ -634,7 +642,8 @@ PREGUNTA 2, `criterios`: ¿que criterios del ticket cubre esta PR?
 
 Responde SOLO con este JSON, con `hallazgos` antes que `criterios`:
 {{"hallazgos": [{{"file": "ruta/fichero.py", "line": 42, "severity": "alta|media|baja",
-                 "tipo": "correccion|arquitectura", "summary": "<que pasa y que hacer>"}}],
+                 "tipo": "correccion|arquitectura", "summary": "<que pasa y que hacer>",
+                 "entrada": "<solo en correccion: la entrada concreta que falla y lo que produce>"}}],
   "criterios": [{{"n": 1, "cumple": true|false|"fuera", "evidencia": "ruta/fichero.py:42", "nota": "<una frase>"}}]}}
 
 {bloques}

@@ -569,6 +569,28 @@ class TestFueraDeEstaPR(Base):
         self.assertIn('bloquea la PR SIEMPRE', usuario)
         self.assertIn('arquitectura', sistema)
 
+    def test_la_rubrica_no_deja_suponer_lo_que_el_diff_no_muestra(self):
+        # SC-2197 C3b: el modelo veia `terminar(..., codigo=1)` sin la firma y la daba por rota; un
+        # hallazgo que solo se sostiene con un «si» no se escribe y un criterio no es `false` por una sospecha
+        self.correr()
+        _, _, usuario = self.mundo.llamadas[0]
+        for frase in ('Solo ves el diff, no el repositorio', 'la firma de una funcion que el diff llama pero no define',
+                      'un «si», un «puede» o un «probablemente»', 'no hay hallazgo `correccion`',
+                      'sobre codigo que el diff no muestra no es una contradiccion',
+                      '"entrada": "<solo en correccion'):
+            self.assertIn(frase, usuario)
+
+    def test_un_hallazgo_de_correccion_sin_entrada_sigue_bloqueando(self):
+        # `entrada` es solo andamiaje del prompt: el codigo no la exige, falla cerrado (0 falsos PASA)
+        base = {'file': 'src/app.py', 'line': 12, 'severity': 'alta', 'tipo': 'correccion', 'summary': 'invierte la condicion'}
+        for nombre, hallazgo in (('sin entrada', base), ('con entrada vacia', {**base, 'entrada': ''}),
+                                 ('con entrada', {**base, 'entrada': 'x=1 devuelve False'})):
+            with self.subTest(nombre):
+                self.mundo.comentarios.clear()
+                self.responde([cumple(1), self.fuera(2)], [hallazgo])
+                self.assertEqual(self.correr(), 1)
+                self.assertVeredicto('NO_PASA', motivos='hallazgos')
+
 
 class TestReintento(Base):
     """SC-2197 C3b: una respuesta que no es el JSON pedido se pide una vez mas antes de dar SIN_VEREDICTO."""

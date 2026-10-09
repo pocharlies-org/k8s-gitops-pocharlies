@@ -250,7 +250,10 @@ contiene el producto: sus criterios de producto salen ➖ y se juzga la **cohere
 es ❌. Además cuenta todo hallazgo de severidad alta o media de tipo `correccion` o `arquitectura`: el modelo contesta
 primero a esa pregunta (¿el diff es correcto y cumple las normas del `ARCHITECTURE.md`?, `hallazgos` va antes que
 `criterios` en el JSON) y después a la de los criterios, y un hallazgo bloqueante bloquea SIEMPRE, sea ✅, ❌ o ➖ cada
-criterio: un ➖ no tapa un hallazgo (SC-2197). El tipo se normaliza
+criterio: un ➖ no tapa un hallazgo (SC-2197). El modelo solo ve el diff: lo que este no muestra (la firma de una
+función que llama, una constante, otro fichero) no lo da por roto, y un hallazgo `correccion` que solo se sostiene con
+un «si» no se escribe (`entrada` pide la entrada concreta que falla; el código no la exige, así que un hallazgo sin ella
+sigue bloqueando). Un criterio no es ❌ por una sospecha sobre código que el diff no muestra. El tipo se normaliza
 (minúsculas, sin tildes) y uno desconocido o vacío (`bug`, `corrección` mal escrito) bloquea, porque el motivo de no
 bloquear es el estilo, no una etiqueta que el modelo escribió distinta. `estilo`, `otro` y `criterio` no bloquean: un
 criterio que no se cumple es ❌ en `Criterios`, no un hallazgo. Un `NO_PASA`
