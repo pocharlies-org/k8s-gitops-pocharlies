@@ -273,6 +273,13 @@ patches:
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *compute-replicas, name: qwen38-flash-next-worker }
+      # 09-10 DGX-778 (P1c): tercer rango TP=3 en dgx3. El arbitro gobierna sus
+      # replicas (DGX-779 PR-B); sin esta entrada selfHeal las devuelve a git a
+      # los ~10 s (el fallo de stt-turbo del 18-09). Inofensiva mientras el
+      # Deployment no exista (hasta DGX-781) o ya no exista (tras la vuelta atras).
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *compute-replicas, name: qwen38-flash-next-worker-dgx3 }
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *compute-replicas, name: bge-m3-embedding }
