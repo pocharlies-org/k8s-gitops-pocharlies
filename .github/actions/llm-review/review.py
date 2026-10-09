@@ -30,6 +30,7 @@ import sys
 import unicodedata
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 # El propio runner publica GITHUB_API_URL; usarlo en vez de una constante
@@ -571,6 +572,8 @@ INTENTOS_JUEZ = 2                  # una respuesta que no es el JSON pedido se p
 ARQUITECTURA_MAX = 30000           # caracteres de ARCHITECTURE.md que entran al modelo
 PR_MAX = 8000                      # caracteres del titulo y la descripcion de la PR que entran al modelo
 CRITERIO_MAX = 2000
+# despliegue de SC-2181: un ticket anterior no nacio con criterios y se juzga contra su descripcion
+SIN_CRITERIOS_DESDE = datetime(2026, 10, 8, tzinfo=timezone.utc)
 # Proyectos de la tabla de la compañia; uno nuevo se añade aqui. Una lista cerrada
 # evita que `SHA-256` o `UTF-8` en un titulo se lean como un ticket.
 PROYECTOS_JIRA = ('SC', 'INFRA', 'DGX', 'SKIRM', 'LE', 'OWU', 'ACC')
@@ -747,7 +750,7 @@ def leer_ticket(base, email, token, clave):
     auth = {'Authorization': 'Basic ' + base64.b64encode(f'{email}:{token}'.encode()).decode('ascii')}
     try:
         issue = rh.request(f'{base}/rest/api/3/issue/{clave}'
-                           '?fields=summary,description,issuetype,attachment',
+                           '?fields=summary,description,issuetype,attachment,created',
                            auth, ok404=True, source='Jira')
         if issue is None:
             return 'no_existe', None
@@ -763,9 +766,22 @@ def leer_ticket(base, email, token, clave):
     except rh.Degraded as e:
         return 'jira_caido', str(e)
     tipo = ((campos.get('issuetype') or {}).get('name') or '')
-    criterios = criterios_de_spec(spec) or criterios_de_descripcion(adf_texto(campos.get('description')))
-    return 'ok', {'es_epica': tipo.lower() == 'epic', 'resumen': campos.get('summary') or '',
-                  'criterios': criterios}
+    resumen, descripcion = campos.get('summary') or '', adf_texto(campos.get('description'))
+    criterios = criterios_de_spec(spec) or criterios_de_descripcion(descripcion)
+    por_descripcion = not criterios and descripcion.strip() and _anterior_al_corte(campos.get('created'))
+    if por_descripcion:   # SC-2239: un unico criterio, el objetivo del ticket
+        criterios = [' '.join(f'{resumen}: {descripcion}'.split())[:CRITERIO_MAX]]
+    return 'ok', {'es_epica': tipo.lower() == 'epic', 'resumen': resumen, 'criterios': criterios,
+                  'por_descripcion': bool(por_descripcion)}
+
+
+def _anterior_al_corte(creado):
+    """¿El ticket nacio antes de SIN_CRITERIOS_DESDE? Una fecha ausente o ilegible dice que no (falla cerrado)."""
+    try:   # Jira escribe el desfase como +0200; fromisoformat de python < 3.11 solo lo lee como +02:00
+        t = datetime.fromisoformat(re.sub(r'([+-]\d\d)(\d\d)$', r'\1:\2', creado))
+    except (TypeError, ValueError):
+        return False
+    return (t if t.tzinfo else t.replace(tzinfo=timezone.utc)) < SIN_CRITERIOS_DESDE
 
 
 def _http():
@@ -966,6 +982,9 @@ def componer_juez(r):
         lineas.append(f"Ticket `{codigo(r['clave'])}` — {limpio(r.get('titulo'), 200)}")
     if r.get('detalle'):
         lineas += ['', limpio(r['detalle'], 500)]
+    if r.get('por_descripcion'):
+        lineas += ['', 'El ticket no tiene criterios de aceptacion (es anterior a SC-2181): el juez juzgo '
+                       'contra su resumen y su descripcion, como un unico criterio.']
     criterios = r.get('criterios') or []
     if criterios:
         lineas += ['', '### Criterios']
@@ -1045,7 +1064,7 @@ def juez():
                    'sin_credencial': 'Jira rechazo la credencial de solo lectura.',
                    'jira_caido': f'Jira no contesto: {ticket}.'}[estado]
         return salir('NO_PASA' if estado == 'no_existe' else 'SIN_VEREDICTO', {motivo}, detalle)
-    r['titulo'] = ticket['resumen']
+    r['titulo'], r['por_descripcion'] = ticket['resumen'], ticket['por_descripcion']
     if ticket['es_epica']:
         return salir('NO_PASA', {'cita_epica'}, f'{claves[0]} es una epica: la PR debe citar una historia o una tarea.')
     if not ticket['criterios']:
