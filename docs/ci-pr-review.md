@@ -338,13 +338,13 @@ en su modo legado.
     REVIEW_LITELLM_URL=… REVIEW_LITELLM_KEY=… REVIEW_MODEL=… \
       python3 .github/actions/llm-review/review.py --evalua tests/fixtures/juez --umbral 7/8
 
-Corre el juez con el modelo real sobre los 14 casos de `tests/fixtures/juez/` (8 PASA y 6 NO_PASA: criterio incumplido,
+Corre el juez con el modelo real sobre los 15 casos de `tests/fixtures/juez/` (9 PASA y 6 NO_PASA: criterio incumplido,
 bug, norma de arquitectura, sin tests y, de SC-2229, un ❌ dentro del alcance declarado y un diff que contradice un
 criterio fuera de él; cinco de los PASA son commits reales de este repo, entre ellos la PR de pin
-k8s-gitops-pocharlies#552 (DGX-745) con su `pr.md`, y tres, de SC-2229, son sintéticos —los reales de esa clase son de repos
+k8s-gitops-pocharlies#552 (DGX-745) con su `pr.md`, y cuatro, de SC-2229, son sintéticos —los reales de esa clase son de repos
 privados y este repo es público—: criterios de otra PR con su sección de alcance, un diff recortado con el fichero que el juez no
-ve y entregables posteriores a la PR; los NO_PASA de antes son diffs reales estropeados a propósito: sin el test, con una condición
-invertida, con una interpolación en un `run`) y sale 0 solo si acierta la proporción del umbral (7/8: con 14 casos, 13). Un caso puede traer
+ve, entregables posteriores a la PR y una sospecha sin evidencia en el diff; los NO_PASA de antes son diffs reales estropeados a propósito: sin el test, con una condición
+invertida, con una interpolación en un `run`) y sale 0 solo si acierta la proporción del umbral (7/8: con 15 casos, 14). Un caso puede traer
 `pr.md` (título, línea en blanco y descripción de su PR) y `max_bytes` (el tope del diff de ese caso, para recortar uno pequeño).
 Un `SIN_VEREDICTO` cuenta como fallo; el resumen final cuenta también los falsos PASA (un PASA donde se esperaba NO_PASA). Tests sin red:
 `python3 -m unittest tests.test_llm_review_juez` (un LiteLLM, un Jira y una API de GitHub de pega).

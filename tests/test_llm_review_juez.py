@@ -936,10 +936,12 @@ class TestEvidenciaDelJuez(Base):
             self.assertTrue(frase in usuario, frase)
 
     def test_el_corpus_trae_un_caso_de_cada_clase_de_sc_2229(self):
-        # criterios que son de otra PR, diff recortado y entregables posteriores: los reales son de repos privados
+        # criterios que son de otra PR, diff recortado, entregables posteriores y una sospecha sin evidencia en el
+        # diff: los reales son de repos privados
         casos = {p.name for p in FIXTURES.iterdir() if p.is_dir()}
         for caso in ('pasa-criterio-de-otra-pr-con-alcance', 'pasa-diff-recortado-hallazgo-sobre-lo-que-no-ve',
-                     'pasa-entregable-posterior-a-la-pr', 'no-pasa-rojo-dentro-del-alcance'):
+                     'pasa-entregable-posterior-a-la-pr', 'pasa-sospecha-sin-evidencia-en-el-diff',
+                     'no-pasa-rojo-dentro-del-alcance'):
             self.assertIn(caso, casos)
         self.assertIn('## Alcance de esta PR', (FIXTURES / 'pasa-criterio-de-otra-pr-con-alcance' / 'pr.md').read_text())
 
@@ -1265,11 +1267,11 @@ class TestEvalua(Base):
         self.mundo.litellm['alibaba-q38-flash'] = [(503, None, 0)]
         self.assertEqual(self.correr_evalua('1/1'), 1)
 
-    def test_el_corpus_commiteado_es_de_6_no_pasa_y_8_pasa(self):
+    def test_el_corpus_commiteado_es_de_6_no_pasa_y_9_pasa(self):
         casos = sorted(p for p in FIXTURES.iterdir() if p.is_dir())
         esperados = [(p / 'esperado').read_text().split()[0] for p in casos]
-        self.assertEqual(len(casos), 14)
-        self.assertEqual(sorted(esperados), ['NO_PASA'] * 6 + ['PASA'] * 8)
+        self.assertEqual(len(casos), 15)
+        self.assertEqual(sorted(esperados), ['NO_PASA'] * 6 + ['PASA'] * 9)
         self.assertEqual(sum(p.name.startswith('no-pasa-') for p in casos), 6)
         for p in casos:
             for f in ('criterios.md', 'diff.patch', 'esperado'):
