@@ -11,18 +11,18 @@
 # descarga, verifica, parches contra la imagen, tabla PLE), hecha en el SHA 19a0591f. B: el Deployment `qwen38-lab` (desde el
 # SHA 99e10cd0, k8s-ai-pocharlies#120, por decision de Dani); se enciende y se apaga por PR, nunca `kubectl scale`.
 #
-# ESTADO ACTUAL (DGX-745, k8s-ai-pocharlies#130, SHA 8751ce8d): el lab arranca con el brazo `radix` (vista
-# `qwen38fn-mtp-nvfp4` del residente, `replicas: 1`) con KV de 13 GiB (`--kv-cache-memory-bytes`), el vigilante de memoria de
-# serve.sh cortando con `MemAvailable < 3 GiB` durante 5 lecturas y el MTP de MiaAI: calendario
-# `[[1,4,3],[5,8,1]]` (k=3 a 1-4 peticiones, k=1 a 5-8), borrador `greedy`, reduccion argmax y vocabulario de 47.172 ids.
-# Los pesos se leen por NFS-RDMA desde dgx1 (PV/PVC de solo lectura `hf-cache-dgx1-lab-ro`, servidor 10.0.2.1; el export es
-# INFRA-785) y la tabla PLE del hibrido ya esta construida en el NVMe de dgx3 (Job sin GPU `qwen38-lab-prepare-hybrid`). El
-# motor no lleva guard del SAI (UPS_GUARD=0: dgx3 esta fuera del SAI). El brazo `hybrid` (k8s-ai-pocharlies#127) NO carga con
-# la imagen `fc120ece`: AttributeError al cargar las proyecciones FP8_PB_WO.
+# ESTADO ACTUAL (DGX-759, k8s-ai-pocharlies#132, SHA 72748091): el lab arranca con el brazo `hybrid` (el checkpoint FP8 de
+# produccion: FP8 por bloques en atencion y GDN, que la imagen `fc120ece` carga con la edicion `FP8_PB_WO` de #129;
+# `replicas: 1`) con KV de 13 GiB (`--kv-cache-memory-bytes`), el vigilante de memoria de serve.sh cortando con
+# `MemAvailable < 3 GiB` durante 5 lecturas y el MTP de MiaAI: calendario `[[1,4,3],[5,8,1]]` (k=3 a 1-4 peticiones, k=1 a
+# 5-8), borrador `greedy`, reduccion argmax y vocabulario de 47.172 ids. Los pesos se leen por NFS-RDMA desde dgx1 (PV/PVC de
+# solo lectura `hf-cache-dgx1-lab-ro`, servidor 10.0.2.1; el export es INFRA-785) y la tabla PLE del hibrido ya esta construida
+# en el NVMe de dgx3 (Job sin GPU `qwen38-lab-prepare-hybrid`). El motor no lleva guard del SAI (UPS_GUARD=0: dgx3 esta fuera
+# del SAI). El primer arranque del `hybrid` con la edicion `FP8_PB_WO` no esta medido en GPU.
 #
-# MARCHA ATRAS (una sola): un PR que devuelve `targetRevision` a 21870c14d22214eadca311f5e1acfbf0ddda8c78 (radix con KV de
-# 8 GiB y MTP k=1) o a 19a0591fb48ded74d2f116ee2b93439140247404 (apagado, `replicas: 0`). Apagar no borra nada mas: el Job de la
-# fase A y el hostPath siguen como estan.
+# MARCHA ATRAS (una sola): un PR que devuelve `targetRevision` a 8751ce8da50c70d88ec944d82eb7b702499c6da0 (brazo `radix` con
+# KV de 13 GiB y MTP de MiaAI) o a 19a0591fb48ded74d2f116ee2b93439140247404 (apagado, `replicas: 0`). Apagar no borra nada mas:
+# el Job de la fase A y el hostPath siguen como estan.
 #
 # prune: true es seguro en este namespace: solo hay cargas del laboratorio y el PVC `hf-cache-dgx1-lab-ro` con su PV (NFS de solo
 # lectura desde dgx1, `Retain`), que viajan con la app: un prune los retira sin perder datos (el NFS es de dgx1, el PV es
@@ -50,7 +50,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/pocharlies-org/k8s-ai-pocharlies
-    targetRevision: 8751ce8da50c70d88ec944d82eb7b702499c6da0
+    targetRevision: 727480919155d5335941f95b816c5f51b5830dff
     path: lab
   destination:
     server: https://kubernetes.default.svc
