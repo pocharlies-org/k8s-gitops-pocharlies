@@ -1,0 +1,47 @@
+diff --git a/ARCHITECTURE.md b/ARCHITECTURE.md
+index 364ced4..5df220b 100644
+--- a/ARCHITECTURE.md
++++ b/ARCHITECTURE.md
+@@ -116,6 +116,6 @@ Nº de tests: 58 (medido con `unittest discover` el 2026-10-08; 23 en `tests/tes
+   de cuota, el diagnóstico de 7 días mide los runs rápidos con `run_started_at` — **aproximación a la baja**
+   (un job `needs` o de otro pool dentro de un run rápido no se ve). Los asserts C1/C5 y las ventanas
+   `--since/--hours` activan `exact=True`, que pide la API de jobs para todos los runs (~1700 llamadas para 48 h).
+-- `apps/ai-lab.yaml` (DGX-689): laboratorio de dgx3, FUERA del árbitro de cómputo. Application aparte de `ai` (que lleva los hooks del árbitro): renderiza solo `lab/` de `k8s-ai-pocharlies`, pinneada a un SHA de fusión, sin hooks y sin `ignoreDifferences` de réplicas (solo un PR cambia réplicas; el panel rechaza el `power` sobre `ai-lab`). `prune: true` en su namespace. Desde DGX-690 `lab/` lleva dos fases: el Job `qwen38-lab-prepare` (fase A, sin GPU, ya hecha) y el Deployment `qwen38-lab` (fase B: `replicas: 1` en el SHA `99e10cd0`, re-encendida tras el corte de CA de dgx3 para medir a reloj completo, relanzada en el SHA `3b79a2b0` (`launch-revision` -5, `UPS_GUARD=0`: dgx3 fuera del SAI); se apaga volviendo a `19a0591f` con `replicas: 0`; el motor se corta solo con el vigilante de memoria y del SAI de `serve.sh`); la `source` solo admite `repoURL`, `targetRevision` y `path` (sin `kustomize`). Marcha atrás: un PR que devuelve `targetRevision` al SHA anterior. Retirar la carga (Job y Deployment) = PR que vacía `lab/`. Retirar la Application misma = PR que quita `apps/ai-lab.yaml` y su línea en `kustomization.yaml` + poda acotada de `root` sobre `Application/ai-lab` (`operation.sync.prune: true` + `resources`, patrón de §5, precedente `hermes-despliegue poda`): `root` tiene `prune: false` y sin esa poda la Application se queda para siempre. El finalizer arrastra el Pod y el Namespace, no el hostPath `/srv/ai-lab`. Nunca `kubectl delete application`.
++- `apps/ai-lab.yaml` (DGX-689): laboratorio de dgx3, FUERA del árbitro de cómputo. Application aparte de `ai` (que lleva los hooks del árbitro): renderiza solo `lab/` de `k8s-ai-pocharlies`, pinneada a un SHA de fusión, sin hooks y sin `ignoreDifferences` de réplicas (solo un PR cambia réplicas; el panel rechaza el `power` sobre `ai-lab`). `prune: true` en su namespace. Desde DGX-690 `lab/` lleva dos fases: el Job `qwen38-lab-prepare` (fase A, sin GPU, ya hecha) y el Deployment `qwen38-lab` (fase B: `replicas: 1` en el SHA `99e10cd0`, re-encendida tras el corte de CA de dgx3 para medir a reloj completo, relanzada sin guard del SAI en el SHA `3b79a2b0` (`launch-revision` -5, `UPS_GUARD=0`: dgx3 fuera del SAI) y, con DGX-745 S1, en el SHA `b0d10802` (receta con las mejoras del residente, brazo nvfp4, KV fijo de 8 GiB, `launch-revision` `dgx745-s1-nvfp4`); marcha atrás a `3b79a2b0`, y apagar es `19a0591f` con `replicas: 0`; el motor se corta solo con el vigilante de memoria y del SAI de `serve.sh`); la `source` solo admite `repoURL`, `targetRevision` y `path` (sin `kustomize`). Marcha atrás: un PR que devuelve `targetRevision` al SHA anterior. Retirar la carga (Job y Deployment) = PR que vacía `lab/`. Retirar la Application misma = PR que quita `apps/ai-lab.yaml` y su línea en `kustomization.yaml` + poda acotada de `root` sobre `Application/ai-lab` (`operation.sync.prune: true` + `resources`, patrón de §5, precedente `hermes-despliegue poda`): `root` tiene `prune: false` y sin esa poda la Application se queda para siempre. El finalizer arrastra el Pod y el Namespace, no el hostPath `/srv/ai-lab`. Nunca `kubectl delete application`.
+ 
+ Última verificación contra el código: 2026-10-06 · a5698db (origin/deploy/prod)
+diff --git a/apps/ai-lab.yaml b/apps/ai-lab.yaml
+index 3f815f7..de83616 100644
+--- a/apps/ai-lab.yaml
++++ b/apps/ai-lab.yaml
+@@ -11,13 +11,14 @@
+ # descarga, verifica, parches contra la imagen, tabla PLE); ya hecha (SHA 19a0591f). B: el Deployment `qwen38-lab` con
+ # `replicas: 1` desde el SHA 99e10cd0 (k8s-ai-pocharlies#120), encendida por decision de Dani; el motor lleva el vigilante de
+ # memoria y del SAI (serve.sh) y se enciende y apaga por PR, nunca `kubectl scale`.
+-# ESTADO ACTUAL: RELANZADO SIN EL GUARD DEL SAI, con launch-revision -5 (k8s-ai-pocharlies#122, SHA 3b79a2b0): UPS_GUARD=0
+-# salta la lectura previa y el corte por NUT (no el de memoria), porque Dani confirmo que dgx3 esta fuera del SAI. Antes
+-# se habia relanzado con launch-revision -4 (#121, SHA da5747be, UPS_GUARD=1) tras el corte de CA de dgx3 (la GPU estaba
+-# clavada a 611 MHz por el PD en modo seguro) para comprobar el reloj con carga y medir a reloj completo: `targetRevision`
+-# en 3b79a2b03d6093092a284a6d0355da369431e5d8 (replicas 1). Se APAGA a las 02:13, antes de la noche 1 del residente (03:00 a
+-# 09:00 con fallback a Alibaba), con un PR que devuelve `targetRevision` a 19a0591fb48ded74d2f116ee2b93439140247404
+-# (replicas 0).
++# ESTADO ACTUAL (DGX-745 S1): receta del lab con las mejoras del residente, brazo nvfp4 (KV fijo de 8 GiB, imagen fc120ece),
++# launch-revision `dgx745-s1-nvfp4`, k8s-ai-pocharlies#124, SHA b0d10802dc0ce12ac6e24d948e08fc295a7aab57 (replicas 1), por
++# decision de Dani («despliegalo ya»). Sigue UPS_GUARD=0 (dgx3 fuera del SAI, #122) y el vigilante de memoria activo.
++# MARCHA ATRAS: un PR que devuelve `targetRevision` a 3b79a2b03d6093092a284a6d0355da369431e5d8 (el estado anterior, rev -5,
++# replicas 1; el prune retira lo que S1 anade). Para APAGAR: `targetRevision` a 19a0591fb48ded74d2f116ee2b93439140247404
++# (replicas 0). Historia: relanzado sin guard del SAI en #122 (SHA 3b79a2b0); antes, #121 (SHA da5747be, UPS_GUARD=1) tras el
++# corte de CA de dgx3 (la GPU estaba clavada a 611 MHz por el PD en modo seguro). Noche del residente: 03:00 a 09:00 con
++# fallback a Alibaba por internet.
+ # El apagado (fase B hacia atras) no borra nada mas: el Job de la fase A y el hostPath siguen como estan. Marcha atras de la fase A: un PR que
+ # devuelve `targetRevision` a d8a32d7c130ce98655e9e442096df6e6a93bc480 (el prune retira el Job y el Deployment; el
+ # hostPath no se toca).
+@@ -47,7 +48,7 @@ spec:
+   project: default
+   source:
+     repoURL: https://github.com/pocharlies-org/k8s-ai-pocharlies
+-    targetRevision: 3b79a2b03d6093092a284a6d0355da369431e5d8
++    targetRevision: b0d10802dc0ce12ac6e24d948e08fc295a7aab57
+     path: lab
+   destination:
+     server: https://kubernetes.default.svc

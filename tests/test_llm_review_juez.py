@@ -294,10 +294,10 @@ class TestDecision(Base):
         modelo, sistema, usuario = self.mundo.llamadas[0]
         self.assertEqual(modelo, 'local-juez')
         ids = set(re.findall(r'<<<DATOS id=([0-9a-f]+) tipo=(\w+)>>>', usuario))
-        self.assertEqual({t for _, t in ids}, {'ticket', 'criterios', 'diff', 'arquitectura'})
+        self.assertEqual({t for _, t in ids}, {'ticket', 'criterios', 'diff', 'arquitectura', 'pr'})
         self.assertEqual(len({i for i, _ in ids}), 1, 'una sola marca por ejecucion')
         marca = next(i for i, _ in ids)
-        for tipo in ('ticket', 'criterios', 'diff', 'arquitectura'):
+        for tipo in ('ticket', 'criterios', 'diff', 'arquitectura', 'pr'):
             self.assertRegex(usuario, rf'(?s)<<<DATOS id={marca} tipo={tipo}>>>\n.*?<<<FIN id={marca}>>>')
         bloque_diff = re.search(rf'tipo=diff>>>\n(.*?)\n<<<FIN id={marca}>>>', usuario, re.S).group(1)
         self.assertEqual(bloque_diff.strip(), DIFF.strip())
@@ -441,6 +441,106 @@ class TestDecision(Base):
     def test_diff_entero_es_riesgo_normal(self):
         self.correr()
         self.assertIn(' riesgo=normal ', self.marcador())
+
+
+class TestFueraDeEstaPR(Base):
+    """SC-2208: un criterio sale cubierto (true), contradicho o prometido y no hecho (false) o fuera de
+    esta PR (`"fuera"`: otro repo, un pin, otra PR de la misma historia). Solo false y los hallazgos de
+    correccion o arquitectura de severidad alta o media bloquean."""
+
+    def fuera(self, n, nota='se verifica en otra PR de la historia'):
+        return {'n': n, 'cumple': 'fuera', 'nota': nota}
+
+    def responde(self, criterios, hallazgos=()):
+        self.mundo.litellm['local-juez'] = [(200, respuesta(criterios, hallazgos), 0)]
+
+    def test_una_pr_de_pin_pasa_aunque_ningun_criterio_de_producto_este_en_su_diff(self):
+        # k8s-gitops-pocharlies#552 (DGX-745): solo cambia `targetRevision` y el comentario de ESTADO ACTUAL
+        caso = FIXTURES / 'pasa-pr-de-pin-gitops'
+        criterios = review.criterios_de_spec((caso / 'criterios.md').read_text())
+        titulo, cuerpo = (caso / 'pr.md').read_text().split('\n\n', 1)
+        (self.tmp / 'review.diff').write_text((caso / 'diff.patch').read_text())
+        self.mundo.jira['DGX-745'] = issue(resumen='receta del lab', adjuntos=[('2', '00-spec.md', '2026-10-09T01:10:00')])
+        self.mundo.adjuntos['2'] = (caso / 'criterios.md').read_bytes()
+        self.responde([self.fuera(n, 'el contenido es de k8s-ai-pocharlies#124; esta PR solo fija su SHA')
+                       for n in range(1, len(criterios) + 1)])
+        rc = self.correr(REVIEW_PR_TITLE=titulo, REVIEW_PR_BRANCH='DGX-745-s1-nvfp4-lab', REVIEW_PR_BODY=cuerpo)
+        self.assertEqual(rc, 0, self.salida_texto)
+        self.assertVeredicto('PASA', motivos='')
+        texto = self.comentario()
+        self.assertEqual(texto.count('➖'), len(criterios))
+        self.assertNotIn('❌', texto)
+        self.assertNotIn('### Hallazgos', texto)
+
+    def test_una_pr_que_contradice_un_criterio_no_pasa_aunque_otros_esten_fuera(self):
+        self.responde([{'n': 1, 'cumple': False, 'evidencia': 'src/app.py:12',
+                        'nota': 'el criterio pide x + y y la PR devuelve x - y'}, self.fuera(2)])
+        self.assertEqual(self.correr(), 1)
+        self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
+        texto = self.comentario()
+        self.assertIn('**C1** ❌', texto)
+        self.assertIn('**C2** ➖', texto)
+        self.assertIn('C1 no cumple: el criterio pide x + y', texto)
+
+    def test_una_pr_parcial_de_una_historia_con_dos_prs_pasa_con_lo_demas_fuera(self):
+        self.responde([cumple(1), self.fuera(2, 'el test va en la otra PR de la historia')])
+        rc = self.correr(REVIEW_PR_BODY='Primera de dos PRs de SC-2182: el test va en la segunda.')
+        self.assertEqual(rc, 0, self.salida_texto)
+        self.assertVeredicto('PASA', motivos='')
+        texto = self.comentario()
+        self.assertIn('**C1** ✅ `src/app.py:12`', texto)
+        self.assertIn('**C2** ➖', texto)
+        self.assertIn('el test va en la otra PR de la historia', texto)
+        self.assertNotIn('### Hallazgos', texto)
+
+    def test_lo_cubierto_sigue_pidiendo_evidencia_y_lo_de_fuera_no(self):
+        self.responde([cumple(1, 'src/app.py:99'), self.fuera(2)])      # la linea 99 no esta en el diff
+        self.assertEqual(self.correr(), 1)
+        self.assertVeredicto('NO_PASA', motivos='sin_evidencia')
+
+    def test_fuera_solo_vale_escrito_asi_y_cumple_sigue_siendo_booleano(self):
+        for valor in ('fuera', ' Fuera ', 'FUERA'):
+            with self.subTest(valor):
+                self.mundo.comentarios.clear()
+                self.responde([cumple(1), {'n': 2, 'cumple': valor}])
+                self.assertEqual(self.correr(), 0, self.salida_texto)
+        for valor in ('si', 'no', 'fuera de esta PR', None, 1):
+            with self.subTest(valor):
+                self.mundo.comentarios.clear()
+                self.responde([cumple(1), {'n': 2, 'cumple': valor}])
+                self.assertEqual(self.correr(), 1)
+                self.assertVeredicto('SIN_VEREDICTO', motivos='respuesta_invalida')
+
+    def test_decidir_solo_cuenta_lo_contradicho_y_los_hallazgos_que_bloquean(self):
+        def criterio(cumple, ok):
+            return {'n': 1, 'cumple': cumple, 'evidencia': '', 'evidencia_ok': ok, 'nota': ''}
+        self.assertEqual(review.decidir([criterio(None, False)], []), ('PASA', set()))
+        self.assertEqual(review.decidir([criterio(True, True), criterio(None, False)], []), ('PASA', set()))
+        self.assertEqual(review.decidir([criterio(False, False), criterio(None, False)], []),
+                         ('NO_PASA', {'criterio_incumplido'}))
+
+    def test_un_hallazgo_de_criterio_no_bloquea_pero_uno_de_correccion_si(self):
+        # un criterio que no se cumple se dice en `criterios` (false), no como hallazgo
+        hallazgo = lambda tipo, sev: {'file': 'src/app.py', 'line': 12, 'severity': sev, 'tipo': tipo,
+                                      'summary': 'C2 no esta en el diff'}
+        self.responde([cumple(1), self.fuera(2)], [hallazgo('criterio', 'alta')])
+        self.assertEqual(self.correr(), 0, self.salida_texto)
+        self.assertVeredicto('PASA', motivos='')
+        self.assertIn('Observaciones (no bloquean)', self.comentario())
+        for tipo, sev in (('correccion', 'alta'), ('arquitectura', 'media')):
+            with self.subTest(tipo):
+                self.mundo.comentarios.clear()
+                self.responde([cumple(1), self.fuera(2)], [hallazgo(tipo, sev)])
+                self.assertEqual(self.correr(), 1)
+                self.assertVeredicto('NO_PASA', motivos='hallazgos')
+
+    def test_la_rubrica_y_la_pr_llegan_al_modelo(self):
+        self.correr(REVIEW_PR_TITLE='SC-2182: primera de dos', REVIEW_PR_BODY='El test va en la segunda PR.')
+        modelo, sistema, usuario = self.mundo.llamadas[0]
+        for frase in ('"fuera"', 'targetRevision', 'COHERENCIA'):   # los tres estados y la regla del pin
+            self.assertIn(frase, usuario)
+        self.assertIn('no si ella sola completa el ticket', sistema)
+        self.assertRegex(usuario, r'(?s)tipo=pr>>>\nSC-2182: primera de dos\n\nEl test va en la segunda PR\.\n<<<FIN')
 
 
 class TestSinVeredicto(Base):
@@ -676,17 +776,24 @@ class TestEvalua(Base):
         self.assertIn('c-no-pasa', self.salida_texto)
         self.assertIn('2/3', self.salida_texto)
 
+    def test_la_pr_del_caso_llega_al_modelo(self):
+        self.caso('a-pasa', 'PASA')
+        (self.tmp / 'casos' / 'a-pasa' / 'pr.md').write_text('SC-1: titulo de la PR\n\ncuerpo: el resto va en la otra PR\n')
+        self.mundo.litellm['local-juez'] = [(200, respuesta([cumple(1)]), 0)]
+        self.assertEqual(self.correr_evalua('1/1'), 0, self.salida_texto)
+        self.assertIn('cuerpo: el resto va en la otra PR', self.mundo.llamadas[0][2])
+
     def test_un_sin_veredicto_es_un_fallo_del_caso(self):
         self.caso('a-pasa', 'PASA')
         self.mundo.litellm['local-juez'] = [(503, None, 0)]
         self.mundo.litellm['alibaba-q38-flash'] = [(503, None, 0)]
         self.assertEqual(self.correr_evalua('1/1'), 1)
 
-    def test_el_corpus_commiteado_es_de_4_y_4(self):
+    def test_el_corpus_commiteado_es_de_4_no_pasa_y_5_pasa(self):
         casos = sorted(p for p in FIXTURES.iterdir() if p.is_dir())
         esperados = [(p / 'esperado').read_text().split()[0] for p in casos]
-        self.assertEqual(len(casos), 8)
-        self.assertEqual(sorted(esperados), ['NO_PASA'] * 4 + ['PASA'] * 4)
+        self.assertEqual(len(casos), 9)
+        self.assertEqual(sorted(esperados), ['NO_PASA'] * 4 + ['PASA'] * 5)
         for p in casos:
             for f in ('criterios.md', 'diff.patch', 'esperado'):
                 self.assertTrue((p / f).is_file(), f'{p.name}/{f}')

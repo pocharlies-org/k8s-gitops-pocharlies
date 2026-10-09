@@ -1,0 +1,4 @@
+Antes: el juez daba NO_PASA a toda PR con un criterio del ticket que su diff no cubría (`cumple: false`) y a todo hallazgo alto o medio de tipo `criterio`; una PR de GitOps que solo fija un `targetRevision` caía siempre.
+Ahora: por criterio, ✅ cubierto (`true`, con evidencia), ❌ contradicho o prometido y no hecho (`false`) o ➖ fuera de esta PR (`"fuera"`: otro repo, un pin, otra PR de la misma historia); solo ❌ y los hallazgos `correccion`/`arquitectura` de severidad alta o media bloquean, y el modelo recibe también el título y la descripción de la PR. El marcador v2 y su enum `motivos` no cambian.
+Quien tiene que moverse: nadie. El lector del marcador (x86) ve el mismo marcador y las mismas líneas de `### Hallazgos`; el comentario muestra ➖ donde antes habría un ❌ sin sitio en la PR. Quien abra una PR parcial lo dice en su título o descripción.
+Decisión: SC-2208 (`00-spec.md`, CTO, 09-10-2026), sobre el motor de SC-2182.
