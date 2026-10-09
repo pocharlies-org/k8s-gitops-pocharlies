@@ -283,7 +283,12 @@ solo si la mayoría de las N sale sin motivos y ninguna tirada vetó; un empate 
 Se para también en cuanto el resto no puede cambiar el veredicto (dos `NO_PASA` de tres: la tercera no se paga). El
 comentario es el de una tirada que dio ese veredicto (con `NO_PASA`, la del veto o la de más motivos): sus criterios,
 sus hallazgos y sus motivos van al marcador v2, cuya forma no cambia. Cada tirada deja un `::notice::` en el log del job.
-Un PR sale del juez con hasta 3 llamadas en vez de 1: la medida de llamadas y USD por PR está en la historia SC-2229.
+Un PR sale del juez con 3 o 4 llamadas en vez de 1 y unos 0,002 USD (medido en 20 PRs reales, contra el `max_budget`
+de 2 USD/día de `ci-review-juez`; `.company/evidence/sc-2229-juez-mayoria.md`). El job tiene 15 minutos (`revisar_pr_juez`)
+por eso: dos tiradas caídas de seguido, con su respaldo y su reintento, caben. Medido sobre esos 20 PRs con el `tooling`
+compartido, 3 tiradas dieron de 10 a 13 aciertos de 20 (una tirada, de 9 a 11) y entre 0 y 1 falsos PASA: la mayoría
+reduce el ruido, pero los fallos que el modelo repite en las tres tiradas (criterios de otra parte de la historia
+marcados ❌, hallazgos sobre diffs muy grandes) no se arreglan votando.
 
 **Respuesta inservible.** Una respuesta que no es el JSON pedido (vacía, truncada, sin `criterios`) se pide una vez más
 por la misma cadena (`INTENTOS_JUEZ`, el primario y, si cae, el respaldo) antes de dar `SIN_VEREDICTO` con motivo

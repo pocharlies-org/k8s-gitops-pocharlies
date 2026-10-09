@@ -635,13 +635,6 @@ PREGUNTA 2, `criterios`: ¿que criterios del ticket cubre esta PR?
      dicen el titulo o la descripcion de la PR) o una comprobacion que el propio criterio situa
      despues del merge (un despliegue, una medicion de qa). `nota` dice donde se verifica.
      Un criterio fuera de esta PR no se pide en este diff y no tiene `evidencia`.
-   Antes de dar `false` por «el diff no incluye X», mira si X es de otra parte. Si el titulo o la
-   descripcion de la PR dicen que es una parte de una historia mayor («parte x86 de…», «PR siguiente»,
-   «va antes que la PR de…», «que queda fuera», «solo P1»), todo criterio que nombra ficheros, tests,
-   comandos o repositorios que el diff no toca es `"fuera"`, no `false`. Lo es tambien un entregable de
-   otro rol o de una fase posterior (el `70-qa.md` de qa, un informe de cierre, el resultado de correr
-   algo que la PR solo prepara). `false` es lo que el diff contradice o lo que la propia PR dice que
-   hace y no hace.
 2. Una PR que SOLO cambia un pin (`targetRevision` de una Application, tag o digest de una
    imagen, el SHA de otro repositorio) y el comentario o la documentacion que lo describen no
    contiene el producto: el contenido pinneado es de otro repositorio. Los criterios de

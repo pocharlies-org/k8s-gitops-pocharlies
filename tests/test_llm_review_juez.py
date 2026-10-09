@@ -581,15 +581,6 @@ class TestFueraDeEstaPR(Base):
                       '"entrada": "<solo en correccion'):
             self.assertIn(frase, usuario)
 
-    def test_la_rubrica_manda_a_fuera_lo_de_otra_parte_y_los_entregables_posteriores(self):
-        # SC-2229: x86#803, x86#798 (criterios de otro repo o de otra PR de la historia) y k8s-ai#123
-        # (el 70-qa.md de qa) salian `false` por «el diff no incluye X»
-        self.correr()
-        _, _, usuario = self.mundo.llamadas[0]
-        for frase in ('Antes de dar `false` por «el diff no incluye X»', 'parte de una historia mayor',
-                      'otro rol o de una fase posterior', 'es `"fuera"`, no `false`'):
-            self.assertIn(frase, usuario)
-
     def test_un_hallazgo_de_correccion_sin_entrada_sigue_bloqueando(self):
         # `entrada` es solo andamiaje del prompt: el codigo no la exige, falla cerrado (0 falsos PASA)
         base = {'file': 'src/app.py', 'line': 12, 'severity': 'alta', 'tipo': 'correccion', 'summary': 'invierte la condicion'}
