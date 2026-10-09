@@ -193,7 +193,8 @@ dispatch puntual). Lee los runs de `PR review` de las últimas 24 h —la ventan
 
 # PR review: el motor `juez` (SC-2182)
 
-`engine: juez` no revisa el diff: **juzga** si el PR cumple los criterios de aceptación de su ticket de Jira. Es el
+`engine: juez` no revisa el diff: **juzga** que el PR sea correcto y no contradiga los criterios de aceptación de su
+ticket de Jira (no que él solo complete el ticket: SC-2208). Es el
 motor que sustituye a qa + architect en las historias de la compañía. Nació opt-in y es el **motor por defecto** desde
 la etapa (c) de SC-2182 (`tests/test_reusable_pr_review.py -k default_juez`): un llamador que no fija `engine:` lo recibe.
 El cambio solo es seguro con la lista medida de repos cubierta (cada repo con los secretos del juez o con
@@ -210,7 +211,8 @@ rojo el job `Motor de review no valido`. Con `engine: juez` (el de por defecto),
 (abajo) y ya no comenta el último commit como hacía `propio`: quien quiera ese modo fija `engine: propio`.
 
 **Qué lee.** Todo entra por entorno y como datos delimitados con una marca aleatoria por ejecución (el modelo no
-obedece nada de lo que haya dentro): los criterios del ticket, el diff y el `ARCHITECTURE.md` **del commit base** (no el
+obedece nada de lo que haya dentro): los criterios del ticket, el título y la descripción de la PR (hasta 8000
+caracteres), el diff y el `ARCHITECTURE.md` **del commit base** (no el
 del head: un PR no reescribe las reglas con las que se le juzga). La clave del ticket sale del título, si no de la rama,
 si no del cuerpo (proyectos `SC INFRA DGX SKIRM LE OWU ACC`; la primera clave de la primera fuente que cite alguna). Los
 criterios son las líneas `- [ ]` del adjunto `00-spec.md` más reciente de la historia o, si no hay, los elementos de la
@@ -233,19 +235,30 @@ token sobre esa base, de la que cuelgan las rutas `/rest/api/3/issue/<clave>` y 
 cualquiera de los otros tres, el marcador sale `SIN_VEREDICTO` con motivo `sin_credencial` y el comentario nombra los que
 faltan. La evaluación (`workflow_dispatch`) usa solo `LITELLM_JUEZ_KEY`.
 
-**Qué decide.** El modelo aporta hechos y el código aplica la regla. Por criterio, el modelo dice `cumple` y la
-evidencia, una línea `fichero:línea` de la versión NUEVA que el diff muestra; si falta o no está en el diff, ese criterio
-no cuenta (`sin_evidencia`). Además cuenta todo hallazgo de severidad alta o media salvo los de tipo `estilo` u
-`otro`: el tipo se normaliza (minúsculas, sin tildes) y un tipo desconocido o vacío (`bug`, `corrección` mal escrito)
-bloquea, porque el motivo de no bloquear es el estilo, no una etiqueta que el modelo escribió distinta. Un `NO_PASA`
+**Qué decide.** El modelo aporta hechos y el código aplica la regla. Por criterio, el modelo dice `cumple`, con uno de
+tres valores (SC-2208):
+
+| `cumple` | en el comentario | cuándo | bloquea |
+|---|---|---|---|
+| `true` | ✅ | el diff lo cumple, con una línea `fichero:línea` de la versión NUEVA como evidencia; si falta o no está en el diff, ese criterio no cuenta (`sin_evidencia`) | solo sin evidencia |
+| `false` | ❌ | el diff lo contradice, o la PR dice cumplirlo y no lo hace; también un criterio sobre código de este repo que el diff no cubre y que nada sitúa en otra parte | sí (`criterio_incumplido`) |
+| `"fuera"` | ➖ | lo cumple otro repo, otra PR de la misma historia (lo dicen el título o la descripción de la PR) o una comprobación que el criterio sitúa tras el merge; la `nota` dice dónde | no |
+
+Una PR que solo cambia un pin (`targetRevision`, tag o digest de imagen, el SHA de otro repo) y lo que lo describe no
+contiene el producto: sus criterios de producto salen ➖ y se juzga la **coherencia** con el ticket y con lo que fija
+(el pin que el ticket pide, el comentario de estado que no se contradice, la marcha atrás). Un pin que el ticket no pide
+es ❌. Además cuenta todo hallazgo de severidad alta o media de tipo `correccion` o `arquitectura`: el tipo se normaliza
+(minúsculas, sin tildes) y uno desconocido o vacío (`bug`, `corrección` mal escrito) bloquea, porque el motivo de no
+bloquear es el estilo, no una etiqueta que el modelo escribió distinta. `estilo`, `otro` y `criterio` no bloquean: un
+criterio que no se cumple es ❌ en `Criterios`, no un hallazgo. Un `NO_PASA`
 sin hallazgos del modelo (`sin_clave`, `ticket_inexistente`, `cita_epica`, `sin_criterios`) lleva su motivo como
 línea `**[ticket]**` de `### Hallazgos`, para que el maker tenga algo que arreglar. Jira devuelve 404 también cuando
 la cuenta de solo lectura no ve el ticket: sale como `ticket_inexistente`.
 
 | veredicto | cuándo | job |
 |---|---|---|
-| `PASA` | todos los criterios cumplen con evidencia en el diff y ningún hallazgo bloquea | verde |
-| `NO_PASA` | sin clave de ticket (`sin_clave`), ticket inexistente, ticket de tipo épica (`cita_epica`), sin criterios, criterio incumplido, sin evidencia o hallazgo bloqueante | rojo |
+| `PASA` | ningún criterio ❌, los ✅ con evidencia en el diff (los ➖ no la piden) y ningún hallazgo bloquea | verde |
+| `NO_PASA` | sin clave de ticket (`sin_clave`), ticket inexistente, ticket de tipo épica (`cita_epica`), sin criterios, criterio ❌ (incumplido), ✅ sin evidencia o hallazgo bloqueante | rojo |
 | `SIN_VEREDICTO` | sin credencial (LiteLLM o Jira), Jira o los dos modelos caídos, respuesta del modelo inservible | rojo |
 
 `SIN_VEREDICTO` no es culpa de quien abrió el PR. El juez no conoce `SIN_TICKET`: esa exención es solo de
@@ -280,9 +293,11 @@ en su modo legado.
     REVIEW_LITELLM_URL=… REVIEW_LITELLM_KEY=… REVIEW_MODEL=… \
       python3 .github/actions/llm-review/review.py --evalua tests/fixtures/juez --umbral 7/8
 
-Corre el juez con el modelo real sobre los 8 casos de `tests/fixtures/juez/` (4 PASA y 4 NO_PASA: criterio incumplido,
-bug, norma de arquitectura, sin tests; los PASA son commits reales de este repo y los NO_PASA, diffs reales estropeados a propósito: sin el test, con una condición
-invertida, con una interpolación en un `run`) y sale 0 solo si acierta al menos 7 de 8. Un `SIN_VEREDICTO` cuenta como fallo. Tests sin red:
+Corre el juez con el modelo real sobre los 9 casos de `tests/fixtures/juez/` (5 PASA y 4 NO_PASA: criterio incumplido,
+bug, norma de arquitectura, sin tests; los PASA son commits reales de este repo, entre ellos la PR de pin
+k8s-gitops-pocharlies#552 (DGX-745) con su `pr.md`, y los NO_PASA, diffs reales estropeados a propósito: sin el test, con una condición
+invertida, con una interpolación en un `run`) y sale 0 solo si acierta la proporción del umbral (7/8: con 9 casos, 8). Un caso puede traer
+`pr.md` (título, línea en blanco y descripción de su PR). Un `SIN_VEREDICTO` cuenta como fallo. Tests sin red:
 `python3 -m unittest tests.test_llm_review_juez` (un LiteLLM, un Jira y una API de GitHub de pega).
 
 ## Cobertura: qué repos pasan a `juez` y con qué (SC-2182, parte C)
