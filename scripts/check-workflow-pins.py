@@ -167,7 +167,7 @@ require(validate_overlay < stamp_overlay < commit_overlay, "deploy overlay valid
 # workflow es el destino del aviso (thread de Telegram): fronteras de entrada
 # intactas —ningun `inputs.` interpolado en shell— y el orden validar ->
 # estampar -> commitear se mantiene, que es lo que esta guarda protege.
-expected_deploy_digest = "a5d13835f0b4a655b44804cd7a238246af415b96093b1c82fa8c5b5bf7fc3929"
+expected_deploy_digest = "89b9f76d81424c4930a112357192cab6e4966e0d84e2bbab4cc9ce17498dfe58"
 require(
     hashlib.sha256(deploy_workflow.encode()).hexdigest() == expected_deploy_digest,
     "deploy workflow changed without reviewing input boundaries",
