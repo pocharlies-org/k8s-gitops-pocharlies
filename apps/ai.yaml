@@ -1575,7 +1575,10 @@ spec:
     # bloque `QWEN_MTP_VOCAB` de launch.sh). Reinicia el TP=2 (~33 min, norma de hooks de b5df721; ~20 min sin log tras
     # «GPU KV cache size» NO es cuelgue). Durante el reinicio el tráfico va a Alibaba y fallan las claves sin fallback.
     # El momento del merge lo decide Dani. ROLLBACK (el único): fadbbdda1a6a3f85aaeed7138f924cd066210e8c.
-    targetRevision: 8de525a094d4f1d1292b4ac6b1fd3c10764849a4
+    # 09-10-2026 (DGX-777, Dani lo ordena ya): VUELTA a fadbbdd (MTP k=1 probabilístico: num_speculative_tokens 1, sin
+    # QWEN_MTP_VOCAB ni borrador greedy). DGX-768 (8de525a) no ganaba con 7-10 peticiones. Reinicia el TP=2 (~33 min;
+    # ~20 min sin log tras «GPU KV cache size» NO es cuelgue); el tráfico va a Alibaba. ROLLBACK de esto: 8de525a094d4f1d1292b4ac6b1fd3c10764849a4.
+    targetRevision: fadbbdda1a6a3f85aaeed7138f924cd066210e8c
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
