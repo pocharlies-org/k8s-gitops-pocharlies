@@ -818,6 +818,35 @@ class TestReglasDeEvidencia(unittest.TestCase):
         self.reglas([], [h])
         self.assertNotIn('baja', h)
 
+    def test_un_fichero_que_el_diff_toca_sin_lineas_no_tiene_nada_que_citar(self):
+        textos = review.textos_por_fichero(DIFF + 'diff --git a/datos/vacio.txt b/datos/vacio.txt\n'
+                                           'new file mode 100644\nindex 0000000..e69de29\n')
+        self.assertTrue(review.sin_lineas('datos/vacio.txt', textos))
+        self.assertTrue(review.sin_lineas('b/datos/vacio.txt', textos))
+        self.assertFalse(review.sin_lineas('src/app.py', textos), 'un fichero con lineas si se cita')
+        self.assertFalse(review.sin_lineas('no/esta.py', textos), 'un fichero que el diff no toca no es evidencia')
+        h = self.hall(file='datos/vacio.txt', line='', cita='')
+        review.aplicar_reglas([], [h], None, textos)
+        self.assertTrue(h['bloquea'])
+        h = self.hall(file='no/esta.py', line='', cita='')
+        review.aplicar_reglas([], [h], None, textos)
+        self.assertFalse(h['bloquea'])
+
+    def test_solo_se_reintenta_lo_que_bloquearia_si_la_cita_casase(self):
+        rojo_mal = self.crit(1, False, 'src/app.py:12', 'return x +y')
+        rojo_ausencia = self.crit(2, False)                                   # una ausencia no cita nada
+        rojo_otro = self.crit(3, False, 'otro.py:3', 'return x + y')          # fichero que el diff no muestra
+        verde = self.crit(4, True, 'src/app.py:12', '', True)
+        malo = self.hall(cita='return x +y')
+        bueno = self.hall()
+        sin_fichero = self.hall(file='otro.py', cita='return x +y')
+        recortado = self.hall(file='tests/test_app.py', cita='def test_f(self): pass +')
+        no_bloquea = self.hall(bloquea=False, cita='return x +y')
+        pend = review.citas_sin_casar([rojo_mal, rojo_ausencia, rojo_otro, verde],
+                                      [malo, bueno, sin_fichero, recortado, no_bloquea], self.textos,
+                                      ['tests/test_app.py'])
+        self.assertEqual([e for e, _, _ in pend], [rojo_mal, malo])
+
 
 class TestEvidenciaDelJuez(Base):
     """SC-2229, de punta a punta: lo que el modelo dice y lo que el juez publica."""
@@ -925,6 +954,78 @@ class TestEvidenciaDelJuez(Base):
         self.mundo.llamadas.clear()
         self.correr()
         self.assertIn('ninguno: el diff esta entero', self.mundo.llamadas[0][2])
+
+    def hallazgo(self, **k):
+        return {'file': 'src/app.py', 'line': 12, 'severity': 'alta', 'tipo': 'correccion', 'summary': 'suma mal',
+                'entrada': 'f(1, 2) devuelve 4', 'cita': 'return x +y', **k}
+
+    def test_una_cita_mal_copiada_se_pide_otra_vez_y_si_casa_el_hallazgo_bloquea(self):
+        # la primera respuesta copia mal la linea (`x +y`); la segunda trae la exacta
+        self.mundo.litellm['local-juez'] = [
+            (200, respuesta([cumple(1), cumple(2, 'tests/test_app.py:4')], [self.hallazgo()]), 0),
+            (200, json.dumps({'citas': [{'id': 1, 'cita': 'return x + y'}]}), 0)]
+        self.assertEqual(self.correr(), 1)
+        self.assertVeredicto('NO_PASA', motivos='hallazgos')
+        self.assertEqual(len(self.mundo.llamadas), 2)
+        reintento = self.mundo.llamadas[1][2]
+        self.assertIn('tipo=afirmaciones', reintento)
+        self.assertIn('cita que diste: return x +y', reintento)
+        self.assertIn('+    return x + y', reintento)          # el diff del fichero citado...
+        self.assertNotIn('def test_f(self): pass', reintento)  # ...y solo el de ese fichero
+        self.assertIn('### Hallazgos', self.comentario())
+
+    def test_si_la_linea_exacta_no_llega_el_hallazgo_sigue_siendo_una_observacion(self):
+        for segunda in (json.dumps({'citas': [{'id': 1, 'cita': ''}]}), json.dumps({'citas': [{'id': 1, 'cita': 'return 0'}]}),
+                        'no es json', json.dumps({'citas': 'x'}), json.dumps([1])):
+            with self.subTest(segunda):
+                self.mundo.comentarios.clear()
+                self.mundo.llamadas.clear()
+                self.mundo.litellm['local-juez'] = [
+                    (200, respuesta([cumple(1), cumple(2, 'tests/test_app.py:4')], [self.hallazgo()]), 0),
+                    (200, segunda, 0)]
+                self.assertEqual(self.correr(), 0, self.salida_texto)
+                self.assertVeredicto('PASA', motivos='')
+                self.assertEqual(len(self.mundo.llamadas), 2, 'la linea exacta se pide una sola vez')
+                self.assertIn('su cita no esta en el diff de ese fichero: no bloquea', self.comentario())
+
+    def test_si_el_modelo_cae_en_el_reintento_vale_la_respuesta_de_antes(self):
+        self.mundo.litellm['local-juez'] = [
+            (200, respuesta([cumple(1), cumple(2, 'tests/test_app.py:4')], [self.hallazgo()]), 0), (503, None, 0)]
+        self.mundo.litellm['alibaba-q38-flash'] = [(503, None, 0)]
+        self.assertEqual(self.correr(), 0, self.salida_texto)
+        self.assertVeredicto('PASA', motivos='')
+
+    def test_un_hallazgo_sobre_codigo_que_el_diff_no_muestra_no_gasta_el_reintento(self):
+        self.responde([cumple(1), cumple(2, 'tests/test_app.py:4')],
+                      [self.hallazgo(file='otro/modulo.py', cita='return x * y')])
+        self.assertEqual(self.correr(), 0, self.salida_texto)
+        self.assertEqual(len(self.mundo.llamadas), 1)
+
+    def test_un_rojo_con_la_cita_mal_copiada_tambien_se_pide_otra_vez(self):
+        mal = self.rojo(2, evidencia='tests/test_app.py:4', cita='def test_f(self):  pass #', nota='el test no comprueba nada')
+        self.mundo.litellm['local-juez'] = [
+            (200, respuesta([cumple(1), mal]), 0),
+            (200, json.dumps({'citas': [{'id': 1, 'cita': 'def test_f(self): pass'}]}), 0)]
+        self.assertEqual(self.correr(), 1)
+        self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
+        self.assertEqual(len(self.mundo.llamadas), 2)
+
+    def test_un_hallazgo_sobre_un_fichero_vacio_del_diff_bloquea_sin_cita(self):
+        # el diff toca `datos/manifiesto.txt` sin una sola linea: no hay nada que copiar
+        (self.tmp / 'review.diff').write_text(DIFF + 'diff --git a/datos/manifiesto.txt b/datos/manifiesto.txt\n'
+                                              'new file mode 100644\nindex 0000000..e69de29\n')
+        self.responde([cumple(1), cumple(2, 'tests/test_app.py:4')],
+                      [self.hallazgo(file='datos/manifiesto.txt', line='', cita='', summary='el manifiesto esta vacio')])
+        self.assertEqual(self.correr(), 1)
+        self.assertVeredicto('NO_PASA', motivos='hallazgos')
+        self.assertEqual(len(self.mundo.llamadas), 1, 'no hay linea que pedir')
+
+    def test_la_rubrica_cruza_lo_que_el_diff_exige_con_lo_que_el_diff_trae(self):
+        self.correr()
+        usuario = self.mundo.llamadas[0][2]
+        for frase in ('el PROPIO diff trae las dos mitades del fallo', 'un test que pide\n  420 entradas',
+                      '«SIN GENERAR»', 'OTRA PR no cuenta'):
+            self.assertTrue(frase in usuario, frase)
 
     def test_la_rubrica_pide_la_cita_y_deja_fuera_los_entregables_posteriores(self):
         self.correr()
@@ -1288,6 +1389,19 @@ class TestEvalua(Base):
         bloque = re.search(r'(?s)tipo=recortados>>>\n(.*?)\n<<<FIN', self.mundo.llamadas[0][2]).group(1)
         self.assertRegex(bloque, r'^tests/test_app\.py')
         self.assertIn('ninguno', self.mundo.llamadas[1][2])
+
+    def test_cada_caso_dice_que_regla_de_sc_2229_bajo_algo(self):
+        self.caso('a-pasa', 'PASA')
+        (self.tmp / 'casos' / 'a-pasa' / 'pr.md').write_text('SC-1: x\n\n## Alcance de esta PR\n\n- C1: la suma\n')
+        self.caso('b-pasa', 'PASA', criterios='- [ ] C1 la suma\n- [ ] C2 otra cosa\n')
+        (self.tmp / 'casos' / 'b-pasa' / 'pr.md').write_text('SC-1: x\n\n## Alcance de esta PR\n\n- C1: la suma\n')
+        self.mundo.litellm['local-juez'] = [(200, respuesta(
+            [cumple(1), {'n': 2, 'cumple': False, 'evidencia': '', 'cita': '', 'nota': 'falta'}],
+            [{'file': 'otro.py', 'line': 1, 'severity': 'alta', 'tipo': 'correccion', 'cita': 'x', 'summary': 's'}]), 0)]
+        self.correr_evalua('0/2')
+        lineas = [l for l in self.salida_texto.splitlines() if l.startswith(('OK', 'FALLO'))]
+        self.assertTrue(lineas[0].endswith(' bajas=H.cita:1'), lineas[0])
+        self.assertTrue(lineas[1].endswith(' bajas=C.alcance:1,H.cita:1'), lineas[1])
 
     def test_el_umbral_mal_formado_es_uso_invalido(self):
         self.caso('a', 'PASA')

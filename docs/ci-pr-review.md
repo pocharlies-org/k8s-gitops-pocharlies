@@ -267,7 +267,11 @@ evidencia: el código la comprueba y, si no se sostiene, deja de bloquear (el co
 - *Evidencia.* Un ❌ por contradicción cita `evidencia` (`ruta:línea`) y `cita` (la línea del diff, literal); un hallazgo
   cita `file`, `line` y `cita`. `cita_en_diff` busca la cita (espacios colapsados, sin el `+`/`-`, de `CITA_MIN` = 8
   caracteres como mínimo) en las líneas del diff de ESE fichero. Si no está, el ❌ baja a ➖ (`la cita del modelo no
-  esta en el diff`) y el hallazgo pasa a «Observaciones» (`su cita no esta en el diff de ese fichero`). Un ❌ sin cita
+  esta en el diff`) y el hallazgo pasa a «Observaciones» (`su cita no esta en el diff de ese fichero`). Antes de bajar
+  nada, si el fichero SÍ está en el diff (el modelo vio el sitio y copió mal la línea), se le pide UNA vez, para todas las
+  citas del juicio a la vez, la línea exacta (`reintentar_citas`: ve solo el diff de esos ficheros; puede contestar vacío);
+  la nueva cita la vuelve a comprobar el código, nunca el modelo. Un fichero que el diff toca sin mostrar ninguna línea
+  (vacío, borrado sin contenido) no tiene nada que citar: vale su nombre (`sin_lineas`). Un ❌ sin cita
   es una **ausencia** («falta el test de X») y bloquea solo si el criterio es de esta PR (siguiente punto). Un hallazgo sobre
   un fichero que el recorte dejó fuera tampoco bloquea (`fichero recortado, el juez no lo vio`). Un ✅ sigue pidiendo su
   `ruta:línea` visible en el diff, como siempre.
@@ -346,7 +350,8 @@ privados y este repo es público—: criterios de otra PR con su sección de alc
 ve, entregables posteriores a la PR y una sospecha sin evidencia en el diff; los NO_PASA de antes son diffs reales estropeados a propósito: sin el test, con una condición
 invertida, con una interpolación en un `run`) y sale 0 solo si acierta la proporción del umbral (7/8: con 15 casos, 14). Un caso puede traer
 `pr.md` (título, línea en blanco y descripción de su PR) y `max_bytes` (el tope del diff de ese caso, para recortar uno pequeño).
-Un `SIN_VEREDICTO` cuenta como fallo; el resumen final cuenta también los falsos PASA (un PASA donde se esperaba NO_PASA). Tests sin red:
+Un `SIN_VEREDICTO` cuenta como fallo; el resumen final cuenta también los falsos PASA (un PASA donde se esperaba NO_PASA). Cada línea acaba en `bajas=`: lo que
+las reglas de SC-2229 dejaron de bloquear en ese caso, por clase (`C.alcance:3,H.cita:1`), para saber si un fallo es del modelo o de una regla. Tests sin red:
 `python3 -m unittest tests.test_llm_review_juez` (un LiteLLM, un Jira y una API de GitHub de pega).
 
 ## Cobertura: qué repos pasan a `juez` y con qué (SC-2182, parte C)

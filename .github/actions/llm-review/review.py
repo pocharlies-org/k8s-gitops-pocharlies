@@ -642,6 +642,12 @@ ni de los comentarios del propio diff, y busca solo dos tipos de hallazgo:
   no hay hallazgo `correccion`. No son hallazgos: «la funcion X no esta definida en este diff» (vive en
   otro fichero o en otra PR que la descripcion nombra), «el fichero Y no se ve», «falta el test de Z»
   (eso va en `criterios`) ni «esto fallaria si W fuese distinto».
+  Si, en cambio, el PROPIO diff trae las dos mitades del fallo, si lo es: un test que el diff añade y
+  exige un recuento, un valor o un contenido que otro fichero del mismo diff no trae (un test que pide
+  420 entradas frente a un manifiesto añadido sin ninguna), o un fichero que el diff dice de si mismo
+  «SIN GENERAR», «en ROJO hasta que...» o «no se debe fusionar asi». El test o el Job de esa PR falla
+  con ese diff: `correccion` de severidad `alta`, `cita` la linea del test o la que declara el hueco, y
+  `entrada` la propia ejecucion del test. Que haya que fusionar antes o despues OTRA PR no cuenta.
 - `arquitectura`: el diff incumple una norma del bloque `arquitectura`. Recorre las normas que hablan
   de lo que el diff toca (las que dicen «nunca», «siempre», «solo», «el unico», «no se») y compara cada
   una con lo que el diff escribe, aunque el diff cumpla todos los criterios. Nombra la norma en `summary`;
@@ -950,6 +956,60 @@ def rojo_verificado(evidencia, cita, textos):
     return bool(m) and cita_en_diff(m.group(1), cita, textos)
 
 
+def sin_lineas(fichero, textos):
+    """¿El diff toca ese fichero sin mostrar una sola linea (vacio, borrado sin contenido, binario)? No hay nada
+    que citar: su nombre es la evidencia de lo que se diga de el, a diferencia de un fichero con lineas."""
+    return textos.get(_ruta_limpia(fichero)) == ''
+
+
+PLANTILLA_CITAS = """Cada afirmacion del bloque `afirmaciones` cita una linea que NO esta en el diff de su fichero.
+Para cada una, copia LITERAL, sin el `+` ni el `-` del principio, la linea del bloque `diff` donde se ve el
+fallo. Si el diff de ese fichero no tiene ninguna linea que lo muestre (el fallo es algo que falta o es sobre
+codigo que no se ve), devuelve "cita": "". No cambies la afirmacion.
+
+Responde SOLO con este JSON: {{"citas": [{{"id": 1, "cita": "<la linea del diff, literal>"}}]}}
+
+{bloques}
+"""
+CITAS_MAX = 60000   # caracteres del diff de los ficheros citados que entran al reintento
+
+
+def citas_sin_casar(criterios, hallazgos, textos, recortados=()):
+    """[(elemento, fichero, que dijo)]: los ❌ y los hallazgos bloqueantes cuya cita no esta en el diff pero cuyo
+    FICHERO si lo muestra (y el recorte no lo quito): el modelo vio el sitio y copio mal la linea. Sin fichero en
+    el diff no hay linea que pedir: es una sospecha sobre codigo que no se ve."""
+    fuera = {_ruta_limpia(r) for r in recortados}
+    pendientes = []
+    for c in criterios:
+        m = re.fullmatch(r'([^\s:]+):\d+(?:-\d+)?', c['evidencia'])
+        if c['cumple'] is False and m and not rojo_verificado(c['evidencia'], c.get('cita'), textos) \
+                and textos.get(_ruta_limpia(m.group(1))):
+            pendientes.append((c, m.group(1), f"C{c['n']} ❌ {c['nota']}"))
+    for h in hallazgos:
+        f = _ruta_limpia(h['file'])
+        if h['bloquea'] and f not in fuera and textos.get(f) and not cita_en_diff(f, h.get('cita'), textos):
+            pendientes.append((h, h['file'], f"[{h['severity']}] {h['summary']}"))
+    return pendientes
+
+
+def reintentar_citas(url, key, modelo, fallback, timeout, pendientes, diff):
+    """Una sola vuelta al modelo por TODAS las citas que no casan (SC-2229): ve el diff de esos ficheros y se le pide
+    la linea exacta, o vacia si no la hay. Solo cambia la `cita`; que casa o no lo vuelve a decidir el codigo."""
+    ficheros = {_ruta_limpia(f) for _, f, _ in pendientes}
+    afirmaciones = '\n'.join(f"{i}. {f}: {dijo} (cita que diste: {limpio(e.get('cita'), 200) or 'ninguna'})"
+                             for i, (e, f, dijo) in enumerate(pendientes, 1))
+    prompt = PLANTILLA_CITAS.format(bloques=bloques_datos([
+        ('afirmaciones', afirmaciones),
+        ('diff', ''.join(b for b in trocear_por_ficheros(diff) if nombre_fichero(b) in ficheros)[:CITAS_MAX])]))
+    estado, dato, _ = consultar_juez(url, key, modelo, fallback, prompt, timeout)
+    texto, _ = contenido(dato) if estado == 'ok' else ('', None)
+    dato = extraer_json(texto) if texto else None
+    citas = dato.get('citas') if isinstance(dato, dict) else None
+    for r in citas if isinstance(citas, list) else []:
+        if isinstance(r, dict) and isinstance(r.get('id'), int) and 1 <= r['id'] <= len(pendientes):
+            pendientes[r['id'] - 1][0]['cita'] = str(r.get('cita') or '')
+
+
 def aplicar_reglas(criterios, hallazgos, alcance, textos, recortados=()):
     """Las reglas del codigo sobre lo que dijo el modelo (SC-2229), en su sitio: lo que no se sostiene deja de
     bloquear y `baja` dice por que (el comentario lo muestra).
@@ -957,7 +1017,8 @@ def aplicar_reglas(criterios, hallazgos, alcance, textos, recortados=()):
     - un ❌ sin cita es una AUSENCIA y solo bloquea si el criterio es de esta PR (`alcance`; sin alcance
       declarado, todos lo son); un criterio fuera del alcance sigue ➖ salvo que el diff lo contradiga;
     - un ✅ de un criterio fuera del alcance no pide evidencia;
-    - un hallazgo bloqueante vale con su fichero, su linea y su cita en el diff y sin ser de un fichero recortado."""
+    - un hallazgo bloqueante vale con su fichero, su linea y su cita en el diff y sin ser de un fichero recortado;
+      si el diff toca el fichero sin mostrar ninguna linea (vacio, borrado), vale con el fichero: no hay que citar."""
     for c in criterios:
         dentro = alcance is None or c['n'] in alcance
         if c['cumple'] is False:
@@ -974,7 +1035,8 @@ def aplicar_reglas(criterios, hallazgos, alcance, textos, recortados=()):
             continue
         if _ruta_limpia(h['file']) in fuera:
             h['bloquea'], h['baja'] = False, 'fichero recortado, el juez no lo vio: no bloquea'
-        elif not (re.match(r'\d', h['line']) and cita_en_diff(h['file'], h.get('cita'), textos)):
+        elif not (sin_lineas(h['file'], textos)
+                  or (re.match(r'\d', h['line']) and cita_en_diff(h['file'], h.get('cita'), textos))):
             h['bloquea'], h['baja'] = False, 'su cita no esta en el diff de ese fichero: no bloquea'
 
 
@@ -1042,17 +1104,20 @@ def prompt_juez(repo, clave, resumen, criterios, diff, arquitectura, pr='', alca
                                'lo que las reglas situan fuera)')
     recortados = ('\n'.join(f'{n} ({b} B)' for n, b in fuera) if fuera
                   else '(ninguno: el diff esta entero)')
-    piezas = [('ticket', resumen[:300]),
-              ('criterios', '\n'.join(f'C{i}. {c}' for i, c in enumerate(criterios, 1))),
-              ('pr', (pr or '').strip()[:PR_MAX] or '(la PR no tiene titulo ni descripcion)'),
-              ('alcance', declara), ('recortados', recortados),
-              ('diff', diff), ('arquitectura', arq)]
+    return PLANTILLA_JUEZ.format(clave=clave, repo=repo, bloques=bloques_datos([
+        ('ticket', resumen[:300]),
+        ('criterios', '\n'.join(f'C{i}. {c}' for i, c in enumerate(criterios, 1))),
+        ('pr', (pr or '').strip()[:PR_MAX] or '(la PR no tiene titulo ni descripcion)'),
+        ('alcance', declara), ('recortados', recortados),
+        ('diff', diff), ('arquitectura', arq)]))
+
+
+def bloques_datos(piezas):
+    """[(tipo, texto)] como bloques `<<<DATOS ...>>>` con una marca que ninguno de los textos contiene."""
     marca = secrets.token_hex(8)
     while any(marca in texto for _, texto in piezas):
         marca = secrets.token_hex(8)
-    bloques = '\n\n'.join(f'<<<DATOS id={marca} tipo={tipo}>>>\n{texto}\n<<<FIN id={marca}>>>'
-                          for tipo, texto in piezas)
-    return PLANTILLA_JUEZ.format(clave=clave, repo=repo, bloques=bloques)
+    return '\n\n'.join(f'<<<DATOS id={marca} tipo={tipo}>>>\n{texto}\n<<<FIN id={marca}>>>' for tipo, texto in piezas)
 
 
 def consultar_juez(url, key, modelo, fallback, prompt, timeout):
@@ -1081,7 +1146,7 @@ def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios,
            'criterios': [{'n': i, 'texto': t, 'cumple': None, 'evidencia': '', 'evidencia_ok': False,
                           'nota': ''} for i, t in enumerate(criterios, 1)], 'hallazgos': []}
     prompt = prompt_juez(repo, clave, resumen, criterios, diff, arquitectura, pr, alcance, fuera)
-    ev, fallo = None, None
+    ev, fallo, citas_pedidas = None, None, False
     for intento in range(1, INTENTOS_JUEZ + 1):
         estado, dato, usado = consultar_juez(url, key, modelo, fallback, prompt, timeout)
         if estado != 'ok':
@@ -1097,6 +1162,10 @@ def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios,
             if ev is None:
                 res['modelo'] = usado
             continue
+        sin_casar = citas_sin_casar(nuevo[0], nuevo[1], textos, [n for n, _ in fuera])
+        if sin_casar and not citas_pedidas:   # la linea exacta se pide UNA vez por juicio, antes de bajar nada
+            citas_pedidas = True
+            reintentar_citas(url, key, modelo, fallback, timeout, sin_casar, diff)
         aplicar_reglas(nuevo[0], nuevo[1], alcance, textos, [n for n, _ in fuera])
         ev, res['modelo'] = nuevo, usado
         if all(c['evidencia_ok'] for c in ev[0] if c['cumple']):
@@ -1255,6 +1324,18 @@ def juez():
     return salir(res['veredicto'], res['motivos'], res['detalle'])
 
 
+def bajas_de(res):
+    """Lo que las reglas del codigo dejaron de bloquear en un juicio, contado por clase (`C.alcance:3,H.cita:1`):
+    el veredicto solo dice QUE se obtuvo; esto dice si una regla de SC-2229 tuvo algo que ver."""
+    cuenta = {}
+    for letra, elementos in (('C', res['criterios']), ('H', res['hallazgos'])):
+        for e in elementos:
+            if e.get('baja'):
+                clave = f"{letra}.{next(k for k in ('alcance', 'cita', 'recortado') if k in e['baja'])}"
+                cuenta[clave] = cuenta.get(clave, 0) + 1
+    return ','.join(f'{k}:{v}' for k, v in sorted(cuenta.items())) or '-'
+
+
 def evalua(directorio, umbral):
     """Mide el juez contra un corpus: `<dir>/<caso>/{criterios.md,diff.patch,esperado[,pr.md][,max_bytes]}` y un
     `<dir>/ARCHITECTURE.md` comun (un caso puede traer el suyo). `max_bytes` fija el tope del diff de ese caso
@@ -1289,7 +1370,8 @@ def evalua(directorio, umbral):
         aciertos += acierto
         falsos_pasa += res['veredicto'] == 'PASA' and esperado != 'PASA'
         print(f"{'OK   ' if acierto else 'FALLO'} {caso.name}: esperado={esperado} "
-              f"obtenido={res['veredicto']} motivos={','.join(sorted(res['motivos'])) or '-'}")
+              f"obtenido={res['veredicto']} motivos={','.join(sorted(res['motivos'])) or '-'} "
+              f"bajas={bajas_de(res)}")
     minimo, de = int(m.group(1)), int(m.group(2))
     print(f'aciertos {aciertos}/{len(casos)} (umbral {umbral}); falsos PASA {falsos_pasa}')
     return 0 if aciertos * de >= minimo * len(casos) else 1
