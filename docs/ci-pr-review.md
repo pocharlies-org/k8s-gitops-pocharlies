@@ -271,6 +271,20 @@ la cuenta de solo lectura no ve el ticket: sale como `ticket_inexistente`.
 `company-aprobar` (x86), que en un PR exento ignora este check. Un diff recortado por `max_diff_bytes` fuerza
 `riesgo=alto`; la regla determinista de riesgo por ruta vive en `company-aprobar`, no aquí.
 
+**Mayoría de tiradas (SC-2229).** El mismo diff da veredictos distintos entre tiradas del modelo (medido por `qa` en
+SC-2197, también en la dirección insegura: un falso `PASA`), así que el juez no decide con una llamada sino con
+`TIRADAS_JUEZ` (3; `REVIEW_TIRADAS` la cambia, 1 = el comportamiento de antes). Cada tirada es el prompt de siempre, con su
+reintento y su respaldo (ni el uno ni el otro son una tirada más) y su propio veredicto por las reglas de arriba. El
+veredicto del PR lo da `decidir_tiradas`: `NO_PASA` en cuanto **una** tirada encuentra un ❌ con la línea del diff citada
+(para `cumple: false` el prompt pide en `evidencia` la línea que lo contradice y el código comprueba que está en el diff; un
+❌ sin línea, o con una línea que no está en el diff, es un voto más) o la mayoría de las tiradas da `NO_PASA`; `PASA`
+solo si la mayoría de las N sale sin motivos y ninguna tirada vetó; un empate es `NO_PASA`. Una tirada `SIN_VEREDICTO`
+(modelo caído, JSON inservible dos veces) no vota: sin mayoría posible el PR es `SIN_VEREDICTO` y el juez deja de pedir.
+Se para también en cuanto el resto no puede cambiar el veredicto (dos `NO_PASA` de tres: la tercera no se paga). El
+comentario es el de una tirada que dio ese veredicto (con `NO_PASA`, la del veto o la de más motivos): sus criterios,
+sus hallazgos y sus motivos van al marcador v2, cuya forma no cambia. Cada tirada deja un `::notice::` en el log del job.
+Un PR sale del juez con hasta 3 llamadas en vez de 1: la medida de llamadas y USD por PR está en la historia SC-2229.
+
 **Respuesta inservible.** Una respuesta que no es el JSON pedido (vacía, truncada, sin `criterios`) se pide una vez más
 por la misma cadena (`INTENTOS_JUEZ`, el primario y, si cae, el respaldo) antes de dar `SIN_VEREDICTO` con motivo
 `respuesta_invalida`; un veredicto válido, aunque sea `NO_PASA`, no se repite, y una caída del modelo no cuenta como
@@ -308,7 +322,11 @@ Corre el juez con el modelo real sobre los 9 casos de `tests/fixtures/juez/` (5 
 bug, norma de arquitectura, sin tests; los PASA son commits reales de este repo, entre ellos la PR de pin
 k8s-gitops-pocharlies#552 (DGX-745) con su `pr.md`, y los NO_PASA, diffs reales estropeados a propósito: sin el test, con una condición
 invertida, con una interpolación en un `run`) y sale 0 solo si acierta la proporción del umbral (7/8: con 9 casos, 8). Un caso puede traer
-`pr.md` (título, línea en blanco y descripción de su PR). Un `SIN_VEREDICTO` cuenta como fallo. Tests sin red:
+`pr.md` (título, línea en blanco y descripción de su PR). Un `SIN_VEREDICTO` cuenta como fallo. Desde SC-2229 cada caso corre sus
+`TIRADAS_JUEZ` tiradas enteras (sin parar antes) y se mide dos veces: `aciertos N/M` es por mayoría (el veredicto que daría el job, el que
+cuenta para el umbral) y `peor resultado` solo cuenta el caso si todas sus tiradas aciertan; cada línea trae `tiradas=PASA,NO_PASA,…` y
+el resumen `falsos PASA` por mayoría y en alguna tirada. Los casos reales de repos privados (los 20 de SC-2197) no se commitean aquí, porque
+este repo es público: `--evalua <directorio>` lee cualquier directorio con el mismo formato. Tests sin red:
 `python3 -m unittest tests.test_llm_review_juez` (un LiteLLM, un Jira y una API de GitHub de pega).
 
 ## Cobertura: qué repos pasan a `juez` y con qué (SC-2182, parte C)

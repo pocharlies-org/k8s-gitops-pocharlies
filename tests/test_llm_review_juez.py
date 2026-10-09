@@ -228,6 +228,7 @@ class Base(unittest.TestCase):
             'REVIEW_ARCHITECTURE_FILE': str(self.tmp / 'ARCHITECTURE.md'),
             'REVIEW_PR_TITLE': 'SC-2182: motor juez', 'REVIEW_PR_BODY': 'Cuerpo del PR',
             'REVIEW_PR_BRANCH': 'SC-2182-juez', 'REVIEW_TIMEOUT_SECONDS': '90',
+            'REVIEW_TIRADAS': '1',   # las pruebas de la decision miden UNA tirada; la mayoria es de TestMayoria
         }
         # el servidor de pega habla http plano: la constante se lee al importar el modulo.
         antes = review.GITHUB_API
@@ -852,7 +853,7 @@ class TestEvalua(Base):
 
     def correr_evalua(self, umbral):
         env = {k: self.env[k] for k in ('REVIEW_LITELLM_URL', 'REVIEW_LITELLM_KEY', 'REVIEW_MODEL',
-                                        'REVIEW_FALLBACK_MODEL')}
+                                        'REVIEW_FALLBACK_MODEL', 'REVIEW_TIRADAS')}
         previo = dict(os.environ)
         os.environ.update(env)
         try:
@@ -900,6 +901,195 @@ class TestEvalua(Base):
     def test_el_umbral_mal_formado_es_uso_invalido(self):
         self.caso('a', 'PASA')
         self.assertEqual(self.correr_evalua('muchos'), 2)
+
+
+class TestMayoria(Base):
+    """SC-2229: el veredicto es el de N tiradas (por defecto 3), no el de una."""
+
+    BUG = {'file': 'src/app.py', 'line': 12, 'severity': 'alta', 'tipo': 'correccion', 'summary': 'suma mal'}
+
+    def setUp(self):
+        super().setUp()
+        self.env['REVIEW_TIRADAS'] = '3'
+        self.LIMPIA = respuesta([cumple(1), cumple(2, 'tests/test_app.py:4')])
+        self.HALLAZGO = respuesta([cumple(1), cumple(2, 'tests/test_app.py:4')], [self.BUG])
+        self.ROJO_CON_LINEA = respuesta([{'n': 1, 'cumple': False, 'evidencia': 'src/app.py:12',
+                                          'nota': 'devuelve x - y'}, cumple(2, 'tests/test_app.py:4')])
+        self.ROJO_SIN_LINEA = respuesta([{'n': 1, 'cumple': False, 'evidencia': '',
+                                          'nota': 'prometido y no hecho'}, cumple(2, 'tests/test_app.py:4')])
+
+    def tiradas(self, *respuestas):
+        self.mundo.litellm['local-juez'] = [(200, r, 0) for r in respuestas]
+
+    def modelos(self):
+        return [m for m, _, _ in self.mundo.llamadas]
+
+    def test_el_numero_de_tiradas_es_una_constante_y_por_defecto_son_tres(self):
+        self.assertEqual(review.TIRADAS_JUEZ, 3)
+        self.assertEqual(self.correr(REVIEW_TIRADAS=None), 0, self.salida_texto)
+        self.assertEqual(self.modelos(), ['local-juez'] * 3)
+        self.assertVeredicto('PASA', motivos='')
+
+    def test_pasa_si_las_tres_tiradas_pasan(self):
+        self.tiradas(self.LIMPIA)
+        self.assertEqual(self.correr(), 0, self.salida_texto)
+        self.assertEqual(len(self.mundo.llamadas), 3)
+        self.assertVeredicto('PASA', motivos='')
+
+    def test_un_hallazgo_en_una_sola_tirada_no_bloquea(self):
+        # el mismo caso da veredictos distintos entre tiradas: manda la mayoria
+        for posicion in range(3):
+            with self.subTest(posicion):
+                self.mundo.comentarios.clear()
+                self.mundo.llamadas.clear()
+                orden = [self.LIMPIA] * 3
+                orden[posicion] = self.HALLAZGO
+                self.tiradas(*orden)
+                self.assertEqual(self.correr(), 0, self.salida_texto)
+                self.assertVeredicto('PASA', motivos='')
+                self.assertNotIn('suma mal', self.comentario(), 'el comentario es el de la tirada que decide')
+
+    def test_un_hallazgo_en_la_mayoria_bloquea_y_no_pide_la_tercera_tirada(self):
+        self.tiradas(self.HALLAZGO, self.LIMPIA, self.HALLAZGO)
+        self.assertEqual(self.correr(), 1)
+        self.assertVeredicto('NO_PASA', motivos='hallazgos')
+        self.assertIn('suma mal', self.comentario())
+        self.tiradas(self.HALLAZGO)
+        self.mundo.comentarios.clear()
+        self.mundo.llamadas.clear()
+        self.assertEqual(self.correr(), 1)
+        self.assertEqual(len(self.mundo.llamadas), 2, 'dos de tres ya deciden: la tercera no se paga')
+
+    def test_un_rojo_con_linea_del_diff_citada_veta_aunque_las_otras_pasen(self):
+        for posicion in range(3):
+            with self.subTest(posicion):
+                self.mundo.comentarios.clear()
+                self.mundo.llamadas.clear()
+                orden = [self.LIMPIA] * 3
+                orden[posicion] = self.ROJO_CON_LINEA
+                self.tiradas(*orden)
+                self.assertEqual(self.correr(), 1)
+                self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
+                self.assertIn('C1 no cumple: devuelve x - y', self.comentario())
+
+    def test_un_rojo_sin_linea_o_con_una_linea_que_no_esta_en_el_diff_es_un_voto_mas(self):
+        fuera = respuesta([{'n': 1, 'cumple': False, 'evidencia': 'src/app.py:99', 'nota': 'x'},
+                           cumple(2, 'tests/test_app.py:4')])
+        for nombre, sin in (('sin linea', self.ROJO_SIN_LINEA), ('linea fuera del diff', fuera)):
+            with self.subTest(nombre):
+                self.mundo.comentarios.clear()
+                self.tiradas(self.LIMPIA, sin, self.LIMPIA)
+                self.assertEqual(self.correr(), 0, self.salida_texto)
+                self.assertVeredicto('PASA', motivos='')
+                self.mundo.comentarios.clear()
+                self.tiradas(sin, sin, self.LIMPIA)
+                self.assertEqual(self.correr(), 1)
+                self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
+
+    def test_con_dos_tiradas_un_empate_no_pasa(self):
+        self.tiradas(self.LIMPIA, self.HALLAZGO)
+        self.assertEqual(self.correr(REVIEW_TIRADAS='2'), 1)
+        self.assertVeredicto('NO_PASA', motivos='hallazgos')
+
+    def test_una_tirada_caida_no_cuenta_como_voto_y_con_dos_validas_hay_veredicto(self):
+        self.mundo.litellm['local-juez'] = [(200, self.LIMPIA, 0), (503, None, 0), (200, self.LIMPIA, 0)]
+        self.mundo.litellm['alibaba-q38-flash'] = [(503, None, 0)]
+        self.assertEqual(self.correr(), 0, self.salida_texto)
+        self.assertVeredicto('PASA', motivos='')
+        self.assertEqual(self.modelos(), ['local-juez', 'local-juez', 'alibaba-q38-flash', 'local-juez'])
+
+    def test_sin_dos_tiradas_validas_es_sin_veredicto_y_no_sigue_pidiendo(self):
+        self.mundo.litellm['local-juez'] = [(503, None, 0)]
+        self.mundo.litellm['alibaba-q38-flash'] = [(503, None, 0)]
+        self.assertEqual(self.correr(), 1)
+        self.assertVeredicto('SIN_VEREDICTO', motivos='modelo_caido')
+        self.assertEqual(len(self.mundo.llamadas), 4, 'dos tiradas caidas (primario y respaldo) y se para: no hay mayoria posible')
+
+    def test_el_respaldo_y_el_reintento_son_la_misma_tirada_no_una_nueva(self):
+        # tirada 1: el primario cae y juzga el respaldo; tirada 2: JSON roto y su reintento; tirada 3 normal
+        self.mundo.litellm['local-juez'] = [(503, None, 0), (200, 'hola', 0), (200, self.LIMPIA, 0), (200, self.LIMPIA, 0)]
+        self.mundo.litellm['alibaba-q38-flash'] = [(200, self.LIMPIA, 0)]
+        self.assertEqual(self.correr(), 0, self.salida_texto)
+        self.assertEqual(self.modelos(), ['local-juez', 'alibaba-q38-flash', 'local-juez', 'local-juez', 'local-juez'])
+        self.assertVeredicto('PASA', motivos='')
+
+    def test_el_marcador_y_el_comentario_no_cambian_de_forma(self):
+        self.tiradas(self.LIMPIA)
+        self.correr()
+        cuerpo = self.comentario()
+        self.assertRegex(cuerpo.split('\n', 1)[0], MARCADOR_V2)
+        self.assertEqual(cuerpo.split('\n')[1], '## Review del juez · PASA')
+        self.assertRegex(cuerpo.rstrip().split('\n')[-1], r'^<sub>juez · modelo `local-juez` · head `[0-9a-f]{12}`</sub>$')
+
+    def test_la_rubrica_pide_la_linea_que_contradice_un_incumplido(self):
+        self.correr()
+        _, _, usuario = self.mundo.llamadas[0]
+        self.assertIn('`evidencia` es la linea del diff que lo contradice', usuario)
+
+
+class TestEvaluaTiradas(Base):
+    """SC-2229: `--evalua` mide cada caso con N tiradas y dice el peor resultado y el de la mayoria."""
+
+    def setUp(self):
+        super().setUp()
+        self.env['REVIEW_TIRADAS'] = '3'
+        self.LIMPIA = respuesta([cumple(1)])
+        self.HALLAZGO = respuesta([cumple(1)], [TestMayoria.BUG])
+        d = self.tmp / 'casos'
+        for nombre, esperado in (('a-pasa', 'PASA'), ('b-no-pasa', 'NO_PASA')):
+            (d / nombre).mkdir(parents=True)
+            (d / nombre / 'criterios.md').write_text('- [ ] C1 la suma devuelve x + y\n')
+            (d / nombre / 'diff.patch').write_text(DIFF)
+            (d / nombre / 'esperado').write_text(esperado + '\n')
+        (d / 'ARCHITECTURE.md').write_text('# norma\n')
+
+    def evalua(self, umbral, **cambios):
+        env = {k: self.env[k] for k in ('REVIEW_LITELLM_URL', 'REVIEW_LITELLM_KEY', 'REVIEW_MODEL',
+                                        'REVIEW_FALLBACK_MODEL', 'REVIEW_TIRADAS')}
+        env.update(cambios)
+        previo = dict(os.environ)
+        os.environ.update(env)
+        try:
+            with redirect_stdout(io.StringIO()) as buf:
+                rc = review.evalua(str(self.tmp / 'casos'), umbral)
+        finally:
+            os.environ.clear()
+            os.environ.update(previo)
+        self.salida_texto = buf.getvalue()
+        return rc
+
+    def test_cada_caso_corre_n_tiradas_aunque_la_mayoria_ya_este_decidida(self):
+        self.mundo.litellm['local-juez'] = [(200, self.HALLAZGO, 0)]
+        self.evalua('0/2')
+        self.assertEqual(len(self.mundo.llamadas), 6, 'tres tiradas por caso, dos casos')
+
+    def test_informa_de_las_tiradas_del_peor_resultado_y_de_la_mayoria(self):
+        # a-pasa: PASA, NO_PASA, PASA -> mayoria PASA (acierta) pero una tirada falla (peor: FALLO)
+        # b-no-pasa: NO_PASA x3 -> acierta en las dos lecturas
+        self.mundo.litellm['local-juez'] = [(200, r, 0) for r in (
+            self.LIMPIA, self.HALLAZGO, self.LIMPIA, self.HALLAZGO, self.HALLAZGO, self.HALLAZGO)]
+        self.assertEqual(self.evalua('2/2'), 0, self.salida_texto)
+        linea_a = next(l for l in self.salida_texto.splitlines() if 'a-pasa' in l)
+        self.assertIn('tiradas=PASA,NO_PASA,PASA', linea_a)
+        self.assertTrue(linea_a.startswith('OK'), linea_a)      # por mayoria acierta
+        self.assertIn('obtenido=PASA', linea_a)
+        self.assertIn('peor=FALLO', linea_a)                    # pero una tirada fallo
+        linea_b = next(l for l in self.salida_texto.splitlines() if 'b-no-pasa' in l)
+        self.assertIn('tiradas=NO_PASA,NO_PASA,NO_PASA', linea_b)
+        self.assertIn('peor=OK', linea_b)
+        self.assertIn('aciertos 2/2', self.salida_texto)
+        self.assertIn('peor resultado 1/2', self.salida_texto)
+
+    def test_un_falso_pasa_se_cuenta_aparte(self):
+        self.mundo.litellm['local-juez'] = [(200, self.LIMPIA, 0)]   # todo PASA: b-no-pasa es un falso PASA
+        self.evalua('1/2')
+        self.assertIn('falsos PASA 1 (en alguna tirada: 1)', self.salida_texto)
+
+    def test_el_umbral_se_mide_con_la_mayoria(self):
+        self.mundo.litellm['local-juez'] = [(200, r, 0) for r in (
+            self.LIMPIA, self.HALLAZGO, self.LIMPIA, self.HALLAZGO, self.HALLAZGO, self.HALLAZGO)]
+        self.assertEqual(self.evalua('2/2'), 0)
+        self.assertEqual(self.evalua('2/2', REVIEW_TIRADAS='1'), 1)   # una tirada: la primera de cada caso
 
 
 if __name__ == '__main__':

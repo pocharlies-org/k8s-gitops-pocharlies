@@ -567,6 +567,7 @@ TIMEOUT_JUEZ = 90                  # s por llamada; un timeout cuenta como un 40
 FALLBACK_JUEZ = 'alibaba-q38-flash'
 CODIGOS_FALLBACK = (400, 401, 403, 404)   # ademas de 408/429/5xx y del timeout
 MAX_TOKENS_JUEZ = 3000
+TIRADAS_JUEZ = 3                  # tiradas por PR (SC-2229): el modelo da veredictos distintos sobre el mismo diff, decide la mayoria
 INTENTOS_JUEZ = 2                  # una respuesta que no es el JSON pedido se pide una vez mas antes de dar SIN_VEREDICTO
 ARQUITECTURA_MAX = 30000           # caracteres de ARCHITECTURE.md que entran al modelo
 PR_MAX = 8000                      # caracteres del titulo y la descripcion de la PR que entran al modelo
@@ -627,7 +628,9 @@ PREGUNTA 2, `criterios`: ¿que criterios del ticket cubre esta PR?
      criterio, o la PR dice cumplirlo y el diff no lo hace. Tambien lo es un criterio sobre
      codigo de este repositorio que el diff no cubre, si nada lo situa en otra parte. Una sospecha
      sobre codigo que el diff no muestra no es una contradiccion: `false` pide una linea del diff que
-     lo contradiga o una promesa de la PR que el diff no cumple.
+     lo contradiga o una promesa de la PR que el diff no cumple. Si el diff lo contradice,
+     `evidencia` es la linea del diff que lo contradice, con el mismo formato; si es «prometido y
+     no hecho» o el diff no lo toca, `evidencia` va vacia.
    - `"fuera"` (fuera de esta PR): lo cumple OTRO repositorio, otra PR de la misma historia (lo
      dicen el titulo o la descripcion de la PR) o una comprobacion que el propio criterio situa
      despues del merge (un despliegue, una medicion de qa). `nota` dice donde se verifica.
@@ -844,7 +847,7 @@ def evaluar(dato, n_criterios, visibles):
             return None
         evidencia = str(c.get('evidencia') or '').strip().strip('`')
         criterios.append({'n': n, 'cumple': cumple, 'evidencia': evidencia,
-                          'evidencia_ok': cumple is True and evidencia_valida(evidencia, visibles),
+                          'evidencia_ok': cumple is not None and evidencia_valida(evidencia, visibles),
                           'nota': str(c.get('nota') or '')})
     hallazgos = []
     for h in dato.get('hallazgos') if isinstance(dato.get('hallazgos'), list) else []:
@@ -903,14 +906,14 @@ def consultar_juez(url, key, modelo, fallback, prompt, timeout):
             return 'caido', dato, m
 
 
-def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios, diff, arquitectura, pr=''):
-    """Del ticket, el diff y las normas al veredicto. Lo comparten `juez` y `evalua`.
-    Devuelve {veredicto, motivos, detalle, modelo, criterios, hallazgos}."""
+def una_tirada(url, key, modelo, fallback, timeout, prompt, criterios, diff):
+    """UNA tirada: un prompt, con su reintento por JSON invalido y su respaldo por caida del primario
+    (ni el uno ni el otro son una tirada mas). Devuelve {veredicto, motivos, detalle, modelo, criterios,
+    hallazgos, dura}; `dura` es un ❌ cuya linea esta en el diff."""
     visibles = lineas_visibles(diff)
-    res = {'veredicto': 'SIN_VEREDICTO', 'motivos': set(), 'detalle': '', 'modelo': modelo,
+    res = {'veredicto': 'SIN_VEREDICTO', 'motivos': set(), 'detalle': '', 'modelo': modelo, 'dura': False,
            'criterios': [{'n': i, 'texto': t, 'cumple': None, 'evidencia': '', 'evidencia_ok': False,
                           'nota': ''} for i, t in enumerate(criterios, 1)], 'hallazgos': []}
-    prompt = prompt_juez(repo, clave, resumen, criterios, diff, arquitectura, pr)
     for intento in range(1, INTENTOS_JUEZ + 1):
         estado, dato, usado = consultar_juez(url, key, modelo, fallback, prompt, timeout)
         res['modelo'] = usado
@@ -931,7 +934,49 @@ def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios,
         c.update(e)
     res['hallazgos'] = ev[1]
     res['veredicto'], res['motivos'] = decidir(*ev)
+    res['dura'] = any(c['cumple'] is False and c['evidencia_ok'] for c in res['criterios'])
     return res
+
+
+def decidir_tiradas(tiradas, n):
+    """El veredicto de `n` tiradas, o None si las que faltan aun pueden cambiarlo. PASA exige que la mayoria
+    de las `n` no tenga motivos y que ninguna tenga un ❌ con linea del diff citada; un empate es NO_PASA.
+    Una tirada SIN_VEREDICTO (modelo caido, JSON invalido) no es un voto: sin mayoria posible, SIN_VEREDICTO."""
+    validas = [t for t in tiradas if t['veredicto'] != 'SIN_VEREDICTO']
+    negativas = [t for t in validas if t['veredicto'] == 'NO_PASA']
+    if any(t['dura'] for t in validas) or len(negativas) * 2 > n:
+        return 'NO_PASA'
+    quedan = n - len(tiradas)
+    if (len(validas) + quedan) * 2 <= n:
+        return 'SIN_VEREDICTO'
+    if quedan:
+        return None
+    return 'PASA' if (len(validas) - len(negativas)) * 2 > n else 'NO_PASA'
+
+
+def tirada_que_explica(tiradas, veredicto):
+    """La tirada cuyos criterios, hallazgos y motivos se publican: una de las que dieron ese veredicto
+    (con NO_PASA, la del veto o la de mas motivos)."""
+    propias = [t for t in tiradas if t['veredicto'] == veredicto]
+    return max(propias, key=lambda t: (t['dura'], len(t['motivos']))) if veredicto == 'NO_PASA' else propias[0]
+
+
+def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios, diff, arquitectura, pr='',
+           tiradas=TIRADAS_JUEZ, completa=False):
+    """Del ticket, el diff y las normas al veredicto de `tiradas` tiradas. Lo comparten `juez` y `evalua`;
+    se para en cuanto el resto no puede cambiarlo, salvo `completa` (la medida de `evalua` quiere todas).
+    Devuelve {veredicto, motivos, detalle, modelo, criterios, hallazgos, tiradas: [veredicto de cada una]}."""
+    n = max(tiradas, 1)
+    prompt = prompt_juez(repo, clave, resumen, criterios, diff, arquitectura, pr)
+    hechas = []
+    while len(hechas) < n:
+        hechas.append(una_tirada(url, key, modelo, fallback, timeout, prompt, criterios, diff))
+        print(f"::notice::juez: tirada {len(hechas)} de {n}: {hechas[-1]['veredicto']}")
+        if decidir_tiradas(hechas, n) is not None and not completa:
+            break
+    veredicto = decidir_tiradas(hechas, n)
+    return {**tirada_que_explica(hechas, veredicto), 'veredicto': veredicto,
+            'tiradas': [t['veredicto'] for t in hechas]}
 
 
 # ---- comentario ------------------------------------------------------------
@@ -971,7 +1016,7 @@ def componer_juez(r):
         lineas += ['', '### Criterios']
         for c in criterios:
             marca = {True: '✅', False: '❌', None: '➖'}[c['cumple']]
-            ev = f" `{codigo(c['evidencia'])}`" if c['cumple'] and c['evidencia'] else ''
+            ev = f" `{codigo(c['evidencia'])}`" if c['cumple'] is not None and c['evidencia'] else ''
             nota = f" — {limpio(c['nota'], 200)}" if c.get('nota') else ''
             lineas.append(f"- **C{c['n']}** {marca}{ev} {limpio(c.get('texto'), 120)}{nota}")
     pendientes = hallazgos_a_arreglar(r)
@@ -1060,7 +1105,7 @@ def juez():
             pass   # sin ARCHITECTURE.md en el commit base: el prompt lo dice
     res = juzgar(url_base, key, modelo, fallback, timeout_juez(env('REVIEW_TIMEOUT_SECONDS')),
                  repo, claves[0], ticket['resumen'], ticket['criterios'], recortado, arquitectura,
-                 f"{env('REVIEW_PR_TITLE')}\n\n{env('REVIEW_PR_BODY')}")
+                 f"{env('REVIEW_PR_TITLE')}\n\n{env('REVIEW_PR_BODY')}", entero('REVIEW_TIRADAS', TIRADAS_JUEZ))
     r.update(criterios=res['criterios'], hallazgos=res['hallazgos'], modelo=res['modelo'],
              respaldo=res['modelo'] != modelo)
     return salir(res['veredicto'], res['motivos'], res['detalle'])
@@ -1068,7 +1113,10 @@ def juez():
 
 def evalua(directorio, umbral):
     """Mide el juez contra un corpus: `<dir>/<caso>/{criterios.md,diff.patch,esperado[,pr.md]}` y un
-    `<dir>/ARCHITECTURE.md` comun (un caso puede traer el suyo). Sale 0 si aciertos/total >= umbral."""
+    `<dir>/ARCHITECTURE.md` comun (un caso puede traer el suyo). Cada caso corre sus N tiradas enteras
+    (`REVIEW_TIRADAS`) y se mide dos veces: por mayoria (el veredicto que daria el job, el que cuenta para
+    el umbral) y por el peor resultado (acierta solo si TODAS las tiradas aciertan). Sale 0 si
+    aciertos/total por mayoria >= umbral."""
     m = re.fullmatch(r'(\d+)/(\d+)', umbral or '')
     try:
         casos = sorted(d for d in Path(directorio).iterdir() if d.is_dir())
@@ -1083,7 +1131,7 @@ def evalua(directorio, umbral):
         return 2
     fallback, max_bytes = env('REVIEW_FALLBACK_MODEL', FALLBACK_JUEZ), entero('REVIEW_MAX_DIFF_BYTES', 120000)
     comun = Path(directorio) / 'ARCHITECTURE.md'
-    aciertos = 0
+    aciertos = peores = falsos_pasa = falsos_pasa_alguna = 0
     for caso in casos:
         fuente = caso / 'ARCHITECTURE.md'
         fuente = fuente if fuente.is_file() else comun
@@ -1092,13 +1140,19 @@ def evalua(directorio, umbral):
         pr = (caso / 'pr.md').read_text(encoding='utf-8') if (caso / 'pr.md').is_file() else ''
         res = juzgar(url_base, key, modelo, fallback, timeout_juez(env('REVIEW_TIMEOUT_SECONDS')), 'evalua',
                      caso.name, caso.name, criterios_de_spec((caso / 'criterios.md').read_text(encoding='utf-8')),
-                     recortar((caso / 'diff.patch').read_text(encoding='utf-8'), max_bytes)[0], arquitectura, pr)
-        acierto = res['veredicto'] == esperado
+                     recortar((caso / 'diff.patch').read_text(encoding='utf-8'), max_bytes)[0], arquitectura, pr,
+                     entero('REVIEW_TIRADAS', TIRADAS_JUEZ), completa=True)
+        acierto, peor = res['veredicto'] == esperado, all(t == esperado for t in res['tiradas'])
         aciertos += acierto
+        peores += peor
+        falsos_pasa += esperado == 'NO_PASA' and res['veredicto'] == 'PASA'
+        falsos_pasa_alguna += esperado == 'NO_PASA' and 'PASA' in res['tiradas']
         print(f"{'OK   ' if acierto else 'FALLO'} {caso.name}: esperado={esperado} "
-              f"obtenido={res['veredicto']} motivos={','.join(sorted(res['motivos'])) or '-'}")
+              f"obtenido={res['veredicto']} motivos={','.join(sorted(res['motivos'])) or '-'} "
+              f"tiradas={','.join(res['tiradas'])} peor={'OK' if peor else 'FALLO'}")
     minimo, de = int(m.group(1)), int(m.group(2))
     print(f'aciertos {aciertos}/{len(casos)} (umbral {umbral})')
+    print(f'peor resultado {peores}/{len(casos)} · falsos PASA {falsos_pasa} (en alguna tirada: {falsos_pasa_alguna})')
     return 0 if aciertos * de >= minimo * len(casos) else 1
 
 
