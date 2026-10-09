@@ -542,6 +542,82 @@ class TestFueraDeEstaPR(Base):
         self.assertIn('no si ella sola completa el ticket', sistema)
         self.assertRegex(usuario, r'(?s)tipo=pr>>>\nSC-2182: primera de dos\n\nEl test va en la segunda PR\.\n<<<FIN')
 
+    def test_un_hallazgo_que_bloquea_bloquea_con_cualquier_estado_de_los_criterios(self):
+        # SC-2197 C3b: ni el ➖ ni el ✅ tapan un hallazgo de correccion o arquitectura alto o medio
+        hallazgo = lambda tipo, sev: {'file': 'src/app.py', 'line': 12, 'severity': sev, 'tipo': tipo,
+                                      'summary': 'incumple una norma del ARCHITECTURE.md'}
+        estados = {'todo cubierto': [cumple(1), cumple(2, 'tests/test_app.py:4')],
+                   'todo fuera': [self.fuera(1), self.fuera(2)],
+                   'cubierto y fuera': [cumple(1), self.fuera(2)],
+                   'contradicho y fuera': [{'n': 1, 'cumple': False, 'nota': 'x'}, self.fuera(2)]}
+        for estado, criterios in estados.items():
+            for tipo, sev in (('correccion', 'alta'), ('correccion', 'media'),
+                              ('arquitectura', 'alta'), ('arquitectura', 'media')):
+                with self.subTest(f'{estado} / {tipo} {sev}'):
+                    self.mundo.comentarios.clear()
+                    self.responde(criterios, [hallazgo(tipo, sev)])
+                    self.assertEqual(self.correr(), 1)
+                    motivos = self.marcador().split(' motivos=')[1].split(' ')[0].split(',')
+                    self.assertIn('hallazgos', motivos)
+                    self.assertIn('### Hallazgos', self.comentario())
+
+    def test_la_rubrica_separa_hallazgos_de_criterios_y_pone_los_hallazgos_primero(self):
+        self.correr()
+        _, sistema, usuario = self.mundo.llamadas[0]
+        self.assertLess(usuario.index('PREGUNTA 1, `hallazgos`'), usuario.index('PREGUNTA 2, `criterios`'))
+        self.assertLess(usuario.index('"hallazgos": [{'), usuario.index('"criterios": [{'))   # el JSON los pide en ese orden
+        self.assertIn('bloquea la PR SIEMPRE', usuario)
+        self.assertIn('arquitectura', sistema)
+
+
+class TestReintento(Base):
+    """SC-2197 C3b: una respuesta que no es el JSON pedido se pide una vez mas antes de dar SIN_VEREDICTO."""
+
+    def setUp(self):
+        super().setUp()
+        self.VALIDA = respuesta([cumple(1), cumple(2, 'tests/test_app.py:4')])
+
+    def modelos(self):
+        return [m for m, _, _ in self.mundo.llamadas]
+
+    def test_una_respuesta_invalida_se_reintenta_y_la_segunda_juzga(self):
+        truncado = self.VALIDA[:40]
+        for nombre, mala in {'no json': 'hola', 'sin criterios': '{"hallazgos": []}', 'truncado': truncado,
+                             'vacia': ''}.items():
+            with self.subTest(nombre):
+                self.mundo.comentarios.clear()
+                self.mundo.llamadas.clear()
+                self.mundo.litellm['local-juez'] = [(200, mala, 0), (200, self.VALIDA, 0)]
+                self.assertEqual(self.correr(), 0, self.salida_texto)
+                self.assertVeredicto('PASA', motivos='')
+                self.assertEqual(self.modelos(), ['local-juez', 'local-juez'])
+
+    def test_dos_respuestas_invalidas_son_sin_veredicto_y_no_hay_tercer_intento(self):
+        self.mundo.litellm['local-juez'] = [(200, 'hola', 0)]
+        self.assertEqual(self.correr(), 1)
+        self.assertVeredicto('SIN_VEREDICTO', motivos='respuesta_invalida')
+        self.assertEqual(self.modelos(), ['local-juez', 'local-juez'])
+
+    def test_un_veredicto_valido_no_se_reintenta_ni_siendo_no_pasa(self):
+        self.mundo.litellm['local-juez'] = [(200, respuesta([cumple(1), {'n': 2, 'cumple': False}]), 0)]
+        self.assertEqual(self.correr(), 1)
+        self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
+        self.assertEqual(self.modelos(), ['local-juez'])
+
+    def test_el_reintento_sigue_la_misma_cadena_y_cae_al_respaldo_si_el_primario_cae(self):
+        self.mundo.litellm['local-juez'] = [(200, 'hola', 0), (503, None, 0)]
+        self.mundo.litellm['alibaba-q38-flash'] = [(200, self.VALIDA, 0)]
+        self.assertEqual(self.correr(), 0, self.salida_texto)
+        self.assertVeredicto('PASA', motivos='')
+        self.assertEqual(self.modelos(), ['local-juez', 'local-juez', 'alibaba-q38-flash'])
+
+    def test_una_caida_del_modelo_no_cuenta_como_respuesta_invalida(self):
+        self.mundo.litellm['local-juez'] = [(503, None, 0)]
+        self.mundo.litellm['alibaba-q38-flash'] = [(503, None, 0)]
+        self.assertEqual(self.correr(), 1)
+        self.assertVeredicto('SIN_VEREDICTO', motivos='modelo_caido')
+        self.assertEqual(len(self.mundo.llamadas), 2, 'solo primario y respaldo: el reintento es de respuestas, no de caidas')
+
 
 class TestSinVeredicto(Base):
     def test_respuesta_inservible_es_sin_veredicto(self):
