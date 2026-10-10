@@ -1,0 +1,1188 @@
+diff --git a/k8s/qwen38-flash-next-nvfp4-vllm.yaml b/k8s/qwen38-flash-next-nvfp4-vllm.yaml
+index cc369dac..56a47d9c 100644
+--- a/k8s/qwen38-flash-next-nvfp4-vllm.yaml
++++ b/k8s/qwen38-flash-next-nvfp4-vllm.yaml
+@@ -3332,6 +3332,138 @@ data:
+         echo "QWEN_KDET AVISO: SHA256SUMS no cuadra, kernel stock"
+       fi
+     fi
++    # 09-10-2026 (DGX-780): parches de arranque para TP=3. Los tres leen QWEN_TP_SIZE (el
++    # --tensor-parallel-size de ARGS). Con TP=2 son INERTES: no abren el fichero de la imagen.
++    # Con tp % 3 == 0 son FAIL-CLOSED: si el patron no esta (imagen nueva), exit 1 y el pod no
++    # arranca. Idempotentes por marcador. Van despues de install.py (ursucipian), que exige los
++    # ficheros base sin tocar y ya ha parcheado mtp.py. Tests sin GPU sobre copias congeladas de la
++    # imagen 96b234af: tools/test_qwen38fn_fi_ep_uneven.py y tools/test_qwen38fn_tp3_patches.py.
++    export QWEN_TP_SIZE
++    QWEN_TP_SIZE=$(printf '%s\n' "${ARGS[@]}" | awk 'take { print; take = 0 } $0 == "--tensor-parallel-size" { take = 1 }')
++    # 08-10-2026 (DGX-672), portado en DGX-780: FlashInfer CUTLASS con EP desigual (512 expertos /
++    # EP=3 = 171/171/170, vLLM los reparte desde 0/171/342). El binding de FlashInfer solo recibe
++    # ep_size/ep_rank y supone reparto igual, start = ep_rank * num_experts_on_rank
++    # (flashinfer_cutlass_fused_moe_binding.cu:397-399): el rango 2 empezaria en 340 y no en
++    # 342, y el kernel descarta los ids fuera de [start, end) (cutlass_fused_moe_kernels.cuh
++    # :438-441, :1970-1973, :2039-2041). Antes de llamar al kernel, los ids globales se pasan a
++    # la numeracion que el binding supone: slot local + start; un experto que no es de este
++    # rango (-1) cae en start-1 y el kernel lo descarta. ep_size/ep_rank no cambian. Sin
++    # expert_map falla en voz alta en el primer forward. Sin sincronizacion GPU, compatible con
++    # la captura de CUDA graph. EPLB y expertos redundantes no estan activos; no se ha probado
++    # con ellos. Se aplica con tp % 3 == 0 o E % ep != 0 (E del config.json del modelo); con
++    # E % ep == 0 y TP=2, inerte. En cada rango del arranque TP=3 hay que ver
++    # "QWEN_FI_EP_UNEVEN (aplicado|ya aplicado)" y, en el primer forward, "QWEN_FI_EP_UNEVEN activo".
++    python3 - <<'PYEOF'
++    import json, os, pathlib, sys
++    tp = int(os.environ['QWEN_TP_SIZE'])
++    try:
++        cfg = json.loads((pathlib.Path(os.environ['MODEL_PATH']) / 'config.json').read_text())
++        experts = int(cfg.get('text_config', cfg)['num_experts'])
++    except (KeyError, OSError, ValueError):
++        experts = None
++    if tp % 3 and (experts is None or experts % tp == 0):
++        print(f'QWEN_FI_EP_UNEVEN inerte (E={experts}, ep={tp})')
++        sys.exit(0)
++    import vllm
++    f = pathlib.Path(vllm.__file__).parent / 'model_executor/layers/fused_moe/experts/flashinfer_cutlass_moe.py'
++    s = f.read_text()
++    old = "        _ = flashinfer_cutlass_fused_moe(\n"
++    new = ("        # QWEN_FI_EP_UNEVEN (DGX-672): reparto desigual de expertos entre rangos EP\n"
++           "        if global_num_experts % self.ep_size:\n"
++           "            if expert_map is None:\n"
++           "                raise RuntimeError('QWEN_FI_EP_UNEVEN: expert_map ausente con reparto desigual')\n"
++           "            _total = self.num_experts * self.ep_size\n"
++           "            _start = self.ep_rank * self.num_experts\n"
++           "            topk_ids = (expert_map[topk_ids] + _start) % _total\n"
++           "            if not getattr(self, '_qwen_fi_ep_uneven_logged', False):\n"
++           "                self._qwen_fi_ep_uneven_logged = True\n"
++           "                print(f'QWEN_FI_EP_UNEVEN activo (E={global_num_experts}, ep={self.ep_size}, rank={self.ep_rank})', flush=True)\n"
++           + old)
++    if 'QWEN_FI_EP_UNEVEN' in s:
++        print('QWEN_FI_EP_UNEVEN ya aplicado')
++    elif s.count(old) == 1:
++        f.write_text(s.replace(old, new))
++        print('QWEN_FI_EP_UNEVEN aplicado')
++    else:
++        print(f'QWEN_FI_EP_UNEVEN ABORTA: patron no encontrado con E={experts}, ep={tp}', file=sys.stderr)
++        sys.exit(1)
++    PYEOF
++    # DGX-780: las dos FC del MTP (fc_embedding, fc_hidden) son ColumnParallelLinear de 2560 a 2560
++    # con gather_output, y 2560 no se parte en 3. Con tp % 3 == 0 pasan a ReplicatedLinear: cada
++    # rango hace la FC entera (2 x 2560 x 2560 BF16, 25 MiB por rango) y el resultado es el mismo
++    # que el gather. El checkpoint trae los pesos enteros, que es lo que carga ReplicatedLinear.
++    python3 - <<'PYEOF'
++    import os, pathlib, sys
++    tp = int(os.environ['QWEN_TP_SIZE'])
++    if tp % 3:
++        print(f'QWEN_TP3_MTP_FC_REPLICATED inerte (tp={tp})')
++        sys.exit(0)
++    import vllm
++    f = pathlib.Path(vllm.__file__).parent / 'models/qwen4_exp/nvidia/mtp.py'
++    s = f.read_text()
++    pairs = [("from vllm.model_executor.layers.linear import ColumnParallelLinear\n",
++              "from vllm.model_executor.layers.linear import ColumnParallelLinear, ReplicatedLinear  # QWEN_TP3_MTP_FC_REPLICATED\n")]
++    for name in ('fc_embedding', 'fc_hidden'):
++        pairs.append((f"            self.{name} = ColumnParallelLinear(\n"
++                      "                self.hidden_size,\n"
++                      "                self.hidden_size,\n"
++                      "                gather_output=True,\n",
++                      "            # QWEN_TP3_MTP_FC_REPLICATED (DGX-780): 2560 no se parte en 3\n"
++                      f"            self.{name} = ReplicatedLinear(\n"
++                      "                self.hidden_size,\n"
++                      "                self.hidden_size,\n"))
++    if 'QWEN_TP3_MTP_FC_REPLICATED' in s:
++        print('QWEN_TP3_MTP_FC_REPLICATED ya aplicado')
++    elif all(s.count(old) == 1 for old, _ in pairs):
++        for old, new in pairs:
++            s = s.replace(old, new)
++        f.write_text(s)
++        print('QWEN_TP3_MTP_FC_REPLICATED aplicado')
++    else:
++        print(f'QWEN_TP3_MTP_FC_REPLICATED ABORTA: patron no encontrado con tp={tp}', file=sys.stderr)
++        sys.exit(1)
++    PYEOF
++    # DGX-780: el checkpoint TP=3 lleva vocab_size 248448 (3 x 82816) con las 128 filas nuevas de
++    # embed_tokens/lm_head a cero; su config guarda el vocabulario de TP=2 en tp3_orig_vocab_size
++    # (248320). Esos logits valdrian 0, no -inf, y podrian salir en el muestreo. Con tp % 3 == 0 se
++    # ponen a -inf en LogitsProcessor._apply_head, por donde pasan las tres rutas (_get_logits:
++    # muestreo y prompt_logprobs; get_top_tokens y get_top_k_tokens: el borrador MTP), antes del
++    # gather. Sin tp3_orig_vocab_size menor que vocab_size en el config, ABORTA: con TP=3 seria el
++    # checkpoint equivocado.
++    python3 - <<'PYEOF'
++    import json, os, pathlib, sys
++    tp = int(os.environ['QWEN_TP_SIZE'])
++    if tp % 3:
++        print(f'QWEN_TP3_VOCAB_MASK inerte (tp={tp})')
++        sys.exit(0)
++    cfg = json.loads((pathlib.Path(os.environ['MODEL_PATH']) / 'config.json').read_text())
++    tc = cfg.get('text_config', cfg)
++    real, vocab = int(tc.get('tp3_orig_vocab_size', 0)), int(tc['vocab_size'])
++    if not 0 < real < vocab:
++        print(f'QWEN_TP3_VOCAB_MASK ABORTA: tp3_orig_vocab_size={real} y vocab_size={vocab} con tp={tp}', file=sys.stderr)
++        sys.exit(1)
++    import vllm
++    f = pathlib.Path(vllm.__file__).parent / 'model_executor/layers/logits_processor.py'
++    s = f.read_text()
++    old = "    def _apply_head(\n"
++    new = ("    def _apply_head(self, lm_head, hidden_states, embedding_bias):\n"
++           f"        # QWEN_TP3_VOCAB_MASK (DGX-780): los ids >= {real} son relleno del checkpoint TP=3\n"
++           "        logits = self._qwen_tp3_apply_head(lm_head, hidden_states, embedding_bias)\n"
++           f"        cut = {real} - lm_head.shard_indices.org_vocab_start_index\n"
++           "        if cut < logits.shape[-1]:\n"
++           "            logits[..., max(cut, 0):] = -float('inf')\n"
++           "        return logits\n"
++           "\n"
++           "    def _qwen_tp3_apply_head(\n")
++    if 'QWEN_TP3_VOCAB_MASK' in s:
++        print('QWEN_TP3_VOCAB_MASK ya aplicado')
++    elif s.count(old) == 1:
++        f.write_text(s.replace(old, new))
++        print(f'QWEN_TP3_VOCAB_MASK aplicado (-inf en ids >= {real} de {vocab})')
++    else:
++        print(f'QWEN_TP3_VOCAB_MASK ABORTA: patron no encontrado con tp={tp}', file=sys.stderr)
++        sys.exit(1)
++    PYEOF
+     exec taskset -c "$CPUS" vllm serve "${ARGS[@]}"
+ ---
+ apiVersion: apps/v1
+diff --git a/tools/fixtures/logits_processor.vllm-0.28.1rc1.dev628.py b/tools/fixtures/logits_processor.vllm-0.28.1rc1.dev628.py
+new file mode 100644
+index 00000000..694bb6b0
+--- /dev/null
++++ b/tools/fixtures/logits_processor.vllm-0.28.1rc1.dev628.py
+@@ -0,0 +1,304 @@
++# SPDX-License-Identifier: Apache-2.0
++# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
++"""A layer that compute logits from hidden_stats."""
++
++from collections.abc import Callable
++from functools import cache
++
++import torch
++import torch.nn.functional as F
++
++from vllm.config import get_current_vllm_config
++from vllm.distributed import (
++    tensor_model_parallel_all_gather,
++    tensor_model_parallel_gather,
++)
++from vllm.logger import init_logger
++from vllm.model_executor.custom_op import PluggableLayer
++from vllm.model_executor.layers.linear import UnquantizedLinearMethod
++from vllm.model_executor.layers.vocab_parallel_embedding import (
++    UnquantizedEmbeddingMethod,
++    VocabParallelEmbedding,
++)
++from vllm.platforms import current_platform
++from vllm.utils.flashinfer import has_flashinfer
++
++logger = init_logger(__name__)
++
++
++@cache
++def _flashinfer_topk() -> Callable[..., tuple[torch.Tensor, torch.Tensor]] | None:
++    """FlashInfer's radix top-k, or None for torch.topk.
++
++    The top-k spans the vocabulary, where the radix kernel is about twice
++    torch.topk.
++    """
++    if not current_platform.is_cuda():
++        return None
++    if not has_flashinfer():
++        logger.info_once(
++            "flashinfer is unavailable; vocab-parallel top-k uses torch.topk, "
++            "at roughly half the speed."
++        )
++        return None
++    from flashinfer import top_k
++
++    return top_k
++
++
++def _topk(scores: torch.Tensor, k: int) -> tuple[torch.Tensor, torch.Tensor]:
++    impl = _flashinfer_topk()
++    if impl is None or not scores.is_cuda:
++        return torch.topk(scores, k, dim=-1)
++    return impl(scores, k, sorted=True, deterministic=True)
++
++
++# --8<-- [start:logits_processor]
++@PluggableLayer.register("logits_processor")
++class LogitsProcessor(PluggableLayer):
++    """Process logits and apply logits processors from sampling metadata.
++
++    This layer does the following:
++    1. Gather logits from model hidden_states.
++    2. Scale logits if needed.
++    3. Apply logits processors (if any).
++    """
++
++    # --8<-- [end:logits_processor]
++
++    def __init__(
++        self,
++        vocab_size: int,
++        org_vocab_size: int | None = None,
++        scale: float = 1.0,
++        logits_as_input: bool = False,
++        soft_cap: float | None = None,
++    ) -> None:
++        """
++        Args:
++            scale: A scaling factor to apply to the logits.
++        """
++        super().__init__()
++        self.scale = scale
++        self.vocab_size = vocab_size
++        # Whether the input is logits (default is hidden states).
++        self.logits_as_input = logits_as_input
++        # original vocabulary size (without LoRA).
++        self.org_vocab_size = org_vocab_size or vocab_size
++        # Soft cap the logits. Used in Gemma 2.
++        self.soft_cap = soft_cap
++        # Whether to use gather or all-gather to gather the logits.
++        self.use_all_gather = current_platform.use_all_gather()
++        # Dtype of the lm_head projection. Defaults to the model dtype; an
++        # fp32 head (via `--hf-overrides '{"head_dtype": "float32"}'`) is
++        # required for RL training-inference consistency.
++        model_config = get_current_vllm_config().model_config
++        self.head_dtype = model_config.head_dtype if model_config is not None else None
++
++    def forward(
++        self,
++        lm_head: VocabParallelEmbedding,
++        hidden_states: torch.Tensor,
++        embedding_bias: torch.Tensor | None = None,
++        skip_gather: bool = False,
++    ) -> torch.Tensor | None:
++        if self.logits_as_input:
++            logits = hidden_states
++        else:
++            # Get the logits for the next tokens.
++            logits = self._get_logits(
++                hidden_states, lm_head, embedding_bias, skip_gather
++            )
++        if logits is not None:
++            if self.soft_cap is not None:
++                logits = logits / self.soft_cap
++                logits = torch.tanh(logits)
++                logits = logits * self.soft_cap
++
++            if self.scale != 1.0:
++                logits *= self.scale
++        return logits
++
++    def _gather_logits(self, logits: torch.Tensor) -> torch.Tensor:
++        """gather/all-gather the logits tensor across model parallel group."""
++        if self.use_all_gather:
++            # Gather is not supported for some devices such as TPUs.
++            # Use all-gather instead.
++            # NOTE(woosuk): Here, the outputs of every device should not be None
++            # because XLA requires strict SPMD among all devices. Every device
++            # should execute the same operations after gathering the logits.
++            logits = tensor_model_parallel_all_gather(logits)
++        else:
++            # None may be returned for rank > 0
++            logits = tensor_model_parallel_gather(logits)
++        return logits
++
++    def _apply_head(
++        self,
++        lm_head: VocabParallelEmbedding,
++        hidden_states: torch.Tensor,
++        embedding_bias: torch.Tensor | None,
++    ) -> torch.Tensor:
++        """Project hidden states through the lm_head, honoring head_dtype."""
++        if self.head_dtype is None or self.head_dtype == hidden_states.dtype:
++            return lm_head.quant_method.apply(
++                lm_head, hidden_states, bias=embedding_bias
++            )
++
++        # A quant config that excludes lm_head hands out UnquantizedLinearMethod
++        # rather than UnquantizedEmbeddingMethod, so accept both: either way the
++        # weight is plain and `lm_head.weight` can be cast directly.
++        if not isinstance(
++            lm_head.quant_method, (UnquantizedEmbeddingMethod, UnquantizedLinearMethod)
++        ):
++            raise ValueError(
++                "A head_dtype different from the model dtype is only "
++                "supported for an unquantized lm_head."
++            )
++        if (
++            self.head_dtype == torch.float32
++            and (current_platform.is_cuda() or current_platform.is_rocm())
++            and hidden_states.is_cuda
++        ):
++            # Accumulate the projection directly into fp32. This avoids
++            # materializing an fp32 copy of the lm_head weight on every step,
++            # unlike casting both operands. `torch.mm(out_dtype=...)` only
++            # supports fp32 output for fp16/bf16 inputs, and is only
++            # implemented for CUDA and ROCm (the latter via the non-Lt GEMM
++            # path); other platforms fall back to the cast path below.
++            flat = hidden_states.reshape(-1, hidden_states.shape[-1])
++            logits = torch.mm(flat, lm_head.weight.t(), out_dtype=self.head_dtype)
++            if embedding_bias is not None:
++                logits = logits + embedding_bias.to(self.head_dtype)
++            return logits.reshape(*hidden_states.shape[:-1], -1)
++        return F.linear(
++            hidden_states.to(self.head_dtype),
++            lm_head.weight.to(self.head_dtype),
++            embedding_bias.to(self.head_dtype) if embedding_bias is not None else None,
++        )
++
++    def _get_logits(
++        self,
++        hidden_states: torch.Tensor,
++        lm_head: VocabParallelEmbedding,
++        embedding_bias: torch.Tensor | None,
++        skip_gather: bool = False,
++    ) -> torch.Tensor | None:
++        # Get the logits for the next tokens.
++        logits = self._apply_head(lm_head, hidden_states, embedding_bias)
++        if skip_gather:
++            return logits
++
++        # Gather logits for TP
++        if lm_head.tp_size > 1:
++            logits = self._gather_logits(logits)
++
++        # Remove paddings in vocab (if any).
++        if logits is not None:
++            logits = logits[..., : self.org_vocab_size]
++        return logits
++
++    def get_top_tokens(
++        self,
++        lm_head: VocabParallelEmbedding,
++        hidden_states: torch.Tensor,
++        embedding_bias: torch.Tensor | None = None,
++    ) -> torch.Tensor:
++        """Vocab-parallel argmax without all-gathering full logits.
++
++        Each TP rank computes local argmax, then only the (value, index) pairs
++        are gathered and reduced. Communication: O(batch * 2 * tp_size) vs
++        O(batch * vocab_size).
++        """
++        if self.scale <= 0.0 and self.scale != 1.0:
++            raise ValueError(
++                "The local argmax reduction optimization is not supported for "
++                "non-positive logit scaling factors."
++            )
++        tp_size = lm_head.tp_size
++
++        logits = self._apply_head(lm_head, hidden_states, embedding_bias)
++        if self.soft_cap is not None:
++            logits = torch.tanh(logits / self.soft_cap) * self.soft_cap
++        if self.scale != 1.0:
++            logits = logits * self.scale
++
++        # Mask out padding entries beyond org_vocab_size on this shard.
++        num_pad = lm_head.shard_indices.num_org_vocab_padding
++        if num_pad > 0:
++            logits[..., -num_pad:] = -float("inf")
++
++        local_max_vals, local_max_indices = logits.max(dim=-1)
++
++        # Convert shard-local indices to global vocab indices.
++        vocab_start = lm_head.shard_indices.org_vocab_start_index
++        global_indices = local_max_indices + vocab_start
++
++        if tp_size == 1:
++            return global_indices
++
++        # All-gather (value, index) pairs, then reduce to global argmax.
++        # Use float32 to avoid bf16 precision loss on large vocab indices.
++        local_pair = torch.stack(
++            [local_max_vals.float(), global_indices.float()], dim=-1
++        )
++        # [batch, 2] -> [batch, 2 * tp_size]
++        gathered = tensor_model_parallel_all_gather(local_pair, dim=-1)
++        # [batch, tp_size, 2] where [:, :, 0]=values, [:, :, 1]=indices
++        gathered = gathered.view(hidden_states.shape[0], tp_size, 2)
++        max_rank_idx = gathered[:, :, 0].argmax(dim=-1, keepdim=True)
++        top_tokens = gathered[:, :, 1].gather(dim=-1, index=max_rank_idx)
++        return top_tokens.squeeze(-1).to(torch.int64)
++
++    def get_top_k_tokens(
++        self,
++        lm_head: VocabParallelEmbedding,
++        hidden_states: torch.Tensor,
++        k: int,
++        embedding_bias: torch.Tensor | None = None,
++    ) -> tuple[torch.Tensor, torch.Tensor]:
++        """Vocab-parallel top-k without all-gathering full logits.
++
++        The `get_top_tokens` reduction widened from one token to k, returning
++        the values as well as the global ids. Communication is
++        O(batch * 2k * tp_size) rather than O(batch * vocab_size).
++
++        Scale and soft cap are applied to the k selected values rather than
++        the whole vocabulary; both are monotonic, so the selection is the same
++        and only k entries are touched.
++        """
++        if self.scale <= 0.0 and self.scale != 1.0:
++            raise ValueError(
++                "The local top-k reduction optimization is not supported for "
++                "non-positive logit scaling factors."
++            )
++
++        logits = self._apply_head(lm_head, hidden_states, embedding_bias)
++
++        # Mask out padding entries beyond org_vocab_size on this shard.
++        num_pad = lm_head.shard_indices.num_org_vocab_padding
++        if num_pad > 0:
++            logits[..., -num_pad:] = -float("inf")
++
++        values, ids = _topk(logits, k)
++        # Convert shard-local indices to global vocab indices.
++        ids = ids.to(torch.int64) + lm_head.shard_indices.org_vocab_start_index
++
++        if lm_head.tp_size > 1:
++            values = tensor_model_parallel_all_gather(values, dim=-1)
++            ids = tensor_model_parallel_all_gather(ids, dim=-1)
++            values, selected = _topk(values, k)
++            ids = ids.gather(-1, selected)
++
++        values = values.float()
++        if self.scale != 1.0:
++            values = values * self.scale
++        if self.soft_cap is not None:
++            values = torch.tanh(values / self.soft_cap) * self.soft_cap
++        return ids, values
++
++    def extra_repr(self) -> str:
++        s = f"vocab_size={self.vocab_size}"
++        s += f", org_vocab_size={self.org_vocab_size}"
++        s += f", scale={self.scale}, logits_as_input={self.logits_as_input}"
++        return s
+diff --git a/tools/test_qwen38fn_fi_ep_uneven.py b/tools/test_qwen38fn_fi_ep_uneven.py
+new file mode 100644
+index 00000000..d653e68b
+--- /dev/null
++++ b/tools/test_qwen38fn_fi_ep_uneven.py
+@@ -0,0 +1,380 @@
++#!/usr/bin/env python3
++"""Parche QWEN_FI_EP_UNEVEN de `launch.sh` (DGX-672, portado en DGX-780): FlashInfer CUTLASS con EP desigual.
++
++POR QUE EXISTE
++--------------
++Con EP=3 vLLM reparte 512 expertos como 171/171/170 empezando en 0/171/342
++(`expert_map_manager.determine_expert_map`, reparto `linear`). `FlashInferExperts.apply`
++solo le pasa a FlashInfer `ep_size`/`ep_rank`, y el binding supone reparto igual
++(`start = ep_rank * num_experts_on_rank`): el rango 2 empezaria en 340, no en 342.
++El parche (un bloque `python3 - <<'PYEOF'` de `launch.sh`) reescribe `topk_ids` antes de
++la llamada para que el kernel vea la numeracion que supone. Aqui se prueba SIN GPU ni
++torch ni vLLM:
++
++  * el bloque que se ejecuta es el REAL, sacado del ConfigMap con `yaml.safe_load_all`
++    y corrido por `python3 -` contra una copia del fichero de la imagen;
++  * la `apply` parcheada se carga por `ast` con globals falsos y se ejecuta para los
++    tres rangos contra un `flashinfer_cutlass_fused_moe` falso que emula lo leido en
++    `cutlass_fused_moe_kernels.cuh` (reparto start/end y descarte fuera de rango).
++
++LIMITES (no se prometen otros)
++------------------------------
++* El fixture es una COPIA CONGELADA del fichero de la imagen vLLM 0.28.1rc1.dev628: este
++  test no ve nunca una imagen nueva. Que vLLM cambie el fichero lo para el arranque: con
++  tp % 3 == 0 (o E % ep != 0) y sin patron, el bloque sale con 1 (DGX-780, hallazgo 9).
++* Con TP=2 y E % ep == 0 el bloque no abre el fichero: se prueba que no cambia ni un byte.
++* La emulacion del kernel es una lectura, no el kernel. La contrasta la prueba con el
++  kernel real que se documenta en `50-entrega.md` del ticket, y el log del primer arranque.
++"""
++
++import ast
++import hashlib
++import json
++import os
++import random
++import re
++import subprocess
++import sys
++import tempfile
++import types
++import unittest
++from contextlib import redirect_stdout
++from io import StringIO
++from pathlib import Path
++
++import yaml
++
++ROOT = Path(__file__).resolve().parents[1]
++MANIFEST = ROOT / "k8s/qwen38-flash-next-nvfp4-vllm.yaml"
++FIXTURE = ROOT / "tools/fixtures/flashinfer_cutlass_moe.vllm-0.28.1rc1.dev628.py"
++FI_REL = "model_executor/layers/fused_moe/experts/flashinfer_cutlass_moe.py"
++ANCHOR = "        _ = flashinfer_cutlass_fused_moe(\n"
++MARKER = "QWEN_FI_EP_UNEVEN"
++AUTO = object()  # expert_map = el de vLLM para ese rango (None con ep_size == 1)
++
++
++def launch_block():
++    """El heredoc de `launch.sh` que lleva el marcador, tal cual lo ejecuta el pod."""
++    with open(MANIFEST, encoding="utf-8") as fh:
++        cm = next(
++            d
++            for d in yaml.safe_load_all(fh)
++            if d
++            and d.get("kind") == "ConfigMap"
++            and d["metadata"]["name"] == "qwen38-flash-next-vllm-launch"
++        )
++    blocks = [
++        b
++        for b in re.findall(
++            r"python3 - <<'PYEOF'\n(.*?)\nPYEOF", cm["data"]["launch.sh"], re.S
++        )
++        if MARKER in b
++    ]
++    assert len(blocks) == 1, f"se esperaba un bloque {MARKER}, hay {len(blocks)}"
++    return blocks[0] + "\n"
++
++
++def make_site(root, source):
++    """`<root>/vllm/...` con el fichero de la imagen; `import vllm` apunta aqui."""
++    pkg = Path(root) / "vllm"
++    target = pkg / FI_REL
++    target.parent.mkdir(parents=True)
++    (pkg / "__init__.py").write_text("")
++    target.write_text(source)
++    return target
++
++
++def run_block(site_root, block, tp=3, experts=512):
++    """El bloque como lo corre launch.sh: QWEN_TP_SIZE de ARGS y el config.json de MODEL_PATH."""
++    model = Path(site_root) / "model"
++    model.mkdir(exist_ok=True)
++    (model / "config.json").write_text(json.dumps({"text_config": {"num_experts": experts}}))
++    return subprocess.run(
++        [sys.executable, "-"],
++        input=block,
++        text=True,
++        capture_output=True,
++        env={**os.environ, "PYTHONPATH": str(site_root), "QWEN_TP_SIZE": str(tp), "MODEL_PATH": str(model)},
++        cwd=site_root,
++        check=False,
++    )
++
++
++class T(list):
++    """Tensor falso: lista (anidada) con la aritmetica entera que usa el bloque."""
++
++    def __getitem__(self, ids):
++        if isinstance(ids, list):
++            return T(self[i] for i in ids)
++        return list.__getitem__(self, ids)
++
++    def __add__(self, n):
++        return T(x + n for x in self)
++
++    def __mod__(self, n):
++        return T(x % n for x in self)
++
++    def to(self, _dtype):
++        return self
++
++
++TORCH = types.SimpleNamespace(float8_e4m3fn="fp8", int="int", long="long")
++ACTIVATION = types.SimpleNamespace(SILU="silu")
++
++
++def split(num_experts, ep_size, rank):
++    """Reparto `linear` de vLLM: los primeros `resto` rangos llevan uno mas."""
++    base, rest = divmod(num_experts, ep_size)
++    return base + (rank < rest), rank * base + min(rank, rest)
++
++
++def expert_map_of(num_experts, ep_size, rank):
++    n, start = split(num_experts, ep_size, rank)
++    return T(g - start if start <= g < start + n else -1 for g in range(num_experts))
++
++
++class Harness:
++    """La `apply` de FlashInferExperts de un fichero dado, con kernel y torch falsos."""
++
++    def __init__(self, source):
++        self.calls = []
++        self.log = StringIO()  # lo que imprime la apply parcheada
++        env = {
++            "torch": TORCH,
++            "MoEActivation": ACTIVATION,
++            "activation_to_flashinfer_type": lambda a: a,
++            "flashinfer_cutlass_fused_moe": self._kernel,
++        }
++        cls = next(
++            n
++            for n in ast.parse(source).body
++            if isinstance(n, ast.ClassDef) and n.name == "FlashInferExperts"
++        )
++        fn = next(
++            n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == "apply"
++        )
++        module = ast.parse("from __future__ import annotations")
++        module.body.append(fn)
++        exec(compile(module, "<FlashInferExperts.apply>", "exec"), env)
++        self.apply = env["apply"]
++
++    def _kernel(self, **kw):
++        """Lo leido en cutlass_fused_moe_kernels.cuh: start = ep_rank * n_local,
++        end = start + n_local, y los ids fuera de [start, end) no suman."""
++        self.calls.append(kw)
++        weights = kw["fc1_expert_weights"]
++        start = kw["ep_rank"] * len(weights)
++        rows = zip(kw["token_selected_experts"], kw["token_final_scales"], kw["input"])
++        for i, (ids, scales, x) in enumerate(rows):
++            for e, s in zip(ids, scales):
++                if start <= e < start + len(weights):
++                    # el experto de un slot es el que hay en `weights[slot]`
++                    kw["output"][i] += s * (weights[e - start] * 7 + 3) * x
++
++    @staticmethod
++    def experts(num_experts, ep_size, rank):
++        """El `self` de un FlashInferExperts bf16 sin cuantizar (la ruta `else`)."""
++        return types.SimpleNamespace(
++            num_experts=split(num_experts, ep_size, rank)[0],
++            ep_size=ep_size,
++            ep_rank=rank,
++            tp_size=1,
++            tp_rank=0,
++            quant_dtype=None,
++            weight_quant_dtype=None,
++            use_deepseek_fp8_block_scale=False,
++            gemm1_clamp_limit=None,
++            out_dtype="bf16",
++        )
++
++    def run(self, num_experts, ep_size, rank, batch, expert_map=AUTO, ids=None, me=None):
++        n, start = split(num_experts, ep_size, rank)
++        if expert_map is AUTO:
++            expert_map = expert_map_of(num_experts, ep_size, rank) if ep_size > 1 else None
++        rows, scales, xs = batch
++        out = [0] * len(xs)
++        with redirect_stdout(self.log):
++            self.apply(
++                me or self.experts(num_experts, ep_size, rank),
++                output=out,
++                hidden_states=xs,
++                w1=list(range(start, start + n)),
++                w2=None,
++                topk_weights=scales,
++                topk_ids=ids if ids is not None else T(T(r) for r in rows),
++                activation=ACTIVATION.SILU,
++                global_num_experts=num_experts,
++                expert_map=expert_map,
++                a1q_scale=None,
++                a2_scale=None,
++                workspace13=None,
++                workspace2=None,
++                expert_tokens_meta=None,
++                apply_router_weight_on_input=False,
++            )
++        return out
++
++
++def make_batch(num_experts, topk, forced):
++    """64 tokens de `random.Random(0)` mas un token por cada tupla de `forced`
++    (ids que ese token tiene que elegir; el resto, aleatorios y distintos)."""
++    rng = random.Random(0)
++    rows = [rng.sample(range(num_experts), topk) for _ in range(64)]
++    for must in forced:
++        rest = [e for e in range(num_experts) if e not in must]
++        rows.append(list(must) + rng.sample(rest, topk - len(must)))
++    scales = [[rng.randint(1, 5) for _ in r] for r in rows]
++    return rows, scales, [rng.randint(1, 9) for _ in rows]
++
++
++def reference(batch):
++    rows, scales, xs = batch
++    return [
++        sum(s * (e * 7 + 3) * x for e, s in zip(r, sc)) for r, sc, x in zip(rows, scales, xs)
++    ]
++
++
++# E=512/EP=3 (171/171/170) con 8 ids por token y los extremos del reparto; E=8/EP=3 (3/3/2)
++# con un token que elige el ultimo experto del rango 2 y otro sin nada local en dos rangos.
++CASES = (
++    (512, 8, [(340,), (341,), (510,), (511,)]),
++    (8, 2, [(7,), (0, 1), (3, 4)]),
++)
++
++
++class FiEpUnevenTest(unittest.TestCase):
++    @classmethod
++    def setUpClass(cls):
++        cls.fixture = FIXTURE.read_text()
++        cls.block = launch_block()
++        cls._tmp = tempfile.TemporaryDirectory()
++        cls.addClassCleanup(cls._tmp.cleanup)
++        target = make_site(cls._tmp.name, cls.fixture)
++        done = run_block(cls._tmp.name, cls.block)
++        assert done.returncode == 0 and f"{MARKER} aplicado" in done.stdout, done
++        cls.patched = target.read_text()
++        cls.raw = Harness(cls.fixture)
++        cls.fixed = Harness(cls.patched)
++
++    def test_ep3_uneven_sum_of_ranks_equals_single_rank_reference(self):
++        for num_experts, topk, forced in CASES:
++            with self.subTest(experts=num_experts):
++                batch = make_batch(num_experts, topk, forced)
++                single = self.fixed.run(num_experts, 1, 0, batch)
++                self.assertEqual(single, reference(batch))
++                ranks = [self.fixed.run(num_experts, 3, r, batch) for r in range(3)]
++                self.assertEqual([sum(col) for col in zip(*ranks)], single)
++                self.assertTrue(all(any(o) for o in ranks))
++
++    def test_unpatched_ep3_rank2_misroutes_experts(self):
++        # Documenta el bug contra el fixture congelado (no detecta cambios de vLLM).
++        def rank2(ids):
++            batch = ([ids], [[1] * len(ids)], [1])
++            return self.raw.run(512, 3, 2, batch)[0]
++
++        def value(g):
++            return g * 7 + 3
++
++        # el rango 2 de vLLM empieza en 342, el kernel cree que en 340: todo se corre 2
++        self.assertEqual(rank2([340]), value(342))
++        self.assertEqual(rank2([341]), value(343))
++        self.assertEqual(rank2([342]), value(344))
++        self.assertEqual(rank2([509]), value(511))
++        # 510 y 511 quedan fuera de [340, 510): ningun rango los suma
++        batch = make_batch(512, 8, [(510, 511)])
++        self.assertEqual(rank2([510, 511]), 0)
++        total = [sum(col) for col in zip(*(self.raw.run(512, 3, r, batch) for r in range(3)))]
++        self.assertNotEqual(total, reference(batch))
++
++    def test_even_ep2_patched_apply_is_identical(self):
++        # Texto: el parche solo inserta el bloque antes del ancla, nada mas cambia.
++        i = self.fixture.index(ANCHOR)
++        self.assertTrue(self.patched.startswith(self.fixture[:i]))
++        self.assertTrue(self.patched.endswith(self.fixture[i:]))
++        inserted = self.patched[i : len(self.patched) - len(self.fixture) + i]
++        self.assertIn(MARKER, inserted)
++        # Comportamiento: con reparto par el kernel recibe el mismo objeto y los ep reales.
++        batch = make_batch(512, 8, [(0,), (511,)])
++        ids = T(T(r) for r in batch[0])
++        self.fixed.calls.clear()
++        out = self.fixed.run(512, 2, 1, batch, ids=ids)
++        (call,) = self.fixed.calls
++        self.assertIs(call["token_selected_experts"], ids)
++        self.assertEqual((call["ep_size"], call["ep_rank"]), (2, 1))
++        self.assertEqual(out, self.raw.run(512, 2, 1, batch))
++
++    def test_patch_idempotent(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            target = make_site(tmp, self.fixture)
++            first = run_block(tmp, self.block)
++            after_first = target.read_bytes()
++            second = run_block(tmp, self.block)
++            self.assertEqual((first.returncode, first.stdout.strip()), (0, f"{MARKER} aplicado"))
++            self.assertEqual((second.returncode, second.stdout.strip()), (0, f"{MARKER} ya aplicado"))
++            self.assertEqual(target.read_bytes(), after_first)
++
++    def test_ep_uneven_exit_on_missing_pattern_tp3(self):
++        changed = self.fixture.replace(ANCHOR, ANCHOR.replace("_ =", "out ="))
++        for tp, experts in ((3, 512), (6, 512), (2, 511)):
++            with self.subTest(tp=tp, experts=experts), tempfile.TemporaryDirectory() as tmp:
++                target = make_site(tmp, changed)
++                done = run_block(tmp, self.block, tp=tp, experts=experts)
++                self.assertEqual(done.returncode, 1)
++                self.assertIn(f"{MARKER} ABORTA: patron no encontrado", done.stderr)
++                self.assertEqual(target.read_text(), changed)
++
++    def test_tp2_even_is_inert_byte_identical(self):
++        for source in (self.fixture, self.fixture.replace(ANCHOR, "")):
++            with tempfile.TemporaryDirectory() as tmp:
++                target = make_site(tmp, source)
++                before = target.read_bytes()
++                done = run_block(tmp, self.block, tp=2, experts=512)
++                self.assertEqual((done.returncode, done.stdout.strip()), (0, f"{MARKER} inerte (E=512, ep=2)"))
++                self.assertEqual(target.read_bytes(), before)
++
++    def test_tp2_with_uneven_experts_applies(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            target = make_site(tmp, self.fixture)
++            done = run_block(tmp, self.block, tp=2, experts=511)
++            self.assertEqual((done.returncode, done.stdout.strip()), (0, f"{MARKER} aplicado"))
++            self.assertEqual(target.read_text(), self.patched)
++
++    def test_anchor_count_is_one_on_fixture(self):
++        self.assertEqual(self.fixture.count(ANCHOR), 1)
++        self.assertEqual(
++            hashlib.sha256(FIXTURE.read_bytes()).hexdigest(),
++            "52887cec5fe628e0a4e7793deb546b40f6c29f7362b3b436c10ca36934ab9826",
++        )
++
++    def test_uneven_with_expert_map_none_raises(self):
++        batch = make_batch(512, 8, [])
++        with self.assertRaisesRegex(RuntimeError, MARKER):
++            self.fixed.run(512, 3, 2, batch, expert_map=None)
++
++    def test_remapped_ids_stay_valid_and_nonlocal_land_outside_own_range(self):
++        num_experts, topk, forced = CASES[0]
++        batch = make_batch(num_experts, topk, forced)
++        for rank in range(3):
++            with self.subTest(rank=rank):
++                n, g_start = split(num_experts, 3, rank)
++                start, total = rank * n, n * 3  # lo que el binding deriva de n_local
++                self.fixed.calls.clear()
++                me = self.fixed.experts(num_experts, 3, rank)
++                self.fixed.log.seek(0)
++                self.fixed.log.truncate()
++                self.fixed.run(num_experts, 3, rank, batch, me=me)
++                self.fixed.run(num_experts, 3, rank, batch, me=me)
++                # una sola linea por instancia aunque haya dos llamadas
++                self.assertEqual(self.fixed.log.getvalue().count(f"{MARKER} activo"), 1)
++                for call in self.fixed.calls:
++                    for row, mapped in zip(batch[0], call["token_selected_experts"]):
++                        for g, m in zip(row, mapped):
++                            self.assertTrue(0 <= m < total)
++                            if g_start <= g < g_start + n:
++                                self.assertEqual(m, start + g - g_start)
++                            else:
++                                self.assertFalse(start <= m < start + n)
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/tools/test_qwen38fn_tp3_patches.py b/tools/test_qwen38fn_tp3_patches.py
+new file mode 100644
+index 00000000..7a850f7c
+--- /dev/null
++++ b/tools/test_qwen38fn_tp3_patches.py
+@@ -0,0 +1,343 @@
++#!/usr/bin/env python3
++"""Parches TP=3 de `launch.sh` (DGX-780): QWEN_TP3_MTP_FC_REPLICATED y QWEN_TP3_VOCAB_MASK.
++
++Los bloques que se ejecutan son los REALES, sacados del ConfigMap `qwen38-flash-next-vllm-launch`
++con `yaml.safe_load_all` y corridos por `python3 -` contra copias congeladas de los ficheros de la
++imagen vLLM 0.28.1rc1.dev628 (96b234af). `mtp.py` se parchea antes con el `patch_mtp` real de
++ursucipian, porque en el pod `install.py` corre antes que estos bloques. Sin GPU, torch ni vLLM:
++el `_apply_head` parcheado se carga por `ast` y corre con un tensor falso.
++
++Con TP=2 los tres bloques TP=3 (este fichero y QWEN_FI_EP_UNEVEN) no abren el fichero de la
++imagen: se prueba byte a byte. Con tp % 3 == 0 y sin patron, salen con 1.
++"""
++
++import ast
++import hashlib
++import importlib.util
++import json
++import os
++import re
++import subprocess
++import sys
++import tempfile
++import types
++import unittest
++from pathlib import Path
++
++import yaml
++
++ROOT = Path(__file__).resolve().parents[1]
++MANIFEST = ROOT / "k8s/qwen38-flash-next-nvfp4-vllm.yaml"
++FIXTURES = ROOT / "tools/fixtures"
++URSU_PATCH = ROOT / "k8s/qwen38-flash-next-ursucipian-mod/refusal/patch_vllm_qwen38next.py"
++FILES = {  # marcador -> (fichero en la imagen, copia congelada, sha256 de la imagen 96b234af)
++    "QWEN_FI_EP_UNEVEN": (
++        "model_executor/layers/fused_moe/experts/flashinfer_cutlass_moe.py",
++        "flashinfer_cutlass_moe.vllm-0.28.1rc1.dev628.py",
++        "52887cec5fe628e0a4e7793deb546b40f6c29f7362b3b436c10ca36934ab9826",
++    ),
++    "QWEN_TP3_MTP_FC_REPLICATED": (
++        "models/qwen4_exp/nvidia/mtp.py",
++        "mtp.vllm-0.28.1rc1.dev628.py",
++        "928c450001ee42cae9f6b0d5e9dc477b63019af2e90baa77505659ea3334eb88",
++    ),
++    "QWEN_TP3_VOCAB_MASK": (
++        "model_executor/layers/logits_processor.py",
++        "logits_processor.vllm-0.28.1rc1.dev628.py",
++        "6b0603d67b0c756253c2fdc882a3896d2e873a16e9aa2ef877aabca8d36bdb5f",
++    ),
++}
++TP2_CONFIG = {"num_experts": 512, "vocab_size": 248320}
++TP3_CONFIG = {"num_experts": 512, "vocab_size": 248448, "tp3_orig_vocab_size": 248320}
++PER_RANK = 248448 // 3  # 82816
++NEG_INF = -float("inf")
++
++
++def launch_sh():
++    with open(MANIFEST, encoding="utf-8") as fh:
++        cm = next(
++            d
++            for d in yaml.safe_load_all(fh)
++            if d and d.get("kind") == "ConfigMap" and d["metadata"]["name"] == "qwen38-flash-next-vllm-launch"
++        )
++    return cm["data"]["launch.sh"]
++
++
++def launch_block(marker):
++    blocks = [b for b in re.findall(r"python3 - <<'PYEOF'\n(.*?)\nPYEOF", launch_sh(), re.S) if marker in b]
++    assert len(blocks) == 1, f"se esperaba un bloque {marker}, hay {len(blocks)}"
++    return blocks[0] + "\n"
++
++
++def image_source(marker):
++    """El fichero que el bloque ve en el pod: el de la imagen, y mtp.py ya con ursucipian."""
++    _, fixture, _ = FILES[marker]
++    source = (FIXTURES / fixture).read_text()
++    if marker != "QWEN_TP3_MTP_FC_REPLICATED":
++        return source
++    spec = importlib.util.spec_from_file_location("ursu_patch_qwen38next", URSU_PATCH)
++    ursu = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(ursu)
++    with tempfile.TemporaryDirectory() as tmp:
++        target = Path(tmp) / FILES[marker][0]
++        target.parent.mkdir(parents=True)
++        target.write_text(source)
++        ursu.patch_mtp(Path(tmp))
++        return target.read_text()
++
++
++def run_block(marker, source, tp, config):
++    """Corre el bloque con QWEN_TP_SIZE y MODEL_PATH como launch.sh; devuelve (proceso, fichero)."""
++    tmp = tempfile.TemporaryDirectory()
++    root = Path(tmp.name)
++    target = root / "vllm" / FILES[marker][0]
++    target.parent.mkdir(parents=True)
++    (root / "vllm/__init__.py").write_text("")
++    target.write_text(source)
++    (root / "model").mkdir()
++    (root / "model/config.json").write_text(json.dumps({"text_config": config}))
++    done = subprocess.run(
++        [sys.executable, "-"],
++        input=launch_block(marker),
++        text=True,
++        capture_output=True,
++        env={**os.environ, "PYTHONPATH": str(root), "QWEN_TP_SIZE": str(tp), "MODEL_PATH": str(root / "model")},
++        cwd=root,
++        check=False,
++    )
++    return done, target, tmp
++
++
++class Matrix(list):
++    """Tensor 2-D falso: filas de floats; `t[..., a:b]` lee o escribe columnas."""
++
++    @property
++    def shape(self):
++        return (len(self), len(self[0]))
++
++    def __getitem__(self, key):
++        if isinstance(key, tuple) and key[0] is Ellipsis:
++            return Matrix(row[key[1]] for row in self)
++        return list.__getitem__(self, key)
++
++    def __setitem__(self, key, value):
++        if isinstance(key, tuple) and key[0] is Ellipsis:
++            for row in self:
++                row[key[1]] = [value] * len(row[key[1]])
++            return
++        list.__setitem__(self, key, value)
++
++
++def logits_processor(source):
++    """`_apply_head` y `_get_logits` de LogitsProcessor (parcheado o no) con torch falso."""
++
++    class Unquantized:
++        pass
++
++    def linear(x, w, b):
++        return Matrix(list(w.rows[0]) for _ in x)  # cada token, los logits de su fila de pesos
++
++    env = {
++        "torch": types.SimpleNamespace(float32="float32"),
++        "F": types.SimpleNamespace(linear=linear),
++        "current_platform": types.SimpleNamespace(is_cuda=lambda: False, is_rocm=lambda: False),
++        "UnquantizedEmbeddingMethod": Unquantized,
++        "UnquantizedLinearMethod": Unquantized,
++    }
++    cls = next(n for n in ast.parse(source).body if isinstance(n, ast.ClassDef) and n.name == "LogitsProcessor")
++    module = ast.parse("from __future__ import annotations")
++    module.body += [n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name.startswith(("_apply_head", "_qwen", "_get_logits"))]
++    exec(compile(module, "<LogitsProcessor>", "exec"), env)
++    methods = {k: v for k, v in env.items() if k.startswith(("_apply_head", "_qwen", "_get_logits"))}
++    return type("FakeLogitsProcessor", (), methods), Unquantized
++
++
++def lm_head_rank(rank, unquantized, real_logit=-1.0):
++    """El rango `rank` de ParallelLMHead a tp=3: las filas reales dan `real_logit`; las de relleno
++    del checkpoint (ids >= 248320) son cero, asi que dan logit 0."""
++    start = rank * PER_RANK
++    row = [real_logit if start + j < 248320 else 0.0 for j in range(PER_RANK)]
++    weight = types.SimpleNamespace(rows=[row], to=lambda dtype: weight)
++    return types.SimpleNamespace(
++        shard_indices=types.SimpleNamespace(org_vocab_start_index=start),
++        tp_size=3,
++        weight=weight,
++        quant_method=types.SimpleNamespace(
++            apply=lambda layer, hidden, bias=None: Matrix([list(row)] * len(hidden))
++        ),
++        unquantized=unquantized,
++    )
++
++
++class Hidden(list):
++    """hidden_states falsos: solo el numero de tokens cuenta."""
++
++    dtype, is_cuda = "bfloat16", False
++
++    def to(self, _dtype):
++        return self
++
++
++def gathered_logits(source, head_dtype=None):
++    """Lo que `_get_logits` devuelve en el rango 0 tras el gather de los tres rangos (dos tokens)."""
++    cls, unquantized = logits_processor(source)
++    heads = [lm_head_rank(r, unquantized) for r in range(3)]
++    for head in heads:
++        if head_dtype:
++            head.quant_method = unquantized()
++    parts = []
++
++    def gather(_self, logits):
++        parts.append(logits)
++        if len(parts) < 3:
++            return None
++        return Matrix(sum((p[i] for p in parts), []) for i in range(len(parts[0])))
++
++    cls._gather_logits = gather
++    out = None
++    for head in heads:
++        lp = cls()
++        lp.head_dtype, lp.org_vocab_size = head_dtype, 248448
++        out = lp._get_logits(Hidden([[0.5], [0.25]]), head, None)
++    return out
++
++
++class Tp3PatchesTest(unittest.TestCase):
++    def test_fixtures_are_the_image_files(self):
++        for marker, (_, fixture, digest) in FILES.items():
++            with self.subTest(marker=marker):
++                self.assertEqual(hashlib.sha256((FIXTURES / fixture).read_bytes()).hexdigest(), digest)
++
++    def test_tp_size_read_from_args(self):
++        text = launch_sh()
++        lines = [ln for ln in text.splitlines() if "QWEN_TP_SIZE" in ln and not ln.lstrip().startswith(("#", "tp ="))]
++        self.assertEqual([ln.split()[0] for ln in lines[:2]], ["export", "QWEN_TP_SIZE=$(printf"])
++        self.assertIn("  --tensor-parallel-size 2\n", text)
++        self.assertLess(text.index("ARGS=("), text.index(lines[1]))
++        for marker in FILES:
++            self.assertLess(text.index(lines[1]), text.index(launch_block(marker)))
++            self.assertLess(text.index("python3 /tmp/ursu-bundle/install.py"), text.index(launch_block(marker)))
++        for tp in ("2", "3"):
++            script = ("set -euo pipefail\nARGS=(/m --revision r --tensor-parallel-size %s --nnodes 3 --x)\n%s\n"
++                      'python3 -c "import os; print(os.environ[\'QWEN_TP_SIZE\'])"\n') % (tp, "\n".join(lines[:2]))
++            done = subprocess.run(["bash", "-c", script], capture_output=True, text=True, check=False)
++            self.assertEqual((done.returncode, done.stdout.strip()), (0, tp), done.stderr)
++
++    def test_patches_inert_tp2_byte_identical(self):
++        for marker in FILES:
++            original = image_source(marker)
++            for source in (original, "# imagen nueva sin ningun patron\n"):
++                with self.subTest(marker=marker, anchors=source is original):
++                    done, target, tmp = run_block(marker, source, 2, TP2_CONFIG)
++                    with tmp:
++                        self.assertEqual(done.returncode, 0, done.stderr)
++                        self.assertIn(f"{marker} inerte", done.stdout)
++                        self.assertEqual(target.read_bytes(), source.encode())
++
++    def test_tp3_missing_pattern_exits_1(self):
++        for marker in ("QWEN_TP3_MTP_FC_REPLICATED", "QWEN_TP3_VOCAB_MASK"):
++            with self.subTest(marker=marker):
++                source = "# imagen nueva sin ningun patron\n"
++                done, target, tmp = run_block(marker, source, 3, TP3_CONFIG)
++                with tmp:
++                    self.assertEqual(done.returncode, 1)
++                    self.assertIn(f"{marker} ABORTA: patron no encontrado", done.stderr)
++                    self.assertEqual(target.read_text(), source)
++
++    def test_mtp_fc_replicated_only_tp3(self):
++        marker = "QWEN_TP3_MTP_FC_REPLICATED"
++        source = image_source(marker)
++        self.assertIn("_refusal.project_hc(", source)  # ursucipian ya paso por el fichero
++        done, target, tmp = run_block(marker, source, 3, TP3_CONFIG)
++        with tmp:
++            self.assertEqual((done.returncode, done.stdout.strip()), (0, f"{marker} aplicado"), done.stderr)
++            patched = target.read_text()
++            again = subprocess.run(
++                [sys.executable, "-"], input=launch_block(marker), text=True, capture_output=True, check=False,
++                env={**os.environ, "PYTHONPATH": str(target.parents[4]), "QWEN_TP_SIZE": "3",
++                     "MODEL_PATH": str(target.parents[4] / "model")},
++            )
++            self.assertEqual((again.returncode, again.stdout.strip()), (0, f"{marker} ya aplicado"))
++            self.assertEqual(target.read_text(), patched)
++        calls = {}
++        for node in ast.walk(ast.parse(patched)):
++            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
++                for t in node.targets:
++                    if isinstance(t, ast.Attribute) and t.attr in ("fc_embedding", "fc_hidden"):
++                        calls[t.attr] = node.value
++        self.assertEqual(sorted(calls), ["fc_embedding", "fc_hidden"])
++        for name, call in calls.items():
++            self.assertEqual(call.func.id, "ReplicatedLinear", name)
++            # argumentos que acepta ReplicatedLinear (linear.py:340-350 de la imagen)
++            self.assertLessEqual({k.arg for k in call.keywords}, {"bias", "return_bias", "quant_config", "prefix"})
++            self.assertEqual(len(call.args), 2)
++        self.assertIn("from vllm.model_executor.layers.linear import ColumnParallelLinear, ReplicatedLinear", patched)
++        # el resto del fichero (la proyeccion de refusal del forward incluida) no cambia
++        restored = patched.replace("ColumnParallelLinear, ReplicatedLinear  # QWEN_TP3_MTP_FC_REPLICATED\n",
++                                   "ColumnParallelLinear\n")
++        for name in calls:
++            restored = restored.replace(
++                f"            # QWEN_TP3_MTP_FC_REPLICATED (DGX-780): 2560 no se parte en 3\n"
++                f"            self.{name} = ReplicatedLinear(\n                self.hidden_size,\n                self.hidden_size,\n",
++                f"            self.{name} = ColumnParallelLinear(\n                self.hidden_size,\n                self.hidden_size,\n"
++                "                gather_output=True,\n")
++        self.assertEqual(restored, source)
++        done, target, tmp = run_block(marker, source, 2, TP2_CONFIG)
++        with tmp:
++            self.assertEqual(target.read_text(), source)
++
++    def test_vocab_mask_neg_inf_above_248320(self):
++        marker = "QWEN_TP3_VOCAB_MASK"
++        source = image_source(marker)
++        done, target, tmp = run_block(marker, source, 3, TP3_CONFIG)
++        with tmp:
++            self.assertEqual(done.returncode, 0, done.stderr)
++            self.assertEqual(done.stdout.strip(), f"{marker} aplicado (-inf en ids >= 248320 de 248448)")
++            patched = target.read_text()
++        # Las tres rutas de LogitsProcessor (muestreo y prompt_logprobs, top-1 y top-k del borrador
++        # MTP) pasan por _apply_head, que es donde va el -inf.
++        cls = next(n for n in ast.parse(patched).body if isinstance(n, ast.ClassDef) and n.name == "LogitsProcessor")
++        for fn in (n for n in cls.body if isinstance(n, ast.FunctionDef)):
++            if fn.name in ("_get_logits", "get_top_tokens", "get_top_k_tokens"):
++                self.assertIn("self._apply_head(lm_head, hidden_states, embedding_bias)", ast.unparse(fn), fn.name)
++        for head_dtype in (None, "float32"):
++            with self.subTest(head_dtype=head_dtype):
++                logits = gathered_logits(patched, head_dtype)
++                for row in logits:
++                    self.assertEqual(len(row), 248448)
++                    self.assertTrue(all(v == -1.0 for v in row[:248320]))
++                    self.assertTrue(all(v == NEG_INF for v in row[248320:]))
++                    self.assertLess(max(range(len(row)), key=row.__getitem__), 248320)
++        # sin el parche, el relleno da logit 0 y gana a todos los ids reales
++        row = gathered_logits(source)[0]
++        self.assertGreaterEqual(max(range(len(row)), key=row.__getitem__), 248320)
++
++    def test_vocab_mask_tp3_without_orig_vocab_aborts(self):
++        marker = "QWEN_TP3_VOCAB_MASK"
++        source = image_source(marker)
++        for config in (TP2_CONFIG, {**TP3_CONFIG, "tp3_orig_vocab_size": 248448}):
++            with self.subTest(config=config):
++                done, target, tmp = run_block(marker, source, 3, config)
++                with tmp:
++                    self.assertEqual(done.returncode, 1)
++                    self.assertIn(f"{marker} ABORTA: tp3_orig_vocab_size", done.stderr)
++                    self.assertEqual(target.read_text(), source)
++
++    def test_patches_idempotent_tp3(self):
++        for marker in ("QWEN_TP3_VOCAB_MASK", "QWEN_FI_EP_UNEVEN"):
++            with self.subTest(marker=marker):
++                done, target, tmp = run_block(marker, image_source(marker), 3, TP3_CONFIG)
++                with tmp:
++                    first = target.read_bytes()
++                    again = subprocess.run(
++                        [sys.executable, "-"], input=launch_block(marker), text=True, capture_output=True,
++                        check=False, env={**os.environ, "PYTHONPATH": str(target.parents[len(Path(FILES[marker][0]).parts)]),
++                                          "QWEN_TP_SIZE": "3",
++                                          "MODEL_PATH": str(target.parents[len(Path(FILES[marker][0]).parts)] / "model")},
++                    )
++                    self.assertEqual((again.returncode, again.stdout.strip()), (0, f"{marker} ya aplicado"))
++                    self.assertEqual(target.read_bytes(), first)
++
++
++if __name__ == "__main__":
++    unittest.main()
