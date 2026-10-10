@@ -1647,7 +1647,15 @@ spec:
     # El Secret glm53-tp3-mentat (ExternalSecret con deletionPolicy Retain) queda retenido aunque se retire GLM: si GLM no se reactiva,
     # hay que borrarlo a mano (kubectl delete secret glm53-tp3-mentat -n llm, tras el ExternalSecret).
     # ROLLBACK de esto (volver a qwen38 TP=3): 01f9b4da163dcf4626e6d33db0c450fababd7e10 con path overlays/qwen38-tp3-ventana-20261010.
-    targetRevision: 1a500ac1bdd4434c36edadd7744b10275a0616ac
+    # 10-10-2026 (DGX-818, segundo paso): b3f92e8 = la misma línea pin/glm53-ventana-20261010 (k8s-ai #162), mismo path.
+    # Qué cambia: MENTAT_FABRIC_IP (el rendezvous de GLM) y GLOO/NCCL_SOCKET_IFNAME (los bootstrap) pasan a la LAN: 192.168.50.143 en la
+    # cabeza (dgx3), .140 en dgx1, .141 en dgx2, interfaz enP7s7. mentatd, HEAD_HOST y VLLM_HOST_IP se quedan en el triángulo.
+    # Por qué: el primer arranque con 1a500ac murió con DistStoreError (2/3 clientes): los tres rangos usaron tcp://10.0.2.3 y dgx2 no
+    # alcanza 10.0.2.3.
+    # Cómo verlo: el log de la cabeza (glm53-tp3-head) debe decir distributed_init_method=tcp://192.168.50.143: (antes, tcp://10.0.2.3:).
+    # ROLLBACK de este paso: 1a500ac1bdd4434c36edadd7744b10275a0616ac (mismo path), o volver a qwen38 TP=3 con
+    # 01f9b4da163dcf4626e6d33db0c450fababd7e10 y path overlays/qwen38-tp3-ventana-20261010.
+    targetRevision: b3f92e8512d151ce959d89656403e539b2bf7783
     path: overlays/glm53-tp3-ventana-k4-20261010
   destination:
     server: https://kubernetes.default.svc
