@@ -1627,8 +1627,17 @@ spec:
     # la v3 y con la pausa vieja: 5e7be8045946c0ad2780c7ffa81a94f65219de75.
     # ROLLBACK de la ventana (la vuelta): la PR hermana DGX-810-ai-vuelta (#582, path overlays/sparks-ventana-salida-20261010 en el
     # mismo SHA; a51da60 tal cual no pasa su PreSync desde sync-paused).
-    targetRevision: 92fb20060dcb84ceb624c95b6a1090a48e824f76
-    path: overlays/sparks-ventana-20261010
+    # 10-10-2026 (DGX-817, ventana de los Sparks con Dani): 01f9b4d = el residente qwen38 en TP=3 (k8s-ai #159, línea
+    # pin/qwen38-tp3-20261010; no entra en main). Path overlays/qwen38-tp3-ventana-20261010: head en dgx2, worker en dgx1 y
+    # worker-dgx3 en dgx3, con la libnccl parcheada de DGX-815 (LD_PRELOAD y VLLM_NCCL_SO_PATH, NCCL_CUMEM_ENABLE=1, NCCL_RUNTIME_CONNECT=1)
+    # y el grafo del anillo del triángulo generado por rango en launch.sh (la receta de la sonda v3c, que pasó en los tres Sparks), más
+    # la pausa de la ventana (el PreSync llm-deploy-pause acepta el árbitro en sync-paused). Conserva el PostSync llm-deploy-resume y
+    # no lleva Jobs de sonda: el prune retira los sparks-nccl-sonda de 92fb200.
+    # Arranque: unos 33 min, con unos 20 min SIN log tras «GPU KV cache size» (NO es cuelgue). El tráfico va a Alibaba hasta que el
+    # residente responda.
+    # ROLLBACK de esto (volver a la ventana): 92fb20060dcb84ceb624c95b6a1090a48e824f76 con path overlays/sparks-ventana-20261010.
+    targetRevision: 01f9b4da163dcf4626e6d33db0c450fababd7e10
+    path: overlays/qwen38-tp3-ventana-20261010
   destination:
     server: https://kubernetes.default.svc
     namespace: llm
