@@ -1597,8 +1597,11 @@ spec:
     # PV/PVC NFS hf-cache-dgx1-dgx3-llm-ro, NCCL por el triángulo CX7, plano de control por la LAN, checkpoint TP=3 y KV 48 GiB.
     # REINICIA el residente: arranque estimado de 35-40 min con el tráfico en el fallback (Alibaba); ~20 min sin log tras
     # «GPU KV cache size» NO es cuelgue. NO se fusiona hasta que la sesión abra la ventana con Dani.
-    # ROLLBACK de esto (el único): a51da6025a7fe175549a349e0c4400959f602ae9, en la PR hermana DGX-781-ai-vuelta-tp2.
-    targetRevision: 47c8ff293dda0930aa9efe9415bfae5862236204
+    # 10-10-2026 (DGX-781, tras el fallo de NCCL entre carriles del primer arranque): 1f5aefd = 47c8ff2 + NCCL_IB_SUBNET_PREFIX_LEN=24
+    # en los tres rangos (k8s-ai #145, línea pin/qwen38-tp3-20261010; no entra en main). Motivo: el fallo de NCCL entre carriles
+    # del primer arranque de TP=3. El tráfico sigue en el fallback (Alibaba) hasta que el residente arranque.
+    # ROLLBACK de esto (el único): a51da6025a7fe175549a349e0c4400959f602ae9, en la PR hermana DGX-781-ai-vuelta-tp2 (#578).
+    targetRevision: 1f5aefd88e6c2660a7b4d05152444541e836531d
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
