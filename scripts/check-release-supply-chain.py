@@ -163,7 +163,7 @@ require("refs/(heads|tags)" not in workflow, "mutable certificate reference acce
 # la MISMA verificacion Sigstore de identidad exacta y revision del llamante
 # que un build nuevo antes de promocionarse. Firma, SBOM, SLSA, Trivy y la
 # creacion atomica de tags no cambian para el camino de build.
-expected_workflow_digest = "31388886a1012009d41738986ab54176b6bb87b428970a6050fc833205a62cc8"
+expected_workflow_digest = "f941b60b1efe21c23ed98c7fcbd4df2d28d222bdbf9d609c037ea5a17256689c"
 workflow_digest = hashlib.sha256(workflow.encode()).hexdigest()
 require(
     workflow_digest == expected_workflow_digest,

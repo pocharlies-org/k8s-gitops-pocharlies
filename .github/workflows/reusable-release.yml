@@ -819,7 +819,6 @@ jobs:
     name: Notify OpenClaw on release failure
     permissions:
       contents: read
-      actions: read
     runs-on: ${{ inputs.runner }}
     needs: [release]
     if: ${{ always() && (needs.release.result == 'failure' || needs.release.result == 'cancelled') }}

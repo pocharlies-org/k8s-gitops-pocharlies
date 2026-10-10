@@ -293,7 +293,6 @@ jobs:
     name: Notify OpenClaw on staging failure
     permissions:
       contents: read
-      actions: read
     runs-on: ${{ inputs.runner }}
     needs: [deploy]
     if: ${{ always() && (needs.deploy.result == 'failure' || needs.deploy.result == 'cancelled') }}
