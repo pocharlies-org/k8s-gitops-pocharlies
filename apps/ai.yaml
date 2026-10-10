@@ -1592,6 +1592,13 @@ spec:
     # planos qwen38-flash-next-vllm-launch y qwen38fn-ple-mmap cambian en sitio (parches TP=3, inertes con TP=2) y ningún pod se reinicia.
     # Voz: los hooks de la sync (llm-deploy-pause/resume) bajan omnivoice-tts-nvfp4 y stt-turbo a 0 y los devuelven, unos 2-3 min sin voz.
     # ROLLBACK de esto: 63dd55f112190d4363b30851bec7b33fc9d7cb06.
+    # 10-10-2026 (DGX-781 vuelta): TP=2 en a51da60; deja fuera el worker-dgx3 y el PV/PVC NFS; reinicia el residente.
+    # PR de vuelta atrás de la ventana TP=3, gemelo de DGX-781-ai-tp3 (la ida lleva `ai` a 47c8ff293dda0930aa9efe9415bfae5862236204,
+    # k8s-ai #143). Se fusiona SOLO si la ventana decide volver, y DESPUÉS de la ida: `git fetch origin && git merge origin/deploy/prod`
+    # en esta rama (el diff pasa a ser 47c8ff2 -> a51da60), push y esperar el veredicto del juez. Hasta entonces no cambia el SHA.
+    # Reinicia head y worker (~33 min, el tráfico va a Alibaba); la tabla PLE se reconstruye a tp=2 (ready.json con tp_size=3 no casa, ~42 s por nodo).
+    # Quedan fuera worker-dgx3 y el PV/PVC hf-cache-dgx1-dgx3-llm-ro (Retain: no se borra el NFS). Si la sync no los poda, quedan huérfanos:
+    # el árbitro tolera el worker-dgx3 AUSENTE (DGX-779), no uno presente y huérfano. ROLLBACK de esto (volver a TP=3): 47c8ff293dda0930aa9efe9415bfae5862236204.
     targetRevision: a51da6025a7fe175549a349e0c4400959f602ae9
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
