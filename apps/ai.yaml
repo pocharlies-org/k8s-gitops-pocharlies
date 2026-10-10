@@ -1601,7 +1601,14 @@ spec:
     # en los tres rangos (k8s-ai #145, línea pin/qwen38-tp3-20261010; no entra en main). Motivo: el fallo de NCCL entre carriles
     # del primer arranque de TP=3. El tráfico sigue en el fallback (Alibaba) hasta que el residente arranque.
     # ROLLBACK de esto (el único): a51da6025a7fe175549a349e0c4400959f602ae9, en la PR hermana DGX-781-ai-vuelta-tp2 (#578).
-    targetRevision: 1f5aefd88e6c2660a7b4d05152444541e836531d
+    # 10-10-2026 (DGX-781, VUELTA a TP=2): a51da60 = el residente otra vez en TP=2 (dgx1+dgx2); sale el worker-dgx3 y el PV/PVC NFS
+    # hf-cache-dgx1-dgx3-llm-ro. Motivo: dos arranques TP=3 fallaron en NCCL (ibv_modify_qp 110: dgx2 rocep1s0f0 -> GID 10.0.2.3
+    # de dgx3, entre carriles), incluso con NCCL_IB_SUBNET_AWARE_ROUTING=1 y NCCL_IB_SUBNET_PREFIX_LEN=24. La ventana decide volver.
+    # Reinicia head y worker (~33 min, el tráfico va a Alibaba); la tabla PLE se reconstruye a tp=2 (ready.json con tp_size=3 no casa,
+    # ~42 s por nodo). El PV/PVC es Retain: no se borra el NFS; si la sync no poda worker-dgx3 y el PV/PVC, quedan huérfanos y hay que
+    # podarlos (el árbitro tolera el worker-dgx3 AUSENTE, DGX-779, no uno presente y huérfano).
+    # ROLLBACK de esto (volver a TP=3): 1f5aefd88e6c2660a7b4d05152444541e836531d.
+    targetRevision: a51da6025a7fe175549a349e0c4400959f602ae9
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
