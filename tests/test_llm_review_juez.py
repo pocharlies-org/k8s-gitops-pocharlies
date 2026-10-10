@@ -1618,6 +1618,15 @@ class TestPregates(Base):
         self.assertFalse(review.otro_repo('un criterio sin repos', 'o/r'))
         self.assertTrue(review.otro_repo('en dgx-infra', 'o/r'), 'un repo de REPOS_SIN_SUFIJO')
 
+    def test_pregate_el_propio_repo_se_reconoce_por_su_nombre_completo_corto_o_sin_pocharlies(self):
+        # SC-2285: nunca se quita un criterio que nombra el repo de la PR, lo acompañe el repo que lo acompañe
+        propio = 'pocharlies-org/k8s-openclaw-qwen36-pocharlies'
+        for texto in ('el chart de k8s-openclaw-qwen36 y dgx-infra', 'pocharlies-org/k8s-openclaw-qwen36-pocharlies y dgx-infra',
+                      'k8s-openclaw-qwen36-pocharlies y x86-host-runtime-pocharlies', 'K8S-OPENCLAW-QWEN36: el chart y dgx-infra'):
+            with self.subTest(texto):
+                self.assertFalse(review.otro_repo(texto, propio))
+        self.assertTrue(review.otro_repo('k8s-openclaw y dgx-infra', propio), 'otro repo: no basta un prefijo')
+
     def spec_con_otro_repo(self):
         self.mundo.adjuntos['1'] = ('- [ ] C1 la suma devuelve x + y\n- [ ] C2 **Chart** de `k8s-openclaw-qwen36-pocharlies`: '
                                     'el patron del SOUL pasa a la orden del puente\n').encode()
@@ -1627,11 +1636,58 @@ class TestPregates(Base):
         self.spec_con_otro_repo()
         self.mundo.litellm['local-juez'] = [(200, respuesta([cumple(1)]), 0)]
         self.assertEqual(self.correr(), 0, self.salida_texto)
-        self.assertVeredicto('PASA')
+        self.assertVeredicto('PASA', riesgo='alto')   # SC-2285: un criterio quitado sin el modelo es un PASA que pide a qa
         self.assertNotIn('C2. ', self.mundo.llamadas[0][2])
         texto = self.comentario()
         self.assertRegex(texto, r'\*\*C2\*\* ➖ .*otro repositorio')
         self.assertNotIn('❌', texto)
+
+    def test_pregate_si_no_quita_nada_el_riesgo_es_normal(self):
+        self.mundo.litellm['local-juez'] = [(200, respuesta([cumple(1), cumple(2, 'tests/test_app.py:4')]), 0)]
+        self.assertEqual(self.correr(), 0, self.salida_texto)
+        self.assertVeredicto('PASA', riesgo='normal')
+
+    def test_pregate_un_criterio_que_nombra_el_propio_repo_va_al_modelo_aunque_nombre_otro(self):
+        self.mundo.adjuntos['1'] = ('- [ ] C1 la suma devuelve x + y\n- [ ] C2 `r`: el golden se copia de `dgx-infra`\n').encode()
+        self.mundo.litellm['local-juez'] = [(200, respuesta([cumple(1), cumple(2)]), 0)]
+        self.assertEqual(self.correr(), 0, self.salida_texto)
+        self.assertIn('C2. ', self.mundo.llamadas[0][2])
+        self.assertVeredicto('PASA', riesgo='normal')
+        self.assertNotIn('otro repositorio', self.comentario())
+
+    def test_pregate_con_alcance_declarado_el_modelo_ve_lo_que_el_alcance_deja_fuera(self):
+        # SC-2285 (run 38042710418): C5 de DGX-782 cita dgx-infra como fuente de un golden, quedaba fuera del alcance de
+        # la PR y se quitaba sin que el modelo ni el diff pudieran contradecirlo. Con alcance, ya lo trata `aplicar_reglas`.
+        self.spec_con_otro_repo()
+        self.mundo.litellm['local-juez'] = [(200, respuesta([cumple(1), {'n': 2, 'cumple': 'fuera', 'nota': 'otra PR'}]), 0)]
+        self.assertEqual(self.correr(REVIEW_PR_BODY='## Alcance de esta PR\n\n- C1\n'), 0, self.salida_texto)
+        self.assertIn('C2. ', self.mundo.llamadas[0][2])
+        self.assertVeredicto('PASA', riesgo='normal')
+        self.assertNotIn('otro repositorio', self.comentario())
+
+    def test_pregate_con_alcance_declarado_el_diff_que_contradice_un_criterio_de_otro_repo_bloquea(self):
+        self.spec_con_otro_repo()
+        self.mundo.ficheros['src/app.py'] = HEAD_APP
+        rojo = {'n': 2, 'cumple': False, 'evidencia': 'src/app.py:12', 'cita': 'return x + y', 'nota': 'suma mal'}
+        self.mundo.litellm['local-juez'] = [(200, respuesta([cumple(1), rojo]), 0), (200, verifica(confirma()), 0)]
+        self.assertEqual(self.correr(REVIEW_PR_BODY='## Alcance de esta PR\n\n- C1\n'), 1, self.salida_texto)
+        self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
+
+    def test_pregate_los_tres_casos_medidos_llegan_al_modelo_con_su_criterio_que_nombra_dgx_infra(self):
+        # no-lista-llm-status-122 y real-llm-status-123 (x2): C5 «golden vendorizado de dgx-infra» salia ➖ «otro repositorio»
+        for caso in ('no-lista-llm-status-122', 'real-llm-status-123-test-que-falla-a-proposito',
+                     'real-llm-status-123-timeout-contradice-la-descripcion'):
+            with self.subTest(caso):
+                shutil.rmtree(self.tmp / 'casos', ignore_errors=True)
+                self.mundo.llamadas.clear()
+                shutil.copytree(FIXTURES / caso, self.tmp / 'casos' / caso)
+                (self.tmp / 'casos' / 'ARCHITECTURE.md').write_text('# norma\n')
+                etiquetas = [e for e, _ in review.criterios_de_spec((FIXTURES / caso / 'criterios.md').read_text())]
+                self.mundo.litellm['local-juez'] = [(200, respuesta(
+                    [{'n': e, 'cumple': 'fuera', 'nota': 'otra PR'} for e in etiquetas]), 0)]
+                self.correr_evalua('0/1')
+                self.assertIn('C5. ', self.mundo.llamadas[0][2])
+                self.assertNotIn('C.repositorio', self.salida_texto)
 
     def test_pregate_el_alcance_declarado_devuelve_el_criterio_de_otro_repo_al_modelo(self):
         self.spec_con_otro_repo()
@@ -1803,7 +1859,7 @@ class TestAusenciaDeEvidencia(Base):
         self.mundo.ficheros['k8s/jobs.yaml'] = 'kind: Job\nmetadata:\n  name: otro\n'
         for verifica_con, rc, veredicto in (
                 (verifica({'confirmado': True, 'nota': 'no hay el Job convert'}), 1, 'NO_PASA'),
-                (verifica(REFUTA), 0, 'PASA')):
+                (verifica(REFUTA), 1, 'NO_PASA')):   # SC-2285: refutar no desbloquea
             with self.subTest(veredicto):
                 self.mundo.comentarios.clear()
                 self.mundo.llamadas.clear()
@@ -1859,7 +1915,8 @@ class TestAusenciaDeEvidencia(Base):
 
 
 class TestVerifica(Base):
-    """SC-2285 C9 y C10: lo que iba a bloquear se comprueba con el fichero completo del head; solo baja lo refutado."""
+    """SC-2285 C9 y C10: lo que iba a bloquear se comprueba con el fichero completo del head. El verificador es el mismo
+    modelo que juzgo y no se refuta a si mismo: su refutacion nunca desbloquea, solo se anota como discrepancia."""
 
     def responde(self, *respuestas):
         self.mundo.litellm['local-juez'] = [(200, r, 0) for r in respuestas]
@@ -1886,25 +1943,35 @@ class TestVerifica(Base):
                       '[hallazgo] [alta] suma mal'):
             self.assertIn(pieza, usuario)
 
-    def test_verifica_refutado_baja_a_observacion(self):
+    def test_verifica_refutado_no_desbloquea_un_hallazgo_real_y_se_anota_como_discrepancia(self):
+        # run 38042710418: real-llm-status-123 salio PASA con `bajas=H.verificador:1`
         self.con_hallazgo(verifica(REFUTA))
-        self.assertEqual(self.correr(), 0, self.salida_texto)
-        self.assertVeredicto('PASA', motivos='')
+        self.assertEqual(self.correr(), 1, self.salida_texto)
+        self.assertVeredicto('NO_PASA', motivos='hallazgos')
         texto = self.comentario()
-        self.assertIn('### Observaciones (no bloquean)', texto)
-        self.assertIn('refutado por el verificador con el fichero completo', texto)
-        self.assertNotIn('### Hallazgos', texto)
+        self.assertNotIn('### Observaciones (no bloquean)', texto)
+        pendientes = texto.split('### Hallazgos\n', 1)[1].split('\n\n', 1)[0]
+        self.assertIn('el verificador lo discute: el fichero no lo muestra', pendientes)
+        self.assertNotIn('refutado por el verificador', texto)
+        self.assertIn('verificaciones=1', self.resumen_job)
 
-    def test_verifica_confirmar_con_una_cita_que_no_esta_a_mas_de_3_lineas_tambien_es_refutar(self):
-        for linea, cita, bloquea in ((12, 'return x + y', True), (15, 'return x + y', True), (16, 'return x + y', False),
-                                     (9, 'return x + y', True), (8, 'return x + y', False), (12, 'return 0', False),
-                                     (12, 'x', False), ('doce', 'return x + y', False), (None, 'return x + y', False)):
+    def test_verifica_confirmar_con_una_cita_que_no_esta_a_mas_de_3_lineas_se_anota_como_discrepancia_y_bloquea(self):
+        for linea, cita, confirmada in ((12, 'return x + y', True), (15, 'return x + y', True), (16, 'return x + y', False),
+                                        (9, 'return x + y', True), (8, 'return x + y', False), (12, 'return 0', False),
+                                        (12, 'x', False), ('doce', 'return x + y', False), (None, 'return x + y', False)):
             with self.subTest(linea=linea, cita=cita):
                 self.mundo.comentarios.clear()
                 self.con_hallazgo(verifica(confirma(linea, cita)))
-                self.assertEqual(self.correr(), 1 if bloquea else 0, self.salida_texto)
+                self.assertEqual(self.correr(), 1, self.salida_texto)
+                texto = self.comentario()
+                if confirmada:
+                    self.assertIn('verificado con el fichero completo', texto)
+                    self.assertNotIn('lo discute', texto)
+                else:
+                    self.assertIn('el verificador lo discute: confirmo sin una cita que este en el fichero', texto)
+                    self.assertNotIn('verificado con el fichero completo', texto)
 
-    def test_verifica_solo_baja_lo_refutado_lo_no_verificado_sigue_bloqueando_sin_verificar(self):
+    def test_verifica_lo_no_verificado_bloquea_con_la_marca_sin_verificar(self):
         casos = {
             'sin respuesta para ese item': (dict(), verifica()),
             'confirmado ni true ni false': (dict(), verifica({'confirmado': 'si'})),
@@ -1968,14 +2035,16 @@ class TestVerifica(Base):
     def test_verifica_un_rojo_por_contradiccion_con_cita_casada_tambien_se_verifica(self):
         self.mundo.ficheros['src/app.py'] = HEAD_APP
         rojo = {'n': 2, 'cumple': False, 'evidencia': 'src/app.py:12', 'cita': 'return x + y', 'nota': 'suma mal'}
-        for v, rc in ((verifica(REFUTA), 0), (verifica(confirma()), 1)):
-            with self.subTest(rc):
+        for v, marca in ((verifica(REFUTA), 'el verificador lo discute'), (verifica(confirma()), 'verificado con el fichero completo')):
+            with self.subTest(marca):
                 self.mundo.comentarios.clear()
                 self.responde(respuesta([cumple(1), rojo]), v)
-                self.assertEqual(self.correr(), rc, self.salida_texto)
+                self.assertEqual(self.correr(), 1, self.salida_texto)   # SC-2285: ni refutado desbloquea
+                self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
+                self.assertIn(marca, self.comentario())
         self.assertIn('[contradiccion]', self.mundo.llamadas[-1][2])
 
-    def test_verifica_una_pr_con_5_ficheros_bloqueantes_y_el_verificador_que_refuta_4_sigue_no_pasa_por_el_5(self):
+    def test_verifica_una_pr_con_5_ficheros_bloqueantes_y_el_verificador_que_refuta_4_bloquea_los_5(self):
         self.assertEqual(review.VERIFICA_MAX_LLAMADAS, 4)
         bloques, hallazgos = [], []
         for i in range(1, 6):
@@ -1991,14 +2060,17 @@ class TestVerifica(Base):
         self.assertEqual(len(self.mundo.llamadas), 1 + 4)
         self.assertIn('verificaciones=4', self.resumen_job)
         cuerpo = self.comentario()
-        self.assertEqual(cuerpo.count('refutado por el verificador'), 4)
+        self.assertEqual(cuerpo.count('el verificador lo discute'), 4)
         hallazgos_a_arreglar = cuerpo.split('### Hallazgos\n', 1)[1].split('\n\n', 1)[0]
-        self.assertIn('fallo 5', hallazgos_a_arreglar)
+        for i in range(1, 6):
+            self.assertIn(f'fallo {i}', hallazgos_a_arreglar)
         self.assertIn('sin verificar: mas alla del tope de verificaciones', hallazgos_a_arreglar)
 
 
 class TestCorpusConVerificador(Base):
-    """SC-2285 C10 sobre los casos medidos: con un verificador que los refuta, los falsos no bloquean y el real sigue."""
+    """SC-2285 C10 sobre los casos medidos. Medido con el modelo real (run 38042710418, 3 pasadas) el verificador desbloqueaba
+    defectos reales (real-llm-status-123 x2 salio PASA): su refutacion no desbloquea, solo se anota. Los cuatro falsos
+    tecnicos los resuelve el juicio y las reglas del codigo, no el verificador."""
 
     FALSOS = {   # caso -> (fichero, linea, cita de una linea del diff, lo que afirmo el modelo, fragmento que la situa en el head)
         'falso-tecnico-socialmedia-244-new-url-redis': (   # #43
@@ -2030,13 +2102,13 @@ class TestCorpusConVerificador(Base):
         return {'file': fichero, 'line': linea, 'severity': 'alta', 'tipo': 'correccion', 'cita': cita, 'summary': dijo,
                 'entrada': 'la entrada que falla'}
 
-    def test_c10_los_cuatro_falsos_medidos_no_bloquean_con_un_verificador_que_los_refuta(self):
+    def test_c10_los_cuatro_siguen_bloqueando_aunque_el_verificador_los_refute(self):
         for caso in self.FALSOS:
             with self.subTest(caso):
                 shutil.rmtree(self.tmp / 'casos', ignore_errors=True)
-                self.assertEqual(self.corre_caso(caso, [self.hallazgo(caso)], verifica(REFUTA)), 0, self.salida_texto)
-                self.assertIn('obtenido=PASA', self.salida_texto)
-                self.assertRegex(self.salida_texto, r'bajas=(\S*,)?H\.verificador:1')
+                self.assertEqual(self.corre_caso(caso, [self.hallazgo(caso)], verifica(REFUTA)), 1, self.salida_texto)
+                self.assertIn('obtenido=NO_PASA', self.salida_texto)
+                self.assertNotIn('H.verificador', self.salida_texto)
                 self.assertIn('verificaciones=1', self.salida_texto)
 
     def test_c10_los_cuatro_siguen_bloqueando_si_el_verificador_los_confirma_con_su_linea(self):

@@ -1262,10 +1262,17 @@ def repos_nombrados(texto):
     return nombres
 
 
+def nombra_el_repo(texto, repo):
+    """¿El texto nombra el repositorio de la PR: `owner/nombre`, el nombre corto o sin `-pocharlies`?"""
+    corto = repo.split('/')[-1].lower()
+    return any(re.search(rf'(?<![\w.-]){re.escape(n)}(?![\w-])', texto or '', re.I)
+               for n in {corto, corto.removesuffix('-pocharlies')} if n)
+
+
 def otro_repo(texto, repo):
-    """¿El criterio nombra otro repositorio y no el de la PR? (por nombre: permisivo, lo acota el alcance declarado)"""
-    nombres = repos_nombrados(texto)
-    return bool(nombres) and repo.split('/')[-1].lower() not in nombres
+    """¿El criterio nombra otro repositorio y nada del de la PR? Por nombre, y un criterio que nombra el de la PR nunca
+    es de otro repo, lo acompañe quien lo acompañe (SC-2285)."""
+    return bool(repos_nombrados(texto)) and not nombra_el_repo(texto, repo)
 
 
 # ---- verificacion con el fichero completo (SC-2285) ---------------------------------
@@ -1326,11 +1333,13 @@ def _sin_verificar(grupo, motivo):
 
 
 def verificar(url, key, modelo, timeout, leer, items, diff):
-    """Una llamada por fichero, con TODOS sus items, el fichero completo del head y su hunk (SC-2285). Solo baja a
-    observacion lo REFUTADO: el verificador corrio y dijo `confirmado: false`, o confirmo con una cita que no esta
-    literal a ±3 lineas de `linea`. Lo no verificado (mas alla de `VERIFICA_MAX_LLAMADAS` ficheros, un fichero sobre el
-    tope o que ya no existe) sigue bloqueando con la marca «sin verificar». Devuelve (llamadas, caida): `caida` si la
-    API de ficheros o el verificador no contestaron con algo pendiente."""
+    """Una llamada por fichero, con TODOS sus items, el fichero completo del head y su hunk (SC-2285). Nada de lo que
+    dice desbloquea: el verificador es el mismo modelo que juzgo y no se refuta a si mismo (medido: bajaba defectos
+    reales). Lo REFUTADO (`confirmado: false`, o una confirmacion con una cita que no esta literal a ±3 lineas de
+    `linea`) sigue bloqueando con la marca «el verificador lo discute: ...», para que el maker o quien firme la lean.
+    Lo no verificado (mas alla de `VERIFICA_MAX_LLAMADAS` ficheros, un fichero sobre el tope o que ya no existe) lleva
+    «sin verificar». Devuelve (llamadas, caida): `caida` si la API de ficheros o el verificador no contestaron con algo
+    pendiente."""
     por_fichero = {}
     for item in items:
         por_fichero.setdefault(item[2], []).append(item)
@@ -1375,11 +1384,7 @@ def verificar(url, key, modelo, timeout, leer, items, diff):
             if not isinstance(confirmado, bool):
                 _sin_verificar([(e,)], 'el verificador no contesto a este item')
             elif refutado:
-                if 'cumple' in e:
-                    e['cumple'] = None
-                else:
-                    e['bloquea'] = False
-                e['baja'] = f'refutado por el verificador con el fichero completo: {refutado}'
+                e['marca'] = f'el verificador lo discute: {refutado}'
             else:
                 e['marca'] = 'verificado con el fichero completo'
     return llamadas, False
@@ -1400,14 +1405,17 @@ def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios,
     """Del ticket, el diff y las normas al veredicto. Lo comparten `juez` y `evalua`. `criterios` es [(etiqueta, texto)];
     `fuera` son los ficheros que el recorte dejo fuera del diff; `leer(ruta)` da (estado, texto) de un fichero del head
     (`ok`, `no_existe`, `caido`): sin el, nada se verifica y nada baja. El alcance sale de la descripcion de la PR (`pr`).
-    Devuelve {veredicto, motivos, detalle, modelo, juez, criterios, hallazgos, alcance, verificaciones}."""
+    Devuelve {veredicto, motivos, detalle, modelo, juez, criterios, hallazgos, alcance, verificaciones, ajenos}; `ajenos`
+    son los criterios que se quitaron sin pasar por el modelo (otro repositorio) y suben el marcador a `riesgo=alto`."""
     visibles, textos = lineas_visibles(diff), textos_por_fichero(diff)
     recortados = [n for n, _ in fuera]
     alcance = alcance_de_pr(pr, [e for e, _ in criterios])
-    ajenos = {e for e, t in criterios if otro_repo(t, repo) and e not in (alcance or {})}
+    # con alcance declarado, lo que queda fuera ya lo trata `aplicar_reglas`, que deja bloquear lo que el diff contradice;
+    # el nombre de otro repo solo dice que el criterio lo cita (un golden de dgx-infra), no que no sea de esta PR (SC-2285)
+    ajenos = set() if alcance else {e for e, t in criterios if otro_repo(t, repo)}
     a_juzgar = [(e, t) for e, t in criterios if e not in ajenos]
     res = {'veredicto': 'SIN_VEREDICTO', 'motivos': set(), 'detalle': '', 'modelo': modelo, 'juez': 'primario',
-           'alcance': alcance, 'hallazgos': [], 'verificaciones': 0,
+           'alcance': alcance, 'hallazgos': [], 'verificaciones': 0, 'ajenos': sorted(ajenos),
            'criterios': [{'n': e, 'texto': t, 'cumple': None, 'evidencia': '', 'evidencia_ok': False, 'nota': '',
                           **({'baja': 'otro repositorio: el criterio no es de esta PR'} if e in ajenos else {})}
                          for e, t in criterios]}
@@ -1480,7 +1488,6 @@ def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios,
                    detalle='No se pudo verificar lo que bloqueaba (la API de ficheros o el verificador no contestaron): '
                            'el juez no da veredicto, y no es un PASA.')
         return res
-    res['veredicto'], res['motivos'] = decidir(res['criterios'], res['hallazgos'])
     return res
 
 
@@ -1558,6 +1565,8 @@ def componer_juez(r):
     if r.get('fuera'):
         lineas += ['', f"Diff recortado: {len(r['fuera'])} fichero(s) fuera del tope, riesgo alto:"]
         lineas += [f'- `{codigo(n)}` ({b} B)' for n, b in r['fuera']]
+    if r.get('ajenos'):
+        lineas += ['', f"Criterio(s) quitado(s) por nombrar otro repositorio, sin pasar por el modelo ({', '.join(r['ajenos'])}): riesgo alto."]
     lineas += ['', f"<sub>juez · modelo `{codigo(r.get('modelo'))}`"
                + (' (respaldo)' if r['juez'] == 'respaldo' else '') + f" · head `{r['sha'][:12]}`</sub>"]
     cuerpo = '\n'.join(lineas)
@@ -1649,7 +1658,9 @@ def juez():
                  repo, claves[0], ticket['resumen'], ticket['criterios'], recortado, arquitectura,
                  f"{titulo_pr}\n\n{cuerpo_pr}", fuera, lambda ruta: leer_fichero(token, repo, ruta, sha))
     r.update(criterios=res['criterios'], hallazgos=res['hallazgos'], modelo=res['modelo'], juez=res['juez'],
-             alcance=res['alcance'], verificaciones=res['verificaciones'])
+             alcance=res['alcance'], verificaciones=res['verificaciones'], ajenos=res['ajenos'])
+    if res['ajenos']:   # un criterio quitado sin el modelo es un juicio a medias: lo firma qa, no la puerta sola
+        r['riesgo'] = 'alto'
     return salir(res['veredicto'], res['motivos'], res['detalle'])
 
 
@@ -1660,7 +1671,7 @@ def bajas_de(res):
     for letra, elementos in (('C', res['criterios']), ('H', res['hallazgos'])):
         for e in elementos:
             if e.get('baja'):
-                clase = next((k for k in ('alcance', 'cita', 'recortado', 'repositorio', 'verificador', 'no lista', 'no lo evaluo')
+                clase = next((k for k in ('alcance', 'cita', 'recortado', 'repositorio', 'no lista', 'no lo evaluo')
                               if k in e['baja']), 'otra')
                 clave = f"{letra}.{clase.replace(' ', '_')}"
                 cuenta[clave] = cuenta.get(clave, 0) + 1

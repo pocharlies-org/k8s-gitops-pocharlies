@@ -369,7 +369,7 @@ sacados de GitHub; los diffs grandes (`falso-recortado-k8s-ai-138`, `falso-evide
 son una selección de sus ficheros, y la descripción es la que tenía la PR al recogerlo, no la del día del veredicto. Un
 `SIN_VEREDICTO` cuenta como fallo; la línea de cada pasada cuenta también los falsos `PASA` (un `PASA` donde se esperaba
 `NO_PASA`). Cada caso acaba en `bajas=`: lo que las reglas dejaron de bloquear, por clase (`C.alcance:3,H.cita:1`,
-`H.verificador:1`), para saber si un fallo es del modelo o de una regla. Tests sin red:
+`C.repositorio:1`), para saber si un fallo es del modelo o de una regla. Tests sin red:
 `python3 -m unittest tests.test_llm_review_juez` (un LiteLLM, un Jira y una API de GitHub de pega).
 
 ## El juez v3: lo que rodea a la respuesta del modelo (SC-2285)
@@ -378,7 +378,10 @@ El modelo local se queda; cambia lo que el código hace antes y después de su r
 veredictos de 73 PRs y solo 16 de los 73 `NO_PASA` eran defectos de la PR. El resto eran PRs que decían no estar
 listas, tickets sin criterios, afirmaciones técnicas inventadas, `❌` por ficheros que el recorte no dejó ver y una
 renumeración de criterios que desviaba el alcance. La regla de diseño es una sola: una rebaja de `❌` a `➖`, o de
-hallazgo a observación, que no pase por `verificar()` solo ocurre con `riesgo=alto`; si no, no ocurre.
+hallazgo a observación solo la hace una regla determinista del código (una cita que no está en el diff, el alcance, la
+evidencia no disponible por recorte con `riesgo=alto`). El verificador no rebaja nada: es el mismo modelo que juzgó y,
+medido con el modelo real (run 38042710418, 3 pasadas), desbloqueaba defectos reales (`real-llm-status-123`: `PASA` con
+`H.verificador:1`).
 
 - Puertas previas, sin LLM (`juez=codigo`). El juez lee `draft`, título y cuerpo de la API de GitHub al juzgar
   (`leer_pr`, con el `github.token`). El payload del evento solo vale si la API falla, y con eso un `rerun` ya no
@@ -390,24 +393,28 @@ hallazgo a observación, que no pase por `verificar()` solo ocurre con `riesgo=a
   (`- C7b: …`), las reglas y el comentario usan la misma etiqueta. Declarar `C9` exime al `C9` del spec, no al noveno de
   la lista.
 - Otro repositorio. Un criterio que nombra otro repo (`owner/nombre`, `*-pocharlies` o uno de `REPOS_SIN_SUFIJO`, que se
-  lee de `.github/pr-review-llamadores.txt`) y no el de la PR sale `➖ otro repositorio` sin preguntárselo al modelo, salvo
-  que la PR lo declare en su alcance. Va por el nombre: un criterio que no lo escribe (solo lo dice la cabecera `Repo:` del
-  spec) no se detecta.
+  lee de `.github/pr-review-llamadores.txt`) y nada del de la PR (ni `owner/nombre`, ni el nombre corto, ni sin
+  `-pocharlies`) sale `➖ otro repositorio` sin preguntárselo al modelo, y solo si la PR no declara `## Alcance de esta PR`:
+  con alcance, lo que queda fuera ya lo trata `aplicar_reglas`, que deja bloquear lo que el diff contradice (un criterio
+  puede citar otro repo como fuente de un golden y ser de esta PR: `llm-status-ios` C5 y `dgx-infra`, 6 casos del corpus).
+  Todo criterio quitado así sube el marcador a `riesgo=alto` y el comentario lo dice. Va por el nombre: un criterio que no
+  lo escribe (solo lo dice la cabecera `Repo:` del spec) no se detecta.
 - La PR no está lista. La respuesta admite `pr_no_lista` con una cita de la descripción. Si está literal (con los espacios
   colapsados, de `CITA_MIN` caracteres o más), un `NO_PASA` pasa a `EN_ESPERA no_lista` y sus hallazgos a observaciones. Esa
   cita nunca convierte nada en `PASA`.
 - Evidencia no disponible. Un `❌` sin cita (una ausencia) de un criterio de esta PR lleva el campo `fichero`, donde el modelo
   esperaba la evidencia. Si el fichero está recortado, el criterio es `➖ evidencia no disponible (recortado)` y el marcador
   ya dice `riesgo=alto diff_recortado`. Si está fuera del diff, se pide `contents/{ruta}?ref={sha}`: con 404 el `❌` sigue
-  bloqueando (ausencia comprobada), con 200 lo juzga el verificador y con la API caída el veredicto es `SIN_VEREDICTO
+  bloqueando (ausencia comprobada), con 200 lo mira el verificador (que anota, no desbloquea) y con la API caída el veredicto es `SIN_VEREDICTO
   verificacion_caida`. Sin `fichero`, el `❌` es `➖` solo si el diff tiene algún fichero recortado; si no, bloquea como
   siempre. Un `✅` cuya evidencia está en un fichero recortado tampoco se puede comprobar y sale `➖` con el mismo riesgo alto.
 - Verificación con el fichero completo. Lo que iba a bloquear tras las reglas (cada `❌` por contradicción con su cita
   casada, cada hallazgo `bloquea` y los `❌` de ausencia con 200) pasa por una llamada por fichero, con el fichero completo
   del head (hasta `VERIFICA_FICHERO_MAX` = 60000 caracteres) y su hunk, al mismo modelo que juzgó. Se verifican como mucho
-  `VERIFICA_MAX_LLAMADAS` = 4 ficheros por veredicto, los de mayor severidad. Solo baja a observación lo refutado: un
-  `confirmado: false`, o una confirmación cuya cita no está literal a ±3 líneas de `linea`. Lo no verificado (más allá del
-  tope, fichero sobre el tope, 404 por borrado) sigue bloqueando con la marca `sin verificar`. Con el verificador o la API
+  `VERIFICA_MAX_LLAMADAS` = 4 ficheros por veredicto, los de mayor severidad. Nada de lo que dice desbloquea: lo refutado
+  (un `confirmado: false`, o una confirmación cuya cita no está literal a ±3 líneas de `linea`) sigue bloqueando y el
+  comentario lo anota como «el verificador lo discute: …», para que el maker o quien firme lo lea. Lo no verificado (más
+  allá del tope, fichero sobre el tope, 404 por borrado) lleva la marca `sin verificar`. Con el verificador o la API
   caídos y algo pendiente, el veredicto es `SIN_VEREDICTO verificacion_caida`, nunca `PASA`. Un `PASA` no hace llamadas.
   El resumen del job imprime `verificaciones=<n>`.
 - Criterio ausente de la respuesta. `evaluar` devuelve `None` si falta uno y el juicio se reintenta. En el último intento,
