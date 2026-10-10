@@ -1592,7 +1592,13 @@ spec:
     # planos qwen38-flash-next-vllm-launch y qwen38fn-ple-mmap cambian en sitio (parches TP=3, inertes con TP=2) y ningún pod se reinicia.
     # Voz: los hooks de la sync (llm-deploy-pause/resume) bajan omnivoice-tts-nvfp4 y stt-turbo a 0 y los devuelven, unos 2-3 min sin voz.
     # ROLLBACK de esto: 63dd55f112190d4363b30851bec7b33fc9d7cb06.
-    targetRevision: a51da6025a7fe175549a349e0c4400959f602ae9
+    # 10-10-2026 (DGX-781, ventana con Dani): 47c8ff2 = a51da60 + el residente en TP=3 sobre dgx1, dgx2 y dgx3 (k8s-ai #143,
+    # línea pin/qwen38-tp3-20261010; no entra en main): tercer rango en el Deployment nuevo qwen38-flash-next-worker-dgx3,
+    # PV/PVC NFS hf-cache-dgx1-dgx3-llm-ro, NCCL por el triángulo CX7, plano de control por la LAN, checkpoint TP=3 y KV 48 GiB.
+    # REINICIA el residente: arranque estimado de 35-40 min con el tráfico en el fallback (Alibaba); ~20 min sin log tras
+    # «GPU KV cache size» NO es cuelgue. NO se fusiona hasta que la sesión abra la ventana con Dani.
+    # ROLLBACK de esto (el único): a51da6025a7fe175549a349e0c4400959f602ae9, en la PR hermana DGX-781-ai-vuelta-tp2.
+    targetRevision: 47c8ff293dda0930aa9efe9415bfae5862236204
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
