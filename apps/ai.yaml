@@ -1608,21 +1608,24 @@ spec:
     # ~42 s por nodo). El PV/PVC es Retain: no se borra el NFS; si la sync no poda worker-dgx3 y el PV/PVC, quedan huérfanos y hay que
     # podarlos (el árbitro tolera el worker-dgx3 AUSENTE, DGX-779, no uno presente y huérfano).
     # ROLLBACK de esto (volver a TP=3): 1f5aefd88e6c2660a7b4d05152444541e836531d.
-    # 10-10-2026 (DGX-810, ventana de los Sparks con Dani): 5a1789d = 6332446 + la sonda NCCL v3 con la libnccl parcheada de DGX-815
-    # (k8s-ai #156, fusionada por squash en la línea pin/sparks-ventana-20261010; no entra en main). 6332446 (k8s-ai #151 y #152) era
-    # 5e7be80 + la sonda v2 y la pausa que acepta recovering, y 5e7be80 (k8s-ai #150) era a51da60 + la ventana. Path
-    # overlays/sparks-ventana-20261010: el render de a51da60 sin head ni worker de qwen38 (el prune los borra y libera dgx1 y dgx2; dgx3
-    # no tiene residente), sin el PostSync llm-deploy-resume, y con la sonda NCCL. El PreSync llm-deploy-pause deja el árbitro en
-    # sync-paused y la voz a 0 y así se quedan toda la ventana. El residente cae (~33 min de arranque al volver) y el tráfico va a Alibaba.
-    # Qué añade 5a1789d sobre 6332446: los Jobs sparks-nccl-sonda-v3-dgx1/2/3 (sonda v3: la libnccl.so.2 parcheada de nccl-ring, DGX-815,
-    # por volumen de imagen, y el grafo del generador). Los v1 y v2 siguen en el overlay y dieron FALLA. Se leen con
-    # `kubectl logs -n llm job/sparks-nccl-sonda-v3-dgxN` (N = 1, 2, 3), una línea JSON por caso. La ventana ya está abierta (#581, #583);
-    # esta PR la mueve a 5a1789d en sitio (misma app, mismo path): añade los Jobs v3 y la sync sigue pasando el PreSync de pausa.
-    # ROLLBACK de esto (a la ventana con la sonda v2): 6332446d26cd675d35b92bc0b757a01935f59295, mismo path. Sin la sonda v2 ni la v3 y
-    # con la pausa vieja: 5e7be8045946c0ad2780c7ffa81a94f65219de75.
+    # 10-10-2026 (DGX-810, ventana de los Sparks con Dani): e25be96 = 5a1789d + la sonda NCCL v3b, el v3 con el montaje del volumen image
+    # corregido (k8s-ai #157, fusionada por squash en la línea pin/sparks-ventana-20261010; no entra en main). 5a1789d (k8s-ai #156) era
+    # 6332446 + la sonda v3 con la libnccl parcheada de DGX-815, 6332446 (k8s-ai #151 y #152) era 5e7be80 + la sonda v2 y la pausa que
+    # acepta recovering, y 5e7be80 (k8s-ai #150) era a51da60 + la ventana. Path overlays/sparks-ventana-20261010: el render de a51da60
+    # sin head ni worker de qwen38 (el prune los borra y libera dgx1 y dgx2; dgx3 no tiene residente), sin el PostSync llm-deploy-resume,
+    # y con la sonda NCCL. El PreSync llm-deploy-pause deja el árbitro en sync-paused y la voz a 0 y así se quedan toda la ventana. El
+    # residente cae (~33 min de arranque al volver) y el tráfico va a Alibaba.
+    # Qué añade e25be96 sobre 5a1789d: los Jobs sparks-nccl-sonda-v3b-dgx1/2/3 (sonda v3b: la libnccl.so.2 parcheada de nccl-ring, DGX-815,
+    # por volumen de imagen con el subPath corregido, y el grafo del generador). El prune retira los Jobs v3 (ya no están en el render);
+    # los v1, v2 y v3b siguen en el overlay y los v1 y v2 dieron FALLA. Se leen con
+    # `kubectl logs -n llm job/sparks-nccl-sonda-v3b-dgxN` (N = 1, 2, 3), una línea JSON por caso. La ventana ya está abierta (#581, #583,
+    # #584); esta PR la mueve a e25be96 en sitio (misma app, mismo path): añade los Jobs v3b, retira los v3 y la sync sigue pasando el
+    # PreSync de pausa.
+    # ROLLBACK de esto (a la ventana con la sonda v3): 5a1789dfaa03f8d4e8f8e08555d586c1b96c5604, mismo path. Con la sonda v2 y sin la v3:
+    # 6332446d26cd675d35b92bc0b757a01935f59295. Sin la sonda v2 ni la v3 y con la pausa vieja: 5e7be8045946c0ad2780c7ffa81a94f65219de75.
     # ROLLBACK de la ventana (la vuelta): la PR hermana DGX-810-ai-vuelta (#582, path overlays/sparks-ventana-salida-20261010 en el
     # mismo SHA; a51da60 tal cual no pasa su PreSync desde sync-paused).
-    targetRevision: 5a1789dfaa03f8d4e8f8e08555d586c1b96c5604
+    targetRevision: e25be96c4c250015ed1f941119fd0fdf491837ac
     path: overlays/sparks-ventana-20261010
   destination:
     server: https://kubernetes.default.svc
