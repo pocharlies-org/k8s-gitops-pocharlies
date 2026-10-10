@@ -3,7 +3,7 @@ name: Reusable PR review
 # Bot de review de PRs. Tres motores, elegidos con `inputs.engine` (INFRA-298, D6; SC-2182):
 #
 #   juez     (por defecto desde SC-2182, etapa c) review.py --juez: contrasta el PR con
-#            los criterios de su ticket de Jira y publica el marcador v2 que lee
+#            los criterios de su ticket de Jira y publica el marcador v3 que lee
 #            `company-aprobar`. Runbook: docs/ci-pr-review.md.
 #   propio   review.py: manda el diff a un LLM por LiteLLM y publica UN comentario con
 #            los hallazgos. Se elige con `engine: propio`; se retira en F4.
@@ -751,18 +751,22 @@ jobs:
           fi
 
   # Motor juez (SC-2182): contrasta el PR con los criterios de su ticket y publica el marcador
-  # v2. Mismos permisos que `revisar_pr` (un job llamado que pide mas de lo que concede el
+  # v3 (SC-2285). Mismos permisos que `revisar_pr` (un job llamado que pide mas de lo que concede el
   # llamador tumba el run entero al arrancar). Solo `pull_request`: no hay juicio de un commit.
   #
-  # Rojo con NO_PASA y con SIN_VEREDICTO (nunca un status pendiente: exigiria
-  # `statuses: write` en las plantillas); verde solo con PASA. Un PR desde un fork no recibe
-  # secretos: sale en verde SIN marcador, y el lector del marcador, sin el, queda en su modo
-  # legado (qa + architect).
+  # Rojo (exit 1) SOLO con un NO_PASA del juez primario o de un pre-gate sin LLM (y los fallos de
+  # configuracion de siempre, sin marcador). Verde con PASA, EN_ESPERA, SIN_VEREDICTO y el NO_PASA
+  # del respaldo, y en esos tres la primera linea visible del resumen y del comentario es
+  # «PENDIENTE — no es una aprobación»: un verde que no aprueba. La unica puerta es `company-aprobar`,
+  # que lee el marcador (nunca un status pendiente: exigiria `statuses: write` en las plantillas).
+  # Un PR desde un fork no recibe secretos: sale en verde SIN marcador, y el lector del marcador,
+  # sin el, queda en su modo legado (qa + architect).
   revisar_pr_juez:
     name: Review del PR (juez)
     if: ${{ github.event_name == 'pull_request' && inputs.engine == 'juez' }}
     runs-on: ${{ inputs.runner }}
-    timeout-minutes: 10
+    # 20 min: el juicio mas hasta 4 verificaciones con el fichero completo (SC-2285), de hasta 90 s cada una.
+    timeout-minutes: 20
     permissions:
       contents: read
       pull-requests: write
@@ -771,7 +775,7 @@ jobs:
       cancel-in-progress: true
     outputs:
       # El vocabulario del reusable no cambia: PASA -> ok, NO_PASA -> hallazgos,
-      # SIN_VEREDICTO -> omitido (lo mapea review.py).
+      # EN_ESPERA y SIN_VEREDICTO -> omitido (lo mapea review.py).
       veredicto: ${{ steps.revisar.outputs.veredicto || 'omitido' }}
       resumen: ${{ steps.revisar.outputs.resumen || steps.guarda.outputs.motivo }}
       n_hallazgos: ${{ steps.revisar.outputs.n_hallazgos || '0' }}
@@ -851,6 +855,9 @@ jobs:
           REVIEW_REPO: ${{ github.repository }}
           REVIEW_PR_NUMBER: ${{ github.event.pull_request.number }}
           REVIEW_SHA: ${{ github.event.pull_request.head.sha }}
+          # El juez lee `draft`, titulo y cuerpo de la API de GitHub al juzgar; estos tres son el respaldo
+          # si la API no contesta (el payload del evento puede traer una descripcion vieja tras un `rerun`).
+          REVIEW_PR_DRAFT: ${{ github.event.pull_request.draft }}
           REVIEW_PR_TITLE: ${{ github.event.pull_request.title }}
           REVIEW_PR_BODY: ${{ github.event.pull_request.body }}
           REVIEW_PR_BRANCH: ${{ github.event.pull_request.head.ref }}
@@ -864,14 +871,15 @@ jobs:
           python3 "$revisor" --juez
 
   # Modo validacion del juez: mide su acierto contra el corpus commiteado del framework
-  # (tests/fixtures/juez, 15 casos: 9 PASA y 6 NO_PASA, seis de SC-2229 sinteticos) con el modelo
-  # real. Es el `workflow_dispatch` del motor juez (el de `propio` comenta el ultimo commit); no
-  # corre en cada PR. Rojo si acierta menos de 7 de cada 8 (14 de 15).
+  # (tests/fixtures/juez: los 15 casos de SC-2229 y los casos medidos de SC-2285, uno por clase de
+  # fallo) con el modelo real. Es el `workflow_dispatch` del motor juez (el de `propio` comenta el
+  # ultimo commit); no corre en cada PR. Tres pasadas; rojo si en alguna los NO_PASA falsos son el 10 %
+  # o mas de los NO_PASA, o si algun caso real deja de estar en NO_PASA.
   evaluar_juez:
     name: Evaluacion del juez
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.engine == 'juez' }}
     runs-on: ${{ inputs.runner }}
-    timeout-minutes: 30
+    timeout-minutes: 120
     permissions:
       contents: read
     steps:
@@ -894,7 +902,7 @@ jobs:
         run: |
           set -uo pipefail
           python3 .llm-review-framework/.github/actions/llm-review/review.py \
-            --evalua .llm-review-framework/tests/fixtures/juez --umbral 7/8
+            --evalua .llm-review-framework/tests/fixtures/juez --pasadas 3 --max-falsos 0.10
 
   # Un motor que no existe es uso invalido y pone el check en rojo: no se adivina el motor
   # (D6 de INFRA-298). Antes lo cazaba `revisar_pr` (engine != 'pr-agent'); ahora que cada

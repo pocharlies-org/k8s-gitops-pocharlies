@@ -1,0 +1,116 @@
+diff --git a/scripts/mac-runner-pruebas.sh b/scripts/mac-runner-pruebas.sh
+new file mode 100644
+index 000000000..147026165
+--- /dev/null
++++ b/scripts/mac-runner-pruebas.sh
+@@ -0,0 +1,110 @@
++#!/bin/bash
++# Runner de PRUEBAS en el Mac de compilaciones (nexus-mac): usuario macOS estándar
++# `runner-pruebas` (sin admin, llavero propio, sin identidad de firma) + segunda
++# instancia del actions-runner de pocharlies-org/llm-status-ios con la etiqueta
++# `nexus-mac-pruebas` (NUNCA `nexus-mac`: esa es del runner de despliegue, que tiene
++# la clave Apple Distribution; ver DGX-774 nota de security y DGX-756).
++# Montado por primera vez en DGX-784. Idempotente: puede re-ejecutarse tras un reset
++# del runner o un borrado del registro.
++#
++# Corre COMO ROOT en el Mac. Desde el x86:
++#   TOKEN=$(gh api -X POST repos/pocharlies-org/llm-status-ios/actions/runners/registration-token -q .token)
++#   { printf '%s\n' "$TOKEN"; cat scripts/mac-runner-pruebas.sh; } | ssh mac '
++#     IFS= read -r tok; umask 077; print -r -- "$tok" > /tmp/.mac-runner-pruebas-token
++#     cat > /tmp/mac-runner-pruebas.sh
++#     export PATH=/opt/homebrew/bin:$PATH
++#     pw=$($HOME/.claude/bin/op-safe read "op://llavero/noks3mcc37ws5c6z56jkz6szbe/password")
++#     print -r -- "$pw" | sudo -S -p "" bash /tmp/mac-runner-pruebas.sh; rc=$?
++#     rm -f /tmp/mac-runner-pruebas.sh; exit $rc'
++#
++# El servicio NO es el LaunchAgent de svc.sh (un usuario que nunca inicia sesión GUI
++# no tiene dominio de agente): es un LaunchDaemon en /Library/LaunchDaemons con
++# UserName=runner-pruebas, RunAtLoad+KeepAlive. DEVELOPER_DIR va en .env del runner y
++# en el plist, porque xcode-select del sistema apunta a CommandLineTools.
++set -euo pipefail
++RUNNER_USER=runner-pruebas
++RUNNER_HOME=/Users/$RUNNER_USER
++RUNNER_DIR=$RUNNER_HOME/actions-runner/llm-status-ios
++RUNNER_NAME=macbook-nexus-pruebas
++LABELS=self-hosted,macOS,ARM64,nexus-mac-pruebas
++REPO_URL=https://github.com/pocharlies-org/llm-status-ios
++VERSION=2.337.0
++DAEMON_LABEL=actions.runner.pocharlies-llm-status-ios.macbook-nexus-pruebas
++PLIST=/Library/LaunchDaemons/$DAEMON_LABEL.plist
++
++# 1. usuario estándar (sin admin), llavero propio al crearse su home
++if ! dscl . -read /Users/$RUNNER_USER RecordName >/dev/null 2>&1; then
++  genpw=$(openssl rand -base64 24)
++  sysadminctl -addUser "$RUNNER_USER" -fullName "Runner Pruebas CI" -password "$genpw" -shell /bin/zsh
++  echo "user-created $RUNNER_USER"
++else
++  echo "user-exists $RUNNER_USER"
++fi
++dseditgroup -o edit -d "$RUNNER_USER" -t user admin 2>/dev/null || true
++echo "admin-check: $(id -Gn "$RUNNER_USER")"
++
++# 2. binarios del runner (misma versión que el de despliegue)
++if [ ! -f "$RUNNER_DIR/config.sh" ]; then
++  mkdir -p "$RUNNER_DIR"
++  curl -fsSL "https://github.com/actions/runner/releases/download/v${VERSION}/actions-runner-osx-arm64-${VERSION}.tar.gz" -o /tmp/actions-runner-dgx784.tar.gz
++  tar -xzf /tmp/actions-runner-dgx784.tar.gz -C "$RUNNER_DIR"
++  rm -f /tmp/actions-runner-dgx784.tar.gz
++  chmod +x "$RUNNER_DIR/config.sh" "$RUNNER_DIR/svc.sh"
++  echo "runner-unpacked $VERSION"
++else
++  echo "runner-dir-present"
++fi
++# runsvc.sh no viene en la raíz del tarball: svc.sh lo copia de bin/ al instalar el servicio
++[ -f "$RUNNER_DIR/runsvc.sh" ] || cp "$RUNNER_DIR/bin/runsvc.sh" "$RUNNER_DIR/runsvc.sh"
++chmod +x "$RUNNER_DIR/runsvc.sh"
++
++# 3. .env: Xcode completo para este usuario (xcode-select del sistema apunta a CommandLineTools)
++touch "$RUNNER_DIR/.env"
++grep -q '^DEVELOPER_DIR=' "$RUNNER_DIR/.env" || echo 'DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer' >> "$RUNNER_DIR/.env"
++grep -q '^LANG=' "$RUNNER_DIR/.env" || echo 'LANG=en_US.UTF-8' >> "$RUNNER_DIR/.env"
++
++mkdir -p "$RUNNER_HOME/Library/Logs/$DAEMON_LABEL"
++chown -R "$RUNNER_USER:staff" "$RUNNER_HOME"
++
++# 4. registro en GitHub (una sola vez)
++if [ ! -f "$RUNNER_DIR/.runner" ]; then
++  RUNNER_TOKEN=$(cat /tmp/.mac-runner-pruebas-token)
++  rm -f /tmp/.mac-runner-pruebas-token
++  sudo -u "$RUNNER_USER" env HOME="$RUNNER_HOME" PATH=/usr/bin:/bin:/usr/sbin:/sbin bash -c "cd '$RUNNER_DIR' && ./config.sh --unattended --url '$REPO_URL' --token '$RUNNER_TOKEN' --name '$RUNNER_NAME' --labels '$LABELS'"
++  unset RUNNER_TOKEN
++  echo "runner-configured"
++else
++  rm -f /tmp/.mac-runner-pruebas-token
++  echo "runner-already-configured"
++fi
++
++# 5. LaunchDaemon (arranca sin sesión GUI; el LaunchAgent de svc.sh no vale para un usuario que nunca inicia sesión)
++cat > "$PLIST" <<EOF
++<?xml version="1.0" encoding="UTF-8"?>
++<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
++<plist version="1.0">
++<dict>
++  <key>Label</key><string>$DAEMON_LABEL</string>
++  <key>ProgramArguments</key>
++  <array><string>$RUNNER_DIR/runsvc.sh</string></array>
++  <key>WorkingDirectory</key><string>$RUNNER_DIR</string>
++  <key>UserName</key><string>$RUNNER_USER</string>
++  <key>RunAtLoad</key><true/>
++  <key>KeepAlive</key><true/>
++  <key>EnvironmentVariables</key>
++  <dict>
++    <key>ACTIONS_RUNNER_SVC</key><string>1</string>
++    <key>HOME</key><string>$RUNNER_HOME</string>
++    <key>DEVELOPER_DIR</key><string>/Applications/Xcode.app/Contents/Developer</string>
++    <key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin</string>
++  </dict>
++  <key>StandardOutPath</key><string>$RUNNER_HOME/Library/Logs/$DAEMON_LABEL/stdout.log</string>
++  <key>StandardErrorPath</key><string>$RUNNER_HOME/Library/Logs/$DAEMON_LABEL/stderr.log</string>
++</dict>
++</plist>
++EOF
++chown root:wheel "$PLIST"; chmod 644 "$PLIST"
++plutil -lint "$PLIST"
++launchctl bootout "system/$DAEMON_LABEL" 2>/dev/null || true
++launchctl bootstrap system "$PLIST"
++echo "daemon-bootstrapped"

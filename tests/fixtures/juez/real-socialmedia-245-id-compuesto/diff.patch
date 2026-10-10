@@ -1,0 +1,345 @@
+diff --git a/.company/changes/skirm-106-identidad-post-canal.md b/.company/changes/skirm-106-identidad-post-canal.md
+new file mode 100644
+index 0000000..7b46f53
+--- /dev/null
++++ b/.company/changes/skirm-106-identidad-post-canal.md
+@@ -0,0 +1,4 @@
++Antes: el post de un canal (`<id>@newsletter`) se guardaba con `messages.wa_message_id` igual al id que da WhatsApp, una clave por cuenta con `ON CONFLICT DO NOTHING`; si otro canal ya tenía ese id, el segundo post se descartaba sin rastro y su `whatsapp_message_keys` pisaba la del primero.
++Ahora: el primer canal conserva el id tal cual (filas, claves y revokes existentes no cambian); un post que choca con el id de otro canal se guarda bajo `<jid del canal>:<id>`, con su clave, y el revoke o la edición de ese post llegan a la fila de su canal. Ruta, cuerpo y forma del 200 de `http.whatsapp-connector.channels-posts.v1` no cambian: `messageId` es una cadena, que en un choque es la compuesta.
++Quién se mueve: nadie; quien lea un `messageId` de canal lo trata como opaco (el de `social_list_channel_posts` y el del evento `message` son el mismo). `CONTRACTS.yaml` no cambia.
++Decisión: SKIRM-106, `00-spec.md` (paso 0, criterio C2) y `nota-architect-plan.md` de SKIRM-99 (componer el id del post con el jid del canal al guardarlo, sin migración); esta PR lo hace solo ante un choque.
+diff --git a/.company/evidence/SKIRM-106-f4c.md b/.company/evidence/SKIRM-106-f4c.md
+new file mode 100644
+index 0000000..0e1136f
+--- /dev/null
++++ b/.company/evidence/SKIRM-106-f4c.md
+@@ -0,0 +1,88 @@
++# SKIRM-106 · evidencia (conector WhatsApp: identidad de un post de canal, F4c)
++
++Donde corrió: worktree de la rama `SKIRM-106-f4c`, `connectors/whatsapp-web`, Node 22. Las pruebas de la PR no usan base de datos (pool de `pg` sustituido). Las pruebas de comportamiento del paso 0 corrieron además contra una base desechable con el esquema del tronco (sandbox de SKIRM-89, `scripts/qa-schema-sandbox.sh up`). Base `ab99822` (`origin/deploy/prod`, F4a y F4b incluidas).
++
++## Rojo contra el tronco, mismas pruebas
++
++```
++tsx --test src/statuses.test.ts   # tests 19, pass 16, fail 3
++  not ok 10 - a channel post whose id another channel holds is stored under <channel>:<id>, not dropped
++      expected: 'professional:222@newsletter:SAME'   actual: 'professional:SAME'
++  not ok 12 - a clash on the personal account composes the id without a prefix; chats pay no lookup
++      expected: '222@newsletter:SAME'   actual: 'SAME'
++  not ok 14 - a revoke or an edit of a channel post reaches the row of ITS channel, not the other one
++      expected: 'professional:222@newsletter:SAME'   actual: 'professional:SAME'
++```
++
++Con el id en la misma clave, `INSERT INTO messages ... ON CONFLICT (wa_message_id) DO NOTHING` descarta el segundo post sin dejar rastro.
++
++## Verde tras el cambio
++
++```
++tsx --test src/statuses.test.ts        # tests 19, pass 19, fail 0 (los otros 2 tests nuevos pasan antes y después: caracterizan «sin choque, id desnudo»)
++pnpm run test (whatsapp-web, lista explícita)   # tests 582, pass 581, fail 0, skipped 1 (ninguno de los inestables cayó)
++pnpm contract:check                    # Socialmedia contract OK (73 tools)
++python3 scripts/render-connectors.py --check   # exit 0
++tsc --noEmit (connectors/whatsapp-web) # exit 0
++eslint src --ext .ts                   # 0 errores
++check-contracts.py --range origin/deploy/prod..HEAD  # contracts: OK (101 entries)
++```
++
++## Prueba de comportamiento sobre el esquema del tronco (base desechable)
++
++Mismo escenario con el código del tronco y con el de la rama, cuenta `professional`, dos canales y un mismo id `SAME`:
++
++| | tronco | rama |
++|---|---|---|
++| filas de `messages` con ese id | 1 (el del canal 111; el post del canal 222 no existe) | 2 (`professional:SAME` y `professional:222@newsletter:SAME`) |
++| `whatsapp_message_keys` del id del canal 111 | apunta al canal 222 (la clave del post descartado la reescribe) | cada fila apunta a su canal |
++| `social_list_channel_posts` del canal 222 | 0 posts | 1 post |
++| revoke del post del canal 222 | marca borrado el del canal 111 | marca borrado solo el del canal 222 |
++
++## Criterios de la spec
++
++- C1: cuadro del paso 0 (abajo) con las tres pruebas propias.
++- C2: pruebas 10, 12 y 14 de `statuses.test.ts`, rojas sobre el tronco y verdes tras el cambio; el escenario sobre el esquema del tronco (tabla de arriba).
++- C3, C4 y C5: **no están en esta PR**. Las pruebas propias P2 y P3 del cuadro fallan sobre el tronco y su arreglo pide una tabla nueva (migración `021_…`, aditiva), que no se escribe aquí: depende del sandbox de SKIRM-89 fusionado. Quedan para la siguiente PR de la historia.
++- C6: las pruebas 1 a 9 de `statuses.test.ts` (ingest del estado, lectura por autor, índice ausente `42P01`, lectura de posts de canal) pasan antes y después sin tocarlas; las pruebas 11 y 13 (id desnudo sin choque o con consulta fallida) también.
++- C7: ninguna tool cambia; suite de whatsapp-web verde; `ARCHITECTURE.md` §8 actualizada (§4 no cambia: esta PR no añade tabla); sin cambio de `CONTRACTS.yaml` (`http.whatsapp-connector.channels-posts.v1` mantiene ruta, cuerpo y forma del 200; el `messageId` de un post con choque es la cadena compuesta); trailers en «Autoría adoptada».
++
++## Cuadro del paso 0 (copia de 50-entrega.md)
++
++Los tests del fork (PR #74, cabeza `a5ffeac`), copiados sin su código y ejecutados de uno en uno con `tsx --test` sobre el tronco. Clases: **(a)** la aserción falla sobre un módulo que el tronco ya tiene (`statuses.ts`); **(b)** falla porque el módulo, el DDL o la ruta del fork no existen en el tronco; **(c)** depende de una ruta excluida (`/novedades/*`).
++
++| test del fork (nº de tests) | resultado contra el tronco | clase | equivalente en el tronco / decisión |
++|---|---|---|---|
++| `novedades-store.test.ts` | falla al cargar: `ERR_MODULE_NOT_FOUND ./novedades-store` | (b) | El almacén aislado del fork (`whatsapp_novedades_*` y `ensureNovedadesTables`) no existe; su DDL está excluido. Lo equivalente es `statuses.ts` y la migración 019 |
++| `novedades-channels.test.ts` | falla al cargar: `./novedades-channels` | (b) | `channels.ts` y los métodos de canal de `baileys-client.ts` |
++| `novedades-ingest.test.ts` | falla al cargar: `./novedades-ingest` | (b) | La ingesta de canales y estados está en `ingestMessage` y `recordStatus` |
++| `novedades-reader.test.ts` | falla al cargar: `./novedades-reader` | (b) | `listChannelPosts` y `listStatuses` de `statuses.ts` |
++| `novedades-controller.test.ts` | falla al cargar: `./novedades-communities` | (c) | Rutas `/novedades/*` y `novedades-communities.ts` excluidas |
++| `novedades-status-send.test.ts` | falla: `baileys-client.js` no exporta `NOVEDADES_STATUS_MEDIA_MAX_BYTES` | (b) | `publishNovedadesStatus` no existe; el tronco publica estados de texto e imagen por URL (`statuses/publish`) |
++| `controller-novedades-status.test.ts` | falla: mismo export | (c) | Ruta `/novedades/status` excluida |
++| `statuses.test.ts` del fork (17) | 13 pasan, 4 fallan | pasa ×13 | Ingest del estado, lectura por autor (PN y LID), índice ausente (`42P01`), publicación |
++| ↳ prueba 5, «not indexed…» | espera `INSERT INTO whatsapp_novedades_messages` | (b) | Tabla aislada del fork |
++| ↳ pruebas 10 y 11, «channel feed merges / filters tombstones» | esperan lecturas de `whatsapp_novedades_messages` | (b) | Tabla aislada del fork |
++| ↳ prueba 9, «channel posts: channels from conversations…» | falla solo la regex `ORDER BY … wa_message_id COLLATE "C" DESC` | (a), descartada | Sin diferencia de comportamiento: con esa regex relajada pasan todas las demás aserciones; el cursor compara `(wa_timestamp, wa_message_id)` con la misma colación del `ORDER BY`. El fork necesita `C` porque une dos fuentes en JavaScript. No se adopta |
++| `statuses.postgres.mjs` (1 script) | `ENOENT ../migrations/002_novedades_persistence.sql` | (b) | Crea su esquema con el DDL del fork, excluido |
++
++Pruebas de comportamiento propias, contra el código del tronco y el esquema del tronco (las dos que pedía la spec y una tercera por el directorio):
++
++| prueba propia | contra el tronco | clase | decisión |
++|---|---|---|---|
++| P1. Dos posts de canales distintos con el mismo id | el segundo se descarta; la clave del primero pasa a apuntar al otro canal; el canal 222 lista 0 posts | **(a)**, importa | Arreglado en esta PR (`channelPostMessageId`): sin migración, sin tocar filas existentes |
++| P2. Un borrado llega antes del post (post de canal y estado) | el post y el estado aparecen visibles: `markMessageRevoked` es un `UPDATE` sin fila que no deja rastro | **(a)**, importa | Una tumba que sobreviva a un reinicio pide tabla (`021_…`): **bloqueado** hasta SKIRM-89 |
++| P3. Un canal seguido y sin posts, tras reiniciar | desaparece de `social_list_channels`: `seenChannels` es memoria del proceso y `knownChannelConversations` solo ve canales con conversación | **(a)**, importa | El directorio persistido pide la tabla `whatsapp_novedades_channels`: **bloqueado** hasta SKIRM-89 |
++
++Lo que importa de verdad en la frecuencia está sin medir aquí: P1 demuestra el mecanismo (clave única por cuenta con `ON CONFLICT DO NOTHING`), no cuántos ids se repiten entre canales en el uso real.
++
++## Autoría adoptada
++
++Ningún commit copia código del fork. Se adopta el principio que describe `NOVEDADES-STORE.md` de la PR #74 (Jordi Ibáñez): los ids de un canal solo son únicos dentro de ese canal, así que la identidad de un post se lee por canal. Las pruebas de la PR son propias, sobre el esquema y la API del tronco.
++
++| commit | qué adopta del fork | trailer en el commit |
++|---|---|---|
++| el commit del cambio (`channelPostMessageId`, sus pruebas y `ARCHITECTURE.md`) | el principio de identidad por canal | `Co-authored-by: Jordi Ibáñez <staticduo@gmail.com>` |
++| el commit de esta evidencia | documenta la adopción | `Co-authored-by: Jordi Ibáñez <staticduo@gmail.com>` |
++
++Lo que no se adopta: `novedades-*.ts`, `ensureNovedadesTables`, las 13 rutas `/novedades/*`, `novedades-communities.ts` y el DDL del fork.
+diff --git a/ARCHITECTURE.md b/ARCHITECTURE.md
+index 5357aba..df079e6 100644
+--- a/ARCHITECTURE.md
++++ b/ARCHITECTURE.md
+@@ -137,6 +137,7 @@ Total de casos Jest: **pendiente de medir**.
+   `resyncChatState` pide los parches desde la versión guardada del app-state; no se lee el snapshot completo del app-state (más memoria y más consultas a WhatsApp, SKIRM-88).
+   `POST /messages/pins` solo acepta un `conversationId` o `chatId` de tipo string.
+ - Respuesta a un evento y votos de encuesta (SKIRM-105): la respuesta a un evento se firma con teléfonos, que es como Baileys la descifra. Nuestro número sale de `sock.user`, de `meJid` o, si solo se conoce el LID, de la correspondencia LID a número de Baileys (`ownIdentity` + `withAliases`); sin número propio o sin el del creador, 422 `identity_unavailable` antes de reclamar la `Idempotency-Key` y antes de retransmitir. Los votos y respuestas entrantes se guardan por el remitente de la clave (`participant` o `remoteJid`); que un mismo votante por número y por LID cuente una vez lo pliega la base (013: disparador y vistas `*_current`) y solo cuando `social_contact_aliases` conoce el par.
++- Identidad de un post de canal de WhatsApp (SKIRM-106): el id de un mensaje de `<id>@newsletter` solo es único dentro de su canal, y `messages.wa_message_id` es una clave por cuenta con `ON CONFLICT DO NOTHING`. `channelPostMessageId` (`connectors/whatsapp-web/src/statuses.ts`) deja el id tal cual salvo que otro canal ya lo tenga: entonces el post se guarda, con su `whatsapp_message_keys`, bajo `<jid del canal>:<id>` (sin migración y sin tocar filas existentes). El ingest y el revoke o la edición que nombran el post usan la misma función, así que llegan a la fila de SU canal; `social_list_channel_posts` devuelve ese `messageId` compuesto. No cubre `whatsapp_message_payloads` (una copia por id: con un id repetido gana el último post).
+ - [DECISION: k8s-socialmedia-pocharlies: el componente canónico de búsqueda semántica de mensajes es mcp-server/src/application/search.service.ts]
+ 
+ Última verificación contra el código: 2026-10-09 · 7c3103c (origin/deploy/prod)
+diff --git a/connectors/whatsapp-web/src/baileys-client.ts b/connectors/whatsapp-web/src/baileys-client.ts
+index ba6e77f..8586861 100644
+--- a/connectors/whatsapp-web/src/baileys-client.ts
++++ b/connectors/whatsapp-web/src/baileys-client.ts
+@@ -119,9 +119,11 @@ import {
+   starPatch,
+ } from './message-stars-pins';
+ import {
++  channelPostMessageId,
+   contactAuthorIds,
+   ChannelPostList,
+   ChannelPostsQuery,
++  isChannelJid,
+   isStatusJid,
+   listChannelPosts,
+   listStatuses,
+@@ -2058,6 +2060,12 @@ export class BaileysClient extends EventEmitter {
+ 
+     const waMessage = this.convertMessage(msg);
+     if (!waMessage) return { inserted: false };
++    if (isChannelJid(msg.key.remoteJid)) {
++      waMessage.waMessageId = await channelPostMessageId(
++        waMessage.conversationId,
++        waMessage.waMessageId
++      );
++    }
+ 
+     this.rememberKey(waMessage.waMessageId, msg.key, msg.key.remoteJid || '');
+ 
+@@ -4786,14 +4794,19 @@ export class BaileysClient extends EventEmitter {
+     if (!this.ingest || !waMessageId) return;
+     const stub = u.update?.messageStubType;
+     const isRevoke = stub === proto.WebMessageInfo.StubType.REVOKE || u.update?.message === null;
+-    if (isRevoke && !this.isOwnMutation('revoke', waMessageId)) {
+-      await this.recordInboundRevoke(waMessageId);
+-    }
+     // Baileys unwraps MESSAGE_EDIT protocol messages into this shape.
+     const editedPayload = (u.update as any)?.message?.editedMessage?.message as
+       proto.IMessage | undefined;
++    if (!isRevoke && !editedPayload) return;
++    // A channel's ids are only unique inside it: the row is the one of THIS channel's post.
++    const rowId = isChannelJid(u.key.remoteJid)
++      ? await channelPostMessageId(this.normalizeJid(String(u.key.remoteJid)), waMessageId)
++      : waMessageId;
++    if (isRevoke && !this.isOwnMutation('revoke', waMessageId)) {
++      await this.recordInboundRevoke(rowId);
++    }
+     if (editedPayload && !this.isOwnMutation('edit', waMessageId)) {
+-      await this.recordInboundEdit(u.key, editedPayload);
++      await this.recordInboundEdit({ ...u.key, id: rowId }, editedPayload);
+     }
+   }
+ 
+diff --git a/connectors/whatsapp-web/src/statuses.test.ts b/connectors/whatsapp-web/src/statuses.test.ts
+index fad37ad..e5eb667 100644
+--- a/connectors/whatsapp-web/src/statuses.test.ts
++++ b/connectors/whatsapp-web/src/statuses.test.ts
+@@ -622,6 +622,135 @@ test('channel posts: channels from conversations, posts from messages, names onl
+   }
+ });
+ 
++// ---------------------------------------------------------------------------
++// Channel post identity: an id is only unique inside its channel
++// ---------------------------------------------------------------------------
++
++const CHANNEL_A = '111@newsletter';
++const CHANNEL_B = '222@newsletter';
++const isHolderLookup = (sql: string): boolean =>
++  /SELECT conversation_id FROM messages WHERE wa_message_id/i.test(sql);
++const isKeyInsert = (sql: string): boolean => /INSERT INTO whatsapp_message_keys/i.test(sql);
++
++function channelPost(channel: string, id: string): WAMessage {
++  return statusMessage({
++    key: { remoteJid: channel, id, fromMe: false },
++    message: { conversation: `post ${id}` },
++  });
++}
++
++/** The channel conversation (as messages stores it) that already holds the bare id, if any. */
++function holderOf(conversation?: string) {
++  return (sql: string): Rows =>
++    isHolderLookup(sql) && conversation ? [{ conversation_id: conversation }] : [];
++}
++
++test('a channel post whose id another channel holds is stored under <channel>:<id>, not dropped', async () => {
++  useAccount('professional');
++  const { calls, restore } = stubPool(holderOf(`professional:${CHANNEL_A}`));
++  try {
++    const { client } = makeClient();
++    const result = await priv(client).ingestMessage(channelPost(CHANNEL_B, 'SAME'), {
++      source: 'live',
++      publishEvent: false,
++    });
++    assert.equal(
++      calls.find(c => isMessageInsert(c.sql))!.params[0],
++      `professional:${CHANNEL_B}:SAME`
++    );
++    assert.equal(calls.find(c => isKeyInsert(c.sql))!.params[0], `professional:${CHANNEL_B}:SAME`);
++    assert.equal(result.waMessage.waMessageId, `${CHANNEL_B}:SAME`);
++  } finally {
++    restore();
++  }
++});
++
++test('a channel post keeps its bare id when nobody holds it or its own channel does (a replay)', async () => {
++  for (const [account, holder, expected] of [
++    ['professional', undefined, 'professional:SAME'],
++    ['professional', `professional:${CHANNEL_B}`, 'professional:SAME'],
++    ['personal', undefined, 'SAME'],
++    ['personal', CHANNEL_B, 'SAME'],
++  ] as const) {
++    useAccount(account);
++    const { calls, restore } = stubPool(holderOf(holder));
++    try {
++      const { client } = makeClient();
++      await priv(client).ingestMessage(channelPost(CHANNEL_B, 'SAME'), {
++        source: 'live',
++        publishEvent: false,
++      });
++      assert.equal(calls.find(c => isMessageInsert(c.sql))!.params[0], expected);
++    } finally {
++      restore();
++    }
++  }
++});
++
++test('a clash on the personal account composes the id without a prefix; chats pay no lookup', async () => {
++  useAccount('personal');
++  const { calls, restore } = stubPool(holderOf(CHANNEL_A));
++  try {
++    const { client } = makeClient();
++    await priv(client).ingestMessage(channelPost(CHANNEL_B, 'SAME'), {
++      source: 'live',
++      publishEvent: false,
++    });
++    assert.equal(calls.find(c => isMessageInsert(c.sql))!.params[0], `${CHANNEL_B}:SAME`);
++    calls.length = 0;
++    await priv(client).ingestMessage(channelPost('34600@s.whatsapp.net', 'SAME'), {
++      source: 'live',
++      publishEvent: false,
++    });
++    assert.equal(calls.filter(c => isHolderLookup(c.sql)).length, 0);
++    assert.equal(calls.find(c => isMessageInsert(c.sql))!.params[0], 'SAME');
++  } finally {
++    restore();
++  }
++});
++
++test('an unreadable holder lookup never stops the ingest: the bare id, as before', async () => {
++  useAccount('professional');
++  const { calls, restore } = stubPool(sql => (isHolderLookup(sql) ? new Error('db down') : []));
++  try {
++    const { client } = makeClient();
++    await priv(client).ingestMessage(channelPost(CHANNEL_B, 'SAME'), {
++      source: 'live',
++      publishEvent: false,
++    });
++    assert.equal(calls.find(c => isMessageInsert(c.sql))!.params[0], 'professional:SAME');
++  } finally {
++    restore();
++  }
++});
++
++test('a revoke or an edit of a channel post reaches the row of ITS channel, not the other one', async () => {
++  useAccount('professional');
++  const { calls, restore } = stubPool(sql =>
++    isHolderLookup(sql)
++      ? [{ conversation_id: `professional:${CHANNEL_A}` }]
++      : /UPDATE messages/i.test(sql)
++        ? [{ id: 1 }]
++        : []
++  );
++  try {
++    const { client } = makeClient();
++    await priv(client).handleInboundMutation({
++      key: { remoteJid: CHANNEL_B, id: 'SAME' },
++      update: { message: null },
++    });
++    await priv(client).handleInboundMutation({
++      key: { remoteJid: CHANNEL_B, id: 'SAME' },
++      update: { message: { editedMessage: { message: { conversation: 'edited' } } } },
++    });
++    const updates = calls.filter(c => /UPDATE messages/i.test(c.sql));
++    assert.equal(updates.length, 2);
++    for (const update of updates) assert.equal(update.params[0], `professional:${CHANNEL_B}:SAME`);
++  } finally {
++    restore();
++  }
++});
++
+ // ---------------------------------------------------------------------------
+ // Publish
+ // ---------------------------------------------------------------------------
+diff --git a/connectors/whatsapp-web/src/statuses.ts b/connectors/whatsapp-web/src/statuses.ts
+index 14f92d6..dd3c33f 100644
+--- a/connectors/whatsapp-web/src/statuses.ts
++++ b/connectors/whatsapp-web/src/statuses.ts
+@@ -596,6 +596,31 @@ async function channelConversationIds(channelId?: string): Promise<string[]> {
+   return result.rows.map(row => String(row.id));
+ }
+ 
++/**
++ * The id a channel post lives under in `messages`. A channel's message ids
++ * are only unique inside the channel, while `messages.wa_message_id` is one
++ * key per account and the insert is ON CONFLICT DO NOTHING: the post of a
++ * second channel whose id another channel already holds would vanish without
++ * a trace, and its message key would overwrite the first post's. The first
++ * channel keeps the bare id (every stored row, key and revoke stays as it is);
++ * a clash with another channel's row gets `<channel jid>:<id>`. The ingest and
++ * the revoke / edit that names the post ask with the same (channel, id), so
++ * both reach the same row. A failed lookup answers the bare id: it never
++ * stops the ingest.
++ */
++export async function channelPostMessageId(channelJid: string, id: string): Promise<string> {
++  try {
++    const result = await getPool().query(
++      `SELECT conversation_id FROM messages WHERE wa_message_id = $1`,
++      [accountKey(id)]
++    );
++    const holder = result.rows[0]?.conversation_id;
++    return holder && holder !== accountKey(channelJid) ? `${channelJid}:${id}` : id;
++  } catch {
++    return id;
++  }
++}
++
+ /**
+  * Posts of the channels this account receives (or of one), newest first,
+  * from `messages`: the conversations of `<id>@newsletter`. A deleted post is

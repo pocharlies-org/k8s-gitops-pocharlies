@@ -1,142 +1,49 @@
 {
-  "_": "Contrato ci.llm-review-bot.marcador.v3 (SC-2282/SC-2284/SC-2285). Mismo fichero, byte a byte, en k8s-gitops-pocharlies (lado escritor: review.py) y en x86-host-runtime-pocharlies (lado lector: company-aprobar). Si cambia aqui, cambia alli en la misma historia. `invalidos` no casan con la regex; `invalidos_por_regla` la casan y el lector los rechaza igual (un pre-gate sin LLM no aprueba; `modelo=-` solo con `juez=codigo`).",
+  "_": "SC-2284 (épica SC-2282): el marcador v3 del juez, la primera línea del UN comentario que `Review del PR (juez)` publica en la PR; al lado de v2 (marcador-v2.json), que se sigue leyendo. IDÉNTICO byte a byte en k8s-gitops-pocharlies (tests/fixtures/juez/marcador-v3.json, el emisor: review.py) y en x86-host-runtime-pocharlies (ci/fixtures/aprobar/marcador-v3.json, el lector: libexec/company-aprobar): si los dos ficheros difieren, uno de los dos lados dejó de cumplir el contrato ci.llm-review-bot.marcador.v3. La regex no dice todo: el lector además rechaza `veredicto=PASA juez=codigo` (un pre-gate nunca aprueba) y `modelo=-` con `juez` distinto de `codigo` (y `juez=codigo` con un modelo); el emisor nunca los emite.",
   "regex": "^<!-- llm-review-bot:v3 sha=([0-9a-f]{40}) veredicto=(PASA|NO_PASA|EN_ESPERA|SIN_VEREDICTO) riesgo=(normal|alto) juez=(primario|respaldo|codigo) modelo=([a-z0-9][a-z0-9._-]{0,62}|-) motivos=([a-z0-9_,]*) -->$",
-  "motivos": [
-    "borrador",
-    "cita_epica",
-    "criterio_incumplido",
-    "diff_recortado",
-    "hallazgos",
-    "jira_caido",
-    "modelo_caido",
-    "no_lista",
-    "respuesta_invalida",
-    "sin_clave",
-    "sin_credencial",
-    "sin_criterios",
-    "sin_evidencia",
-    "ticket_inexistente",
-    "verificacion_caida"
-  ],
   "validos": [
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=normal juez=primario modelo=tooling motivos= -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=NO_PASA riesgo=alto juez=primario modelo=tooling motivos=criterio_incumplido,hallazgos -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=NO_PASA riesgo=normal juez=respaldo modelo=alibaba-q38-flash motivos=hallazgos -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=NO_PASA riesgo=normal juez=codigo modelo=- motivos=sin_clave -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=EN_ESPERA riesgo=normal juez=codigo modelo=- motivos=borrador -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=EN_ESPERA riesgo=normal juez=primario modelo=tooling motivos=no_lista -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=SIN_VEREDICTO riesgo=normal juez=primario modelo=tooling motivos=verificacion_caida -->"
+    {"linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=PASA riesgo=normal juez=primario modelo=qwen38 motivos= -->",
+     "sha": "3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b", "veredicto": "PASA", "riesgo": "normal", "juez": "primario", "modelo": "qwen38", "motivos": []},
+    {"linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=PASA riesgo=alto juez=primario modelo=qwen38 motivos=diff_recortado -->",
+     "sha": "3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b", "veredicto": "PASA", "riesgo": "alto", "juez": "primario", "modelo": "qwen38", "motivos": ["diff_recortado"]},
+    {"linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=PASA riesgo=normal juez=respaldo modelo=alibaba-q38-flash motivos= -->",
+     "sha": "3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b", "veredicto": "PASA", "riesgo": "normal", "juez": "respaldo", "modelo": "alibaba-q38-flash", "motivos": []},
+    {"linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=NO_PASA riesgo=normal juez=primario modelo=qwen38 motivos=criterio_incumplido,sin_evidencia -->",
+     "sha": "3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b", "veredicto": "NO_PASA", "riesgo": "normal", "juez": "primario", "modelo": "qwen38", "motivos": ["criterio_incumplido", "sin_evidencia"]},
+    {"linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=NO_PASA riesgo=normal juez=respaldo modelo=alibaba-q38-flash motivos=hallazgos -->",
+     "sha": "3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b", "veredicto": "NO_PASA", "riesgo": "normal", "juez": "respaldo", "modelo": "alibaba-q38-flash", "motivos": ["hallazgos"]},
+    {"linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=NO_PASA riesgo=normal juez=codigo modelo=- motivos=sin_clave -->",
+     "sha": "3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b", "veredicto": "NO_PASA", "riesgo": "normal", "juez": "codigo", "modelo": "-", "motivos": ["sin_clave"]},
+    {"linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=EN_ESPERA riesgo=normal juez=codigo modelo=- motivos=borrador -->",
+     "sha": "3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b", "veredicto": "EN_ESPERA", "riesgo": "normal", "juez": "codigo", "modelo": "-", "motivos": ["borrador"]},
+    {"linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=EN_ESPERA riesgo=normal juez=primario modelo=qwen38 motivos=no_lista -->",
+     "sha": "3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b", "veredicto": "EN_ESPERA", "riesgo": "normal", "juez": "primario", "modelo": "qwen38", "motivos": ["no_lista"]},
+    {"linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=EN_ESPERA riesgo=normal juez=codigo modelo=- motivos=sin_criterios -->",
+     "sha": "3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b", "veredicto": "EN_ESPERA", "riesgo": "normal", "juez": "codigo", "modelo": "-", "motivos": ["sin_criterios"]},
+    {"linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=SIN_VEREDICTO riesgo=alto juez=primario modelo=qwen38 motivos=modelo_caido -->",
+     "sha": "3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b", "veredicto": "SIN_VEREDICTO", "riesgo": "alto", "juez": "primario", "modelo": "qwen38", "motivos": ["modelo_caido"]},
+    {"linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=SIN_VEREDICTO riesgo=normal juez=respaldo modelo=alibaba-q38-flash motivos=respuesta_invalida -->",
+     "sha": "3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b", "veredicto": "SIN_VEREDICTO", "riesgo": "normal", "juez": "respaldo", "modelo": "alibaba-q38-flash", "motivos": ["respuesta_invalida"]},
+    {"linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=SIN_VEREDICTO riesgo=normal juez=codigo modelo=- motivos=sin_credencial -->",
+     "sha": "3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b", "veredicto": "SIN_VEREDICTO", "riesgo": "normal", "juez": "codigo", "modelo": "-", "motivos": ["sin_credencial"]}
   ],
   "invalidos": [
-    "<!-- llm-review-bot:v1 -->",
-    "<!-- llm-review-bot:v2 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=normal motivos= -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef0123456 veredicto=PASA riesgo=normal juez=primario modelo=tooling motivos= -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=pasa riesgo=normal juez=primario modelo=tooling motivos= -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=SIN_TICKET riesgo=normal juez=codigo modelo=- motivos= -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=medio juez=primario modelo=tooling motivos= -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=normal juez=humano modelo=tooling motivos= -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=normal juez=primario modelo=Tooling motivos= -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=normal juez=primario modelo= motivos= -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=normal juez=primario modelo=tooling motivos=un bug en la linea 3 -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=normal juez=primario modelo=tooling motivos=Hallazgos -->",
-    "<!-- llm-review-bot:v3 veredicto=PASA sha=0123456789abcdef0123456789abcdef01234567 riesgo=normal juez=primario modelo=tooling motivos= -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=normal juez=primario modelo=tooling motivos= --> ",
-    " <!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=normal juez=primario modelo=tooling motivos= -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=normal juez=primario modelo=tooling motivos="
-  ],
-  "invalidos_por_regla": [
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=normal juez=codigo modelo=- motivos= -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=NO_PASA riesgo=normal juez=primario modelo=- motivos=hallazgos -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=EN_ESPERA riesgo=normal juez=codigo modelo=tooling motivos=borrador -->",
-    "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=PASA riesgo=normal juez=primario modelo=tooling motivos=motivo_desconocido -->"
-  ],
-  "comentario": {
-    "_": "`entrada` es lo que recibe componer_juez() de review.py; `cuerpo`, el comentario que publica. Los hallazgos que ve el maker son las lineas `- ` de `### Hallazgos` hasta la primera linea en blanco (sin el `- `): company-aprobar hallazgos las devuelve tal cual. Las etiquetas (`C7b`) son las del spec.",
-    "entrada": {
-      "sha": "0123456789abcdef0123456789abcdef01234567",
-      "veredicto": "NO_PASA",
-      "riesgo": "alto",
-      "juez": "primario",
-      "modelo": "tooling",
-      "motivos": [
-        "criterio_incumplido",
-        "diff_recortado",
-        "hallazgos"
-      ],
-      "clave": "SC-2182",
-      "titulo": "P1 Validación: la PR review es el juez único",
-      "detalle": "",
-      "alcance": {
-        "C1": "",
-        "C7b": "solo la tabla"
-      },
-      "criterios": [
-        {
-          "n": "C1",
-          "texto": "El motor juez publica un marcador v3 en la primera línea",
-          "cumple": true,
-          "evidencia": "src/juez.py:120",
-          "evidencia_ok": true,
-          "nota": "lo publica con publicar()"
-        },
-        {
-          "n": "C7b",
-          "texto": "Un test fija la exclusión",
-          "cumple": false,
-          "evidencia": "",
-          "evidencia_ok": false,
-          "nota": "no hay test",
-          "marca": "ausencia comprobada: el fichero no existe en el head"
-        },
-        {
-          "n": "C9",
-          "texto": "Criterio de otro repositorio",
-          "cumple": null,
-          "evidencia": "",
-          "evidencia_ok": false,
-          "nota": "",
-          "baja": "otro repositorio: el criterio no es de esta PR"
-        }
-      ],
-      "hallazgos": [
-        {
-          "file": "src/juez.py",
-          "line": "88",
-          "severity": "alta",
-          "tipo": "correccion",
-          "summary": "la condición está invertida",
-          "bloquea": true,
-          "marca": "verificado con el fichero completo"
-        },
-        {
-          "file": "docs/ci.md",
-          "line": "3",
-          "severity": "media",
-          "tipo": "correccion",
-          "summary": "new URL no admite redis://",
-          "bloquea": false,
-          "baja": "refutado por el verificador con el fichero completo: el fichero no lo muestra"
-        },
-        {
-          "file": "docs/ci.md",
-          "line": "9",
-          "severity": "baja",
-          "tipo": "arquitectura",
-          "summary": "mejor un nombre más corto",
-          "bloquea": false
-        }
-      ],
-      "fuera": [
-        [
-          "docs/grande.md",
-          130000
-        ]
-      ]
-    },
-    "cuerpo": "<!-- llm-review-bot:v3 sha=0123456789abcdef0123456789abcdef01234567 veredicto=NO_PASA riesgo=alto juez=primario modelo=tooling motivos=criterio_incumplido,diff_recortado,hallazgos -->\n## Review del juez · NO_PASA\n\nTicket `SC-2182` — P1 Validación: la PR review es el juez único\n\nAlcance declarado en la PR: C1, C7b. El resto de criterios se juzga ➖ salvo que el diff los contradiga.\n\n### Criterios\n- **C1** ✅ `src/juez.py:120` El motor juez publica un marcador v3 en la primera línea — lo publica con publicar()\n- **C7b** ❌ Un test fija la exclusión — no hay test (ausencia comprobada: el fichero no existe en el head)\n- **C9** ➖ Criterio de otro repositorio (otro repositorio: el criterio no es de esta PR)\n\n### Hallazgos\n- **[criterio]** C7b no cumple: no hay test (ausencia comprobada: el fichero no existe en el head)\n- **[alta]** `src/juez.py:88` (correccion) — la condición está invertida (verificado con el fichero completo)\n\n### Observaciones (no bloquean)\n- **[media]** `docs/ci.md:3` (correccion) — new URL no admite redis:// (refutado por el verificador con el fichero completo: el fichero no lo muestra)\n- **[baja]** `docs/ci.md:9` (arquitectura) — mejor un nombre más corto\n\nDiff recortado: 1 fichero(s) fuera del tope, riesgo alto:\n- `docs/grande.md` (130000 B)\n\n<sub>juez · modelo `tooling` · head `0123456789ab`</sub>",
-    "hallazgos": [
-      "**[criterio]** C7b no cumple: no hay test (ausencia comprobada: el fichero no existe en el head)",
-      "**[alta]** `src/juez.py:88` (correccion) — la condición está invertida (verificado con el fichero completo)"
-    ]
-  }
+    {"por": "sha corto", "linea": "<!-- llm-review-bot:v3 sha=3f2a9c1 veredicto=PASA riesgo=normal juez=primario modelo=qwen38 motivos= -->"},
+    {"por": "sha en mayúsculas", "linea": "<!-- llm-review-bot:v3 sha=3F2A9C1E5B7D4A806F1C2E9D0B8A7C6D5E4F3A2B veredicto=PASA riesgo=normal juez=primario modelo=qwen38 motivos= -->"},
+    {"por": "veredicto fuera del enum", "linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=OK riesgo=normal juez=primario modelo=qwen38 motivos= -->"},
+    {"por": "riesgo fuera del enum", "linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=PASA riesgo=medio juez=primario modelo=qwen38 motivos= -->"},
+    {"por": "motivos con texto libre", "linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=PASA riesgo=normal juez=primario modelo=qwen38 motivos=Todo Bien -->"},
+    {"por": "motivos con el cierre del comentario dentro", "linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=PASA riesgo=normal juez=primario modelo=qwen38 motivos=a--> -->"},
+    {"por": "versión v1", "linea": "<!-- llm-review-bot:v1 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=PASA riesgo=normal juez=primario modelo=qwen38 motivos= -->"},
+    {"por": "espacio delante", "linea": " <!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=PASA riesgo=normal juez=primario modelo=qwen38 motivos= -->"},
+    {"por": "texto detrás", "linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=PASA riesgo=normal juez=primario modelo=qwen38 motivos= --> ok"},
+    {"por": "sin campo motivos", "linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=PASA riesgo=normal juez=primario modelo=qwen38 -->"},
+    {"por": "campos en otro orden", "linea": "<!-- llm-review-bot:v3 veredicto=PASA sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b riesgo=normal juez=primario modelo=qwen38 motivos= -->"},
+    {"por": "juez fuera del enum", "linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=PASA riesgo=normal juez=otro modelo=qwen38 motivos= -->"},
+    {"por": "modelo con mayúsculas", "linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=PASA riesgo=normal juez=primario modelo=Qwen38 motivos= -->"},
+    {"por": "modelo con espacio", "linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=PASA riesgo=normal juez=primario modelo=qwen 38 motivos= -->"},
+    {"por": "sin juez", "linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=PASA riesgo=normal modelo=qwen38 motivos= -->"},
+    {"por": "sin modelo", "linea": "<!-- llm-review-bot:v3 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=PASA riesgo=normal juez=primario motivos= -->"},
+    {"por": "versión v2 en la línea v3", "linea": "<!-- llm-review-bot:v2 sha=3f2a9c1e5b7d4a806f1c2e9d0b8a7c6d5e4f3a2b veredicto=PASA riesgo=normal juez=primario modelo=qwen38 motivos= -->"}
+  ]
 }

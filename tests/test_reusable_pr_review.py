@@ -278,5 +278,38 @@ class TestCredencialesDelJuez(unittest.TestCase):
         self.assertEqual(env["REVIEW_MODEL"], "${{ inputs.model }}")
 
 
+class TestJuezV3(unittest.TestCase):
+    """SC-2285 C14: el job del juez da 20 min, la plantilla escucha `ready_for_review` y lo demas no cambia."""
+
+    def test_el_job_del_juez_tiene_20_minutos_y_el_mismo_nombre_y_permisos(self):
+        job = JOBS["revisar_pr_juez"]
+        self.assertEqual(job["timeout-minutes"], 20)
+        self.assertEqual(job["name"], "Review del PR (juez)")
+        self.assertEqual(job["permissions"], {"contents": "read", "pull-requests": "write"})
+
+    def test_el_juez_recibe_el_borrador_del_evento_como_respaldo_de_la_api(self):
+        env = paso("revisar_pr_juez", "Review")["env"]
+        self.assertEqual(env["REVIEW_PR_DRAFT"], "${{ github.event.pull_request.draft }}")
+        self.assertEqual(env["REVIEW_GITHUB_TOKEN"], "${{ github.token }}")   # con el mismo token lee la PR y los ficheros
+
+    def test_la_evaluacion_usa_pasadas_y_max_falsos(self):
+        run = paso("evaluar_juez", "Evaluate the judge")["run"]
+        self.assertIn("--pasadas 3 --max-falsos 0.10", run)
+        self.assertNotIn("--umbral", run)
+
+    def test_la_plantilla_escucha_ready_for_review(self):
+        plantilla = yaml.safe_load((ROOT / "templates/ci/pr-review.yml").read_text(encoding="utf-8"))
+        self.assertEqual(plantilla[True]["pull_request"]["types"],
+                         ["opened", "synchronize", "reopened", "ready_for_review"])
+        self.assertEqual(plantilla["jobs"]["review"]["uses"],
+                         "pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-pr-review.yml@main")
+
+    def test_los_inputs_y_el_resto_de_motores_no_cambian(self):
+        entradas = CUERPO[True]["workflow_call"]["inputs"]
+        self.assertEqual(entradas["engine"]["default"], "juez")
+        self.assertEqual(entradas["juez_model"]["default"], "tooling")
+        self.assertEqual(en_marcha("pull_request", "juez"), ["revisar_pr_juez"])
+
+
 if __name__ == "__main__":
     unittest.main()

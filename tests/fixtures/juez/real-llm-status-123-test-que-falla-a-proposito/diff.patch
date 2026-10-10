@@ -1,0 +1,105 @@
+diff --git a/.github/workflows/app-pruebas.yml b/.github/workflows/app-pruebas.yml
+new file mode 100644
+index 0000000..f352872
+--- /dev/null
++++ b/.github/workflows/app-pruebas.yml
+@@ -0,0 +1,87 @@
++name: Pruebas de PR
++
++# DGX-782 (H2-b1) · `swift test` de DGXKit y los builds de LLMStatus y LLMStatusMac en cada PR.
++#
++# Corre en SU PROPIO runner, `macbook-nexus-pruebas` (etiqueta `nexus-mac-pruebas`): una segunda
++# instancia en el mismo Mac bajo un usuario de macOS distinto, sin admin, sin la identidad Apple
++# Distribution en su llavero y sin credenciales de Apple. No puede usar el runner de despliegue
++# (el del job `Mac` de app-deploy.yml): si las pruebas lo ocupan más de XCODE_CLOUD_WAIT_MIN, el
++# job `Nube` lanzaría un Xcode Cloud que la ficha no tiene activado y el commit quedaría sin
++# desplegar por ningún canal. Si cambia la etiqueta de abajo, cambia esa garantía.
++#
++# Lo que este fichero NO hace, a propósito (condiciones de security, DGX-774):
++#   • no usa ningún secreto ni pide permisos más allá de leer el repo;
++#   • no firma, no toca el llavero y no sube nada: build de simulador y, para macOS, sin firma;
++#   • no corre con código de un fork (`if:` del job) ni con `pull_request_target`;
++#   • no corre las XCUITest (`LLMStatusUITests`): siguen a mano en este mismo runner.
++# Sin `push`, `schedule` ni `workflow_dispatch`: solo la PR.
++
++on:
++  pull_request:
++    branches: [main]
++
++permissions:
++  contents: read
++
++concurrency:
++  group: pruebas-${{ github.ref }}
++  cancel-in-progress: true
++
++defaults:
++  run:
++    # `bash` explícito = `-eo pipefail`: sin él, `swift test | tee` saldría verde con las pruebas rojas.
++    shell: bash
++
++env:
++  # Mismos valores por defecto que Scripts/testflight.sh: el runner es un servicio sin PATH de usuario.
++  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
++  XCODEGEN: /opt/homebrew/bin/xcodegen
++
++jobs:
++  pruebas:
++    name: Pruebas
++    # Solo ramas del propio repo: el código de un fork no se ejecuta en esta máquina.
++    if: github.event.pull_request.head.repo.full_name == github.repository
++    runs-on: [self-hosted, macOS, ARM64, nexus-mac-pruebas]
++    # Compilación en frío medida: 21 min solo en dependencias (OpenAPIRuntime…), antes de llegar a los tests.
++    timeout-minutes: 40
++    steps:
++      - uses: actions/checkout@v4
++        with:
++          # Historia completa: Scripts/buildinfo.sh (fase de build) cuenta commits con `git rev-list`.
++          fetch-depth: 0
++          # El token de lectura no se queda en .git/config mientras corre el código de la PR.
++          persist-credentials: false
++
++      - name: swift test (DGXKit)
++        run: |
++          set -o pipefail
++          swift test --package-path Packages/DGXKit 2>&1 | tee "$RUNNER_TEMP/swift-test.log"
++
++      # Un `swift test` que no descubre ninguna prueba sale verde: sin este paso el job no
++      # verificaría nada (hallazgo 10 del architect, DGX-737).
++      - name: swift test ejecutó pruebas
++        run: |
++          grep -Eq 'Executed [1-9][0-9]* tests' "$RUNNER_TEMP/swift-test.log" \
++            || { echo "::error::swift test no ejecutó ninguna prueba"; exit 1; }
++
++      - name: Proyecto Xcode (xcodegen)
++        run: $XCODEGEN generate
++
++      - name: Build de LLMStatus (iOS Simulator, sin firma)
++        run: |
++          xcodebuild build -quiet -project LLMStatus.xcodeproj -scheme LLMStatus \
++            -destination 'generic/platform=iOS Simulator' \
++            -derivedDataPath "$RUNNER_TEMP/dd" \
++            CODE_SIGNING_ALLOWED=NO
++
++      - name: Build de LLMStatusMac (macOS, sin firma)
++        run: |
++          xcodebuild build -quiet -project LLMStatus.xcodeproj -scheme LLMStatusMac \
++            -destination 'generic/platform=macOS' \
++            -derivedDataPath "$RUNNER_TEMP/dd" \
++            CODE_SIGNING_ALLOWED=NO
++
++      - name: Limpiar
++        if: always()
++        run: rm -rf "$RUNNER_TEMP/dd" "$RUNNER_TEMP/swift-test.log"
+diff --git a/Packages/DGXKit/Tests/DGXKitTests/CiPruebaTests.swift b/Packages/DGXKit/Tests/DGXKitTests/CiPruebaTests.swift
+new file mode 100644
+index 0000000..329faba
+--- /dev/null
++++ b/Packages/DGXKit/Tests/DGXKitTests/CiPruebaTests.swift
+@@ -0,0 +1,6 @@
++import XCTest
++
++// DGX-782 H2-b1: falla a propósito para ver el run rojo de app-pruebas.yml. Se quita en el commit siguiente.
++final class CiPruebaTests: XCTestCase {
++    func testFallaAProposito() { XCTFail("el job de pruebas ejecuta swift test de verdad") }
++}

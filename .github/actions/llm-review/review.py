@@ -1093,6 +1093,7 @@ def aplicar_reglas(criterios, hallazgos, alcance, textos, recortados=()):
     - un ❌ que cita una linea (`evidencia` + `cita`) vale si la cita esta en el diff; si no, baja a ➖;
     - un ❌ sin cita es una AUSENCIA y solo bloquea si el criterio es de esta PR (`alcance`; sin alcance
       declarado, todos lo son); un criterio fuera del alcance sigue ➖ salvo que el diff lo contradiga;
+    - un ✅ cuya evidencia esta en un fichero recortado no se puede comprobar: ➖ `evidencia no disponible` (SC-2285);
     - una ausencia dentro del alcance (SC-2285): si el `fichero` donde el modelo esperaba la evidencia esta recortado,
       o no lo dijo y el diff esta recortado, es ➖ `evidencia no disponible` (el marcador ya lleva riesgo alto por el
       recorte); si el fichero no esta en el diff, `juzgar` lo comprueba en el head (`ausencia_en`); si el diff lo
@@ -1119,6 +1120,9 @@ def aplicar_reglas(criterios, hallazgos, alcance, textos, recortados=()):
                     c['cumple'], c['baja'] = None, 'evidencia no disponible (recortado): el diff esta recortado y no se sabe donde mirar'
         elif c['cumple'] and not dentro and not c['evidencia_ok']:
             c['cumple'], c['baja'] = None, 'fuera del alcance declarado por la PR: no se pide evidencia'
+        elif c['cumple'] and not c['evidencia_ok'] and _ruta_limpia(c['evidencia'].rpartition(':')[0]) in fuera:
+            # un ✅ cuya evidencia esta en un fichero recortado: valida pero invisible (SC-2285, como la ausencia)
+            c['cumple'], c['baja'] = None, 'evidencia no disponible (recortado): el juez no vio ese fichero'
     for h in hallazgos:
         if not h['bloquea']:
             continue
@@ -1252,8 +1256,8 @@ def repos_nombrados(texto):
     """Los repositorios que nombra un texto: `owner/nombre` (pocharlies-org o pocharlies), `*-pocharlies` o uno de
     `REPOS_SIN_SUFIJO`, por el nombre corto y en minusculas."""
     t = texto or ''
-    nombres = {n.lower() for n in re.findall(r'(?<![\w.-])([A-Za-z0-9][\w.-]*-pocharlies)(?![\w-])', t)}
-    nombres |= {n.lower().rstrip('.-') for n in re.findall(r'\bpocharlies(?:-org)?/([A-Za-z0-9][\w.-]*)', t)}
+    nombres = {n.lower() for n in re.findall(r'(?<![\w.-])([A-Za-z0-9][\w.-]*-pocharlies)(?![\w-])', t, re.I)}
+    nombres |= {n.lower().rstrip('.-') for n in re.findall(r'\bpocharlies(?:-org)?/([A-Za-z0-9][\w.-]*)', t, re.I)}
     nombres |= {n for n in REPOS_SIN_SUFIJO if re.search(rf'(?<![\w.-]){re.escape(n)}(?![\w-])', t, re.I)}
     return nombres
 
@@ -1368,7 +1372,7 @@ def verificar(url, key, modelo, timeout, leer, items, diff):
                 refutado = limpio(v.get('nota'), 150) or 'el fichero no lo muestra'
             else:
                 refutado = None
-            if confirmado not in (True, False):
+            if not isinstance(confirmado, bool):
                 _sin_verificar([(e,)], 'el verificador no contesto a este item')
             elif refutado:
                 if 'cumple' in e:

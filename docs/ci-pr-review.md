@@ -257,7 +257,7 @@ sigue bloqueando). Un criterio no es ❌ por una sospecha sobre código que el d
 (minúsculas, sin tildes) y uno desconocido o vacío (`bug`, `corrección` mal escrito) bloquea, porque el motivo de no
 bloquear es el estilo, no una etiqueta que el modelo escribió distinta. `estilo`, `otro` y `criterio` no bloquean: un
 criterio que no se cumple es ❌ en `Criterios`, no un hallazgo. Un `NO_PASA`
-sin hallazgos del modelo (`sin_clave`, `ticket_inexistente`, `cita_epica`, `sin_criterios`) lleva su motivo como
+sin hallazgos del modelo (`sin_clave`, `ticket_inexistente`, `cita_epica`) lleva su motivo como
 línea `**[ticket]**` de `### Hallazgos`, para que el maker tenga algo que arreglar. Jira devuelve 404 también cuando
 la cuenta de solo lectura no ve el ticket: sale como `ticket_inexistente`.
 
@@ -276,14 +276,14 @@ evidencia: el código la comprueba y, si no se sostiene, deja de bloquear (el co
   un fichero que el recorte dejó fuera tampoco bloquea (`fichero recortado, el juez no lo vio`). Un ✅ sigue pidiendo su
   `ruta:línea` visible en el diff, como siempre.
 - *Alcance.* La descripción de la PR puede llevar la sección EXACTA `## Alcance de esta PR` (título de nivel 2, sin
-  nada más en la línea) con una línea `- C<n>` o `- C<n>: texto` por criterio, `n` la posición del criterio en la lista del
-  ticket (la de `C1`, `C2`… del comentario). Se lee hasta el siguiente título; la prosa y las líneas de otra forma se
-  ignoran, igual que un `n` fuera de la lista, y una sección sin ninguna línea válida es como no declarar alcance.
+  nada más en la línea) con una línea `- C<n>` o `- C<n>: texto` por criterio, con la etiqueta que el comentario da al criterio (`C1`, `C9`,
+  `C7b`: la del spec si todos la traen, si no la posición). Se lee hasta el siguiente título; la prosa y las líneas de otra forma se
+  ignoran, igual que una etiqueta fuera de la lista, y una sección sin ninguna línea válida es como no declarar alcance.
   `alcance_de_pr` lo lee de forma determinista (`\r\n` incluido). Con alcance, un criterio que no está en él es ➖ (si es
   una ausencia, o un ✅ sin evidencia), **salvo que el diff lo contradiga** con una cita comprobada: el alcance nunca tapa
   una contradicción. Sin la sección el comportamiento es el de siempre: todos los criterios son de la PR. El texto
   de la sección entra al modelo como dato delimitado (bloque `alcance`) y el comentario lista el alcance usado
-  (`Alcance declarado en la PR: C1, C3.`, fuera de la primera línea: el marcador v2 no cambia de forma, ni el enum `motivos`).
+  (`Alcance declarado en la PR: C1, C3.`, fuera de la primera línea: no cambia la forma del marcador ni el enum `motivos`).
   Quien escribe la sección es el maker: `prompts/maker-flujo.md` de opencode-company la pide con este formato.
 - *Recorte.* `recortar` mete primero código y tests (`prioridad_fichero`: 0 código y tests, 1 configuración, 2
   documentación, 3 generado: lockfiles, minificados, snapshots, fixtures, vendor) y conserva el orden del diff; el modelo
@@ -296,16 +296,17 @@ evidencia: el código la comprueba y, si no se sostiene, deja de bloquear (el co
 `sin_criterios`, salvo si es anterior a `SIN_CRITERIOS_DESDE` (2026-10-08T00:00Z, el despliegue de SC-2181, en
 `review.py`) y tiene descripción: entonces su resumen y su descripción son **un único criterio** y el veredicto sale de
 `decidir`, como siempre; el comentario dice que se juzgó contra la descripción porque no había criterios. Un ticket
-posterior al corte, de fecha ausente o ilegible, o antiguo con la descripción vacía sigue siendo `sin_criterios`. La
+posterior al corte, de fecha ausente o ilegible, o antiguo con la descripción vacía sigue siendo `sin_criterios`, que desde SC-2285 es `EN_ESPERA`. La
 descripción se recorta a 2000 caracteres (`CRITERIO_MAX`).
 
 | veredicto | cuándo | job |
 |---|---|---|
 | `PASA` | ningún criterio ❌, los ✅ con evidencia en el diff (los ➖ no la piden) y ningún hallazgo bloquea | verde |
-| `NO_PASA` | sin clave de ticket (`sin_clave`), ticket inexistente, ticket de tipo épica (`cita_epica`), sin criterios (salvo el respaldo de arriba), criterio ❌ (incumplido), ✅ sin evidencia o hallazgo bloqueante | rojo |
-| `SIN_VEREDICTO` | sin credencial (LiteLLM o Jira), Jira o los dos modelos caídos, respuesta del modelo inservible dos veces seguidas | rojo |
+| `NO_PASA` | sin clave de ticket (`sin_clave`), ticket inexistente, ticket de tipo épica (`cita_epica`), criterio ❌ (incumplido), ✅ sin evidencia o hallazgo bloqueante | rojo con `juez=primario` o `codigo`; verde y pendiente con `juez=respaldo` |
+| `EN_ESPERA` | la PR es un borrador (`borrador`), se declara no lista con una cita literal (`no_lista`) o su ticket no tiene criterios (`sin_criterios`, salvo el respaldo de arriba) | verde y pendiente |
+| `SIN_VEREDICTO` | sin credencial (LiteLLM o Jira), Jira o los dos modelos caídos, respuesta del modelo inservible dos veces seguidas, verificación caída | verde y pendiente |
 
-`SIN_VEREDICTO` no es culpa de quien abrió el PR. El juez no conoce `SIN_TICKET`: esa exención es solo de
+`EN_ESPERA` y `SIN_VEREDICTO` no son culpa de quien abrió el PR ni cuentan como ronda. El juez no conoce `SIN_TICKET`: esa exención es solo de
 `company-aprobar` (x86), que en un PR exento ignora este check. Un diff recortado por `max_diff_bytes` fuerza
 `riesgo=alto`; la regla determinista de riesgo por ruta vive en `company-aprobar`, no aquí.
 
@@ -321,18 +322,23 @@ tiene respaldo. `model` (`alibaba-q38-flash`) es solo el de `propio` y el juez n
 respaldo, la descripción del ticket, el `00-spec.md` y el `ARCHITECTURE.md` salen también al plan Team de Alibaba, no solo
 el diff (revisión de `security` de SC-2181, punto v).
 
-**El marcador v2** (contrato `ci.llm-review-bot.marcador.v2`, marcado en `review.py`). Un comentario por PR, que se
-actualiza en cada head, escrito por `github-actions[bot]` (un comentario ajeno con la misma marca no se toca). Su
+**El marcador v3** (contrato `ci.llm-review-bot.marcador.v3`, marcado en `review.py`; el v2 queda deprecado y el lector lo
+sigue leyendo, porque los repos fijados por SHA lo emiten aún). Un comentario por PR, que se actualiza en cada head (también
+si el del head anterior era v2), escrito por `github-actions[bot]`; un comentario ajeno con la misma marca no se toca. Su
 PRIMERA línea es exactamente
 
-    <!-- llm-review-bot:v2 sha=<40 hex> veredicto=PASA|NO_PASA|SIN_VEREDICTO riesgo=normal|alto motivos=<enum> -->
+    <!-- llm-review-bot:v3 sha=<40 hex> veredicto=PASA|NO_PASA|EN_ESPERA|SIN_VEREDICTO riesgo=normal|alto juez=primario|respaldo|codigo modelo=<alias>|- motivos=<enum> -->
 
-con `motivos` un enum cerrado (`MOTIVOS` en `review.py`), nunca texto libre; lo que escribe el modelo o el ticket llega
-al comentario en una línea y sin `<`, así que un marcador falso dentro de un hallazgo no cuenta. Bajo `### Hallazgos`
-va una línea `- ` por cosa que arreglar (criterio incumplido, sin evidencia, hallazgo bloqueante): es lo que el maker
-recibe. El lector (`company-aprobar`, x86) y este escritor comparten `tests/fixtures/juez/marcador-v2.json`, idéntico
-byte a byte en los dos repos. Si el comentario no se puede publicar (llamador sin `pull-requests: write`) el job sale en
-rojo: un veredicto que nadie puede leer no vale.
+`juez` dice quién juzgó: `primario` (`juez_model`), `respaldo` (`fallback_model`) o `codigo` (una puerta previa sin LLM, con
+`modelo=-`). Un `PASA` nunca lleva `juez=codigo` y `modelo=-` solo va con `juez=codigo`. `motivos` es un enum cerrado
+(`MOTIVOS_V3` en `review.py`), nunca texto libre; lo que escribe el modelo o el ticket llega al comentario en una línea y sin
+`<`, así que un marcador falso dentro de un hallazgo no cuenta. Bajo `### Hallazgos` va una línea `- ` por cosa que arreglar
+(criterio incumplido, sin evidencia, hallazgo bloqueante): es lo que el maker recibe. El lector (`company-aprobar`, x86) y
+este escritor comparten `tests/fixtures/juez/marcador-v3.json`, idéntico byte a byte en los dos repos (se comprueba a mano
+con `cmp` entre clones, antes de fusionar). Si el comentario no se puede publicar (llamador sin `pull-requests: write`) el
+job sale en rojo: un veredicto que nadie puede leer no vale. Revertir este productor devuelve los repos a v2 y el lector
+lee los dos; revertir el lector con este productor vivo deja a todos los PRs en modo legado, así que se revierte primero
+el productor.
 
 **Un PR desde un fork** no recibe secretos: el job sale en verde sin marcador, y `company-aprobar` sin marcador queda
 en su modo legado.
@@ -340,19 +346,79 @@ en su modo legado.
 **Evaluación** (`workflow_dispatch` con `engine: juez`, o a mano):
 
     REVIEW_LITELLM_URL=… REVIEW_LITELLM_KEY=… REVIEW_MODEL=… \
-      python3 .github/actions/llm-review/review.py --evalua tests/fixtures/juez --umbral 7/8
+      python3 .github/actions/llm-review/review.py --evalua tests/fixtures/juez --pasadas 3 --max-falsos 0.10
 
-Corre el juez con el modelo real sobre los 15 casos de `tests/fixtures/juez/` (9 PASA y 6 NO_PASA: criterio incumplido,
-bug, norma de arquitectura, sin tests y, de SC-2229, un ❌ dentro del alcance declarado y un diff que contradice un
-criterio fuera de él; cinco de los PASA son commits reales de este repo, entre ellos la PR de pin
-k8s-gitops-pocharlies#552 (DGX-745) con su `pr.md`, y cuatro, de SC-2229, son sintéticos —los reales de esa clase son de repos
-privados y este repo es público—: criterios de otra PR con su sección de alcance, un diff recortado con el fichero que el juez no
-ve, entregables posteriores a la PR y una sospecha sin evidencia en el diff; los NO_PASA de antes son diffs reales estropeados a propósito: sin el test, con una condición
-invertida, con una interpolación en un `run`) y sale 0 solo si acierta la proporción del umbral (7/8: con 15 casos, 14). Un caso puede traer
-`pr.md` (título, línea en blanco y descripción de su PR) y `max_bytes` (el tope del diff de ese caso, para recortar uno pequeño).
-Un `SIN_VEREDICTO` cuenta como fallo; el resumen final cuenta también los falsos PASA (un PASA donde se esperaba NO_PASA). Cada línea acaba en `bajas=`: lo que
-las reglas de SC-2229 dejaron de bloquear en ese caso, por clase (`C.alcance:3,H.cita:1`), para saber si un fallo es del modelo o de una regla. Tests sin red:
+Corre el juez con el modelo real sobre `tests/fixtures/juez/`, `--pasadas` veces. Por pasada imprime los aciertos, los
+`NO_PASA`, los `NO_PASA` falsos (los de un caso cuya `clase` no es `real`), cuántos de los casos reales están en `NO_PASA`
+(`n reales = 9/9`) y `verificaciones=<n>`. Sale 0 solo si en todas las pasadas los falsos son menos de `--max-falsos` de los
+`NO_PASA` y todos los reales están en `NO_PASA`. Sin `--max-falsos` manda `--umbral N/M` (7/8 por defecto), como antes.
+
+El corpus tiene un directorio por caso con `criterios.md` (el `00-spec.md` del ticket el día del veredicto, o el último si
+no se conserva la versión), `diff.patch`, `esperado` (`PASA`, `NO_PASA`, `EN_ESPERA` o `SIN_VEREDICTO`) y, opcionales,
+`pr.md` (título, línea en blanco y descripción), `max_bytes` (el tope del diff de ese caso), `clase`, `repo`
+(`pocharlies-org/<repo>`, para la regla de otro repositorio; por omisión `evalua`), `borrador` (la PR es un borrador) y
+`head/<ruta>` (el fichero completo del head, que lee el verificador). La `clase` es `real` (un defecto de verdad), `no_lista`,
+`sin_criterios` o `falso_tecnico`, `falso_recortado`, `falso_evidencia`, `falso_otro_repo`, `falso_renumeracion`; sin ella, un
+caso que espera `NO_PASA` es `real` y los demás son `pasa`.
+
+Son 15 casos de SC-2229 (9 `PASA` y 6 `NO_PASA`; cinco de los `PASA` son commits reales de este repo, entre ellos la PR de pin
+k8s-gitops-pocharlies#552 (DGX-745), y cuatro son sintéticos porque los reales son de repos privados y este repo es público;
+los `NO_PASA` son diffs reales estropeados a propósito) más los 13 de SC-2285, sacados de los veredictos medidos (tres
+reales, cuatro falsos técnicos, y uno de cada otra clase). Esos 13 son diffs y descripciones reales de repos privados
+sacados de GitHub; los diffs grandes (`falso-recortado-k8s-ai-138`, `falso-evidencia-llm-status-126`, `no-lista-llm-status-122`)
+son una selección de sus ficheros, y la descripción es la que tenía la PR al recogerlo, no la del día del veredicto. Un
+`SIN_VEREDICTO` cuenta como fallo; la línea de cada pasada cuenta también los falsos `PASA` (un `PASA` donde se esperaba
+`NO_PASA`). Cada caso acaba en `bajas=`: lo que las reglas dejaron de bloquear, por clase (`C.alcance:3,H.cita:1`,
+`H.verificador:1`), para saber si un fallo es del modelo o de una regla. Tests sin red:
 `python3 -m unittest tests.test_llm_review_juez` (un LiteLLM, un Jira y una API de GitHub de pega).
+
+## El juez v3: lo que rodea a la respuesta del modelo (SC-2285)
+
+El modelo local se queda; cambia lo que el código hace antes y después de su respuesta. En 12 horas se midieron 179
+veredictos de 73 PRs y solo 16 de los 73 `NO_PASA` eran defectos de la PR. El resto eran PRs que decían no estar
+listas, tickets sin criterios, afirmaciones técnicas inventadas, `❌` por ficheros que el recorte no dejó ver y una
+renumeración de criterios que desviaba el alcance. La regla de diseño es una sola: una rebaja de `❌` a `➖`, o de
+hallazgo a observación, que no pase por `verificar()` solo ocurre con `riesgo=alto`; si no, no ocurre.
+
+- Puertas previas, sin LLM (`juez=codigo`). El juez lee `draft`, título y cuerpo de la API de GitHub al juzgar
+  (`leer_pr`, con el `github.token`). El payload del evento solo vale si la API falla, y con eso un `rerun` ya no
+  juzga una descripción vieja. Un borrador es `EN_ESPERA borrador`, sin Jira ni modelo. Un ticket sin criterios es
+  `EN_ESPERA sin_criterios` y el comentario dice que lo arregla el dueño del ticket, no el maker. `sin_clave`,
+  `ticket_inexistente` y `cita_epica` siguen siendo `NO_PASA`.
+- Etiquetas del spec. Cada criterio conserva la que trae (`C9 ·`, `C7b (…)`, `**C3**`). Si todos la traen y son únicas,
+  mandan; si no, la posición `C1..Cn` para todos. El prompt, la respuesta (`"C7b"`, `"7b"`, `7`), `## Alcance de esta PR`
+  (`- C7b: …`), las reglas y el comentario usan la misma etiqueta. Declarar `C9` exime al `C9` del spec, no al noveno de
+  la lista.
+- Otro repositorio. Un criterio que nombra otro repo (`owner/nombre`, `*-pocharlies` o uno de `REPOS_SIN_SUFIJO`, que se
+  lee de `.github/pr-review-llamadores.txt`) y no el de la PR sale `➖ otro repositorio` sin preguntárselo al modelo, salvo
+  que la PR lo declare en su alcance. Va por el nombre: un criterio que no lo escribe (solo lo dice la cabecera `Repo:` del
+  spec) no se detecta.
+- La PR no está lista. La respuesta admite `pr_no_lista` con una cita de la descripción. Si está literal (con los espacios
+  colapsados, de `CITA_MIN` caracteres o más), un `NO_PASA` pasa a `EN_ESPERA no_lista` y sus hallazgos a observaciones. Esa
+  cita nunca convierte nada en `PASA`.
+- Evidencia no disponible. Un `❌` sin cita (una ausencia) de un criterio de esta PR lleva el campo `fichero`, donde el modelo
+  esperaba la evidencia. Si el fichero está recortado, el criterio es `➖ evidencia no disponible (recortado)` y el marcador
+  ya dice `riesgo=alto diff_recortado`. Si está fuera del diff, se pide `contents/{ruta}?ref={sha}`: con 404 el `❌` sigue
+  bloqueando (ausencia comprobada), con 200 lo juzga el verificador y con la API caída el veredicto es `SIN_VEREDICTO
+  verificacion_caida`. Sin `fichero`, el `❌` es `➖` solo si el diff tiene algún fichero recortado; si no, bloquea como
+  siempre. Un `✅` cuya evidencia está en un fichero recortado tampoco se puede comprobar y sale `➖` con el mismo riesgo alto.
+- Verificación con el fichero completo. Lo que iba a bloquear tras las reglas (cada `❌` por contradicción con su cita
+  casada, cada hallazgo `bloquea` y los `❌` de ausencia con 200) pasa por una llamada por fichero, con el fichero completo
+  del head (hasta `VERIFICA_FICHERO_MAX` = 60000 caracteres) y su hunk, al mismo modelo que juzgó. Se verifican como mucho
+  `VERIFICA_MAX_LLAMADAS` = 4 ficheros por veredicto, los de mayor severidad. Solo baja a observación lo refutado: un
+  `confirmado: false`, o una confirmación cuya cita no está literal a ±3 líneas de `linea`. Lo no verificado (más allá del
+  tope, fichero sobre el tope, 404 por borrado) sigue bloqueando con la marca `sin verificar`. Con el verificador o la API
+  caídos y algo pendiente, el veredicto es `SIN_VEREDICTO verificacion_caida`, nunca `PASA`. Un `PASA` no hace llamadas.
+  El resumen del job imprime `verificaciones=<n>`.
+- Criterio ausente de la respuesta. `evaluar` devuelve `None` si falta uno y el juicio se reintenta. En el último intento,
+  los ausentes fuera del alcance declarado valen `➖ el juez no lo evaluó`; si falta uno de esta PR, o no hay alcance, el
+  resultado es `SIN_VEREDICTO respuesta_invalida`. `max_tokens_juez(n) = min(8000, 1500 + 350·n)` (14 criterios: 6400).
+
+Color del job: rojo (`exit 1`) solo con un `NO_PASA` del juez primario o de una puerta previa, y con los fallos de
+configuración de siempre o si el comentario no se pudo publicar. Con `PASA`, `EN_ESPERA`, `SIN_VEREDICTO` y el `NO_PASA`
+del respaldo el job sale verde, y en los tres últimos la primera línea visible del resumen del job y del comentario es
+«PENDIENTE — no es una aprobación», con un `::notice::`. GitHub Free no protege ramas, así que la única puerta es
+`company-aprobar`, que lee el marcador. El botón verde de la interfaz de GitHub en un pendiente es el precio asumido.
 
 ## Cobertura: qué repos pasan a `juez` y con qué (SC-2182, parte C)
 
