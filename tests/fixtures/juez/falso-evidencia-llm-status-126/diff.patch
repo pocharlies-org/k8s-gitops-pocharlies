@@ -1,0 +1,248 @@
+diff --git a/Packages/DGXKit/Sources/DGXKit/Inferencia/Alibaba.swift b/Packages/DGXKit/Sources/DGXKit/Inferencia/Alibaba.swift
+new file mode 100644
+index 0000000..44a4d86
+--- /dev/null
++++ b/Packages/DGXKit/Sources/DGXKit/Inferencia/Alibaba.swift
+@@ -0,0 +1,141 @@
++import Foundation
++
++// ─── Alibaba · Token Plan y modelos (DGX-783 · H3-b) ─────────────────────────────────────────
++//
++// Port de lo que `AlibabaQuotaSection.jsx`, `AlibabaCatalogSection.jsx` y `utils.js` (dgx-infra,
++// `static/inferencia/src/sections/`) calculan en el cliente sobre `GET /api/alibaba/accounts`,
++// `/api/alibaba/quota?account=N`, `/api/alibaba/uso-clase` y `/api/alibaba/catalog`. La LISTA de cuentas
++// manda: la web fija `account=1,2` (`ALIBABA_CUENTAS`) y la app no. El % de la ventana lo publica la
++// consola de Alibaba (nunca se calcula aquí); de aquí salen la marca del ritmo, el reparto por
++// consumidor y la celda del descuento nocturno. Solo lectura: «Refresh» y los interruptores de fallback
++// de la web no existen (tirar para releer los sustituye; R4 de security).
++
++public enum Alibaba {
++    public struct Cuenta: Equatable, Identifiable, Sendable {
++        /// El número que usa `/quota?account=` («1», «2»…).
++        public let id: String
++        public let label: String
++        public let usedPct: Double?
++        public let remainingPct: Double?
++        public let resetAt: String?
++        public let period: String?
++        public let planSpec: String?
++        public let remainingDays: Int?
++        public let readAt: String?
++        /// ¿Leída de la consola ahora, o guardada de una lectura anterior?
++        public let live: Bool
++        public let requests24h: Int?
++        public let tokens24h: Double?
++        public let share24h: Double?
++    }
++
++    /// Una fila por cuenta de la lista del servidor, en su orden. Con tres cuentas, tres filas.
++    public static func cuentas(de accounts: J) -> [Cuenta] {
++        accounts.accounts.array.compactMap { a in
++            guard let id = a.account.string, !id.isEmpty else { return nil }
++            return Cuenta(id: id, label: a.label.string ?? id, usedPct: a.used_pct.double, remainingPct: a.remaining_pct.double,
++                          resetAt: a.reset_at.string, period: a.period.string, planSpec: a.plan_spec.string,
++                          remainingDays: a.remaining_days.int, readAt: a.read_at.string, live: a.live.bool == true,
++                          requests24h: a.requests_24h.int, tokens24h: a.tokens_24h.double, share24h: a.share_24h_pct.double)
++        }
++    }
++
++    // ─── el ritmo de la ventana del plan ─────────────────────────────────────────────────────
++
++    /// Ritmo de la cuota de un plan con ventana fija (`quotaPace` de `utils.js`): para que dure hasta el reinicio, el
++    /// % usado no debería pasar del % de ventana transcurrido; esa es la marca que pinta la barra.
++    public struct Ritmo: Equatable, Sendable {
++        public let pacePct: Double
++        /// Usado − ritmo, en puntos (negativo = va por debajo, bien).
++        public let deltaPts: Double
++        /// `ok` (≤ ritmo), `warn` (hasta 10 pts por encima) u `over`.
++        public let estado: String
++        /// A este paso, cuándo se agota; nil si no se agota antes del reinicio.
++        public let agotaEn: Date?
++    }
++
++    /// `ventana` = `quota.window` (`used_pct`, `window_start`, `window_end` o `reset_at`). Sin lectura no hay ritmo: nil.
++    public static func ritmo(ventana w: J, ahora: Date = Date()) -> Ritmo? {
++        guard let used = w.used_pct.double else { return nil }
++        let start = w.window_start.string.flatMap(parseISODate), end = w.window_end.string.flatMap(parseISODate) ?? w.reset_at.string.flatMap(parseISODate)
++        guard let start, let end, end > start else { return nil }
++        let s = start.timeIntervalSince1970, e = end.timeIntervalSince1970, now = ahora.timeIntervalSince1970
++        let pace = min(100, max(0, (now - s) / (e - s) * 100))
++        let delta = used - pace
++        var agota: Date?
++        if used > 0 && now > s {
++            let t = s + (now - s) * (100 / used)
++            if t < e { agota = Date(timeIntervalSince1970: t) }
++        }
++        return Ritmo(pacePct: pace, deltaPts: delta, estado: delta <= 0 ? "ok" : delta <= 10 ? "warn" : "over", agotaEn: agota)
++    }
++
++    // ─── el reparto por consumidor ───────────────────────────────────────────────────────────
++
++    /// Las clases en que parte la barra de cada cuenta, en el orden de la web (`USO_CLASES`).
++    public static let clases: [(id: String, label: String)] = [
++        ("opencode", "opencode / Claude CLI"), ("compania", "compañía"), ("hermes", "Hermes"), ("otros", "otros"),
++    ]
++
++    public struct Tramo: Equatable, Identifiable, Sendable {
++        public let id: String
++        public let label: String
++        /// El % de la CUENTA que le toca (Σ = % usado).
++        public let pct: Double
++        /// Su parte de los tokens de la ventana.
++        public let share: Double
++        /// Tokens de la ventana.
++        public let tokens: Double?
++    }
++
++    /// El uso de la cuenta `id` en `/api/alibaba/uso-clase`; J(nil) si no está.
++    public static func usoDe(cuenta id: String, usoClase: J) -> J {
++        usoClase.cuentas.array.first { $0.account.string == id } ?? J(nil)
++    }
++
++    /// `claseSegments`: el % usado de la consola partido por la parte de tokens de cada clase. Sin reparto medible, [].
++    public static func tramos(usedPct: Double?, uso: J) -> [Tramo] {
++        guard let usedPct, uso.clases.exists else { return [] }
++        let used = max(0, min(usedPct, 100))
++        var out: [Tramo] = []
++        for c in clases {
++            guard let share = uso.clases[c.id].share_ventana.double else { return [] }
++            out.append(Tramo(id: c.id, label: c.label, pct: used * share, share: share, tokens: uso.clases[c.id].ventana.double))
++        }
++        return out
++    }
++
++    /// 9509138490 → «9,51 G»: tokens con la abreviatura de la app (`Fmt.compact`); nil es «—», nunca un 0.
++    public static func fmtTok(_ n: Double?) -> String { Fmt.compact(n) }
++
++    // ─── el catálogo ─────────────────────────────────────────────────────────────────────────
++
++    public struct Modelo: Equatable, Identifiable, Sendable {
++        public let id: String
++        public let nombre: String
++        public let proveedor: String
++        public let capacidades: [String]
++        /// % de descuento nocturno de ESTE modelo; nil = sin descuento (raya, nunca un 0 % que parezca «casi gratis»).
++        public let nocturnoPct: Double?
++        public let nuevo: Bool
++    }
++
++    public static func modelos(de catalog: J) -> [Modelo] {
++        catalog.models.array.compactMap { m in
++            guard let id = m.model.string else { return nil }
++            let pct = m.night_pct.double.flatMap { $0 == 0 ? nil : $0 }
++            return Modelo(id: id, nombre: m.name.string ?? id, proveedor: m.provider.string ?? "",
++                          capacidades: m.cap_labels.strings, nocturnoPct: pct, nuevo: m.is_new.bool == true)
++        }
++    }
++
++    /// «40 % · España 16:00–02:00 · Singapur 22:00–08:00», o «—» sin descuento. Las dos horas van juntas a propósito.
++    public static func celdaNocturna(_ m: Modelo, ventana w: J) -> String {
++        guard let pct = m.nocturnoPct else { return "—" }
++        var partes: [String] = []
++        if let spain = w.spain.string { partes.append("\(w.spain_word.string ?? "España") \(spain)") }
++        if let utc8 = w.utc8.string { partes.append("\(w.utc8_word.string ?? "Singapur") \(utc8)") }
++        let p = pct == pct.rounded() ? String(Int(pct)) : String(pct)
++        return partes.isEmpty ? "\(p) %" : "\(p) % · " + partes.joined(separator: " · ")
++    }
++}
+diff --git a/Packages/DGXKit/Tests/DGXKitTests/AlibabaTests.swift b/Packages/DGXKit/Tests/DGXKitTests/AlibabaTests.swift
+new file mode 100644
+index 0000000..c957b5b
+--- /dev/null
++++ b/Packages/DGXKit/Tests/DGXKitTests/AlibabaTests.swift
+@@ -0,0 +1,88 @@
++import XCTest
++@testable import DGXKit
++
++// DGX-783 · H3-b, C8. La lista de cuentas la da `/api/alibaba/accounts` (la web fija `account=1,2` y la app no); la cuota
++// de cada una sale de `/api/alibaba/quota?account=N`, el reparto de `/api/alibaba/uso-clase` y los modelos de `/api/alibaba/catalog`.
++final class AlibabaTests: XCTestCase {
++    private var accounts: J { RoutingFixtures.vivo("alibaba/accounts") }
++
++    func testCuentasSalenDeLaLista() throws {
++        let reales = Alibaba.cuentas(de: accounts)
++        XCTAssertEqual(reales.map(\.id), accounts.accounts.array.compactMap { $0.account.string })
++        XCTAssertEqual(reales.map(\.label), accounts.accounts.array.compactMap { $0.label.string })
++        XCTAssertFalse(reales.isEmpty)
++
++        // Con una tercera cuenta en la lista salen tres filas: nada fija «1» y «2».
++        var lista = accounts.raw as! [String: Any]
++        var filas = lista["accounts"] as! [[String: Any]]
++        var tercera = filas[filas.count - 1]
++        tercera["account"] = "3"; tercera["label"] = "tercera"
++        filas.append(tercera)
++        lista["accounts"] = filas
++        let tres = Alibaba.cuentas(de: J(lista))
++        XCTAssertEqual(tres.count, reales.count + 1)
++        XCTAssertEqual(tres.last?.id, "3")
++        XCTAssertEqual(tres.last?.label, "tercera")
++        XCTAssertEqual(tres.first?.usedPct, reales.first?.usedPct)
++
++        // Una cuenta sin número no es una fila; sin lista, ninguna.
++        XCTAssertEqual(Alibaba.cuentas(de: J(["accounts": [["label": "sin id"]]])).count, 0)
++        XCTAssertEqual(Alibaba.cuentas(de: J(nil)).count, 0)
++    }
++
++    func testRitmoDelPlan() throws {
++        let q = RoutingFixtures.vivo("alibaba/quota.account-1")
++        let w = q.window
++        let inicio = try XCTUnwrap(parseISODate(w.window_start.string!)), fin = try XCTUnwrap(parseISODate(w.window_end.string!))
++        // A mitad de la ventana el ritmo es el 50 %; con el 96,6 % usado va muy por encima y se acaba antes del reinicio.
++        let mitad = Date(timeIntervalSince1970: (inicio.timeIntervalSince1970 + fin.timeIntervalSince1970) / 2)
++        let r = try XCTUnwrap(Alibaba.ritmo(ventana: w, ahora: mitad))
++        XCTAssertEqual(r.pacePct, 50, accuracy: 1e-9)
++        XCTAssertEqual(r.deltaPts, (w.used_pct.double ?? 0) - 50, accuracy: 1e-9)
++        XCTAssertEqual(r.estado, "over")
++        // A este paso (96,6 % usado a mitad de ventana) se acaba antes del reinicio, pero todavía no.
++        let agota = try XCTUnwrap(r.agotaEn)
++        XCTAssertGreaterThan(agota, mitad)
++        XCTAssertLessThan(agota, fin)
++        // Antes de empezar y después de acabar la marca no sale de 0 y 100.
++        XCTAssertEqual(Alibaba.ritmo(ventana: w, ahora: inicio.addingTimeInterval(-3600))?.pacePct, 0)
++        XCTAssertEqual(Alibaba.ritmo(ventana: w, ahora: fin.addingTimeInterval(3600))?.pacePct, 100)
++        // Por debajo de su ritmo: bien, y no se agota.
++        let bajo = J(["used_pct": 10.0, "window_start": w.window_start.string!, "window_end": w.window_end.string!])
++        let ok = try XCTUnwrap(Alibaba.ritmo(ventana: bajo, ahora: mitad))
++        XCTAssertEqual(ok.estado, "ok")
++        XCTAssertNil(ok.agotaEn)
++        // Sin lectura (la consola no la dio) no hay ritmo que enseñar.
++        XCTAssertNil(Alibaba.ritmo(ventana: J(["used_pct": NSNull()]), ahora: mitad))
++        XCTAssertNil(Alibaba.ritmo(ventana: J(nil), ahora: mitad))
++    }
++
++    func testRepartoPorConsumidor() throws {
++        let uso = RoutingFixtures.vivo("alibaba/uso-clase")
++        for cuenta in uso.cuentas.array {
++            let u = Alibaba.usoDe(cuenta: cuenta.account.string!, usoClase: uso)
++            let usado = cuenta.used_pct.double!
++            let tramos = Alibaba.tramos(usedPct: usado, uso: u)
++            XCTAssertEqual(tramos.map(\.id), ["opencode", "compania", "hermes", "otros"])
++            // Los tramos suman el % usado de la cuenta.
++            XCTAssertEqual(tramos.reduce(0) { $0 + $1.pct }, usado * tramos.reduce(0) { $0 + $1.share }, accuracy: 1e-9)
++        }
++        XCTAssertTrue(Alibaba.tramos(usedPct: nil, uso: uso.cuentas[0]).isEmpty, "sin % de la consola no hay reparto")
++        XCTAssertTrue(Alibaba.tramos(usedPct: 50, uso: J(nil)).isEmpty)
++        XCTAssertTrue(Alibaba.usoDe(cuenta: "9", usoClase: uso).raw == nil)
++    }
++
++    func testCatalogoYDescuentoNocturno() throws {
++        let cat = RoutingFixtures.vivo("alibaba/catalog")
++        let modelos = Alibaba.modelos(de: cat)
++        XCTAssertEqual(modelos.count, cat["count"].int)
++        XCTAssertEqual(modelos.map(\.id), cat.models.array.compactMap { $0.model.string })
++        let conDescuento = try XCTUnwrap(modelos.first { $0.nocturnoPct != nil })
++        let celda = Alibaba.celdaNocturna(conDescuento, ventana: cat.night_window)
++        XCTAssertTrue(celda.hasPrefix("\(Int(conDescuento.nocturnoPct!)) % · España "), celda)
++        XCTAssertTrue(celda.contains("Singapur "), celda)
++        // Sin badge no hay descuento: raya, nunca un «0 %».
++        let sin = try XCTUnwrap(modelos.first { $0.nocturnoPct == nil })
++        XCTAssertEqual(Alibaba.celdaNocturna(sin, ventana: cat.night_window), "—")
++    }
++}
+diff --git a/Tools/fixtures/inferencia/vivo/api/litellm/uso-perfiles.json b/Tools/fixtures/inferencia/vivo/api/litellm/uso-perfiles.json
+new file mode 100644
+index 0000000..6fbf5b9
+--- /dev/null
++++ b/Tools/fixtures/inferencia/vivo/api/litellm/uso-perfiles.json
+@@ -0,0 +1 @@
++{"filtros":{"todos":{"perfiles":[{"grupo":"compania","perfil":"claude-cli","v":{"1m":{"req":2,"in":82,"out":2,"tok":84},"5m":{"req":19,"in":1134257,"out":8277,"tok":1142534},"30m":{"req":183,"in":11075485,"out":76158,"tok":11151643},"1h":{"req":375,"in":24769470,"out":158243,"tok":24927713},"1d":null,"7d":null,"lifetime":null}},{"grupo":"observabilidad","perfil":"aurora-rca","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":5,"in":104325,"out":2134,"tok":106459},"30m":{"req":57,"in":1375362,"out":20507,"tok":1395869},"1h":{"req":110,"in":2339352,"out":41908,"tok":2381260},"1d":null,"7d":null,"lifetime":null}},{"grupo":"compania","perfil":"analista","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":3,"in":218977,"out":3152,"tok":222129},"1h":{"req":8,"in":826176,"out":6295,"tok":832471},"1d":null,"7d":null,"lifetime":null}},{"grupo":"compania","perfil":"cto","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":4,"in":500833,"out":2384,"tok":503217},"1h":{"req":10,"in":825834,"out":3534,"tok":829368},"1d":null,"7d":null,"lifetime":null}},{"grupo":"otros","perfil":"ci-review-juez","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":5,"in":121769,"out":3244,"tok":125013},"1h":{"req":17,"in":316449,"out":14146,"tok":330595},"1d":null,"7d":null,"lifetime":null}},{"grupo":"otros","perfil":"brain","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":22,"in":32751,"out":11946,"tok":44697},"1h":{"req":44,"in":64342,"out":25193,"tok":89535},"1d":null,"7d":null,"lifetime":null}},{"grupo":"observabilidad","perfil":"keep-hub","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":5,"in":13867,"out":4390,"tok":18257},"1h":{"req":18,"in":51715,"out":23209,"tok":74924},"1d":null,"7d":null,"lifetime":null}},{"grupo":"hermes","perfil":"secretaria","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":1,"in":51892,"out":143,"tok":52035},"1d":null,"7d":null,"lifetime":null}},{"grupo":"chat","perfil":"open-webui-v3","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":2,"in":28040,"out":3615,"tok":31655},"1d":null,"7d":null,"lifetime":null}},{"grupo":"hermes","perfil":"(sin perfil)","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":1,"in":436,"out":1,"tok":437},"1d":null,"7d":null,"lifetime":null}},{"grupo":"infra","perfil":"litellm-internal-health-check","v":{"1m":{"req":4,"in":3,"out":0,"tok":3},"5m":{"req":4,"in":3,"out":0,"tok":3},"30m":{"req":16,"in":12,"out":0,"tok":12},"1h":{"req":32,"in":24,"out":0,"tok":24},"1d":null,"7d":null,"lifetime":null}},{"grupo":"otros","perfil":"sauvage-shield","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":8,"in":0,"out":0,"tok":0},"1h":{"req":12,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null}}],"grupos":{"compania":{"1m":{"req":2,"in":82,"out":2,"tok":84},"5m":{"req":19,"in":1134257,"out":8277,"tok":1142534},"30m":{"req":190,"in":11795295,"out":81694,"tok":11876989},"1h":{"req":393,"in":26421480,"out":168072,"tok":26589552},"1d":null,"7d":null,"lifetime":null},"hermes":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":2,"in":52328,"out":144,"tok":52472},"1d":null,"7d":null,"lifetime":null},"opencode":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"claude-cli":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"observabilidad":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":5,"in":104325,"out":2134,"tok":106459},"30m":{"req":62,"in":1389229,"out":24897,"tok":1414126},"1h":{"req":128,"in":2391067,"out":65117,"tok":2456184},"1d":null,"7d":null,"lifetime":null},"infra":{"1m":{"req":4,"in":3,"out":0,"tok":3},"5m":{"req":4,"in":3,"out":0,"tok":3},"30m":{"req":16,"in":12,"out":0,"tok":12},"1h":{"req":32,"in":24,"out":0,"tok":24},"1d":null,"7d":null,"lifetime":null},"chat":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":2,"in":28040,"out":3615,"tok":31655},"1d":null,"7d":null,"lifetime":null},"otros":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":35,"in":154520,"out":15190,"tok":169710},"1h":{"req":73,"in":380791,"out":39339,"tok":420130},"1d":null,"7d":null,"lifetime":null}}},"local":{"perfiles":[{"grupo":"compania","perfil":"claude-cli","v":{"1m":{"req":2,"in":82,"out":2,"tok":84},"5m":{"req":19,"in":1134257,"out":8277,"tok":1142534},"30m":{"req":178,"in":10819779,"out":74568,"tok":10894347},"1h":{"req":357,"in":23809420,"out":147933,"tok":23957353},"1d":null,"7d":null,"lifetime":null}},{"grupo":"observabilidad","perfil":"aurora-rca","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":5,"in":104325,"out":2134,"tok":106459},"30m":{"req":57,"in":1375362,"out":20507,"tok":1395869},"1h":{"req":110,"in":2339352,"out":41908,"tok":2381260},"1d":null,"7d":null,"lifetime":null}},{"grupo":"compania","perfil":"analista","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":3,"in":218977,"out":3152,"tok":222129},"1h":{"req":8,"in":826176,"out":6295,"tok":832471},"1d":null,"7d":null,"lifetime":null}},{"grupo":"compania","perfil":"cto","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":4,"in":500833,"out":2384,"tok":503217},"1h":{"req":10,"in":825834,"out":3534,"tok":829368},"1d":null,"7d":null,"lifetime":null}},{"grupo":"otros","perfil":"ci-review-juez","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":5,"in":121769,"out":3244,"tok":125013},"1h":{"req":14,"in":277601,"out":11229,"tok":288830},"1d":null,"7d":null,"lifetime":null}},{"grupo":"otros","perfil":"brain","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":22,"in":32751,"out":11946,"tok":44697},"1h":{"req":44,"in":64342,"out":25193,"tok":89535},"1d":null,"7d":null,"lifetime":null}}],"grupos":{"compania":{"1m":{"req":2,"in":82,"out":2,"tok":84},"5m":{"req":19,"in":1134257,"out":8277,"tok":1142534},"30m":{"req":185,"in":11539589,"out":80104,"tok":11619693},"1h":{"req":375,"in":25461430,"out":157762,"tok":25619192},"1d":null,"7d":null,"lifetime":null},"hermes":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":1,"in":51892,"out":143,"tok":52035},"1d":null,"7d":null,"lifetime":null},"opencode":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"claude-cli":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"observabilidad":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":5,"in":104325,"out":2134,"tok":106459},"30m":{"req":62,"in":1389229,"out":24897,"tok":1414126},"1h":{"req":127,"in":2388498,"out":59056,"tok":2447554},"1d":null,"7d":null,"lifetime":null},"infra":{"1m":{"req":4,"in":3,"out":0,"tok":3},"5m":{"req":4,"in":3,"out":0,"tok":3},"30m":{"req":16,"in":12,"out":0,"tok":12},"1h":{"req":32,"in":24,"out":0,"tok":24},"1d":null,"7d":null,"lifetime":null},"chat":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":2,"in":28040,"out":3615,"tok":31655},"1d":null,"7d":null,"lifetime":null},"otros":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":27,"in":154520,"out":15190,"tok":169710},"1h":{"req":58,"in":341943,"out":36422,"tok":378365},"1d":null,"7d":null,"lifetime":null}}},"alibaba":{"perfiles":[{"grupo":"compania","perfil":"claude-cli","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":5,"in":255706,"out":1590,"tok":257296},"1h":{"req":18,"in":960050,"out":10310,"tok":970360},"1d":null,"7d":null,"lifetime":null}},{"grupo":"otros","perfil":"ci-review-juez","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":3,"in":38848,"out":2917,"tok":41765},"1d":null,"7d":null,"lifetime":null}},{"grupo":"observabilidad","perfil":"keep-hub","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":1,"in":2569,"out":6061,"tok":8630},"1d":null,"7d":null,"lifetime":null}},{"grupo":"hermes","perfil":"(sin perfil)","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":1,"in":436,"out":1,"tok":437},"1d":null,"7d":null,"lifetime":null}}],"grupos":{"compania":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":5,"in":255706,"out":1590,"tok":257296},"1h":{"req":18,"in":960050,"out":10310,"tok":970360},"1d":null,"7d":null,"lifetime":null},"hermes":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":1,"in":436,"out":1,"tok":437},"1d":null,"7d":null,"lifetime":null},"opencode":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"claude-cli":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"observabilidad":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":1,"in":2569,"out":6061,"tok":8630},"1d":null,"7d":null,"lifetime":null},"infra":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"chat":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"otros":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":3,"in":38848,"out":2917,"tok":41765},"1d":null,"7d":null,"lifetime":null}}},"claude":{"perfiles":[{"grupo":"claude-cli","perfil":"VS Code","v":{"1m":null,"5m":null,"30m":null,"1h":null,"1d":{"req":4593,"in":9186,"out":3147203,"tok":1575996255,"cw":35589179,"cr":1537250687},"7d":{"req":26497,"in":53106,"out":20836800,"tok":10753125168,"cw":180352752,"cr":10551882510},"lifetime":{"req":26497,"in":53106,"out":20836800,"tok":10753125168,"cw":180352752,"cr":10551882510}}},{"grupo":"compania","perfil":"developer","v":{"1m":null,"5m":null,"30m":null,"1h":null,"1d":{"req":10360,"in":20850,"out":9122534,"tok":2040700554,"cw":54520993,"cr":1977036177},"7d":{"req":40104,"in":669018,"out":36589155,"tok":8982078327,"cw":224092016,"cr":8720728138},"lifetime":{"req":40104,"in":669018,"out":36589155,"tok":8982078327,"cw":224092016,"cr":8720728138}}},{"grupo":"compania","perfil":"qa","v":{"1m":null,"5m":null,"30m":null,"1h":null,"1d":{"req":2995,"in":6090,"out":1956248,"tok":354111180,"cw":26618429,"cr":325530413},"7d":{"req":31656,"in":190057,"out":24227756,"tok":4439880486,"cw":241866433,"cr":4173596240},"lifetime":{"req":31656,"in":190057,"out":24227756,"tok":4439880486,"cw":241866433,"cr":4173596240}}},{"grupo":"compania","perfil":"tech-lead","v":{"1m":null,"5m":null,"30m":null,"1h":null,"1d":{"req":740,"in":1520,"out":829447,"tok":199555892,"cw":11893044,"cr":186831881},"7d":{"req":15439,"in":2202494,"out":14989310,"tok":4306037598,"cw":187526214,"cr":4101319580},"lifetime":{"req":15439,"in":2202494,"out":14989310,"tok":4306037598,"cw":187526214,"cr":4101319580}}},{"grupo":"compania","perfil":"architect","v":{"1m":null,"5m":null,"30m":null,"1h":null,"1d":{"req":1288,"in":2626,"out":952803,"tok":225764829,"cw":10222073,"cr":214587327},"7d":{"req":24127,"in":49608,"out":19922961,"tok":4125440782,"cw":171883922,"cr":3933584291},"lifetime":{"req":24127,"in":49608,"out":19922961,"tok":4125440782,"cw":171883922,"cr":3933584291}}},{"grupo":"compania","perfil":"devops","v":{"1m":null,"5m":null,"30m":null,"1h":null,"1d":{"req":2888,"in":5858,"out":2068126,"tok":483831907,"cw":17857434,"cr":463900489},"7d":{"req":12277,"in":29287,"out":9562537,"tok":2438148050,"cw":78247120,"cr":2350309106},"lifetime":{"req":12277,"in":29287,"out":9562537,"tok":2438148050,"cw":78247120,"cr":2350309106}}},{"grupo":"compania","perfil":"designer","v":{"1m":null,"5m":null,"30m":null,"1h":null,"1d":{"req":917,"in":1842,"out":1458803,"tok":223778004,"cw":6805773,"cr":215511586},"7d":{"req":4443,"in":293445,"out":6663318,"tok":969271102,"cw":26060122,"cr":936254217},"lifetime":{"req":4443,"in":293445,"out":6663318,"tok":969271102,"cw":26060122,"cr":936254217}}},{"grupo":"compania","perfil":"ux","v":{"1m":null,"5m":null,"30m":null,"1h":null,"1d":{"req":349,"in":700,"out":293542,"tok":90570820,"cw":3085470,"cr":87191108},"7d":{"req":3323,"in":6728,"out":2355960,"tok":772101097,"cw":23793967,"cr":745944442},"lifetime":{"req":3323,"in":6728,"out":2355960,"tok":772101097,"cw":23793967,"cr":745944442}}},{"grupo":"compania","perfil":"pm","v":{"1m":null,"5m":null,"30m":null,"1h":null,"1d":{"req":596,"in":1206,"out":532649,"tok":71068366,"cw":4907695,"cr":65626816},"7d":{"req":5191,"in":11430,"out":6706615,"tok":685253198,"cw":61317114,"cr":617218039},"lifetime":{"req":5191,"in":11430,"out":6706615,"tok":685253198,"cw":61317114,"cr":617218039}}},{"grupo":"compania","perfil":"it","v":{"1m":null,"5m":null,"30m":null,"1h":null,"1d":{"req":298,"in":602,"out":355560,"tok":33254503,"cw":1866904,"cr":31031437},"7d":{"req":2757,"in":5560,"out":2453612,"tok":379443751,"cw":16633878,"cr":360350701},"lifetime":{"req":2757,"in":5560,"out":2453612,"tok":379443751,"cw":16633878,"cr":360350701}}}],"grupos":{"compania":{"1m":null,"5m":null,"30m":null,"1h":null,"1d":{"req":21003,"in":42466,"out":17971338,"tok":3804228758,"cw":142086313,"cr":3644128641},"7d":{"req":145260,"in":3615506,"out":128697944,"tok":27893198778,"cw":1073497562,"cr":26687387766},"lifetime":{"req":145260,"in":3615506,"out":128697944,"tok":27893198778,"cw":1073497562,"cr":26687387766}},"hermes":{"1m":null,"5m":null,"30m":null,"1h":null,"1d":{"req":0,"in":0,"out":0,"tok":0,"cw":0,"cr":0},"7d":{"req":0,"in":0,"out":0,"tok":0,"cw":0,"cr":0},"lifetime":{"req":0,"in":0,"out":0,"tok":0,"cw":0,"cr":0}},"opencode":{"1m":null,"5m":null,"30m":null,"1h":null,"1d":{"req":0,"in":0,"out":0,"tok":0,"cw":0,"cr":0},"7d":{"req":0,"in":0,"out":0,"tok":0,"cw":0,"cr":0},"lifetime":{"req":0,"in":0,"out":0,"tok":0,"cw":0,"cr":0}},"claude-cli":{"1m":null,"5m":null,"30m":null,"1h":null,"1d":{"req":4633,"in":9314,"out":3180484,"tok":1578211231,"cw":35940001,"cr":1539081432},"7d":{"req":26767,"in":53942,"out":21005722,"tok":10782726605,"cw":183149845,"cr":10578517096},"lifetime":{"req":26767,"in":53942,"out":21005722,"tok":10782726605,"cw":183149845,"cr":10578517096}},"observabilidad":{"1m":null,"5m":null,"30m":null,"1h":null,"1d":{"req":0,"in":0,"out":0,"tok":0,"cw":0,"cr":0},"7d":{"req":0,"in":0,"out":0,"tok":0,"cw":0,"cr":0},"lifetime":{"req":0,"in":0,"out":0,"tok":0,"cw":0,"cr":0}},"infra":{"1m":null,"5m":null,"30m":null,"1h":null,"1d":{"req":0,"in":0,"out":0,"tok":0,"cw":0,"cr":0},"7d":{"req":0,"in":0,"out":0,"tok":0,"cw":0,"cr":0},"lifetime":{"req":0,"in":0,"out":0,"tok":0,"cw":0,"cr":0}},"chat":{"1m":null,"5m":null,"30m":null,"1h":null,"1d":{"req":0,"in":0,"out":0,"tok":0,"cw":0,"cr":0},"7d":{"req":0,"in":0,"out":0,"tok":0,"cw":0,"cr":0},"lifetime":{"req":0,"in":0,"out":0,"tok":0,"cw":0,"cr":0}},"otros":{"1m":null,"5m":null,"30m":null,"1h":null,"1d":{"req":0,"in":0,"out":0,"tok":0,"cw":0,"cr":0},"7d":{"req":0,"in":0,"out":0,"tok":0,"cw":0,"cr":0},"lifetime":{"req":0,"in":0,"out":0,"tok":0,"cw":0,"cr":0}}}},"externo":{"perfiles":[],"grupos":{"compania":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"hermes":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"opencode":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"claude-cli":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"observabilidad":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"infra":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"chat":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"otros":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null}}},"sin-servir":{"perfiles":[{"grupo":"otros","perfil":"sauvage-shield","v":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":8,"in":0,"out":0,"tok":0},"1h":{"req":12,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null}}],"grupos":{"compania":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"hermes":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"opencode":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"claude-cli":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"observabilidad":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"infra":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"chat":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":0,"in":0,"out":0,"tok":0},"1h":{"req":0,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null},"otros":{"1m":{"req":0,"in":0,"out":0,"tok":0},"5m":{"req":0,"in":0,"out":0,"tok":0},"30m":{"req":8,"in":0,"out":0,"tok":0},"1h":{"req":12,"in":0,"out":0,"tok":0},"1d":null,"7d":null,"lifetime":null}}}},"registro_desde":"2026-09-09","ventanas":["1m","5m","30m","1h","1d","7d","lifetime"],"grupos_orden":["compania","hermes","opencode","claude-cli","observabilidad","infra","chat","otros"],"backends":["todos","local","alibaba","claude","externo","sin-servir"],"serie":{"rango":"1d","filtros":{"todos":{"cubo_s":1800,"puntos":[{"t":1791496800,"grupos":{"compania":{"req":302,"tok":17374121},"otros":{"req":20,"tok":988717},"hermes":{"req":15,"tok":1060915},"infra":{"req":17,"tok":951},"claude-cli":{"req":153,"tok":15725848}}},{"t":1791498600,"grupos":{"compania":{"req":172,"tok":11918452},"otros":{"req":19,"tok":1020271},"hermes":{"req":1,"tok":22342},"claude-cli":{"req":211,"tok":24527121},"infra":{"req":16,"tok":12}}},{"t":1791500400,"grupos":{"claude-cli":{"req":132,"tok":16369791},"otros":{"req":45,"tok":812175},"compania":{"req":250,"tok":16193579},"infra":{"req":20,"tok":1757}}},{"t":1791502200,"grupos":{"compania":{"req":295,"tok":15305262},"otros":{"req":18,"tok":449349},"hermes":{"req":50,"tok":5808637},"claude-cli":{"req":237,"tok":22951904},"infra":{"req":16,"tok":12}}}]},"local":{"cubo_s":1800,"puntos":[{"t":1791496800,"grupos":{"compania":{"req":302,"tok":17374121},"otros":{"req":7,"tok":873222},"infra":{"req":17,"tok":951},"claude-cli":{"req":27,"tok":1767074},"hermes":{"req":3,"tok":185297}}},{"t":1791498600,"grupos":{"compania":{"req":170,"tok":11918452},"otros":{"req":6,"tok":900835},"claude-cli":{"req":82,"tok":5488264},"infra":{"req":16,"tok":12}}},{"t":1791500400,"grupos":{"claude-cli":{"req":37,"tok":3323430},"compania":{"req":247,"tok":16193579},"infra":{"req":20,"tok":1757},"otros":{"req":15,"tok":244466}}},{"t":1791502200,"grupos":{"compania":{"req":295,"tok":15305262},"hermes":{"req":7,"tok":607307},"claude-cli":{"req":7,"tok":659228},"infra":{"req":16,"tok":12},"otros":{"req":7,"tok":77803}}}]},"alibaba":{"cubo_s":1800,"puntos":[{"t":1791496800,"grupos":{"otros":{"req":8,"tok":115495},"hermes":{"req":12,"tok":875618},"claude-cli":{"req":126,"tok":13958774}}},{"t":1791498600,"grupos":{"otros":{"req":10,"tok":119436},"hermes":{"req":1,"tok":22342},"claude-cli":{"req":129,"tok":19038857}}},{"t":1791500400,"grupos":{"otros":{"req":26,"tok":567709},"claude-cli":{"req":95,"tok":13046361}}},{"t":1791502200,"grupos":{"otros":{"req":10,"tok":371546},"hermes":{"req":43,"tok":5201330},"claude-cli":{"req":230,"tok":22292676}}}]},"claude":{"cubo_s":3600,"puntos":[{"t":1791496800,"grupos":{"compania":{"req":1955,"tok":367303144},"claude-cli":{"req":130,"tok":51556769}}},{"t":1791500400,"grupos":{"compania":{"req":1704,"tok":352532358},"claude-cli":{"req":197,"tok":93986735}}},{"t":1791504000,"grupos":{"compania":{"req":1150,"tok":230934186},"claude-cli":{"req":242,"tok":97773543}}},{"t":1791507600,"grupos":{"compania":{"req":2443,"tok":371847224},"claude-cli":{"req":546,"tok":141167032}}},{"t":1791511200,"grupos":{"compania":{"req":1061,"tok":195204983},"claude-cli":{"req":224,"tok":61148358}}},{"t":1791514800,"grupos":{"compania":{"req":427,"tok":67575623},"claude-cli":{"req":74,"tok":32537938}}},{"t":1791518400,"grupos":{"compania":{"req":164,"tok":22424080},"claude-cli":{"req":15,"tok":6053596}}},{"t":1791522000,"grupos":{"compania":{"req":155,"tok":19514354},"claude-cli":{"req":27,"tok":10048677}}},{"t":1791525600,"grupos":{"compania":{"req":47,"tok":4678605},"claude-cli":{"req":10,"tok":3279741}}},{"t":1791529200,"grupos":{"compania":{"req":233,"tok":24240425},"claude-cli":{"req":37,"tok":14620237}}},{"t":1791532800,"grupos":{"compania":{"req":1044,"tok":157310070},"claude-cli":{"req":264,"tok":58779616}}},{"t":1791536400,"grupos":{"compania":{"req":382,"tok":78518301},"claude-cli":{"req":80,"tok":26339644}}},{"t":1791540000,"grupos":{"compania":{"req":952,"tok":128810355},"claude-cli":{"req":200,"tok":65109814}}},{"t":1791543600,"grupos":{"compania":{"req":1147,"tok":190051110},"claude-cli":{"req":182,"tok":45027928}}},{"t":1791547200,"grupos":{"compania":{"req":420,"tok":68144706},"claude-cli":{"req":94,"tok":36225892}}},{"t":1791550800,"grupos":{"compania":{"req":1274,"tok":206757493},"claude-cli":{"req":506,"tok":154991001}}},{"t":1791554400,"grupos":{"compania":{"req":1087,"tok":279265790},"claude-cli":{"req":319,"tok":120385041}}},{"t":1791558000,"grupos":{"compania":{"req":482,"tok":73919306},"claude-cli":{"req":99,"tok":46276252}}},{"t":1791561600,"grupos":{"compania":{"req":186,"tok":29810555},"claude-cli":{"req":54,"tok":34729868}}},{"t":1791565200,"grupos":{"compania":{"req":1439,"tok":248247065},"claude-cli":{"req":463,"tok":173891641}}},{"t":1791568800,"grupos":{"compania":{"req":1520,"tok":298768950},"claude-cli":{"req":500,"tok":152033967}}},{"t":1791572400,"grupos":{"compania":{"req":1460,"tok":306618299},"claude-cli":{"req":188,"tok":85939549}}},{"t":1791576000,"grupos":{"compania":{"req":1319,"tok":253837691},"claude-cli":{"req":163,"tok":61212247}}},{"t":1791579600,"grupos":{"compania":{"req":674,"tok":142023210},"claude-cli":{"req":129,"tok":48226565}}},{"t":1791583200,"grupos":{"compania":{"req":233,"tok":53194019},"claude-cli":{"req":20,"tok":8426349}}}]},"externo":{"cubo_s":1800,"puntos":[]},"sin-servir":{"cubo_s":1800,"puntos":[{"t":1791496800,"grupos":{"otros":{"req":5,"tok":0}}},{"t":1791498600,"grupos":{"otros":{"req":3,"tok":0},"compania":{"req":2,"tok":0}}},{"t":1791500400,"grupos":{"otros":{"req":4,"tok":0},"compania":{"req":3,"tok":0}}},{"t":1791502200,"grupos":{"otros":{"req":1,"tok":0}}}]}}},"errores":{"1d":"calculando","7d":"calculando","lifetime":"calculando","serie":"calculando"}}

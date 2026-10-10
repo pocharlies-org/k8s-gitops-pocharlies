@@ -1,0 +1,540 @@
+diff --git a/Packages/DGXKit/Sources/DGXKit/Inferencia/Navegacion.swift b/Packages/DGXKit/Sources/DGXKit/Inferencia/Navegacion.swift
+new file mode 100644
+index 0000000..48fa60e
+--- /dev/null
++++ b/Packages/DGXKit/Sources/DGXKit/Inferencia/Navegacion.swift
+@@ -0,0 +1,185 @@
++import Foundation
++import Observation
++
++// Navegación por secciones de DGX Spark y de Routing (DGX-782, H2-b3): qué secciones hay en
++// cada pestaña, en qué grupo y en qué orden. Es lo que pintan la Entrada y la lista de
++// Secciones del iPhone y la barra lateral del iPad; no tiene vistas ni red.
++//
++// Los ids son los de la web (`registry.js` y `cuentas-registry.js` de dgx-infra: la paridad
++// de ids y orden se vigila en `SeccionesTests`). Los grupos y los títulos son los del handoff
++// de DGX-770 (`Design/claude-design/dgx-770-inferencia-cuentas-handoff.md`, «Navegación»):
++// DGX Spark = 11 secciones en tres grupos (4, 4, 3); Routing = 6 en tres de dos. El orden
++// del usuario se guarda en el dispositivo, una clave por pestaña, con las mismas claves que
++// usa la web (`SECTION_ORDER_KEY`, `CUENTAS_ORDER_KEY`).
++
++public enum NavPestana: String, CaseIterable, Sendable {
++    case inferencia, routing
++
++    /// El id del segmento del registro de páginas (`pages.json`) que aloja la pestaña.
++    public var segmento: String { rawValue }
++
++    public var titulo: String { self == .inferencia ? "DGX Spark" : "Routing" }
++
++    /// La otra pestaña: el enlace «Cuentas y cuotas» de DGX Spark y «Secciones de DGX Spark» de Routing.
++    public var otra: NavPestana { self == .inferencia ? .routing : .inferencia }
++
++    /// Clave local del orden guardado (la de la web: `inferencia_section_order`, `cuentas_section_order`).
++    public var claveOrden: String { self == .inferencia ? "inferencia_section_order" : "cuentas_section_order" }
++}
++
++public struct NavSeccion: Identifiable, Equatable, Sendable {
++    public let id: String
++    public let titulo: String
++    /// SF Symbol de la fila.
++    public let simbolo: String
++}
++
++public struct NavGrupo: Identifiable, Equatable, Sendable {
++    public let id: String
++    public let titulo: String
++    public let secciones: [NavSeccion]
++}
++
++public enum NavSecciones {
++    private static func s(_ id: String, _ titulo: String, _ simbolo: String) -> NavSeccion {
++        NavSeccion(id: id, titulo: titulo, simbolo: simbolo)
++    }
++
++    /// DGX Spark: 11 secciones de /inferencia.
++    public static let inferencia: [NavGrupo] = [
++        NavGrupo(id: "en-vivo", titulo: "En vivo", secciones: [
++            s("requests", "Peticiones por LLM", "list.bullet.rectangle"),
++            s("vllm", "vLLM Servers", "server.rack"),
++            s("gpu", "GPU", "cpu"),
++            s("fleet", "Fleet", "shippingbox"),
++        ]),
++        NavGrupo(id: "trafico-calidad", titulo: "Tráfico y calidad", secciones: [
++            s("traffic", "Tráfico / fallback", "arrow.triangle.branch"),
++            s("decode-quality", "Calidad del decode", "waveform.path.ecg"),
++            s("throughput", "Rendimiento y GPU", "speedometer"),
++            s("refusal-rates", "Refusal rates", "hand.raised"),
++        ]),
++        NavGrupo(id: "gateway", titulo: "Gateway", secciones: [
++            s("routing", "Model Routing", "point.3.connected.trianglepath.dotted"),
++            s("consumers", "Consumidores del gateway", "person.2"),
++            s("sources", "Request Sources", "tray.and.arrow.down"),
++        ]),
++    ]
++
++    /// Routing: 6 secciones de /cuentas (con Uso por perfil, que en la web vive en /inferencia
++    /// pero en la app tiene una sola casa: la de las cuentas).
++    public static let routing: [NavGrupo] = [
++        NavGrupo(id: "claude", titulo: "Claude", secciones: [
++            s("orden", "Claude · suscripciones", "person.crop.circle.badge.checkmark"),
++            s("burst", "Modo, desvío y BURST", "bolt"),
++        ]),
++        NavGrupo(id: "alibaba", titulo: "Alibaba", secciones: [
++            s("alibaba", "Alibaba · Token Plan", "cloud"),
++            s("alibaba-catalog", "Alibaba · modelos y coste", "list.bullet.clipboard"),
++        ]),
++        NavGrupo(id: "uso-saldo", titulo: "Uso y saldo", secciones: [
++            s("uso-perfiles", "Uso por perfil", "chart.bar.xaxis"),
++            s("openrouter", "OpenRouter · saldo y cupo", "dollarsign.circle"),
++        ]),
++    ]
++
++    public static func grupos(_ p: NavPestana) -> [NavGrupo] { p == .inferencia ? inferencia : routing }
++
++    public static func secciones(_ p: NavPestana) -> [NavSeccion] { grupos(p).flatMap(\.secciones) }
++
++    public static func seccion(id: String) -> NavSeccion? {
++        NavPestana.allCases.lazy.compactMap { secciones($0).first { $0.id == id } }.first
++    }
++
++    /// La pestaña a la que pertenece una sección.
++    public static func pestana(de id: String) -> NavPestana? {
++        NavPestana.allCases.first { p in secciones(p).contains { $0.id == id } }
++    }
++
++    /// El grupo de una sección: el que decide a qué fichero de destinos va su pantalla.
++    public static func grupo(de id: String) -> NavGrupo? {
++        NavPestana.allCases.lazy.compactMap { p in grupos(p).first { $0.secciones.contains { $0.id == id } } }.first
++    }
++
++    /// La sección con la que abre cada pestaña en el iPad: Peticiones por LLM y Claude (handoff,
++    /// «El iPad en horizontal… DGX Spark abre Peticiones por LLM y Routing abre Claude · suscripciones»).
++    public static func primera(_ p: NavPestana) -> String { p == .inferencia ? "requests" : "orden" }
++}
++
++/// El orden que elige el usuario. Port de `applyUserOrder` y `moveSection` de
++/// `static/inferencia/src/section-order.js` (dgx-infra), con una diferencia que dice el
++/// handoff: se ordena DENTRO de cada grupo, no a lo largo de toda la pestaña.
++public enum NavOrden {
++    /// El orden guardado manda; una sección que no conoce entra detrás de su vecina del registro
++    /// (sin vecina, al principio), así una sección nueva aparece donde se registró.
++    public static func aplicar(_ guardado: [String], a secciones: [NavSeccion]) -> [NavSeccion] {
++        guard !guardado.isEmpty else { return secciones }
++        let porId = Dictionary(secciones.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
++        var out = guardado.compactMap { porId[$0] }
++        var vistos = Set(out.map(\.id))
++        for (i, s) in secciones.enumerated() where !vistos.contains(s.id) {
++            var en = 0
++            for j in stride(from: i - 1, through: 0, by: -1) {
++                if let k = out.firstIndex(where: { $0.id == secciones[j].id }) { en = k + 1; break }
++            }
++            out.insert(s, at: en)
++            vistos.insert(s.id)
++        }
++        return out
++    }
++
++    /// Los grupos de una pestaña con el orden guardado aplicado dentro de cada uno.
++    public static func aplicar(_ guardado: [String], a grupos: [NavGrupo]) -> [NavGrupo] {
++        grupos.map { NavGrupo(id: $0.id, titulo: $0.titulo, secciones: aplicar(guardado, a: $0.secciones)) }
++    }
++
++    /// Mover una sección `delta` puestos dentro de su grupo, con topes en los extremos.
++    public static func mover(_ id: String, _ delta: Int, en grupo: [NavSeccion]) -> [NavSeccion] {
++        guard let desde = grupo.firstIndex(where: { $0.id == id }) else { return grupo }
++        let hasta = min(grupo.count - 1, max(0, desde + delta))
++        guard hasta != desde else { return grupo }
++        var out = grupo
++        out.insert(out.remove(at: desde), at: hasta)
++        return out
++    }
++}
++
++/// El orden guardado en el dispositivo, una lista de ids por pestaña. `@Observable`: las vistas
++/// que lo leen se repintan al ordenar. `defaults` se inyecta para probarlo sin tocar el real.
++@MainActor @Observable
++public final class NavOrdenStore {
++    public static let shared = NavOrdenStore()
++
++    @ObservationIgnored private let defaults: UserDefaults
++    private var guardado: [NavPestana: [String]] = [:]
++
++    public init(defaults: UserDefaults = .standard) {
++        self.defaults = defaults
++        for p in NavPestana.allCases {
++            if let ids = defaults.stringArray(forKey: p.claveOrden) { guardado[p] = ids }
++        }
++    }
++
++    public func grupos(_ p: NavPestana) -> [NavGrupo] {
++        NavOrden.aplicar(guardado[p] ?? [], a: NavSecciones.grupos(p))
++    }
++
++    /// ¿Hay un orden distinto del de fábrica? (habilita «Restablecer orden»).
++    public func personalizado(_ p: NavPestana) -> Bool { guardado[p] != nil }
++
++    public func mover(_ id: String, _ delta: Int, en p: NavPestana) {
++        var grupos = grupos(p)
++        guard let g = grupos.firstIndex(where: { $0.secciones.contains { $0.id == id } }) else { return }
++        let nuevo = NavOrden.mover(id, delta, en: grupos[g].secciones)
++        guard nuevo != grupos[g].secciones else { return }
++        grupos[g] = NavGrupo(id: grupos[g].id, titulo: grupos[g].titulo, secciones: nuevo)
++        let ids = grupos.flatMap(\.secciones).map(\.id)
++        guardado[p] = ids
++        defaults.set(ids, forKey: p.claveOrden)
++    }
++
++    public func restablecer(_ p: NavPestana) {
++        guardado[p] = nil
++        defaults.removeObject(forKey: p.claveOrden)
++    }
++}
+diff --git a/Packages/DGXKit/Tests/DGXKitTests/NavegacionTests.swift b/Packages/DGXKit/Tests/DGXKitTests/NavegacionTests.swift
+new file mode 100644
+index 0000000..cb32ef5
+--- /dev/null
++++ b/Packages/DGXKit/Tests/DGXKitTests/NavegacionTests.swift
+@@ -0,0 +1,81 @@
++import XCTest
++@testable import DGXKit
++
++// DGX-782 H2-b3: las secciones de cada pestaña, sus grupos y el orden del usuario. La paridad de
++// ids con la web la prueba SeccionesTests (H2-b2); aquí, lo que es de la app: el reparto del
++// handoff (11 y 6, en grupos de 4+4+3 y 2+2+2) y el orden dentro de cada grupo.
++@MainActor
++final class NavegacionTests: XCTestCase {
++    func testElRepartoEsElDelHandoff() {
++        XCTAssertEqual(NavSecciones.secciones(.inferencia).count, 11)
++        XCTAssertEqual(NavSecciones.secciones(.routing).count, 6)
++        XCTAssertEqual(NavSecciones.inferencia.map(\.secciones.count), [4, 4, 3])
++        XCTAssertEqual(NavSecciones.routing.map(\.secciones.count), [2, 2, 2])
++        let ids = NavPestana.allCases.flatMap { NavSecciones.secciones($0).map(\.id) }
++        XCTAssertEqual(ids.count, Set(ids).count, "un id en dos sitios")
++        XCTAssertEqual(ids.count, 17)
++    }
++
++    func testCadaSeccionSabeDeQuePestanaEs() {
++        XCTAssertEqual(NavSecciones.pestana(de: "gpu"), .inferencia)
++        XCTAssertEqual(NavSecciones.pestana(de: "burst"), .routing)
++        XCTAssertNil(NavSecciones.pestana(de: "avisos"))
++        XCTAssertEqual(NavSecciones.grupo(de: "decode-quality")?.id, "trafico-calidad")
++        XCTAssertEqual(NavSecciones.grupo(de: "openrouter")?.id, "uso-saldo")
++        XCTAssertNil(NavSecciones.grupo(de: "avisos"))
++        XCTAssertEqual(NavSecciones.seccion(id: "uso-perfiles")?.titulo, "Uso por perfil")
++        for p in NavPestana.allCases {
++            XCTAssertNotNil(NavSecciones.seccion(id: NavSecciones.primera(p)), "la primera de \(p) existe")
++            XCTAssertEqual(NavSecciones.pestana(de: NavSecciones.primera(p)), p)
++        }
++    }
++
++    func testLasClavesDeOrdenSonLasDeLaWeb() {
++        XCTAssertEqual(NavPestana.inferencia.claveOrden, "inferencia_section_order")
++        XCTAssertEqual(NavPestana.routing.claveOrden, "cuentas_section_order")
++        XCTAssertEqual(NavPestana.inferencia.otra, .routing)
++    }
++
++    func testOrdenGuardadoManda_yLoDesconocidoVaDetrasDeSuVecina() {
++        let g = NavSecciones.inferencia[0].secciones          // requests, vllm, gpu, fleet
++        XCTAssertEqual(NavOrden.aplicar([], a: g).map(\.id), ["requests", "vllm", "gpu", "fleet"])
++        // Un orden completo manda tal cual.
++        XCTAssertEqual(NavOrden.aplicar(["fleet", "gpu", "vllm", "requests"], a: g).map(\.id), ["fleet", "gpu", "vllm", "requests"])
++        // `vllm` no está en el orden guardado: entra detrás de `requests`, su vecina de registro.
++        XCTAssertEqual(NavOrden.aplicar(["requests", "fleet", "gpu"], a: g).map(\.id), ["requests", "vllm", "fleet", "gpu"])
++        // `requests` no tiene vecina anterior: entra al principio; el resto sigue a la suya.
++        XCTAssertEqual(NavOrden.aplicar(["fleet", "gpu"], a: g).map(\.id), ["requests", "vllm", "fleet", "gpu"])
++        // Ids de otros grupos o desaparecidos se ignoran.
++        XCTAssertEqual(NavOrden.aplicar(["traffic", "nada", "gpu"], a: g).map(\.id), ["requests", "vllm", "gpu", "fleet"])
++    }
++
++    func testMoverSeQuedaDentroDeSuGrupoYConTopes() {
++        let g = NavSecciones.inferencia[0].secciones
++        XCTAssertEqual(NavOrden.mover("gpu", -1, en: g).map(\.id), ["requests", "gpu", "vllm", "fleet"])
++        XCTAssertEqual(NavOrden.mover("requests", -1, en: g), g, "tope superior")
++        XCTAssertEqual(NavOrden.mover("fleet", 1, en: g), g, "tope inferior")
++        XCTAssertEqual(NavOrden.mover("traffic", 1, en: g), g, "no es de este grupo")
++    }
++
++    func testElAlmacenGuardaPorPestanaYRestablece() {
++        let suite = "dgx.test.nav.\(UUID().uuidString)"
++        let defaults = UserDefaults(suiteName: suite)!
++        defer { defaults.removePersistentDomain(forName: suite) }
++        let store = NavOrdenStore(defaults: defaults)
++        XCTAssertFalse(store.personalizado(.inferencia))
++
++        store.mover("gpu", -2, en: .inferencia)
++        XCTAssertEqual(store.grupos(.inferencia)[0].secciones.map(\.id), ["gpu", "requests", "vllm", "fleet"])
++        XCTAssertEqual(store.grupos(.inferencia)[1].secciones.map(\.id), NavSecciones.inferencia[1].secciones.map(\.id), "otro grupo intacto")
++        XCTAssertEqual(store.grupos(.routing), NavSecciones.routing, "otra pestaña intacta")
++        XCTAssertNil(defaults.stringArray(forKey: NavPestana.routing.claveOrden))
++
++        // Sobrevive a un arranque nuevo (otro almacén sobre el mismo UserDefaults).
++        XCTAssertEqual(NavOrdenStore(defaults: defaults).grupos(.inferencia)[0].secciones.first?.id, "gpu")
++
++        store.restablecer(.inferencia)
++        XCTAssertFalse(store.personalizado(.inferencia))
++        XCTAssertEqual(store.grupos(.inferencia), NavSecciones.inferencia)
++        XCTAssertNil(defaults.stringArray(forKey: NavPestana.inferencia.claveOrden))
++    }
++}
+diff --git a/Screens/Inferencia/SeccionesSidebar.swift b/Screens/Inferencia/SeccionesSidebar.swift
+new file mode 100644
+index 0000000..46e8b03
+--- /dev/null
++++ b/Screens/Inferencia/SeccionesSidebar.swift
+@@ -0,0 +1,182 @@
++import SwiftUI
++import DGXKit
++
++// La barra lateral de secciones del iPad (DGX-782 H2-b3, criterio C4) para las pestañas DGX Spark y
++// Routing. Vive DENTRO de la pestaña, nunca en `RootTabs`:
++//   · iOS 18+: un `NavigationSplitView` dentro de la pestaña de la `TabView` `.sidebarAdaptable`
++//     (`SeccionesSplit`). `TabSection` no vale: no puede llevar «Ordenar», la fila Avisos con su
++//     recuento, grupos que se pliegan ni el enlace a la otra pestaña (ver la entrega, hallazgo 16).
++//   · iPadOS 17 (`-dgxLegacyTabs`, el iPad de la casa): la rama `NavigationSplitView` de `RootTabs`
++//     pasa a tres columnas (segmentos · secciones · detalle) y usa `SeccionesLista` y `SeccionDetalle`.
++// En horizontal la barra va fija; en vertical se pliega y el botón «Secciones» la abre encima.
++
++/// iOS 18+ y el iPad de ancho regular: la barra y la pantalla de la sección elegida.
++struct SeccionesSplit: View {
++    let pestana: NavPestana
++    let titulo: String
++    let pages: [DGXPage]
++    @Environment(\.pantallaInicial) private var inicial
++    @State private var seleccion: String?
++    @State private var columnas = NavigationSplitViewVisibility.automatic
++
++    var body: some View {
++        NavigationSplitView(columnVisibility: $columnas) {
++            SeccionesLista(pestana: pestana, titulo: titulo, pages: pages, seleccion: $seleccion)
++                .navigationSplitViewColumnWidth(min: 300, ideal: 300, max: 340)
++        } detail: {
++            SeccionDetalle(id: seleccion ?? NavSecciones.primera(pestana), mostrarSecciones: { columnas = .all })
++        }
++        .onAppear {
++            guard seleccion == nil else { return }
++            seleccion = inicialValida ?? NavSecciones.primera(pestana)
++        }
++    }
++
++    /// `-dgxScreen ID` (DEBUG): la sección con la que abre la barra, si es de esta pestaña.
++    private var inicialValida: String? {
++        guard let id = inicial else { return nil }
++        if NavSecciones.pestana(de: id) == pestana { return id }
++        return pestana == .inferencia && ["avisos", "estados"].contains(id) ? id : nil
++    }
++}
++
++/// La lista de la barra: Avisos arriba (DGX Spark), los grupos plegables, el enlace a la otra
++/// pestaña y las páginas del segmento que no son una sección. Cada fila mide 44 pt como mínimo.
++struct SeccionesLista: View {
++    let pestana: NavPestana
++    let titulo: String
++    let pages: [DGXPage]
++    @Binding var seleccion: String?
++    @Environment(LiveStore.self) private var live
++    @Environment(\.cambiarPestana) private var cambiarPestana
++    @State private var plegados: Set<String> = []
++    @State private var ordenando = false
++    private let orden = NavOrdenStore.shared
++
++    /// Sin relleno vertical: la fila mide sus 44 pt y caben las 11 secciones sin desplazar la barra.
++    private static let insetsFila = EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 12)
++
++    var body: some View {
++        List(selection: $seleccion) {
++            if pestana == .inferencia {
++                Section {
++                    AvisosEtiqueta()
++                        .tag("avisos")
++                        .listRowInsets(Self.insetsFila)
++                        .accessibilityIdentifier("fila.avisos")
++                }
++            }
++            ForEach(orden.grupos(pestana)) { g in
++                Section(isExpanded: expandido(g.id)) {
++                    ForEach(g.secciones) { s in
++                        FilaSeccion(seccion: s, valor: valorSeccion(s.id, live))
++                            .tag(s.id)
++                            .listRowInsets(Self.insetsFila)
++                            .accessibilityIdentifier("fila.\(s.id)")
++                    }
++                } header: {
++                    Text(g.titulo)
++                        .frame(minHeight: 44, alignment: .leading)
++                        .accessibilityAddTraits(.isHeader)
++                }
++            }
++            Section {
++                Button { cambiarPestana(pestana.otra.segmento) } label: { enlaceOtra }
++                    .accessibilityElement(children: .combine)
++                    .accessibilityHint("Cambia a la pestaña \(pestana.otra.titulo)")
++                    .listRowInsets(Self.insetsFila)
++                    .accessibilityIdentifier("fila.otra-pestana")
++            }
++            if !pages.isEmpty {
++                Section("Más de \(titulo)") {
++                    ForEach(pages) { p in
++                        Label(p.name, systemImage: PageIcon.symbol(p.icon))
++                            .frame(minHeight: 44)
++                            .tag("page:\(p.id)")
++                            .listRowInsets(Self.insetsFila)
++                    }
++                }
++            }
++        }
++        .listStyle(.sidebar)
++        .navigationTitle(titulo)
++        .toolbar {
++            ToolbarItem(placement: .dgxTrailing) {
++                Button("Ordenar") { ordenando = true }
++                    .frame(minWidth: 44, minHeight: 44)
++                    .accessibilityIdentifier("ordenar")
++            }
++        }
++        .sheet(isPresented: $ordenando) { OrdenSheet(pestana: pestana) }
++        .dynamicTypeSize(...DynamicTypeSize.accessibility3)
++        .accessibilityIdentifier("barra.\(pestana.rawValue)")
++    }
++
++    private var enlaceOtra: some View {
++        let otra = pestana.otra
++        return HStack(spacing: 12) {
++            VStack(alignment: .leading, spacing: 2) {
++                Text(otra == .routing ? "Cuentas y cuotas" : "Secciones de DGX Spark").foregroundStyle(.primary)
++                Text(otra == .routing ? "Claude, Alibaba, uso por perfil y OpenRouter · pestaña Routing"
++                                      : "Peticiones, servidores y gateway · pestaña DGX Spark")
++                    .font(.footnote).foregroundStyle(Color.textSecondary)
++            }
++            Spacer(minLength: 8)
++            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(Color.textSecondary)
++        }
++        .frame(minHeight: 44)
++        .contentShape(Rectangle())
++    }
++
++    private func expandido(_ id: String) -> Binding<Bool> {
++        Binding(get: { !plegados.contains(id) },
++                set: { if $0 { plegados.remove(id) } else { plegados.insert(id) } })
++    }
++}
++
++/// La pantalla de la sección elegida, con su pila de navegación. En vertical la barra está plegada
++/// y el botón «Secciones» la abre encima.
++struct SeccionDetalle: View {
++    let id: String
++    var mostrarSecciones: () -> Void
++    @Environment(LiveStore.self) private var live
++    @State private var vertical = false
++
++    var body: some View {
++        NavigationStack {
++            SectionDestination(id: id)
++                .dgxToolbar(live)
++                .toolbar {
++                    if vertical {
++                        ToolbarItem(placement: .dgxLeading) {
++                            Button { mostrarSecciones() } label: {
++                                Label("Secciones", systemImage: "sidebar.left")
++                            }
++                            .frame(minWidth: 44, minHeight: 44)
++                            .accessibilityIdentifier("secciones.abrir")
++                        }
++                    }
++                }
++                .modifier(SinToggleDelSistema(quitar: vertical))
++        }
++        .id(id)     // otra sección = pila nueva: no arrastra los detalles abiertos de la anterior
++        .onGeometryChange(for: Bool.self) { $0.size.width < $0.size.height } action: { vertical = $0 }
++    }
++}
++
++/// En vertical el botón del sistema que abre la barra se sustituye por «Secciones», que dice qué
++/// abre. Antes de iOS 18 no se puede quitar y los dos conviven.
++private struct SinToggleDelSistema: ViewModifier {
++    let quitar: Bool
++    func body(content: Content) -> some View {
++        #if os(iOS)
++        if #available(iOS 18.0, *) {
++            content.toolbar(removing: quitar ? .sidebarToggle : nil)
++        } else {
++            content
++        }
++        #else
++        content
++        #endif
++    }
++}
+diff --git a/UITests/NavegacionUITests.swift b/UITests/NavegacionUITests.swift
+new file mode 100644
+index 0000000..3fe2bfc
+--- /dev/null
++++ b/UITests/NavegacionUITests.swift
+@@ -0,0 +1,68 @@
++import XCTest
++import DGXKit
++
++// DGX-782 H2-b3, criterio C4: la barra lateral de DGX Spark lista sus 11 secciones y la de Routing
++// sus 6, en horizontal y en vertical, y cada fila abre su pantalla. Se corre en iPad Pro 13 (iOS 26),
++// en iPad con iPadOS 17 (el simulador de 17.5) y, con DGX_LEGACY=1, la rama de iPadOS 17 forzada en
++// el moderno. Identificadores: `fila.ID` la fila, `seccion.ID` la pantalla, `barra.PESTAÑA` la barra.
++final class NavegacionUITests: XCTestCase {
++    override func setUp() { continueAfterFailure = false }
++
++    func testBarraLateralConTodasLasSecciones() throws {
++        try XCTSkipUnless(esIPad, "la barra lateral es del iPad")
++        let inferencia = NavSecciones.secciones(.inferencia).map(\.id)
++        let routing = NavSecciones.secciones(.routing).map(\.id)
++        XCTAssertEqual(inferencia.count, 11)
++        XCTAssertEqual(routing.count, 6)
++
++        for o in Orientacion.allCases {
++            XCUIDevice.shared.orientation = o.dispositivo
++            let app = lanzar(tab: NavPestana.inferencia.segmento)
++            recorrer(app, secciones: inferencia, barra: "barra.inferencia", vertical: o == .vertical)
++
++            // El enlace «Cuentas y cuotas» de la barra lleva a la pestaña Routing.
++            abrirBarra(app, vertical: o == .vertical)
++            esperar(elemento(app, "fila.otra-pestana"), "fila.otra-pestana")
++            elemento(app, "fila.otra-pestana").tap()
++            recorrer(app, secciones: routing, barra: "barra.routing", vertical: o == .vertical)
++        }
++    }
++
++    /// Abre una a una las filas de la barra y comprueba que llega a la pantalla de cada sección.
++    private func recorrer(_ app: XCUIApplication, secciones: [String], barra: String, vertical: Bool) {
++        abrirBarra(app, vertical: vertical)
++        esperar(elemento(app, barra), barra)
++        // Todas las filas están en la barra antes de abrir ninguna: sin desplazarla (caben las 11 en un iPad).
++        for id in secciones {
++            let fila = elemento(app, "fila.\(id)")
++            esperar(fila, "fila.\(id)")
++            if !fila.isHittable { volcarJerarquia(app, "fila.\(id) no tocable") }
++            XCTAssertTrue(fila.isHittable, "fila.\(id) existe pero no está a la vista sin desplazar la barra (frame \(fila.frame))")
++            XCTAssertGreaterThanOrEqual(fila.frame.height, 44, "fila.\(id) mide menos de 44 pt (accesibilidad)")
++        }
++        for id in secciones {
++            abrirBarra(app, vertical: vertical)
++            let fila = elemento(app, "fila.\(id)")
++            esperar(fila, "fila.\(id)")
++            traerALaVista(fila, en: elemento(app, barra))
++            fila.tap()
++            esperar(elemento(app, "seccion.\(id)"), "seccion.\(id)")
++        }
++    }
++
++    /// Con la barra más corta que sus filas (Dynamic Type grande), se desplaza hasta la fila.
++    private func traerALaVista(_ fila: XCUIElement, en barra: XCUIElement) {
++        var intentos = 0
++        while !fila.isHittable && intentos < 6 { barra.swipeUp(); intentos += 1 }
++    }
++
++    /// En vertical la barra está plegada y «Secciones» la abre; en horizontal está fija. Si ya está
++    /// a la vista (la barra se queda abierta tras elegir en algunos tamaños), no se toca.
++    private func abrirBarra(_ app: XCUIApplication, vertical: Bool) {
++        guard vertical else { return }
++        let fila = elemento(app, "ordenar")      // «Ordenar» solo existe con la barra abierta
++        if fila.exists && fila.isHittable { return }
++        let boton = app.buttons["secciones.abrir"].firstMatch
++        if boton.waitForExistence(timeout: 8) { boton.tap() }
++    }
++}

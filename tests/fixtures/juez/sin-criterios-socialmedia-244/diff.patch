@@ -1,0 +1,223 @@
+diff --git a/k8s/base/manifest.yaml b/k8s/base/manifest.yaml
+index 6d0396f..387088f 100644
+--- a/k8s/base/manifest.yaml
++++ b/k8s/base/manifest.yaml
+@@ -555,6 +555,12 @@ spec:
+             - name: SHARED_VALKEY_SOCIALMEDIA_PASSWORD
+               valueFrom: { secretKeyRef: { name: socialmedia-shared-valkey, key: password } }
+             - { name: REDIS_URL, value: "redis://socialmedia:$(SHARED_VALKEY_SOCIALMEDIA_PASSWORD)@shared-valkey-master.databases.svc.cluster.local:6379/0" }
++            # SC-2185: tras un failover de valkey, la URL estatica deja al cliente
++            # clavado en la IP del ex-master (ahora replica) y toda escritura da
++            # READONLY. Con estas dos variables el cliente (redis-client.ts)
++            # descubre el master por sentinel y lo sigue.
++            - { name: REDIS_SENTINELS, value: "shared-valkey-sentinel.databases.svc.cluster.local:26379" }
++            - { name: REDIS_MASTER_NAME, value: "shared-cache-master" }
+             - { name: CONNECTOR_URL, value: "http://whatsapp-connector.whatsapp-mcp.svc.cluster.local:3001" }
+             - { name: WHATSAPP_PROFESSIONAL_URL, value: "http://whatsapp-connector-professional.whatsapp-mcp.svc.cluster.local:3001" }
+             - { name: WHATSAPP_LEILA_URL, value: "http://whatsapp-connector-leila.whatsapp-mcp.svc.cluster.local:3001" }
+diff --git a/mcp-server/src/application/llama.service.ts b/mcp-server/src/application/llama.service.ts
+index 56930b9..b06fce5 100644
+--- a/mcp-server/src/application/llama.service.ts
++++ b/mcp-server/src/application/llama.service.ts
+@@ -1,5 +1,6 @@
+ import { Pool } from 'pg';
+ import Redis from 'ioredis';
++import { createRedisClient } from '../infrastructure/redis-client';
+ import pino from 'pino';
+ 
+ export interface OllamaConfig {
+@@ -42,7 +43,7 @@ export class LlamaService {
+     this.model = config.model;
+     this.embeddingModel = config.embeddingModel || 'nomic-embed-text';
+     this.dbClient = dbClient;
+-    this.redis = new Redis(redisUrl);
++    this.redis = createRedisClient(redisUrl);
+     this.encryptionKey = Buffer.from(encryptionKey, 'utf-8');
+     this.logger = pino({
+       transport: {
+diff --git a/mcp-server/src/application/style-analysis.service.ts b/mcp-server/src/application/style-analysis.service.ts
+index 83d910b..392a736 100644
+--- a/mcp-server/src/application/style-analysis.service.ts
++++ b/mcp-server/src/application/style-analysis.service.ts
+@@ -1,5 +1,6 @@
+ import { Pool } from 'pg';
+ import Redis from 'ioredis';
++import { createRedisClient } from '../infrastructure/redis-client';
+ import { decryptString } from '@mcp-socialmedia/shared';
+ import { LlamaService } from './llama.service';
+ import pino from 'pino';
+@@ -62,7 +63,7 @@ export class StyleAnalysisService {
+ 
+   constructor(dbClient: Pool, redisUrl: string, encryptionKey: string, llamaService: LlamaService) {
+     this.dbClient = dbClient;
+-    this.redis = new Redis(redisUrl);
++    this.redis = createRedisClient(redisUrl);
+     this.encryptionKey = Buffer.from(encryptionKey, 'utf-8');
+     this.llamaService = llamaService;
+     this.logger = pino({
+diff --git a/mcp-server/src/application/summarization.service.ts b/mcp-server/src/application/summarization.service.ts
+index 363782f..3b1733d 100644
+--- a/mcp-server/src/application/summarization.service.ts
++++ b/mcp-server/src/application/summarization.service.ts
+@@ -1,6 +1,7 @@
+ import OpenAI from 'openai';
+ import { Pool } from 'pg';
+ import Redis from 'ioredis';
++import { createRedisClient } from '../infrastructure/redis-client';
+ import { t } from '../infrastructure/i18n/i18n';
+ import pino from 'pino';
+ import type { Account } from '../domain/account';
+@@ -44,7 +45,7 @@ export class SummarizationService {
+     });
+     this.llmModel = llmModel || 'gpt-4o-mini';
+     this.dbClient = dbClient;
+-    this.redis = new Redis(redisUrl);
++    this.redis = createRedisClient(redisUrl);
+     this.logger = pino({
+       transport: {
+         target: 'pino-pretty',
+diff --git a/mcp-server/src/infrastructure/redis-client.spec.ts b/mcp-server/src/infrastructure/redis-client.spec.ts
+new file mode 100644
+index 0000000..bb66a91
+--- /dev/null
++++ b/mcp-server/src/infrastructure/redis-client.spec.ts
+@@ -0,0 +1,57 @@
++// SC-2185: after a valkey sentinel failover a client pinned to REDIS_URL keeps
++// writing to the demoted master (READONLY). With REDIS_SENTINELS +
++// REDIS_MASTER_NAME the client must be built in sentinel mode instead.
++const RedisCtor = jest.fn().mockImplementation(() => ({}));
++jest.mock('ioredis', () => ({ __esModule: true, default: RedisCtor }));
++
++import { createRedisClient } from './redis-client';
++
++const URL = 'redis://socialmedia:sec%23ret@shared-valkey-master.databases.svc.cluster.local:6379/0';
++
++describe('createRedisClient (SC-2185)', () => {
++  const saved = { ...process.env };
++  afterEach(() => {
++    process.env = { ...saved };
++    RedisCtor.mockClear();
++  });
++
++  it('without sentinel vars keeps the plain-URL behaviour', () => {
++    delete process.env.REDIS_SENTINELS;
++    delete process.env.REDIS_MASTER_NAME;
++    createRedisClient(URL, { maxRetriesPerRequest: 2 });
++    expect(RedisCtor).toHaveBeenCalledWith(URL, { maxRetriesPerRequest: 2 });
++  });
++
++  it('with sentinel vars builds a sentinel client carrying the URL credentials', () => {
++    process.env.REDIS_SENTINELS =
++      'shared-valkey-sentinel.databases.svc.cluster.local:26379';
++    process.env.REDIS_MASTER_NAME = 'shared-cache-master';
++    createRedisClient(URL, {});
++    expect(RedisCtor).toHaveBeenCalledWith({
++      sentinels: [{ host: 'shared-valkey-sentinel.databases.svc.cluster.local', port: 26379 }],
++      name: 'shared-cache-master',
++      username: 'socialmedia',
++      password: 'sec#ret',
++      db: 0,
++    });
++  });
++
++  it('parses several sentinels and defaults the port', () => {
++    process.env.REDIS_SENTINELS = 'a:26379,b';
++    process.env.REDIS_MASTER_NAME = 'shared-cache-master';
++    createRedisClient('redis://h:6379/1', {});
++    const opts = RedisCtor.mock.calls[0][0];
++    expect(opts.sentinels).toEqual([
++      { host: 'a', port: 26379 },
++      { host: 'b', port: 26379 },
++    ]);
++    expect(opts.db).toBe(1);
++    expect(opts.password).toBeUndefined();
++  });
++
++  it('only one of the two vars falls back to the plain URL', () => {
++    process.env.REDIS_SENTINELS = 'a:26379';
++    createRedisClient(URL, {});
++    expect(RedisCtor).toHaveBeenCalledWith(URL, {});
++  });
++});
+diff --git a/mcp-server/src/infrastructure/redis-client.ts b/mcp-server/src/infrastructure/redis-client.ts
+new file mode 100644
+index 0000000..f5eba34
+--- /dev/null
++++ b/mcp-server/src/infrastructure/redis-client.ts
+@@ -0,0 +1,29 @@
++import Redis, { RedisOptions } from 'ioredis';
++
++// SC-2185: a client pinned to a static REDIS_URL keeps its TCP connection to the
++// old master's pod IP after a valkey sentinel failover; that pod becomes a
++// read-only replica and every write fails with READONLY (reads keep working).
++// When REDIS_SENTINELS (comma-separated host:port) and REDIS_MASTER_NAME are set,
++// build an ioredis client in sentinel mode so it follows the promoted master.
++// Without those variables the behaviour is byte-identical to `new Redis(url)`.
++export function createRedisClient(url: string, options: RedisOptions = {}): Redis {
++  const sentinelsRaw = process.env.REDIS_SENTINELS;
++  const masterName = process.env.REDIS_MASTER_NAME;
++  if (!sentinelsRaw || !masterName) {
++    return new Redis(url, options);
++  }
++  // Sentinel mode ignores the URL, so carry its credentials and db over.
++  const parsed = new URL(url);
++  const sentinels = sentinelsRaw.split(',').map((entry) => {
++    const [host, port] = entry.trim().split(':');
++    return { host, port: Number(port) || 26379 };
++  });
++  return new Redis({
++    sentinels,
++    name: masterName,
++    username: decodeURIComponent(parsed.username) || undefined,
++    password: decodeURIComponent(parsed.password) || undefined,
++    db: Number(parsed.pathname.replace('/', '')) || 0,
++    ...options,
++  });
++}
+diff --git a/mcp-server/src/mcp/index.ts b/mcp-server/src/mcp/index.ts
+index 0b1ff47..e14c82d 100644
+--- a/mcp-server/src/mcp/index.ts
++++ b/mcp-server/src/mcp/index.ts
+@@ -1,7 +1,8 @@
+ import { Pool } from 'pg';
+ import { syncSocialAccountsBestEffort } from '../infrastructure/database/social-accounts';
+-import Redis, { RedisOptions } from 'ioredis';
++import { RedisOptions } from 'ioredis';
+ import * as fs from 'fs';
++import { createRedisClient } from '../infrastructure/redis-client';
+ import { MCPServer } from './server';
+ import { requireConnectorSecret } from '@mcp-socialmedia/shared';
+ 
+@@ -48,7 +49,7 @@ async function main() {
+       };
+     }
+ 
+-    const redisClient = new Redis(REDIS_URL, redisOptions);
++    const redisClient = createRedisClient(REDIS_URL, redisOptions);
+     console.log('Connected to Redis' + (REDIS_TLS_CA ? ' with TLS' : ''));
+ 
+     await syncSocialAccountsBestEffort(dbPool);
+diff --git a/mcp-server/src/mcp/sse-server.ts b/mcp-server/src/mcp/sse-server.ts
+index ac3ec03..2fea8f4 100644
+--- a/mcp-server/src/mcp/sse-server.ts
++++ b/mcp-server/src/mcp/sse-server.ts
+@@ -9,8 +9,9 @@ import { createServer, IncomingMessage, ServerResponse } from 'node:http';
+ import { Client, Pool } from 'pg';
+ import { ensureSearchIndexes } from '../application/search.service';
+ import { syncSocialAccountsBestEffort } from '../infrastructure/database/social-accounts';
+-import Redis, { RedisOptions } from 'ioredis';
++import { RedisOptions } from 'ioredis';
+ import * as fs from 'fs';
++import { createRedisClient } from '../infrastructure/redis-client';
+ import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+ import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+@@ -171,7 +172,7 @@ async function main() {
+     const ca = fs.readFileSync(REDIS_TLS_CA, 'utf-8');
+     redisOptions = { tls: { ca, rejectUnauthorized: true } };
+   }
+-  const redisClient = new Redis(REDIS_URL, redisOptions);
++  const redisClient = createRedisClient(REDIS_URL, redisOptions);
+   console.log('[SSE] Connected to Redis');
+ 
+   const mcpServer = new MCPServer(

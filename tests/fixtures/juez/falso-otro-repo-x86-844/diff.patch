@@ -1,0 +1,461 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 9f19f2bc..5d706dc0 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -475,6 +475,13 @@ jobs:
+           python3 -m py_compile libexec/claude-cuenta-mac.py
+           python3 -m unittest ci/test_claude_cuenta_mac.py -v
+ 
++      - name: "Reminders de las secretarias (INFRA-804: el puente del x86 y el runner del Mac solo dejan pasar Reminders)"
++        # Hermetico: ni ssh ni osascript; SSH_ORIGINAL_COMMAND falso y el exec y el osascript sustituidos.
++        run: |
++          set -euo pipefail
++          python3 -m py_compile libexec/reminders-bridge libexec/reminders-runner
++          python3 -m unittest ci/test_reminders_hermes.py -v
++
+       - name: "vscode-claude-cuenta (SC-1973: node --test de la parte pura de la extension)"
+         run: |
+           set -euo pipefail
+diff --git a/ARCHITECTURE.md b/ARCHITECTURE.md
+index 440e49b3..05219f16 100644
+--- a/ARCHITECTURE.md
++++ b/ARCHITECTURE.md
+@@ -29,6 +29,8 @@ copia y reinicia solo lo que cambió.
+ - **El VS Code LOCAL del Mac de CloudBlue (`mac-cb`, SC-2086)**: sin Remote-SSH, sin MDM, con su propio `~/.claude`. Es OTRO cliente de
+   `vscode-claude-cuenta/` y de `libexec/claude-con-cuenta.sh` (1.3.0 con `claudeCuenta.cuentasJson`), distinto de `Host mac`, el
+   Mac de Dani que sirve a `agent-browser-sync.sh`. Lo deja instalado y al día `libexec/claude-cuenta-mac.py` desde el x86.
++- **Las secretarias de Hermes (INFRA-804)**: su clave del x86 solo ejecuta `libexec/reminders-bridge`,
++  que reenvía Apple Reminders al Mac (`reminders-runner`). Sección «Reminders de las secretarias de Hermes».
+ - **El brain**: los alimentadores `libexec/brain-sweep.sh` (cron `*/5`) y
+   `libexec/brain-opencode-sync.py` (timer): ingesta de transcripts y digeros opencode.
+ 
+@@ -569,6 +571,31 @@ baja un nivel; quitar un patrón exige veredicto de security. Fallo, timeout o a
+ (nivel, fuente, huella). El modelo concreto de cada nivel es la fila `secretaria` del panel (M4, SC-1635); `modelo_de` no lleva
+ suelo Sonnet propio (decisión de Dani).
+ 
++## Componente canónico: Reminders de las secretarias de Hermes (INFRA-804)
++
++[DECISION: x86-host-runtime-pocharlies: la única vía de las secretarias de Hermes al Mac de Dani es libexec/reminders-bridge (orden forzada de su clave en el x86) → ssh mac-reminders → libexec/reminders-runner (orden forzada de su clave en el Mac, que solo ejecuta AppleScript de la app Reminders)]
++
++Dos claves dedicadas, cada una atada a una sola orden con `command=` en el `authorized_keys` de destino:
++
++| Salto | Clave | Privada | Entrada en `authorized_keys` |
++|---|---|---|---|
++| pod de Hermes → x86 (`dibanez`) | `hermes-secretaria-x86 INFRA-804` | Secret `hermes/hermes-secretaria-ssh` (`id_ed25519`), fuera de git | `command="/home/dibanez/.local/libexec/x86-host-runtime/reminders-bridge",restrict,from="<nodos ks5-cp>"` |
++| x86 → Mac (`usuario`) | `hermes-secretaria-mac INFRA-804` | `~/.ssh/hermes-secretaria-mac` del x86 (0600), `Host mac-reminders` en `~/.ssh/config` | `command="/Users/usuario/.local/bin/reminders-runner",restrict,no-port-forwarding,no-pty,from="<x86 en la tailnet>"` |
++
++- La orden es una: `reminders <base64>` o `reminders` con el guion por stdin. El puente rechaza todo lo demás (`ssh mac`,
++  shell, `curl`) y deja una línea en syslog (`reminders-bridge`); el runner rechaza el guion que nombre otra app
++  o use una palabra de `PROHIBIDAS` (do shell script, run script, open location, ficheros, portapapeles…) mirando el
++  código y no los textos, y deja una línea con el sha256 en `~/Library/Logs/reminders-runner.log` del Mac.
++- La clave de flota `nvidiadgx` y la del pod (`openclaw-k8s-ssh-20260630`) no cambian: los demás perfiles conservan su
++  shell en el x86 y la flota su acceso al Mac.
++- `install.sh` no despliega el runner del Mac, porque el Mac puede estar dormido y no hay sudo sin contraseña. Tras un
++  cambio en `libexec/reminders-runner`, IT lo sube desde la copia instalada y compara el sha256 en los dos lados:
++  `ssh mac 'mkdir -p ~/.local/bin && cat > ~/.local/bin/reminders-runner.tmp && chmod 755 ~/.local/bin/reminders-runner.tmp && mv ~/.local/bin/reminders-runner.tmp ~/.local/bin/reminders-runner' < ~/.local/libexec/x86-host-runtime/reminders-runner`.
++- Lo que esto NO cierra por sí solo: mientras el terminal de una secretaria pueda leer la clave compartida del pod
++  (`/opt/data/ssh/id_ed25519`, mismo usuario y contenedor que los demás perfiles), puede usarla en vez de la suya; y esa
++  clave entra al Mac directa desde el pod. El montaje por perfil es del chart de `k8s-openclaw-qwen36-pocharlies`.
++  Test: `ci/test_reminders_hermes.py`.
++
+ ## Componente canónico: el planificador del analista (`planificar`, SC-1801, SC-1811)
+ 
+ `jira-epic-trigger.py::planificar` lanza un análisis por cada épica de To Do y Backlog que lo necesite, por su Rank, sin
+diff --git a/ci/test_reminders_hermes.py b/ci/test_reminders_hermes.py
+new file mode 100644
+index 00000000..f87c3525
+--- /dev/null
++++ b/ci/test_reminders_hermes.py
+@@ -0,0 +1,146 @@
++"""INFRA-804: el puente del x86 y el runner del Mac solo dejan pasar AppleScript de Reminders.
++
++Hermético: no hay ssh ni osascript; se prueban las funciones puras (`orden_admitida`, `leer_orden`, `validar`) y
++`main()` de los dos con SSH_ORIGINAL_COMMAND falso, con el exec y el osascript sustituidos.
++"""
++import base64
++import io
++import os
++import sys
++import unittest
++from unittest import mock
++
++sys.path.insert(0, os.path.dirname(__file__))
++from _cargar import cargar  # noqa: E402
++
++runner = cargar("reminders-runner")
++puente = cargar("reminders-bridge")
++
++
++def b64(s):
++    return base64.b64encode(s.encode("utf-8")).decode()
++
++
++# Los guiones que usan hoy las secretarias (SOUL «PATRÓN FIJO» y skill apple-reminders-ssh).
++BUENOS = [
++    'tell application "Reminders" to make new reminder at end of list "INFRA-804 prueba" with properties '
++    '{name:"Llamar a la gestoría", body:"curl y chrome son solo texto aquí", due date:(current date) + 2 * days}',
++    'tell application "Reminders" to get {name, completed} of reminders of list "e-dani Web y Apple Dev"',
++    'tell application "Reminders"\n  with timeout of 600 seconds\n'
++    '    return (count of (every reminder of list "Recordatorios Skirmshop" whose completed is false)) as string\n'
++    '  end timeout\nend tell',
++    'tell application "Reminders"\n  set completed of (first reminder of list "X" whose name is "Pagar «IVA»") to true\n'
++    'end tell',
++    'tell application "Reminders"\n  set r to first reminder of list "X" whose name contains "GitHub"\n  delete r\nend tell',
++    'tell application "Reminders"\n  make new list with properties {name:"INFRA-804 prueba"}\nend tell',
++    'tell application "Reminders"\n  set dd to due date of (first reminder of list "X")\n'
++    '  return (day of dd as text) & "/" & (month of dd as text) & " " & time string of dd\nend tell',
++    'tell application "Reminders" to return name of every list',
++    'set S to "dice \\"hola\\" y -- no es comentario"\ntell application "Reminders" to make new reminder at end of '
++    'list "X" with properties {name:S}',
++]
++
++MALOS = {
++    "chrome": 'tell application "Google Chrome" to get URL of tab 1 of window 1',
++    "chrome junto a reminders": 'tell application "Reminders" to count lists\n'
++                                'tell application "Google Chrome" to get URL of tab 1 of window 1',
++    "do shell script": 'tell application "Reminders"\n do shell script "curl -s localhost:9222/json"\nend tell',
++    "do shell script con espacios": 'tell application "Reminders" to do   shell   script "id"',
++    "run script": 'tell application "Reminders" to run script "do shell script \\"id\\""',
++    "system events": 'tell application "System Events" to keystroke "a"',
++    "application id": 'tell application id "com.google.Chrome" to activate',
++    "current application": 'tell application "Reminders" to tell current application to activate',
++    "app variable": 'set a to "Google Chrome"\ntell application a to activate',
++    "app abreviado": 'tell app "Google Chrome" to activate',
++    "raw event": 'tell application "Reminders" to «event sysoexec» "id"',
++    "continuación ¬": 'tell application "Reminders" to do ¬\n shell script "id"',
++    "comentario que esconde": 'tell application "Reminders" to count lists -- "\ndo shell script "id" -- "',
++    "comentario almohadilla": 'tell application "Reminders" to count lists # "\ndo shell script "id" # "',
++    "comentario bloque": 'tell application "Reminders" to count lists (* "\ndo shell script "id" "*)',
++    "comillas tipográficas": 'tell application "Reminders" to make new reminder with properties {name:"a”}',
++    "barras": 'tell application "Reminders" to |do shell script| "id"',
++    "open location": 'tell application "Reminders" to open location "http://127.0.0.1:9222/json"',
++    "use framework": 'use framework "Foundation"\ntell application "Reminders" to count lists',
++    "the clipboard": 'tell application "Reminders" to set the clipboard to "x"',
++    "leer fichero": 'tell application "Reminders" to read POSIX file "/Users/usuario/.ssh/id_ed25519"',
++    "sin reminders": 'return 1 + 1',
++    "remoto": 'tell application "Reminders" of machine "eppc://otro" to count lists',
++    "texto sin cerrar": 'tell application "Reminders" to count lists "abc',
++    "vacío": "   ",
++}
++
++
++class Runner(unittest.TestCase):
++    def test_admite_los_guiones_de_las_secretarias(self):
++        for g in BUENOS:
++            with self.subTest(g=g[:60]):
++                self.assertIsNone(runner.validar(g))
++
++    def test_rechaza_lo_que_no_es_reminders(self):
++        for nombre, g in MALOS.items():
++            with self.subTest(nombre):
++                self.assertIsNotNone(runner.validar(g), nombre)
++
++    def test_orden_base64_y_stdin(self):
++        g = BUENOS[1]
++        self.assertEqual(runner.leer_orden("reminders " + b64(g), io.BytesIO(b"")), g)
++        self.assertEqual(runner.leer_orden("reminders", io.BytesIO(g.encode())), g)
++
++    def test_orden_no_admitida(self):
++        for orden in ["", "uname", "ssh mac uname", "curl -s localhost:9222/json", "reminders a b",
++                      "reminders $(id)", "reminders ;id", "osascript -e 'tell application \"Google Chrome\"'",
++                      "echo eA== | base64 -d | osascript -"]:
++            with self.subTest(orden):
++                with self.assertRaises(ValueError):
++                    runner.leer_orden(orden, io.BytesIO(b""))
++
++    def test_guion_demasiado_grande(self):
++        with self.assertRaises(ValueError):
++            runner.leer_orden("reminders", io.BytesIO(b"x" * (runner.MAX_BYTES + 1)))
++
++    def _main(self, orden, stdin=b""):
++        llamado = []
++        fake_stdin = mock.Mock(buffer=io.BytesIO(stdin))
++        with mock.patch.dict(os.environ, {"SSH_ORIGINAL_COMMAND": orden}), \
++                mock.patch.object(runner, "_log"), mock.patch.object(runner.sys, "stdin", fake_stdin), \
++                mock.patch.object(runner.subprocess, "run",
++                                  side_effect=lambda *a, **k: llamado.append((a, k)) or mock.Mock(returncode=0)):
++            rc = runner.main()
++        return rc, llamado
++
++    def test_main_ejecuta_solo_lo_valido(self):
++        rc, llamado = self._main("reminders " + b64(BUENOS[0]))
++        self.assertEqual(rc, 0)
++        self.assertEqual(llamado[0][0][0], ["/usr/bin/osascript", "-"])
++        self.assertEqual(llamado[0][1]["input"], BUENOS[0].encode())
++        rc, llamado = self._main("reminders " + b64(MALOS["chrome"]))
++        self.assertEqual((rc, llamado), (2, []))
++        rc, llamado = self._main("uname -a")
++        self.assertEqual((rc, llamado), (2, []))
++
++
++class Puente(unittest.TestCase):
++    def test_admite_reminders(self):
++        self.assertEqual(puente.orden_admitida("reminders"), ["reminders"])
++        self.assertEqual(puente.orden_admitida("reminders " + b64("x")), ["reminders", b64("x")])
++
++    def test_rechaza_lo_demas(self):
++        for orden in ["", "   ", "ssh mac uname", "ssh mac 'curl -s localhost:9222/json'", "bash", "uname",
++                      "reminders x;id", "reminders $(id)", "reminders a b", "ssh mac-reminders reminders"]:
++            with self.subTest(orden):
++                with self.assertRaises(ValueError):
++                    puente.orden_admitida(orden)
++
++    def test_main_reenvia_a_mac_reminders_o_rechaza(self):
++        with mock.patch.dict(os.environ, {"SSH_ORIGINAL_COMMAND": "reminders " + b64("x")}), \
++                mock.patch.object(puente.os, "execv") as ex:
++            puente.main()
++        self.assertEqual(ex.call_args[0][1][-3:], ["mac-reminders", "reminders", b64("x")])
++        with mock.patch.dict(os.environ, {"SSH_ORIGINAL_COMMAND": "ssh mac uname"}), \
++                mock.patch.object(puente.os, "execv") as ex, mock.patch.object(puente.syslog, "syslog"):
++            self.assertEqual(puente.main(), 2)
++        ex.assert_not_called()
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/install.sh b/install.sh
+index efcd0004..4215e67f 100755
+--- a/install.sh
++++ b/install.sh
+@@ -1390,6 +1390,10 @@ declare -A HELPER_UNIDADES=(
+   # blog-daily.py (INFRA-222): el ExecStart del oneshot blog-daily.service; no estaba declarado y el deploy
+   # avisaba en cuanto se tocaba (SC-1974 le sacó el lanzador a claude_agente.py).
+   [blog-daily.py]="blog-daily.service"
++  # INFRA-804: las órdenes forzadas de las claves de las secretarias. El puente lo ejecuta sshd en cada login con
++  # `command=` (ningún proceso vivo); reminders-runner se instala aquí solo como copia de la que IT sube al Mac.
++  [reminders-bridge]="-"
++  [reminders-runner]="-"
+ )
+ for helper in "${helpers_cambiados[@]-}"; do
+   [[ -z "$helper" ]] && continue
+diff --git a/libexec/reminders-bridge b/libexec/reminders-bridge
+new file mode 100755
+index 00000000..075e217e
+--- /dev/null
++++ b/libexec/reminders-bridge
+@@ -0,0 +1,57 @@
++#!/usr/bin/python3 -I
++"""reminders-bridge — la orden forzada de la clave de las secretarias de Hermes en el x86 (INFRA-804).
++
++El authorized_keys de dibanez en el x86 la fuerza para la clave `hermes-secretaria-x86` (privada solo en el Secret
++`hermes/hermes-secretaria-ssh`):
++
++    command="/home/dibanez/.local/libexec/x86-host-runtime/reminders-bridge",restrict,from="…" ssh-ed25519 … INFRA-804
++
++Con esa clave no hay shell, ni pty, ni reenvío de puertos: sshd ignora la orden del cliente, la deja en
++SSH_ORIGINAL_COMMAND y ejecuta esto, que solo admite
++
++    reminders            el AppleScript por stdin
++    reminders <base64>   el AppleScript en base64
++
++y la reenvía tal cual a `ssh mac-reminders` (clave dedicada `hermes-secretaria-mac`, que en el Mac solo puede
++ejecutar `reminders-runner`, el que comprueba que el guion habla solo con Reminders). Todo lo demás —`ssh mac …`,
++`uname`, `curl localhost:9222`, una shell interactiva (orden vacía)— se rechaza con un mensaje y salida 2.
++Cada rechazo deja una línea en el journal (`journalctl --user -t reminders-bridge` o `-t` en el del
++sistema), sin el contenido.
++"""
++import os
++import re
++import sys
++import syslog
++
++B64 = re.compile(r"^[A-Za-z0-9+/]+={0,2}$")
++MAX_ARG = 96 * 1024
++DESTINO = "mac-reminders"
++
++
++def orden_admitida(orden):
++    """La lista de argumentos que se reenvía al Mac, o ValueError con el motivo."""
++    partes = (orden or "").split()
++    if not partes:
++        raise ValueError("sin orden: esta clave no abre una shell")
++    if partes[0] != "reminders" or len(partes) > 2:
++        raise ValueError("orden no admitida: solo «reminders» (guion por stdin) o «reminders <base64>»")
++    if len(partes) == 2 and (len(partes[1]) > MAX_ARG or not B64.match(partes[1])):
++        raise ValueError("el argumento no es base64")
++    return partes
++
++
++def main():
++    orden = os.environ.get("SSH_ORIGINAL_COMMAND", "")
++    try:
++        partes = orden_admitida(orden)
++    except ValueError as e:
++        syslog.openlog("reminders-bridge")
++        syslog.syslog(syslog.LOG_WARNING, "rechazado: %s (orden de %d caracteres)" % (e, len(orden)))
++        print("reminders-bridge: rechazado: %s" % e, file=sys.stderr)
++        return 2
++    ssh = ["/usr/bin/ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", "-T", DESTINO] + partes
++    os.execv(ssh[0], ssh)
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/libexec/reminders-runner b/libexec/reminders-runner
+new file mode 100755
+index 00000000..a599b719
+--- /dev/null
++++ b/libexec/reminders-runner
+@@ -0,0 +1,162 @@
++#!/usr/bin/python3 -I
++"""reminders-runner — la orden forzada de la clave de las secretarias en el Mac de Dani (INFRA-804).
++
++Corre en el Mac, nunca en el x86: lo instala IT copiándolo del x86 (ARCHITECTURE.md, «Reminders de las secretarias»)
++a ~/.local/bin/reminders-runner, y el authorized_keys del Mac lo fuerza para la clave `hermes-secretaria-mac`:
++
++    command="/Users/usuario/.local/bin/reminders-runner",restrict,no-port-forwarding,no-pty,from="<x86>" ssh-ed25519 … INFRA-804
++
++Con `command=` sshd ignora la orden que pide el cliente y la deja en SSH_ORIGINAL_COMMAND. Este programa solo
++entiende una:
++
++    reminders            el AppleScript llega por stdin
++    reminders <base64>   el AppleScript va en base64 en la propia orden
++
++y solo ejecuta (`osascript -`, lenguaje AppleScript) un guion que habla con la app Reminders y con nada más.
++Cualquier otra cosa (shell, `uname`, `curl localhost:9222`, Chrome, System Events, `do shell script`…) se rechaza
++con un mensaje en stderr y salida 2, sin ejecutar nada.
++
++La comprobación mira el CÓDIGO del guion, no sus textos: los literales entre comillas son datos (el nombre y el
++cuerpo de un recordatorio pueden decir «chrome» o «curl»). Fuera de ellos:
++  - solo ASCII (fuera «», ¬, comillas tipográficas y homoglifos), sin comentarios ni identificadores |entre barras|;
++  - cada `application`/`app` va seguido del literal "Reminders" (fuera `application id …`, `current application`,
++    `application x`), y tiene que haber al menos uno;
++  - ninguna palabra de las adiciones o del sistema (PROHIBIDAS): do shell script, run/load/store script, open
++    location, read/write de ficheros, the clipboard, path to, POSIX file, display/choose, use framework, machine…
++Las comillas tipográficas se rechazan en todo el guion, también dentro de los textos.
++"""
++import base64
++import datetime
++import hashlib
++import os
++import re
++import subprocess
++import sys
++
++MAX_BYTES = 64 * 1024
++TIMEOUT_S = 1800  # las lecturas grandes de Reminders tardan minutos (skill apple-reminders-ssh)
++OSASCRIPT = "/usr/bin/osascript"
++LOG = os.path.expanduser("~/Library/Logs/reminders-runner.log")
++APP = "Reminders"
++
++PROHIBIDAS = frozenset("""
++do script run shell osascript open read write eof access mount volume system clipboard use framework
++javascript path posix alias file folder disk disks info display choose url location machine me my
++""".split())
++
++B64 = re.compile(r"^[A-Za-z0-9+/]+={0,2}$")
++IDENT = re.compile(r"[a-z_][a-z0-9_]*")
++APP_REF = re.compile(r"\b(?:application|app)\b")
++TRAS_APP = re.compile(r'\s*"(\d+)"')
++TIPOGRAFICAS = "“”„‟″‶＂"
++
++
++def _lexico(guion):
++    """(esqueleto, literales): el guion con cada literal "…" cambiado por "<n>", o ValueError con el motivo."""
++    if any(c in guion for c in TIPOGRAFICAS):
++        raise ValueError("comillas tipográficas: usa solo comillas rectas")
++    esqueleto, literales, i, n = [], [], 0, len(guion)
++    while i < n:
++        c = guion[i]
++        if c == '"':
++            j, buf = i + 1, []
++            while j < n and guion[j] != '"':
++                if guion[j] == "\\":
++                    buf.append(guion[j:j + 2])
++                    j += 2
++                    continue
++                buf.append(guion[j])
++                j += 1
++            if j >= n:
++                raise ValueError("texto sin cerrar")
++            esqueleto.append('"%d"' % len(literales))
++            literales.append("".join(buf))
++            i = j + 1
++            continue
++        if c == "-" and guion.startswith("--", i) or c == "#" or guion.startswith("(*", i):
++            raise ValueError("comentarios no admitidos")
++        if c == "|":
++            raise ValueError("identificadores |entre barras| no admitidos")
++        if ord(c) > 126 or (ord(c) < 32 and c not in "\t\r\n"):
++            raise ValueError("carácter no admitido fuera de un texto: U+%04X" % ord(c))
++        esqueleto.append(c)
++        i += 1
++    return "".join(esqueleto).lower(), literales
++
++
++def validar(guion):
++    """None si el guion solo habla con Reminders; si no, el motivo del rechazo."""
++    if not guion.strip():
++        return "guion vacío"
++    try:
++        esqueleto, literales = _lexico(guion)
++    except ValueError as e:
++        return str(e)
++    refs = 0
++    for m in APP_REF.finditer(esqueleto):
++        t = TRAS_APP.match(esqueleto, m.end())
++        if not t or literales[int(t.group(1))] != APP:
++            return 'solo se admite application "%s"' % APP
++        refs += 1
++    if not refs:
++        return 'el guion no habla con application "%s"' % APP
++    malas = sorted(set(IDENT.findall(esqueleto)) & PROHIBIDAS)
++    if malas:
++        return "palabras no admitidas: %s" % ", ".join(malas)
++    return None
++
++
++def leer_orden(orden, stdin):
++    """El guion (str) que pide la orden de ssh, o ValueError con el motivo."""
++    partes = (orden or "").split()
++    if not partes or partes[0] != "reminders" or len(partes) > 2:
++        raise ValueError("orden no admitida: solo «reminders» (guion por stdin) o «reminders <base64>»")
++    if len(partes) == 2:
++        if len(partes[1]) > MAX_BYTES * 4 // 3 + 4 or not B64.match(partes[1]):
++            raise ValueError("el argumento no es base64")
++        datos = base64.b64decode(partes[1], validate=True)
++    else:
++        datos = stdin.read(MAX_BYTES + 1)
++    if len(datos) > MAX_BYTES:
++        raise ValueError("guion de más de %d bytes" % MAX_BYTES)
++    try:
++        return datos.decode("utf-8")
++    except UnicodeDecodeError:
++        raise ValueError("el guion no es UTF-8")
++
++
++def _log(veredicto, datos=b""):
++    try:
++        with open(LOG, "a", encoding="utf-8") as fh:
++            fh.write("%s %s sha256=%s bytes=%d\n" % (
++                datetime.datetime.now().isoformat(timespec="seconds"), veredicto,
++                hashlib.sha256(datos).hexdigest()[:16], len(datos)))
++    except OSError:
++        pass
++
++
++def main():
++    orden = os.environ.get("SSH_ORIGINAL_COMMAND", "")
++    try:
++        guion = leer_orden(orden, sys.stdin.buffer)
++        motivo = validar(guion)
++        if motivo:
++            raise ValueError(motivo)
++    except ValueError as e:
++        _log("rechazado: %s" % e, orden.encode("utf-8", "replace"))
++        print("reminders-runner: rechazado: %s" % e, file=sys.stderr)
++        return 2
++    datos = guion.encode("utf-8")
++    try:
++        r = subprocess.run([OSASCRIPT, "-"], input=datos, timeout=TIMEOUT_S,
++                           env={"PATH": "/usr/bin:/bin", "HOME": os.path.expanduser("~"), "LANG": "en_US.UTF-8"})
++    except subprocess.TimeoutExpired:
++        _log("timeout", datos)
++        print("reminders-runner: osascript superó %d s" % TIMEOUT_S, file=sys.stderr)
++        return 124
++    _log("ok rc=%d" % r.returncode, datos)
++    return r.returncode
++
++
++if __name__ == "__main__":
++    sys.exit(main())
