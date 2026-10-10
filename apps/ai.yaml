@@ -1655,7 +1655,15 @@ spec:
     # Cómo verlo: el log de la cabeza (glm53-tp3-head) debe decir distributed_init_method=tcp://192.168.50.143: (antes, tcp://10.0.2.3:).
     # ROLLBACK de este paso: 1a500ac1bdd4434c36edadd7744b10275a0616ac (mismo path), o volver a qwen38 TP=3 con
     # 01f9b4da163dcf4626e6d33db0c450fababd7e10 y path overlays/qwen38-tp3-ventana-20261010.
-    targetRevision: b3f92e8512d151ce959d89656403e539b2bf7783
+    # 11-10-2026 (DGX-818, tercer paso): dfdc0e6 = la misma línea pin/glm53-ventana-20261010 (k8s-ai #163), mismo path. EXPERIMENTO DE
+    # AISLAMIENTO: GLM TP=3 SIN ARX (VLLM_ARX_ALLREDUCE=0 y VLLM_GLM_ARX_PREFETCH=0; all-reduce, reduce-scatter y all-gather caen a
+    # PyNccl) y NCCL_DEBUG_SUBSYS=INIT,NET,PROXY para tener más log de NCCL.
+    # Por qué: con b3f92e8 NCCL llega a «Init COMPLETE» en los tres rangos y ARX se inicializa, pero el anillo no se conecta (nunca
+    # «Connected all rings»), el worker no lee pesos y la API no escucha. qwen38 TP=3 con la misma lib y el mismo grafo, sin ARX, sí conecta.
+    # No es una mejora propuesta: es una medida para saber si ARX es lo que cuelga el arranque.
+    # ROLLBACK de este paso: b3f92e8512d151ce959d89656403e539b2bf7783 (mismo path, vuelve ARX), o volver a qwen38 TP=3 con
+    # 01f9b4da163dcf4626e6d33db0c450fababd7e10 y path overlays/qwen38-tp3-ventana-20261010.
+    targetRevision: dfdc0e682f11d641d75a215370887d6ee8821636
     path: overlays/glm53-tp3-ventana-k4-20261010
   destination:
     server: https://kubernetes.default.svc
