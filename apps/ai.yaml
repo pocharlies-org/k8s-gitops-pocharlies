@@ -1636,8 +1636,19 @@ spec:
     # Arranque: unos 33 min, con unos 20 min SIN log tras «GPU KV cache size» (NO es cuelgue). El tráfico va a Alibaba hasta que el
     # residente responda.
     # ROLLBACK de esto (volver a la ventana): 92fb20060dcb84ceb624c95b6a1090a48e824f76 con path overlays/sparks-ventana-20261010.
-    targetRevision: 01f9b4da163dcf4626e6d33db0c450fababd7e10
-    path: overlays/qwen38-tp3-ventana-20261010
+    # 10-10-2026 (DGX-818, ventana de los Sparks con Dani): 1a500ac = el residente GLM-5.3-Flash en TP=3 (k8s-ai #161, línea
+    # pin/glm53-ventana-20261010, desde 92fb200; no entra en main). Path overlays/glm53-tp3-ventana-k4-20261010: GLM TP=3 con el head
+    # en dgx3 (rango 0) y los workers en dgx1 (rango 1) y dgx2 (rango 2), modo k4, con la libnccl parcheada de DGX-815 y el anillo de
+    # rangos dgx3 -> dgx1 -> dgx2 (la receta de la sonda v3c), más la pausa de la ventana. Sustituye a qwen38 TP=3 (01f9b4d).
+    # Efecto de la sync: el prune retira qwen38 TP=3 (qwen38-flash-next-head, -worker y -worker-dgx3, y el PV/PVC
+    # hf-cache-dgx1-dgx3-llm-ro, PV Retain: el NFS no se toca) y el PostSync llm-deploy-resume ya no está en el render: la pausa deja la
+    # voz (omnivoice-tts-nvfp4 y stt-turbo) a 0 toda la prueba. El residente local cae y el tráfico va a Alibaba hasta que GLM responda
+    # (API de la cabeza: Service glm53-tp3, puerto 8002).
+    # El Secret glm53-tp3-mentat (ExternalSecret con deletionPolicy Retain) queda retenido aunque se retire GLM: si GLM no se reactiva,
+    # hay que borrarlo a mano (kubectl delete secret glm53-tp3-mentat -n llm, tras el ExternalSecret).
+    # ROLLBACK de esto (volver a qwen38 TP=3): 01f9b4da163dcf4626e6d33db0c450fababd7e10 con path overlays/qwen38-tp3-ventana-20261010.
+    targetRevision: 1a500ac1bdd4434c36edadd7744b10275a0616ac
+    path: overlays/glm53-tp3-ventana-k4-20261010
   destination:
     server: https://kubernetes.default.svc
     namespace: llm
