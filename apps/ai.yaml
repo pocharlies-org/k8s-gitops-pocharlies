@@ -1612,8 +1612,8 @@ spec:
     # a las 12:15Z; es la línea pin/sparks-ventana-20261010 y no entra en main; el mismo árbol que tenía la rama de la PR).
     # Path overlays/sparks-ventana-20261010: el render de a51da60 sin head ni worker de qwen38 (el prune los borra y libera dgx1 y dgx2; dgx3 no tiene residente), sin el PostSync llm-deploy-resume, y con la sonda NCCL
     # (un Job por Spark, ConfigMap sparks-nccl-sonda). El PreSync llm-deploy-pause deja el árbitro en sync-paused y la voz a 0 y así
-    # se quedan toda la ventana. El residente cae (~33 min de arranque al volver) y el tráfico va a Alibaba. NO se fusiona hasta que la
-    # sesión abra la ventana con Dani. La tabla de la sonda: `kubectl logs -n llm job/sparks-nccl-sonda-dgx{1,2,3}`, líneas JSON.
+    # se quedan toda la ventana. El residente cae (~33 min de arranque al volver) y el tráfico va a Alibaba. Esta PR de gitops (la ida) NO se
+    # fusiona hasta que la sesión abra la ventana con Dani; #150 ya está fusionada. La tabla de la sonda: `kubectl logs -n llm job/sparks-nccl-sonda-dgx{1,2,3}`, líneas JSON.
     # ROLLBACK de esto (la vuelta): la PR hermana DGX-810-ai-vuelta (path overlays/sparks-ventana-salida-20261010 en el mismo SHA;
     # a51da60 tal cual no pasa su PreSync desde sync-paused).
     targetRevision: 5e7be8045946c0ad2780c7ffa81a94f65219de75
