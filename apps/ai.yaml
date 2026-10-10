@@ -1592,13 +1592,22 @@ spec:
     # planos qwen38-flash-next-vllm-launch y qwen38fn-ple-mmap cambian en sitio (parches TP=3, inertes con TP=2) y ningún pod se reinicia.
     # Voz: los hooks de la sync (llm-deploy-pause/resume) bajan omnivoice-tts-nvfp4 y stt-turbo a 0 y los devuelven, unos 2-3 min sin voz.
     # ROLLBACK de esto: 63dd55f112190d4363b30851bec7b33fc9d7cb06.
-    # 10-10-2026 (DGX-781 vuelta): TP=2 en a51da60; deja fuera el worker-dgx3 y el PV/PVC NFS; reinicia el residente.
-    # PR de vuelta atrás de la ventana TP=3, gemelo de DGX-781-ai-tp3 (la ida lleva `ai` a 47c8ff293dda0930aa9efe9415bfae5862236204,
-    # k8s-ai #143). Se fusiona SOLO si la ventana decide volver, y DESPUÉS de la ida: `git fetch origin && git merge origin/deploy/prod`
-    # en esta rama (el diff pasa a ser 47c8ff2 -> a51da60), push y esperar el veredicto del juez. Hasta entonces no cambia el SHA.
-    # Reinicia head y worker (~33 min, el tráfico va a Alibaba); la tabla PLE se reconstruye a tp=2 (ready.json con tp_size=3 no casa, ~42 s por nodo).
-    # Quedan fuera worker-dgx3 y el PV/PVC hf-cache-dgx1-dgx3-llm-ro (Retain: no se borra el NFS). Si la sync no los poda, quedan huérfanos:
-    # el árbitro tolera el worker-dgx3 AUSENTE (DGX-779), no uno presente y huérfano. ROLLBACK de esto (volver a TP=3): 47c8ff293dda0930aa9efe9415bfae5862236204.
+    # 10-10-2026 (DGX-781, ventana con Dani): 47c8ff2 = a51da60 + el residente en TP=3 sobre dgx1, dgx2 y dgx3 (k8s-ai #143,
+    # línea pin/qwen38-tp3-20261010; no entra en main): tercer rango en el Deployment nuevo qwen38-flash-next-worker-dgx3,
+    # PV/PVC NFS hf-cache-dgx1-dgx3-llm-ro, NCCL por el triángulo CX7, plano de control por la LAN, checkpoint TP=3 y KV 48 GiB.
+    # REINICIA el residente: arranque estimado de 35-40 min con el tráfico en el fallback (Alibaba); ~20 min sin log tras
+    # «GPU KV cache size» NO es cuelgue. NO se fusiona hasta que la sesión abra la ventana con Dani.
+    # 10-10-2026 (DGX-781, tras el fallo de NCCL entre carriles del primer arranque): 1f5aefd = 47c8ff2 + NCCL_IB_SUBNET_PREFIX_LEN=24
+    # en los tres rangos (k8s-ai #145, línea pin/qwen38-tp3-20261010; no entra en main). Motivo: el fallo de NCCL entre carriles
+    # del primer arranque de TP=3. El tráfico sigue en el fallback (Alibaba) hasta que el residente arranque.
+    # ROLLBACK de esto (el único): a51da6025a7fe175549a349e0c4400959f602ae9, en la PR hermana DGX-781-ai-vuelta-tp2 (#578).
+    # 10-10-2026 (DGX-781, VUELTA a TP=2): a51da60 = el residente otra vez en TP=2 (dgx1+dgx2); sale el worker-dgx3 y el PV/PVC NFS
+    # hf-cache-dgx1-dgx3-llm-ro. Motivo: dos arranques TP=3 fallaron en NCCL (ibv_modify_qp 110: dgx2 rocep1s0f0 -> GID 10.0.2.3
+    # de dgx3, entre carriles), incluso con NCCL_IB_SUBNET_AWARE_ROUTING=1 y NCCL_IB_SUBNET_PREFIX_LEN=24. La ventana decide volver.
+    # Reinicia head y worker (~33 min, el tráfico va a Alibaba); la tabla PLE se reconstruye a tp=2 (ready.json con tp_size=3 no casa,
+    # ~42 s por nodo). El PV/PVC es Retain: no se borra el NFS; si la sync no poda worker-dgx3 y el PV/PVC, quedan huérfanos y hay que
+    # podarlos (el árbitro tolera el worker-dgx3 AUSENTE, DGX-779, no uno presente y huérfano).
+    # ROLLBACK de esto (volver a TP=3): 1f5aefd88e6c2660a7b4d05152444541e836531d.
     targetRevision: a51da6025a7fe175549a349e0c4400959f602ae9
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
