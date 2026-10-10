@@ -1585,7 +1585,14 @@ spec:
     # Riesgos: cada paso copia GPU<-CPU solo las filas que usa (sincronía por paso: puede bajar tok/s y TTFT) y la memoria del head
     # es la que hay que vigilar tras el arranque. El tráfico va a Alibaba durante el reinicio. El momento del merge lo decide Dani.
     # ROLLBACK (el único): fadbbdda1a6a3f85aaeed7138f924cd066210e8c.
-    targetRevision: 63dd55f112190d4363b30851bec7b33fc9d7cb06
+    # 10-10-2026 (DGX-780, Dani autoriza la cadena entera de TP=3): a51da60 = 63dd55f + el checkpoint TP=3 (k8s-ai #138 a #141,
+    # línea pin/qwen38-tp3-20261010; no entra en main). Crea en dgx3 los Jobs convert (16Gi), serve y publish (este en nvidia-dgx,
+    # 4Gi) del checkpoint TP=3, sin GPU, con su ConfigMap qwen38fn-tp3 y el Service qwen38fn-tp3-serve. NO reinicia el residente:
+    # head y worker renderizan igual que en 63dd55f (kustomize del overlay en los dos SHA, lo comprobó qa en #141). Los ConfigMaps
+    # planos qwen38-flash-next-vllm-launch y qwen38fn-ple-mmap cambian en sitio (parches TP=3, inertes con TP=2) y ningún pod se reinicia.
+    # Voz: los hooks de la sync (llm-deploy-pause/resume) bajan omnivoice-tts-nvfp4 y stt-turbo a 0 y los devuelven, unos 2-3 min sin voz.
+    # ROLLBACK de esto: 63dd55f112190d4363b30851bec7b33fc9d7cb06.
+    targetRevision: a51da6025a7fe175549a349e0c4400959f602ae9
     path: overlays/ornith-sm121v5-lmheadw4-20260721
   destination:
     server: https://kubernetes.default.svc
