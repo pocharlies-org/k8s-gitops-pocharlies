@@ -439,23 +439,29 @@ del respaldo el job sale verde, y en los tres últimos la primera línea visible
 «PENDIENTE — no es una aprobación», con un `::notice::`. GitHub Free no protege ramas, así que la única puerta es
 `company-aprobar`, que lee el marcador. El botón verde de la interfaz de GitHub en un pendiente es el precio asumido.
 
-## El juez por fases (SC-2264)
+## El juez por fases (SC-2264, variante C)
 
 Con el modelo local `tooling` (no cambia) una sola llamada con todo (diff, criterios, normas) daba demasiados `NO_PASA` falsos.
-`juzgar` ahora hace tres preguntas, cada una con su propio esquema JSON:
+`juzgar` ahora hace tres preguntas, cada una con su propio esquema JSON. Esta variante corrige tres cosas que la ronda de calibración
+midió en la primera versión por fases (la pasada de citas devolvía «ninguna» para criterios que sí están en el diff, y un criterio
+negativo salía ❌ «porque las citas no lo muestran»): el juicio ve el diff de lo que nombra el criterio, sin citas es ➖ y los
+hallazgos no bloquean.
 
 1. Citas. Para cada criterio, hasta `CITAS_POR_CRITERIO` = 5 líneas literales del diff. El código las busca en el diff
    (`localizar`) y descarta la que no encuentra; las que quedan llevan su `fichero:linea`.
-2. Juicio de criterios, en lotes de `LOTE_CRITERIOS` = 5. Cada lote ve solo sus criterios, sus citas y el título y la descripción
-   de la PR, sin el diff. Un criterio de esta PR sin citas que lo cumplan es `❌` por ausencia.
-3. Fallos del diff (`correccion` y `arquitectura`), sobre el diff entero. Un hallazgo `correccion` que bloquearía debe traer el
-   caso concreto en `entrada`, `salida_esperada` y `salida_codigo`, más su `cita`. Si falta alguno de los tres baja a observación
-   por código (comprobación de forma, no de contenido). Los de `arquitectura` no llevan `entrada`.
+2. Juicio de criterios, en lotes de `LOTE_CRITERIOS` = 5. Cada lote ve sus criterios, sus citas, el título y la descripción de la
+   PR y el diff de los ficheros que nombran sus criterios (`diff_de_los_nombrados`: por ruta, o por nombre corto como palabra
+   entera; hasta `LOTE_DIFF_MAX` = 30000 caracteres; el resto del diff no entra). El `evidencia` de un ✅ puede ser una cita o una
+   línea de ese diff. Un criterio sin citas es `➖` «no demostrable en el diff» (`sin_citas`) y no veta, salvo que el modelo
+   dijera dónde esperaba la evidencia, ese fichero no esté en el diff y tampoco exista en el head (`juzgar` lo mira): eso sigue
+   siendo `❌` (regla de SC-2285). Un `❌` por contradicción, con su cita en el diff, veta como siempre, haya o no citas.
+3. Fallos del diff (`correccion` y `arquitectura`), sobre el diff entero. Son observaciones y **nunca bloquean**, estén atados a
+   un criterio o a una norma o no: se publican en «Observaciones (no bloquean)». Solo veta un `❌` de criterio.
 
 Llamadas por PR: `2 + ceil(criterios / 5)`, cada una repetida una vez si la respuesta no sirve, más una para recuperar la cita
 de hallazgos que no casan y hasta `VERIFICA_MAX_LLAMADAS` = 4 verificaciones, solo con `NO_PASA`. Antes era una sola llamada
 (más reintento y verificaciones). Una PR de 6 criterios que pasa gasta 4. `--evalua` imprime `llamadas=` por caso y por pasada y, debajo de cada línea `FALLO`, sus motivos: cada ❌ (criterio y nota) y cada
-hallazgo que bloquea (severidad, tipo, `fichero:línea` y texto, a 200 caracteres).
+hallazgo que bloquea (severidad, tipo, `fichero:línea` y texto, a 200 caracteres; en esta variante ninguno, así que solo salen los ❌).
 
 **Salida constreñida.** Cada pregunta pide `response_format: {type: json_schema}` (`ESQUEMA_CITAS`, `ESQUEMA_LOTE`,
 `ESQUEMA_HALLAZGOS`, estrictos). Si el alias contesta 400 o 422 hablando de `response_format`, se anota en `SIN_ESQUEMA`, se

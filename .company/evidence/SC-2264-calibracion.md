@@ -1,24 +1,21 @@
-# SC-2264: evidencia de la rama SC-2264-calibracion
+# SC-2264: evidencia de la rama iter/SC-2264-c (iteración 3, variante C)
 
-Donde: x86 (`ubuntu`), worktree de `k8s-gitops-pocharlies`, sobre 1ece33d (origin/main) + esta rama. Sin modelo real: el residente
-`tooling` estaba caído y la medida con el respaldo no vale (C6).
+Donde: x86 (`ubuntu`), worktree de `k8s-gitops-pocharlies`, sobre df5a7d6 (SC-2264-calibracion). Sin modelo real: la medida la hace el
+workflow `medida/SC-2264-c` con el proxy `alibaba-q38-flash`.
 
 | comando | resultado |
 |---|---|
-| `python3 -m unittest discover -s tests -p 'test_*.py'` | PASS, 404 tests, 1 skipped |
-| `python3 -m unittest tests.test_llm_review_juez` | PASS, 214 tests (hermético, modelo de pega) |
-| `python3 -m unittest tests.test_reusable_pr_review` | PASS, 33 tests (el nuevo C7 falla contra el workflow de main) |
+| `python3 -m unittest discover -s tests -p 'test_*.py'` | PASS, 414 tests, 1 skipped |
+| `python3 -m unittest tests.test_llm_review_juez` | PASS, 224 tests (hermético, modelo de pega) |
 | `python3 scripts/check-workflow-pins.py` | All third-party workflow dependencies are pinned to immutable commits |
 | `company-duplicados` | Sin duplicación nueva |
 
-Split (`scripts/juez_split.py`, 52 casos): entrenamiento 11, validación 25, prueba 16.
+Variante C = el diseño por fases de df5a7d6 con tres arreglos:
+1. el juicio de cada lote recibe también el diff de los ficheros que nombran sus criterios (`diff_de_los_nombrados`, tope `LOTE_DIFF_MAX`);
+2. un criterio sin citas es ➖ «no demostrable en el diff», salvo la ausencia de un fichero que no está en el diff ni en el head;
+3. los hallazgos de la caza de fallos nunca bloquean (observaciones), estén atados o no.
 
-| criterio | dónde |
-|---|---|
-| C1 | `tests.test_llm_review_juez` (corpus ≥ 50, una clase y un esperado por caso, `TestSplit`) |
-| C2 | `TestEsquema`; la comprobación con el residente queda para la medida (la línea final de `--evalua` dice qué alias aceptó el esquema) |
-| C3 | `TestFases` (2 + ceil(criterios/5) llamadas por PR) |
-| C4 | `test_un_hallazgo_de_correccion_sin_el_caso_concreto_baja_a_observacion_por_codigo`, `TestSplit.test_ningun_ejemplo_de_la_rubrica_sale_de_validacion_ni_de_prueba` |
-| C7 | `tests.test_reusable_pr_review.test_la_evaluacion_mide_la_parte_de_prueba_con_pasadas_y_umbrales_del_split` |
-| C8 | el marcador v3 y su fixture `tests/fixtures/juez/marcador-v3.json` no se tocan |
-| C5, C6 | pendientes de la medida con el modelo real (ramas `medida/SC-2264` y `medida/SC-2264-antes`) |
+Tests nuevos: `TestVarianteC` (16, rojos antes del cambio en el commit anterior). Los que afirmaban que un hallazgo bloquea se
+reescribieron (el verificador se prueba ahora con un ❌ por contradicción) o se borraron (reglas de cita de un hallazgo).
+Código que queda sin camino vivo (los hallazgos ya no bloquean): `aplicar_reglas` y `citas_sin_casar` sobre hallazgos, `a_verificar`
+de hallazgos y el motivo `hallazgos` de `decidir`; si C gana, se borran en la PR final.

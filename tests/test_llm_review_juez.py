@@ -408,7 +408,7 @@ class TestDecision(Base):
         self.assertEqual({m for m, _, _ in self.mundo.llamadas}, {'local-juez'})
         # cada pregunta del juicio ve solo los bloques que necesita (SC-2264): el juicio de criterios no ve el diff
         bloques = {'citas': {'ticket', 'criterios', 'recortados', 'diff'},
-                   'lote': {'ticket', 'criterios', 'recortados', 'pr', 'alcance', 'citas'},
+                   'lote': {'ticket', 'criterios', 'recortados', 'pr', 'alcance', 'citas', 'diff'},
                    'hallazgos': {'ticket', 'criterios', 'recortados', 'pr', 'diff', 'arquitectura'}}
         for fase, esperados in bloques.items():
             with self.subTest(fase):
@@ -467,29 +467,22 @@ class TestDecision(Base):
         self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
         self.assertIn('falta el test', self.comentario())
 
-    def test_hallazgo_de_correccion_o_arquitectura_bloquea(self):
-        bug = {'file': 'src/app.py', 'line': 12, 'cita': 'return x + y', 'severity': 'alta', 'tipo': 'correccion',
-               'summary': 'suma mal'}
-        self.mundo.litellm['local-juez'] = [(200, respuesta(
-            [cumple(1), cumple(2, 'tests/test_app.py:4')], [bug]), 0)]
-        self.assertEqual(self.correr(), 1)
-        self.assertVeredicto('NO_PASA', motivos='hallazgos')
-        self.assertIn('suma mal', self.comentario())
-
-    def test_el_tipo_se_normaliza_y_uno_desconocido_bloquea(self):
-        # falla cerrado: `corrección`, `Arquitectura`, `bug` o vacio con severidad alta son bugs reales
-        for tipo in ('corrección', 'Arquitectura', 'CORRECCIÓN', 'bug', ''):
+    def test_el_tipo_se_normaliza_y_un_hallazgo_de_cualquier_tipo_es_una_observacion(self):
+        # variante C: la caza de fallos no bloquea; `corrección`, `Arquitectura`, `bug` o vacio solo cambian como se rotula
+        for tipo, rotulo in (('corrección', '(correccion)'), ('Arquitectura', '(arquitectura)'), ('CORRECCIÓN', '(correccion)'),
+                             ('bug', '(bug)'), ('', '(otro)')):
             with self.subTest(tipo=tipo):
                 self.mundo.comentarios.clear()
                 self.mundo.litellm['local-juez'] = [(200, respuesta(
                     [cumple(1), cumple(2, 'tests/test_app.py:4')],
                     [{'file': 'src/app.py', 'line': 12, 'cita': 'return x + y', 'severity': 'alta', 'tipo': tipo,
                       'summary': 'suma mal'}]), 0)]
-                self.assertEqual(self.correr(), 1, self.salida_texto)
-                self.assertVeredicto('NO_PASA', motivos='hallazgos')
+                self.assertEqual(self.correr(), 0, self.salida_texto)
+                self.assertVeredicto('PASA', motivos='')
                 cuerpo = self.comentario()
-                self.assertIn('### Hallazgos', cuerpo)
-                self.assertNotIn('Observaciones', cuerpo)
+                self.assertIn('### Observaciones (no bloquean)', cuerpo)
+                self.assertIn(f'{rotulo} — suma mal', cuerpo)
+                self.assertNotIn('### Hallazgos', cuerpo)
 
     def test_un_no_pasa_sin_hallazgos_del_modelo_trae_su_motivo_en_hallazgos(self):
         casos = {
@@ -703,20 +696,17 @@ class TestFueraDeEstaPR(Base):
         self.assertEqual(review.decidir([criterio(False, False), criterio(None, False)], []),
                          ('NO_PASA', {'criterio_incumplido'}))
 
-    def test_un_hallazgo_de_criterio_no_bloquea_pero_uno_de_correccion_si(self):
-        # un criterio que no se cumple se dice en `criterios` (false), no como hallazgo
+    def test_un_hallazgo_no_bloquea_sea_del_tipo_que_sea(self):
+        # un criterio que no se cumple se dice en `criterios` (false), no como hallazgo; y la caza de fallos no bloquea (variante C)
         hallazgo = lambda tipo, sev: {'file': 'src/app.py', 'line': 12, 'cita': 'return x + y', 'severity': sev, 'tipo': tipo,
                                       'summary': 'C2 no esta en el diff'}
-        self.responde([cumple(1), self.fuera(2)], [hallazgo('criterio', 'alta')])
-        self.assertEqual(self.correr(), 0, self.salida_texto)
-        self.assertVeredicto('PASA', motivos='')
-        self.assertIn('Observaciones (no bloquean)', self.comentario())
-        for tipo, sev in (('correccion', 'alta'), ('arquitectura', 'media')):
+        for tipo, sev in (('criterio', 'alta'), ('correccion', 'alta'), ('arquitectura', 'media')):
             with self.subTest(tipo):
                 self.mundo.comentarios.clear()
                 self.responde([cumple(1), self.fuera(2)], [hallazgo(tipo, sev)])
-                self.assertEqual(self.correr(), 1)
-                self.assertVeredicto('NO_PASA', motivos='hallazgos')
+                self.assertEqual(self.correr(), 0, self.salida_texto)
+                self.assertVeredicto('PASA', motivos='')
+                self.assertIn('Observaciones (no bloquean)', self.comentario())
 
     def test_la_rubrica_y_la_pr_llegan_al_modelo(self):
         self.correr(REVIEW_PR_TITLE='SC-2182: primera de dos', REVIEW_PR_BODY='El test va en la segunda PR.')
@@ -726,24 +716,24 @@ class TestFueraDeEstaPR(Base):
         self.assertRegex(usuario, r'(?s)tipo=pr>>>\nSC-2182: primera de dos\n\nEl test va en la segunda PR\.\n<<<FIN')
         self.assertRegex(self.prompt('hallazgos'), r'(?s)tipo=pr>>>\nSC-2182: primera de dos\n\nEl test va en la segunda PR\.\n<<<FIN')
 
-    def test_un_hallazgo_que_bloquea_bloquea_con_cualquier_estado_de_los_criterios(self):
-        # SC-2197 C3b: ni el ➖ ni el ✅ tapan un hallazgo de correccion o arquitectura alto o medio
+    def test_un_hallazgo_no_cambia_el_veredicto_con_ningun_estado_de_los_criterios(self):
+        # SC-2197 C3b y variante C: ni el ➖ ni el ✅ ni el ❌ cambian por un hallazgo; lo que veta es el criterio
         hallazgo = lambda tipo, sev: {'file': 'src/app.py', 'line': 12, 'cita': 'return x + y', 'severity': sev, 'tipo': tipo,
                                       'summary': 'incumple una norma del ARCHITECTURE.md'}
-        estados = {'todo cubierto': [cumple(1), cumple(2, 'tests/test_app.py:4')],
-                   'todo fuera': [self.fuera(1), self.fuera(2)],
-                   'cubierto y fuera': [cumple(1), self.fuera(2)],
-                   'contradicho y fuera': [{'n': 1, 'cumple': False, 'nota': 'x'}, self.fuera(2)]}
-        for estado, criterios in estados.items():
+        estados = {'todo cubierto': ([cumple(1), cumple(2, 'tests/test_app.py:4')], 0, ''),
+                   'todo fuera': ([self.fuera(1), self.fuera(2)], 0, ''),
+                   'cubierto y fuera': ([cumple(1), self.fuera(2)], 0, ''),
+                   'contradicho y fuera': ([{'n': 1, 'cumple': False, 'evidencia': 'src/app.py:12', 'cita': 'return x + y', 'nota': 'x'},
+                                            self.fuera(2)], 1, 'criterio_incumplido')}
+        for estado, (criterios, rc, motivos) in estados.items():
             for tipo, sev in (('correccion', 'alta'), ('correccion', 'media'),
                               ('arquitectura', 'alta'), ('arquitectura', 'media')):
                 with self.subTest(f'{estado} / {tipo} {sev}'):
                     self.mundo.comentarios.clear()
                     self.responde(criterios, [hallazgo(tipo, sev)])
-                    self.assertEqual(self.correr(), 1)
-                    motivos = self.marcador().split(' motivos=')[1].split(' ')[0].split(',')
-                    self.assertIn('hallazgos', motivos)
-                    self.assertIn('### Hallazgos', self.comentario())
+                    self.assertEqual(self.correr(), rc, self.salida_texto)
+                    self.assertVeredicto('NO_PASA' if rc else 'PASA', motivos=motivos)
+                    self.assertIn('### Observaciones (no bloquean)', self.comentario())
 
     def test_la_rubrica_separa_hallazgos_de_criterios_y_pone_los_hallazgos_primero(self):
         # SC-2264: hallazgos y criterios son preguntas distintas, cada una en su llamada y con su JSON
@@ -754,7 +744,7 @@ class TestFueraDeEstaPR(Base):
         self.assertIn('no juzgas criterios', hallazgos)
         self.assertIn('"criterios": [{', lote)
         self.assertNotIn('"hallazgos": [{', lote)
-        self.assertIn('Un hallazgo de severidad `alta` o `media` bloquea la PR', hallazgos)
+        self.assertIn('Los hallazgos no bloquean la PR', hallazgos)
         self.assertIn('DATOS', self.mundo.llamadas[0][1])
 
     def test_la_rubrica_no_deja_suponer_lo_que_el_diff_no_muestra(self):
@@ -765,35 +755,8 @@ class TestFueraDeEstaPR(Base):
                       'un «si», un «puede» o un «probablemente»', 'NO AFIRMES la semantica de una herramienta',
                       'desde la memoria', '"entrada": "<solo en correccion'):
             self.assertIn(frase, self.prompt('hallazgos', plano=True))
-        self.assertIn('Una sospecha sobre codigo que las citas no muestran no es una contradiccion', self.prompt('lote', plano=True))
+        self.assertIn('Una sospecha sobre codigo que ni las citas ni el diff muestran no es una contradiccion', self.prompt('lote', plano=True))
         self.assertIn('no afirmes de memoria como se comporta una herramienta', self.prompt('lote', plano=True))
-
-    def test_un_hallazgo_de_correccion_sin_el_caso_concreto_baja_a_observacion_por_codigo(self):
-        # SC-2264 C4: comprobacion de FORMA. Sin `entrada`, `salida_esperada` y `salida_codigo` llenos no bloquea; con los tres, si;
-        # el de arquitectura no los lleva y bloquea igual. Un tipo desconocido (`bug`, vacio) cuenta como correccion.
-        base = {'file': 'src/app.py', 'line': 12, 'cita': 'return x + y', 'severity': 'alta', 'tipo': 'correccion',
-                'summary': 'invierte la condicion'}
-        completo = {'entrada': 'x=1', 'salida_esperada': 'True', 'salida_codigo': 'False'}
-        casos = [('sin ningun campo', {**base, **{k: '' for k in completo}}, False),
-                 ('sin entrada', {**base, **completo, 'entrada': ''}, False),
-                 ('sin salida esperada', {**base, **completo, 'salida_esperada': '  '}, False),
-                 ('sin salida del codigo', {**base, **completo, 'salida_codigo': ''}, False),
-                 ('tipo desconocido sin caso', {**base, **{k: '' for k in completo}, 'tipo': 'bug'}, False),
-                 ('completo', {**base, **completo}, True),
-                 ('arquitectura sin caso', {**base, **{k: '' for k in completo}, 'tipo': 'arquitectura'}, True)]
-        for nombre, hallazgo, bloquea in casos:
-            with self.subTest(nombre):
-                self.mundo.comentarios.clear()
-                self.responde([cumple(1), self.fuera(2)], [hallazgo])
-                self.assertEqual(self.correr(), 1 if bloquea else 0, self.salida_texto)
-                if bloquea:
-                    self.assertVeredicto('NO_PASA', motivos='hallazgos')
-                else:
-                    self.assertVeredicto('PASA', motivos='')
-                    cuerpo = self.comentario()
-                    self.assertIn('Observaciones (no bloquean)', cuerpo)
-                    self.assertIn('sin el caso concreto (entrada, salida esperada y salida del codigo): no bloquea', cuerpo)
-
 
 # ---- SC-2229: evidencia comprobada por codigo, alcance declarado, recorte y entregables posteriores ----
 
@@ -1078,29 +1041,6 @@ class TestEvidenciaDelJuez(Base):
         self.correr(REVIEW_PR_BODY='sin seccion')
         self.assertIn('la PR no declara alcance', self.prompt('lote'))
 
-    def test_un_hallazgo_sin_cita_o_con_una_cita_que_no_esta_no_bloquea_y_se_dice(self):
-        base = {'file': 'src/app.py', 'line': 12, 'severity': 'alta', 'tipo': 'correccion', 'summary': 'suma mal'}
-        for nombre, extra in (('sin cita', {}), ('cita inventada', {'cita': 'return x * y'}),
-                              ('fichero que no esta', {'file': 'otro.py', 'cita': 'return x + y'})):
-            with self.subTest(nombre):
-                self.mundo.comentarios.clear()
-                self.responde([cumple(1), cumple(2, 'tests/test_app.py:4')], [{**base, **extra}])
-                self.assertEqual(self.correr(), 0, self.salida_texto)
-                self.assertVeredicto('PASA', motivos='')
-                texto = self.comentario()
-                self.assertIn('### Observaciones (no bloquean)', texto)
-                self.assertIn('su cita no esta en el diff de ese fichero: no bloquea', texto)
-                self.assertNotIn('### Hallazgos', texto)
-
-    def test_un_hallazgo_sobre_un_fichero_recortado_no_bloquea(self):
-        # con el tope a 250 B solo entra src/app.py; el hallazgo del modelo es sobre tests/test_app.py
-        self.responde([cumple(1), cumple(2)], [{'file': 'tests/test_app.py', 'line': 3, 'severity': 'alta',
-                                                'tipo': 'correccion', 'cita': 'def test_f(self): pass',
-                                                'summary': 'el test no comprueba nada'}])
-        self.assertEqual(self.correr(REVIEW_MAX_DIFF_BYTES='250'), 0, self.salida_texto)
-        self.assertVeredicto('PASA', motivos='diff_recortado', riesgo='alto')
-        self.assertIn('fichero recortado, el juez no lo vio: no bloquea', self.comentario())
-
     def test_los_ficheros_recortados_llegan_al_modelo(self):
         self.correr(REVIEW_MAX_DIFF_BYTES='250')
         for fase in ('citas', 'lote', 'hallazgos'):
@@ -1112,54 +1052,33 @@ class TestEvidenciaDelJuez(Base):
         for fase in ('citas', 'lote', 'hallazgos'):
             self.assertIn('ninguno: el diff esta entero', self.prompt(fase))
 
-    def hallazgo(self, **k):
-        return {'file': 'src/app.py', 'line': 12, 'severity': 'alta', 'tipo': 'correccion', 'summary': 'suma mal',
-                **CASO, 'entrada': 'f(1, 2) devuelve 4', 'cita': 'return x +y', **k}
-
-    def test_una_cita_mal_copiada_se_pide_otra_vez_y_si_casa_el_hallazgo_bloquea(self):
-        # la primera respuesta copia mal la linea (`x +y`); la segunda trae la exacta
-        self.mundo.litellm['local-juez'] = [
-            (200, respuesta([cumple(1), cumple(2, 'tests/test_app.py:4')], [self.hallazgo()]), 0),
-            (200, json.dumps({'citas': [{'id': 1, 'cita': 'return x + y'}]}), 0)]
-        self.assertEqual(self.correr(), 1)
-        self.assertVeredicto('NO_PASA', motivos='hallazgos')
-        self.assertEqual(self.n('reintento_citas'), 1)
-        reintento = self.prompt('reintento_citas')
-        self.assertIn('tipo=afirmaciones', reintento)
-        self.assertIn('cita que diste: return x +y', reintento)
-        self.assertIn('+    return x + y', reintento)          # el diff del fichero citado...
-        self.assertNotIn('def test_f(self): pass', reintento)  # ...y solo el de ese fichero
-        self.assertIn('### Hallazgos', self.comentario())
-
-    def test_si_la_linea_exacta_no_llega_el_hallazgo_sigue_siendo_una_observacion(self):
+    def test_si_la_linea_exacta_no_llega_el_rojo_baja_a_menos_y_la_linea_se_pide_una_sola_vez(self):
+        mal = self.rojo(2, evidencia='tests/test_app.py:4', cita='def test_f(self):  pass #', nota='el test no comprueba nada')
         for segunda in (json.dumps({'citas': [{'id': 1, 'cita': ''}]}), json.dumps({'citas': [{'id': 1, 'cita': 'return 0'}]}),
                         'no es json', json.dumps({'citas': 'x'}), json.dumps([1])):
             with self.subTest(segunda):
                 self.mundo.comentarios.clear()
                 self.mundo.llamadas.clear()
                 self.mundo.fases.clear()
-                self.mundo.litellm['local-juez'] = [
-                    (200, respuesta([cumple(1), cumple(2, 'tests/test_app.py:4')], [self.hallazgo()]), 0),
-                    (200, segunda, 0)]
+                self.mundo.litellm['local-juez'] = [(200, respuesta([cumple(1), mal]), 0), (200, segunda, 0)]
                 self.assertEqual(self.correr(), 0, self.salida_texto)
                 self.assertVeredicto('PASA', motivos='')
                 self.assertEqual(self.n('reintento_citas'), 1, 'la linea exacta se pide una sola vez')
-                self.assertIn('su cita no esta en el diff de ese fichero: no bloquea', self.comentario())
+                self.assertIn('la cita del modelo no esta en el diff: no bloquea', self.comentario())
 
     def test_si_el_modelo_cae_en_el_reintento_vale_la_respuesta_de_antes(self):
-        self.mundo.litellm['local-juez'] = [
-            (200, respuesta([cumple(1), cumple(2, 'tests/test_app.py:4')], [self.hallazgo()]), 0), (503, None, 0)]
+        mal = self.rojo(2, evidencia='tests/test_app.py:4', cita='def test_f(self):  pass #', nota='el test no comprueba nada')
+        self.mundo.litellm['local-juez'] = [(200, respuesta([cumple(1), mal]), 0), (503, None, 0)]
         self.mundo.litellm['alibaba-q38-flash'] = [(503, None, 0)]
         self.assertEqual(self.correr(), 0, self.salida_texto)
         self.assertVeredicto('PASA', motivos='')
 
-    def test_un_hallazgo_sobre_codigo_que_el_diff_no_muestra_no_gasta_el_reintento(self):
-        self.responde([cumple(1), cumple(2, 'tests/test_app.py:4')],
-                      [self.hallazgo(file='otro/modulo.py', cita='return x * y')])
+    def test_un_rojo_sobre_codigo_que_el_diff_no_muestra_no_gasta_el_reintento(self):
+        self.responde([cumple(1), self.rojo(2, evidencia='otro/modulo.py:3', cita='return x * y')])
         self.assertEqual(self.correr(), 0, self.salida_texto)
         self.assertEqual(self.n('reintento_citas'), 0)
 
-    def test_un_rojo_con_la_cita_mal_copiada_tambien_se_pide_otra_vez(self):
+    def test_un_rojo_con_la_cita_mal_copiada_se_pide_otra_vez_con_el_diff_de_su_fichero_y_si_casa_bloquea(self):
         mal = self.rojo(2, evidencia='tests/test_app.py:4', cita='def test_f(self):  pass #', nota='el test no comprueba nada')
         self.mundo.litellm['local-juez'] = [
             (200, respuesta([cumple(1), mal]), 0),
@@ -1167,16 +1086,11 @@ class TestEvidenciaDelJuez(Base):
         self.assertEqual(self.correr(), 1)
         self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
         self.assertEqual(self.n('reintento_citas'), 1)
-
-    def test_un_hallazgo_sobre_un_fichero_vacio_del_diff_bloquea_sin_cita(self):
-        # el diff toca `datos/manifiesto.txt` sin una sola linea: no hay nada que copiar
-        (self.tmp / 'review.diff').write_text(DIFF + 'diff --git a/datos/manifiesto.txt b/datos/manifiesto.txt\n'
-                                              'new file mode 100644\nindex 0000000..e69de29\n')
-        self.responde([cumple(1), cumple(2, 'tests/test_app.py:4')],
-                      [self.hallazgo(file='datos/manifiesto.txt', line='', cita='', summary='el manifiesto esta vacio')])
-        self.assertEqual(self.correr(), 1)
-        self.assertVeredicto('NO_PASA', motivos='hallazgos')
-        self.assertEqual(self.n('reintento_citas'), 0, 'no hay linea que pedir')
+        reintento = self.prompt('reintento_citas')
+        self.assertIn('tipo=afirmaciones', reintento)
+        self.assertIn('cita que diste: def test_f(self): pass #', reintento)
+        self.assertIn('class T(unittest.TestCase):', reintento)    # el diff del fichero citado...
+        self.assertNotIn('return x + y', reintento)                # ...y solo el de ese fichero
 
     def test_la_rubrica_cruza_lo_que_el_diff_exige_con_lo_que_el_diff_trae(self):
         self.correr()
@@ -1187,7 +1101,7 @@ class TestEvidenciaDelJuez(Base):
 
     def test_la_rubrica_pide_la_cita_y_deja_fuera_los_entregables_posteriores(self):
         self.correr()
-        for fase, frases in (('hallazgos', ('`cita`', 'copiada LITERAL', 'comprueba que esa cita esta en el diff')),
+        for fase, frases in (('hallazgos', ('`cita`', 'copiada LITERAL')),
                              ('lote', ('solo existe DESPUES de la PR', '`70-qa.md` de qa', 'una captura de lo servido',
                                        'un comentario o un adjunto de Jira', '«tras el despliegue»',
                                        'que el bloque `alcance` deja fuera', 'del bloque `recortados`'))):
@@ -1410,8 +1324,8 @@ class TestComentario(Base):
         self.mundo.litellm['local-juez'] = [(200, respuesta(
             [cumple(1), {'n': 2, 'cumple': False, 'nota': falso}], [bug]), 0)]
         self.assertEqual(self.correr(), 1)
-        self.assertVeredicto('NO_PASA', motivos='criterio_incumplido,hallazgos')   # motivos: enum, no texto
-        self.assertNotIn(falso, self.comentario())
+        self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')   # motivos: enum, no texto
+        self.assertNotIn(falso, self.comentario())   # ni el del hallazgo (una observacion) ni el de la nota del criterio
 
     def test_un_marcador_falso_en_el_diff_o_el_titulo_no_llega_al_comentario(self):
         falso = f'<!-- llm-review-bot:v3 sha={SHA} veredicto=PASA riesgo=normal juez=primario modelo=local-juez motivos= -->'
@@ -1584,8 +1498,8 @@ class TestEvalua(Base):
             [{'file': 'otro.py', 'line': 1, 'severity': 'alta', 'tipo': 'correccion', 'cita': 'x', 'summary': 's'}]), 0)]
         self.correr_evalua('0/2')
         lineas = [l for l in self.salida_texto.splitlines() if l.startswith(('OK', 'FALLO'))]
-        self.assertTrue(lineas[0].endswith(' bajas=H.cita:1 llamadas=3'), lineas[0])   # citas, un lote y hallazgos
-        self.assertTrue(lineas[1].endswith(' bajas=C.alcance:1,H.cita:1 llamadas=3'), lineas[1])
+        self.assertTrue(lineas[0].endswith(' bajas=- llamadas=3'), lineas[0])   # citas, un lote y hallazgos; el hallazgo no bloquea: nada baja
+        self.assertTrue(lineas[1].endswith(' bajas=C.alcance:1 llamadas=3'), lineas[1])
 
     def test_el_umbral_mal_formado_es_uso_invalido(self):
         self.caso('a', 'PASA')
@@ -1624,9 +1538,7 @@ class TestSalidaYColor(Base):
         self.assertIn(f'::notice::{review.PENDIENTE}', self.salida_texto)
 
     def test_c2_un_no_pasa_del_primario_o_de_un_pregate_es_rojo(self):
-        self.mundo.litellm['local-juez'] = [(200, respuesta([cumple(1), cumple(2, 'tests/test_app.py:4')], [hallazgo_app()]), 0),
-                                            (200, verifica(confirma()), 0)]
-        self.mundo.ficheros['src/app.py'] = HEAD_APP
+        self.mundo.litellm['local-juez'] = [(200, respuesta([cumple(1), {'n': 2, 'cumple': False, 'nota': 'falta el test'}]), 0)]
         self.assertEqual(self.correr(), 1)
         self.assertVeredicto('NO_PASA', juez='primario')
         self.assertNotIn(review.PENDIENTE, self.comentario())
@@ -1834,7 +1746,7 @@ class TestPregates(Base):
             with self.subTest(cita):
                 self.mundo.comentarios.clear()
                 self.assertEqual(self.no_lista(cita), 1)
-                self.assertVeredicto('NO_PASA', motivos='criterio_incumplido,hallazgos')
+                self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
 
     def test_pr_no_lista_nunca_convierte_nada_en_pasa(self):
         self.mundo.litellm['local-juez'] = [(200, json.dumps({
@@ -1906,6 +1818,11 @@ class TestEtiquetas(Base):
         self.assertEqual(etiquetas.index('C9'), 9, 'el spec tiene un C6b: C9 es la posicion 10')
         self.assertEqual(list(review.alcance_de_pr((caso / 'pr.md').read_text(), etiquetas)), ['C9'])
         ausente = lambda e: {'n': e, 'cumple': False, 'evidencia': '', 'cita': '', 'nota': 'no aparece'}
+        fichero, lineas = next(iter(review.lineas_nuevas((caso / 'diff.patch').read_text()).items()))
+        cita = next(l for l in lineas.values() if len(review._colapsar(l)) >= review.CITA_MIN)
+        # el criterio tiene citas (variante C: sin ellas una ausencia es ➖): el modelo de pega cita una linea del diff del caso
+        self.mundo.por_fase[('local-juez', 'citas')] = [(200, json.dumps({'criterios': [
+            {'n': e, 'citas': [{'file': fichero, 'cita': cita}]} for e in etiquetas]}), 0)]
         res = self.juzga_caso(caso, [ausente(e) for e in etiquetas])
         por_n = {c['n']: c for c in res['criterios']}
         self.assertIs(por_n['C9']['cumple'], False)       # C9 es de esta PR y se juzga
@@ -2014,10 +1931,13 @@ class TestAusenciaDeEvidencia(Base):
         return respuesta([self.rojo(e, nota='Falta el manifiesto: no se incluye el fichero') if e in ('C4', 'C9', 'C10', 'C11', 'C12')
                           else {'n': e, 'cumple': 'fuera', 'nota': 'se verifica en otra PR'} for e in etiquetas])
 
-    def test_k8s_ai_138_con_el_diff_recortado_ya_no_es_no_pasa_y_con_el_diff_entero_si(self):
+    def test_k8s_ai_138_con_el_diff_recortado_o_entero_ya_no_es_no_pasa(self):
+        # variante C: con el diff recortado la ausencia es ➖ por el recorte; con el entero, por no tener citas (el modelo de pega
+        # no cita nada del caso): el ❌ de ausencia sin una cita que la demuestre ya no veta
         caso = FIXTURES / 'falso-recortado-k8s-ai-138'
         etiquetas = [e for e, _ in review.criterios_de_spec((caso / 'criterios.md').read_text())]
-        for tope, esperado in ((int((caso / 'max_bytes').read_text()), 'PASA'), (10 ** 7, 'NO_PASA')):
+        for tope, bajas in ((int((caso / 'max_bytes').read_text()), 'evidencia no disponible (recortado)'),
+                            (10 ** 7, 'no demostrable en el diff')):
             with self.subTest(tope=tope):
                 self.mundo.litellm['local-juez'] = [(200, self.respuesta_medida_138(etiquetas), 0)]
                 recortado, fuera = review.recortar((caso / 'diff.patch').read_text(), tope)
@@ -2025,9 +1945,9 @@ class TestAusenciaDeEvidencia(Base):
                                     'pocharlies-org/k8s-ai-pocharlies', 'DGX-780', 'x',
                                     review.criterios_de_spec((caso / 'criterios.md').read_text()), recortado, '',
                                     (caso / 'pr.md').read_text(), fuera)
-                self.assertEqual(res['veredicto'], esperado, res['motivos'])
-                self.assertEqual(bool(fuera), esperado == 'PASA')
-
+                self.assertEqual(res['veredicto'], 'PASA', res['motivos'])
+                self.assertEqual(bool(fuera), tope < 10 ** 7)
+                self.assertTrue(any(bajas in c.get('baja', '') for c in res['criterios']), bajas)
 
 class TestVerifica(Base):
     """SC-2285 C9 y C10: lo que iba a bloquear se comprueba con el fichero completo del head. El verificador es el mismo
@@ -2036,34 +1956,37 @@ class TestVerifica(Base):
     def responde(self, *respuestas):
         self.mundo.litellm['local-juez'] = [(200, r, 0) for r in respuestas]
 
-    def con_hallazgo(self, *verificaciones, **k):
+    ROJO = {'n': 2, 'cumple': False, 'evidencia': 'src/app.py:12', 'cita': 'return x + y', 'nota': 'suma mal'}
+
+    def con_rojo(self, *verificaciones, **k):
+        """Un ❌ por contradiccion con su cita en el diff (variante C: los hallazgos no bloquean, asi que no hay nada que verificar de ellos)."""
         self.mundo.ficheros['src/app.py'] = HEAD_APP
-        self.responde(respuesta([cumple(1), cumple(2, 'tests/test_app.py:4')], [hallazgo_app(**k)]), *verificaciones)
+        self.responde(respuesta([cumple(1), {**self.ROJO, **k}]), *verificaciones)
 
     def test_verifica_confirmado_sigue_bloqueando_y_lo_dice(self):
-        self.con_hallazgo(verifica(confirma()))
+        self.con_rojo(verifica(confirma()))
         self.assertEqual(self.correr(), 1)
-        self.assertVeredicto('NO_PASA', motivos='hallazgos')
+        self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
         self.assertIn('verificado con el fichero completo', self.comentario())
         self.assertIn('verificaciones=1', self.resumen_job)
         self.assertEqual(self.mundo.contents, [f'src/app.py?ref={SHA}'])
 
     def test_verifica_el_verificador_recibe_el_fichero_completo_el_hunk_y_la_afirmacion_como_datos(self):
-        self.con_hallazgo(verifica(confirma()))
+        self.con_rojo(verifica(confirma()))
         self.correr()
         i = self.mundo.fases.index('verifica')
         modelo, _, usuario = self.mundo.llamadas[i]
         self.assertEqual(modelo, 'local-juez')
         self.assertEqual(self.mundo.max_tokens[i], review.VERIFICA_MAX_TOKENS)
         for pieza in ('12|     return x + y', '1| # linea 1', 'tipo=afirmaciones>>>', 'tipo=diff>>>', '+    return x + y',
-                      '[hallazgo] [alta] suma mal'):
+                      '[contradiccion] C2 ❌ suma mal (linea citada: return x + y)'):
             self.assertIn(pieza, usuario)
 
-    def test_verifica_refutado_no_desbloquea_un_hallazgo_real_y_se_anota_como_discrepancia(self):
+    def test_verifica_refutado_no_desbloquea_un_rojo_real_y_se_anota_como_discrepancia(self):
         # run 38042710418: real-llm-status-123 salio PASA con `bajas=H.verificador:1`
-        self.con_hallazgo(verifica(REFUTA))
+        self.con_rojo(verifica(REFUTA))
         self.assertEqual(self.correr(), 1, self.salida_texto)
-        self.assertVeredicto('NO_PASA', motivos='hallazgos')
+        self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
         texto = self.comentario()
         self.assertNotIn('### Observaciones (no bloquean)', texto)
         pendientes = texto.split('### Hallazgos\n', 1)[1].split('\n\n', 1)[0]
@@ -2077,7 +2000,7 @@ class TestVerifica(Base):
                                         (12, 'x', False), ('doce', 'return x + y', False), (None, 'return x + y', False)):
             with self.subTest(linea=linea, cita=cita):
                 self.mundo.comentarios.clear()
-                self.con_hallazgo(verifica(confirma(linea, cita)))
+                self.con_rojo(verifica(confirma(linea, cita)))
                 self.assertEqual(self.correr(), 1, self.salida_texto)
                 texto = self.comentario()
                 if confirmada:
@@ -2095,9 +2018,9 @@ class TestVerifica(Base):
         for nombre, (extra, v) in casos.items():
             with self.subTest(nombre):
                 self.mundo.comentarios.clear()
-                self.con_hallazgo(v, **extra)
+                self.con_rojo(v, **extra)
                 self.assertEqual(self.correr(), 1)
-                self.assertVeredicto('NO_PASA', motivos='hallazgos')
+                self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
                 self.assertIn('sin verificar', self.comentario())
 
     def test_verifica_404_o_binario_o_fichero_grande_sigue_bloqueando_sin_verificar(self):
@@ -2107,10 +2030,10 @@ class TestVerifica(Base):
                 self.mundo.comentarios.clear()
                 self.mundo.llamadas.clear()
                 self.mundo.fases.clear()
-                self.con_hallazgo(verifica(REFUTA))
+                self.con_rojo(verifica(REFUTA))
                 preparar()
                 self.assertEqual(self.correr(), 1)
-                self.assertVeredicto('NO_PASA', motivos='hallazgos')
+                self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
                 self.assertIn('sin verificar', self.comentario())
                 self.assertEqual(self.n('verifica'), 0, 'sin fichero que mirar no hay llamada al verificador')
 
@@ -2124,7 +2047,7 @@ class TestVerifica(Base):
     def test_verifica_con_el_verificador_o_la_api_caidos_es_sin_veredicto_nunca_pasa(self):
         # el verificador cae (el primario y nada mas: el respaldo no sustituye al que lo afirmo)
         self.mundo.ficheros['src/app.py'] = HEAD_APP
-        self.mundo.litellm['local-juez'] = [(200, respuesta([cumple(1), cumple(2, 'tests/test_app.py:4')], [hallazgo_app()]), 0),
+        self.mundo.litellm['local-juez'] = [(200, respuesta([cumple(1), self.ROJO]), 0),
                                             (503, None, 0)]
         self.mundo.litellm['alibaba-q38-flash'] = [(200, verifica(REFUTA), 0)]
         self.assertEqual(self.correr(), 0, self.salida_texto)
@@ -2134,13 +2057,13 @@ class TestVerifica(Base):
         for contenido in ('no es json', json.dumps({'otra': 1}), json.dumps({'items': 'x'})):
             with self.subTest(contenido):
                 self.mundo.comentarios.clear()
-                self.responde(respuesta([cumple(1), cumple(2, 'tests/test_app.py:4')], [hallazgo_app()]), contenido)
+                self.responde(respuesta([cumple(1), self.ROJO]), contenido)
                 self.assertEqual(self.correr(), 0, self.salida_texto)
                 self.assertVeredicto('SIN_VEREDICTO', motivos='verificacion_caida')
         # la API de ficheros cae
         self.mundo.comentarios.clear()
         self.mundo.contents_caido = True
-        self.con_hallazgo(verifica(REFUTA))
+        self.con_rojo(verifica(REFUTA))
         self.assertEqual(self.correr(), 0, self.salida_texto)
         self.assertVeredicto('SIN_VEREDICTO', motivos='verificacion_caida')
 
@@ -2161,27 +2084,27 @@ class TestVerifica(Base):
                 self.assertIn(marca, self.comentario())
         self.assertIn('[contradiccion]', self.mundo.llamadas[-1][2])
 
-    def test_verifica_una_pr_con_5_ficheros_bloqueantes_y_el_verificador_que_refuta_4_bloquea_los_5(self):
+    def test_verifica_una_pr_con_5_rojos_en_5_ficheros_y_el_verificador_que_refuta_4_bloquea_los_5(self):
         self.assertEqual(review.VERIFICA_MAX_LLAMADAS, 4)
-        bloques, hallazgos = [], []
+        bloques, rojos = [], []
         for i in range(1, 6):
             bloques.append(f'diff --git a/m{i}.py b/m{i}.py\n--- a/m{i}.py\n+++ b/m{i}.py\n@@ -1,1 +1,2 @@\n x = {i}\n+y{i} = {i} + 1\n')
             self.mundo.ficheros[f'm{i}.py'] = f'x = {i}\ny{i} = {i} + 1\n'
-            hallazgos.append({'file': f'm{i}.py', 'line': 2, 'severity': 'alta' if i < 5 else 'media', 'tipo': 'correccion',
-                              'cita': f'y{i} = {i} + 1', 'summary': f'fallo {i}', **CASO, 'entrada': 'x'})
+            rojos.append({'n': i, 'cumple': False, 'evidencia': f'm{i}.py:2', 'cita': f'y{i} = {i} + 1', 'nota': f'fallo {i}'})
         (self.tmp / 'review.diff').write_text(''.join(bloques))
-        # el 5.º es el de menor severidad: queda mas alla del tope
-        self.responde(respuesta([cumple(1, 'm1.py:2'), cumple(2, 'm2.py:2')], hallazgos), verifica(REFUTA))
+        self.mundo.adjuntos['1'] = ''.join(f'- [ ] C{i} criterio {i}\n' for i in range(1, 6)).encode()
+        # el 5.º es el ultimo en orden: queda mas alla del tope
+        self.responde(respuesta(rojos), verifica(REFUTA))
         self.assertEqual(self.correr(), 1)
-        self.assertVeredicto('NO_PASA', motivos='hallazgos')
+        self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
         self.assertEqual(self.n('verifica'), 4)
         self.assertIn('verificaciones=4', self.resumen_job)
         cuerpo = self.comentario()
-        self.assertEqual(cuerpo.count('el verificador lo discute'), 4)
-        hallazgos_a_arreglar = cuerpo.split('### Hallazgos\n', 1)[1].split('\n\n', 1)[0]
+        a_arreglar = cuerpo.split('### Hallazgos\n', 1)[1].split('\n\n', 1)[0]
+        self.assertEqual(a_arreglar.count('el verificador lo discute'), 4)
         for i in range(1, 6):
-            self.assertIn(f'fallo {i}', hallazgos_a_arreglar)
-        self.assertIn('sin verificar: mas alla del tope de verificaciones', hallazgos_a_arreglar)
+            self.assertIn(f'fallo {i}', a_arreglar)
+        self.assertIn('sin verificar: mas alla del tope de verificaciones', a_arreglar)
 
 
 class TestCorpusConVerificador(Base):
@@ -2219,26 +2142,17 @@ class TestCorpusConVerificador(Base):
         return {'file': fichero, 'line': linea, 'severity': 'alta', 'tipo': 'correccion', 'cita': cita, 'summary': dijo,
                 **CASO, 'entrada': 'la entrada que falla'}
 
-    def test_c10_los_cuatro_siguen_bloqueando_aunque_el_verificador_los_refute(self):
+    def test_c10_los_cuatro_falsos_tecnicos_pasan_su_hallazgo_es_una_observacion(self):
+        # variante C: la caza de fallos no bloquea, asi que ya no hay nada que el verificador tenga que discutir
         for caso in self.FALSOS:
             with self.subTest(caso):
                 shutil.rmtree(self.tmp / 'casos', ignore_errors=True)
-                self.assertEqual(self.corre_caso(caso, [self.hallazgo(caso)], verifica(REFUTA)), 1, self.salida_texto)
-                self.assertIn('obtenido=NO_PASA', self.salida_texto)
-                self.assertNotIn('H.verificador', self.salida_texto)
-                self.assertIn('verificaciones=1', self.salida_texto)
+                self.assertEqual(self.corre_caso(caso, [self.hallazgo(caso)]), 0, self.salida_texto)
+                self.assertIn('obtenido=PASA', self.salida_texto)
+                self.assertIn('verificaciones=0', self.salida_texto)
 
-    def test_c10_los_cuatro_siguen_bloqueando_si_el_verificador_los_confirma_con_su_linea(self):
-        for caso in self.FALSOS:
-            with self.subTest(caso):
-                shutil.rmtree(self.tmp / 'casos', ignore_errors=True)
-                fichero, _, _, _, fragmento = self.FALSOS[caso]
-                texto = (FIXTURES / caso / 'head' / fichero).read_text().splitlines()
-                linea = next(i for i, l in enumerate(texto, 1) if fragmento in l)
-                self.assertEqual(self.corre_caso(caso, [self.hallazgo(caso)], verifica(confirma(linea, texto[linea - 1].strip()))), 1)
-                self.assertIn('obtenido=NO_PASA', self.salida_texto)
-
-    def test_c10_un_real_confirmado_sigue_no_pasa_k8s_socialmedia_245(self):
+    def test_c10_un_real_que_solo_cazo_la_pasada_de_fallos_sale_pasa_en_la_variante_c_socialmedia_245(self):
+        # la perdida que mide la iteracion 3: el defecto real de socialmedia-245 lo veia el hallazgo, que ya no veta
         caso = 'real-socialmedia-245-id-compuesto'
         fichero = 'connectors/whatsapp-web/src/statuses.ts'
         cita = 'return holder && holder !== accountKey(channelJid) ? `${channelJid}:${id}` : id;'
@@ -2247,11 +2161,10 @@ class TestCorpusConVerificador(Base):
         real = {'file': fichero, 'line': linea, 'severity': 'alta', 'tipo': 'correccion', 'cita': cita,
                 'summary': 'channelPostMessageId compara con accountKey(channelJid) pero escribe el id sin el prefijo de cuenta',
                 **CASO, 'entrada': 'dos canales con el mismo id'}
-        self.assertEqual(self.corre_caso(caso, [real], verifica(confirma(linea, cita))), 0, 'esperado NO_PASA y se obtiene')
-        self.assertIn('obtenido=NO_PASA', self.salida_texto)
-        self.assertIn('n reales = 1/1', self.salida_texto)
-        self.assertIn('verificaciones=1', self.salida_texto)
-
+        self.assertEqual(self.corre_caso(caso, [real]), 1, 'esperado NO_PASA y se obtiene PASA')
+        self.assertIn('obtenido=PASA', self.salida_texto)
+        self.assertIn('n reales = 0/1', self.salida_texto)
+        self.assertIn('verificaciones=0', self.salida_texto)
 
 class TestFaltaUnCriterio(Base):
     """SC-2285 C11: un criterio ausente de la respuesta ya no tumba el juicio entero si la PR no era de el."""
@@ -2410,14 +2323,13 @@ class TestFases(Base):
         self.assertEqual(bloque, 'C1:\n  [1] src/app.py:12 | return x + y\n  [2] tests/test_app.py:4 | def test_f(self): pass\n'
                                  'C2: (ninguna: el diff no dice nada de este criterio)')
 
-    def test_c3_el_juicio_de_criterios_no_ve_el_diff_solo_sus_citas(self):
+    def test_c3_el_juicio_de_criterios_no_ve_todo_el_diff_solo_sus_citas_y_el_diff_de_lo_que_nombra(self):
         self.citas({'n': 'C1', 'citas': [{'file': 'src/app.py', 'cita': 'return x + y'}]})
         self.correr()
         lote = self.prompt('lote')
-        self.assertNotIn('tipo=diff', lote)
-        self.assertNotIn('diff --git', lote)
+        self.assertNotIn('diff --git', lote)   # los criterios de este spec no nombran ningun fichero: el bloque `diff` lo dice
         self.assertIn('src/app.py:12 | return x + y', lote)
-        self.assertNotIn('def test_f(self): pass', lote)   # lo que nadie cito no llega al juicio
+        self.assertNotIn('def test_f(self): pass', lote)   # lo que nadie cito ni nombro no llega al juicio
 
     def test_c3_un_lote_ve_solo_sus_criterios_y_sus_citas(self):
         self.spec(7)
@@ -2433,11 +2345,16 @@ class TestFases(Base):
         self.assertIn('tests/test_app.py:4', segundo)
         self.assertNotIn('src/app.py:12', segundo)
 
-    def test_c3_un_criterio_sin_citas_ni_alcance_es_una_ausencia_que_bloquea_y_con_citas_cubre(self):
-        self.citas({'n': 'C1', 'citas': [{'file': 'src/app.py', 'cita': 'return x + y'}]})
-        self.mundo.litellm['local-juez'] = [(200, respuesta([cumple(1), {'n': 2, 'cumple': False, 'nota': 'sin citas'}]), 0)]
+    def test_c3_una_ausencia_con_citas_bloquea_y_sin_ellas_es_un_menos(self):
+        self.mundo.litellm['local-juez'] = [(200, respuesta([cumple(1), {'n': 2, 'cumple': False, 'nota': 'falta'}]), 0)]
+        self.citas({'n': 'C1', 'citas': [{'file': 'src/app.py', 'cita': 'return x + y'}]},
+                   {'n': 'C2', 'citas': [{'file': 'tests/test_app.py', 'cita': 'def test_f(self): pass'}]})
         self.assertEqual(self.correr(), 1)
         self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
+        self.mundo.comentarios.clear()
+        self.citas({'n': 'C1', 'citas': [{'file': 'src/app.py', 'cita': 'return x + y'}]}, {'n': 'C2', 'citas': []})
+        self.assertEqual(self.correr(), 0, self.salida_texto)
+        self.assertVeredicto('PASA', motivos='')
 
     def test_c3_una_pregunta_que_no_sirve_se_repite_sola_y_no_arrastra_a_las_otras(self):
         for fase, esperadas in (('citas', ['citas', 'citas']),
@@ -2487,6 +2404,7 @@ class TestVarianteC(Base):
 
     def spec(self, *criterios):
         self.mundo.adjuntos['1'] = ''.join(f'- [ ] C{i} {t}\n' for i, t in enumerate(criterios, 1)).encode()
+        self.juicio([{'n': f'C{i}', 'cumple': 'fuera', 'nota': 'otra PR'} for i in range(1, len(criterios) + 1)])
 
     def sin_citas(self):
         self.mundo.por_fase[('local-juez', 'citas')] = [(200, '{"criterios": []}', 0)]
@@ -2538,8 +2456,7 @@ class TestVarianteC(Base):
         self.assertEqual(self.bloque('lote', 'diff'), '(ningun criterio de este bloque nombra un fichero del diff)')
 
     def test_cada_lote_ve_el_diff_de_sus_criterios(self):
-        self.spec(*['criterio'] * 6, 'el test va en `tests/test_app.py`')
-        self.mundo.adjuntos['1'] = self.mundo.adjuntos['1'].replace(b'C1 criterio', b'C1 la suma en `src/app.py`')
+        self.spec('la suma en `src/app.py`', *['criterio'] * 5, 'el test va en `tests/test_app.py`')
         self.correr()
         primero, segundo = self.bloque('lote', 'diff', 0), self.bloque('lote', 'diff', 1)
         self.assertIn('src/app.py', primero)
@@ -2912,7 +2829,8 @@ class TestEvalua3(Base):
                 self.assertEqual(self.correr_evalua('1/1', **kw), 2)
 
     def test_los_motivos_de_cada_fallo_salen_debajo_de_su_linea_y_un_acierto_no_los_trae(self):
-        """SC-2264, iteracion 2: cada ❌ (criterio y nota) y cada hallazgo bloqueante, con tipo, severidad, fichero:linea y texto."""
+        """SC-2264, iteracion 2: cada ❌ (criterio y nota) y cada hallazgo bloqueante, con tipo, severidad, fichero:linea y texto. En
+        la variante C ningun hallazgo bloquea: solo salen los ❌."""
         self.caso('a-falso', 'PASA', 'falso_tecnico')
         self.caso('b-real', 'NO_PASA', 'real')
         largo = 'x' * 300
@@ -2925,9 +2843,8 @@ class TestEvalua3(Base):
         lineas = self.salida_texto.splitlines()
         i = next(i for i, l in enumerate(lineas) if l.startswith('FALLO a-falso'))
         self.assertEqual(lineas[i + 1], '    ❌ C1: suma mal')
-        self.assertEqual(lineas[i + 2], f"    [alta] correccion src/app.py:12 — {'x' * 200}…")
-        self.assertTrue(lineas[i + 3].startswith('OK    b-real'), 'la baja no bloquea y no se imprime; un acierto no trae motivos')
-        self.assertEqual(len([l for l in lineas if l.startswith('    ')]), 2)
+        self.assertTrue(lineas[i + 2].startswith('OK    b-real'), 'un hallazgo no bloquea y no se imprime; un acierto no trae motivos')
+        self.assertEqual(len([l for l in lineas if l.startswith('    ')]), 1)
 
     def test_c13_cli_pasa_los_flags_a_evalua(self):
         from unittest import mock
