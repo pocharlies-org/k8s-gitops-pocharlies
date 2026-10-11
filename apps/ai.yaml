@@ -1700,8 +1700,17 @@ spec:
     # Arranque de qwen38: unos 33 min, con unos 20 min SIN log tras «GPU KV cache size» (NO es cuelgue). El tráfico va a Alibaba hasta que
     # el residente responda.
     # ROLLBACK de esto: 92fb200 con overlays/sparks-ventana-20261010 (92fb20060dcb84ceb624c95b6a1090a48e824f76, volver a la ventana).
-    targetRevision: 01f9b4da163dcf4626e6d33db0c450fababd7e10
-    path: overlays/qwen38-tp3-ventana-20261010
+    # 11-10-2026 (DGX-820, C5): b4052f1dae714c643eddad8eca259e9c0de6847a = GLM-5.3-Flash en TP=3 en 64K (k8s-ai #166, sobre la línea
+    # pin/glm53-ventana-20261010), path overlays/glm53-tp3-ventana-k64-20261010: el overlay k4 de la ventana (head en dgx3, workers en dgx1 y
+    # dgx2) con el modo k64 (EXPECT_PAGESIZE=65536, REQUIRE_DISPRAM=1) y KV de 12 GiB. Sustituye a qwen38 TP=3 (01f9b4d), que no carga en 64K:
+    # se atasca copiando los pesos de los expertos. Los tres Sparks están en el kernel 7.0.0-1019-nvidia-64k.
+    # Requisito: el overlay exige `dispramd` vivo en los tres nodos. Su init `check-host` no deja arrancar el pod si falta, y hostPath
+    # /run/dispram es de tipo Directory. Hasta tenerlo en los tres, GLM no arranca y el residente sigue caído (el tráfico va a Alibaba).
+    # Efecto de la sync: el prune retira qwen38 TP=3 (qwen38-flash-next-head, -worker y -worker-dgx3, y el PV/PVC hf-cache-dgx1-dgx3-llm-ro) y el
+    # PostSync llm-deploy-resume; el PreSync llm-deploy-pause deja la voz a 0 mientras dure la prueba.
+    # ROLLBACK de esto (volver a qwen38 TP=3): 01f9b4da163dcf4626e6d33db0c450fababd7e10 con path overlays/qwen38-tp3-ventana-20261010.
+    targetRevision: b4052f1dae714c643eddad8eca259e9c0de6847a
+    path: overlays/glm53-tp3-ventana-k64-20261010
   destination:
     server: https://kubernetes.default.svc
     namespace: llm
