@@ -1692,15 +1692,14 @@ spec:
     # los dos renders y siguen Complete. El tráfico va a Alibaba mientras no haya residente.
     # El residente NO vuelve hasta que los tres nodos estén en el kernel que se decida (4K o 64K): esta app se queda en la ventana.
     # ROLLBACK de esto (volver a qwen38 TP=3): 01f9b4da163dcf4626e6d33db0c450fababd7e10 con path overlays/qwen38-tp3-ventana-20261010.
-    # 11-10-2026 (DGX-820, C5, paso a qwen38 TP=3 en 64K): 01f9b4d otra vez (k8s-ai #159, línea pin/qwen38-tp3-20261010), path
-    # overlays/qwen38-tp3-ventana-20261010, la misma revisión de la #592. Se fusiona solo cuando los tres Sparks estén ya en 64K (verify
-    # PASA en cada uno): es para medir qwen38 TP=3 en 64K con el mismo método que en 4K (decode v4 y llama-benchy, MemAvailable y Cached).
+    # 11-10-2026: fin de la ventana DGX-820, vuelta del residente qwen38 TP=3 en 4K (C3): 01f9b4d otra vez (k8s-ai #159, línea
+    # pin/qwen38-tp3-20261010), path overlays/qwen38-tp3-ventana-20261010, la misma revisión de la #592. La prueba de 64K se paró por el DAC P0
+    # dgx1-dgx2 y los tres Sparks vuelven a 4K; se fusiona cuando los tres estén en 4K con P0 arriba.
     # Efecto de la sync: lo inverso de la #593. Salen los Jobs de la sonda de NCCL (v1, v2 y v3c) y vuelven el PV/PVC
     # hf-cache-dgx1-dgx3-llm-ro, head en dgx2, worker en dgx1 y worker-dgx3 en dgx3 de qwen38 y el PostSync llm-deploy-resume.
     # Arranque de qwen38: unos 33 min, con unos 20 min SIN log tras «GPU KV cache size» (NO es cuelgue). El tráfico va a Alibaba hasta que
     # el residente responda.
-    # ROLLBACK de esto (volver a la ventana): 92fb20060dcb84ceb624c95b6a1090a48e824f76 con path overlays/sparks-ventana-20261010. Es el
-    # paso de vuelta a la ventana que C5 pide antes del `revert` de los nodos.
+    # ROLLBACK de esto: 92fb200 con overlays/sparks-ventana-20261010 (92fb20060dcb84ceb624c95b6a1090a48e824f76, volver a la ventana).
     targetRevision: 01f9b4da163dcf4626e6d33db0c450fababd7e10
     path: overlays/qwen38-tp3-ventana-20261010
   destination:
