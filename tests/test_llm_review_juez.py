@@ -87,7 +87,7 @@ class _Mundo:
         self.litellm: dict[str, list] = {}   # modelo -> [(status, contenido | None, retraso)]
         # SC-2264: el juicio son tres preguntas. `litellm` es lo que contestaria un modelo que lo hiciera todo en una llamada
         # (criterios, hallazgos y `pr_no_lista` en un solo JSON): el servidor de pega lo reparte por pregunta; las de citas
-        # sin cola propia no traen ninguna, y los hallazgos salen de lo ultimo que el modelo sirvio para los criterios.
+        # sin cola propia citan `return x + y` para cada criterio, y los hallazgos salen de lo ultimo que el modelo sirvio para los criterios.
         # Una cola por (modelo, pregunta) manda sobre ese reparto.
         self.por_fase: dict[tuple[str, str], list] = {}
         self.ultimo: dict[str, tuple] = {}
@@ -144,7 +144,8 @@ def _manejador(mundo: _Mundo):
                 cola = mundo.por_fase.get((modelo, fase)) or mundo.litellm.get(modelo) or [(500, None, 0)]
                 propia = (modelo, fase) in mundo.por_fase
                 criterios_del_lote = re.search(r'tipo=criterios>>>\n(.*?)\n<<<FIN', usuario, re.S)
-                criterios_del_lote = criterios_del_lote.group(1) if fase == 'lote' and criterios_del_lote else None
+                criterios_del_prompt = criterios_del_lote.group(1) if criterios_del_lote else ''
+                criterios_del_lote = criterios_del_prompt if fase == 'lote' and criterios_del_prompt else None
                 if fase == 'citas':
                     mundo.lote_previo.pop(modelo, None)
                 if not propia and fase == 'lote' and modelo in mundo.ultimo and mundo.lote_previo.get(modelo, criterios_del_lote) != criterios_del_lote:
@@ -158,7 +159,10 @@ def _manejador(mundo: _Mundo):
                     if criterios_del_lote:
                         mundo.lote_previo[modelo] = criterios_del_lote
                 elif fase == 'citas':
-                    status, contenido, retraso = cola[0][0], '{"criterios": []}', cola[0][2]
+                    etiquetas = re.findall(r'(?m)^(C\d+[a-z]?)\. ', criterios_del_prompt)
+                    status, retraso = cola[0][0], cola[0][2]
+                    contenido = json.dumps({'criterios': [{'n': e, 'citas': [{'file': 'src/app.py', 'cita': 'return x + y'}]}
+                                                          for e in etiquetas]})
                 else:
                     status, contenido, retraso = mundo.ultimo.get(modelo) or cola[0]
                 if retraso:
@@ -2474,6 +2478,168 @@ class TestFases(Base):
             self.assertIsNone(review.localizar(mala, 'src/app.py', lineas), mala)
         # un fichero que el diff muestra manda sobre los demas: la linea no se busca en otro
         self.assertIsNone(review.localizar('def test_f(self): pass', 'src/app.py', lineas))
+
+
+class TestVarianteC(Base):
+    """SC-2264, iteracion 3, variante C: el juicio de cada lote ve el diff de los ficheros que nombra su criterio, un criterio sin
+    citas es ➖ «no demostrable en el diff» (salvo la ausencia de un fichero que no esta en el head) y los hallazgos de la caza de
+    fallos no bloquean nunca."""
+
+    def spec(self, *criterios):
+        self.mundo.adjuntos['1'] = ''.join(f'- [ ] C{i} {t}\n' for i, t in enumerate(criterios, 1)).encode()
+
+    def sin_citas(self):
+        self.mundo.por_fase[('local-juez', 'citas')] = [(200, '{"criterios": []}', 0)]
+
+    def juicio(self, criterios, hallazgos=()):
+        self.mundo.litellm['local-juez'] = [(200, respuesta(criterios, hallazgos), 0)]
+
+    def ausente(self, n, **k):
+        return {'n': n, 'cumple': False, 'evidencia': '', 'cita': '', 'nota': 'falta el test', **k}
+
+    def bloque(self, fase, tipo, i=0):
+        return re.search(rf'(?s)tipo={tipo}>>>\n(.*?)\n<<<FIN', self.prompt(fase, i)).group(1)
+
+    # (1) el diff de lo que nombra el criterio
+
+    def test_el_lote_ve_el_diff_de_los_ficheros_que_nombra_su_criterio(self):
+        self.spec('la suma devuelve x + y en `src/app.py`', 'la suma tiene su test')
+        self.correr()
+        lote = self.prompt('lote')
+        self.assertEqual({t for _, t in re.findall(r'<<<DATOS id=([0-9a-f]+) tipo=(\w+)>>>', lote)},
+                         {'ticket', 'criterios', 'recortados', 'pr', 'alcance', 'citas', 'diff'})
+        diff = self.bloque('lote', 'diff')
+        self.assertIn('diff --git a/src/app.py b/src/app.py', diff)
+        self.assertIn('+    return x + y', diff)
+        self.assertNotIn('tests/test_app.py', diff)        # ningun criterio lo nombra
+        self.assertNotIn('NORMA-X', lote)                  # y el resto del contexto sigue siendo solo el del lote
+
+    def test_el_diff_de_un_lote_son_los_ficheros_nombrados_por_ruta_o_por_nombre_corto(self):
+        pedir = lambda *textos: [(f'C{i}', t) for i, t in enumerate(textos, 1)]
+        nombres = lambda *textos: re.findall(r'(?m)^diff --git a/(\S+) ', review.diff_de_los_nombrados(pedir(*textos), DIFF))
+        self.assertEqual(nombres('cambia `src/app.py`'), ['src/app.py'])
+        self.assertEqual(nombres('cambia app.py.'), ['src/app.py'])                  # el nombre corto, y un punto detras no lo rompe
+        self.assertEqual(nombres('un test en test_app.py'), ['tests/test_app.py'])   # `app.py` va dentro de `test_app.py`, pero no al reves
+        self.assertEqual(nombres('cambia webapp.py'), [])                            # un nombre dentro de otra palabra no cuenta
+        self.assertEqual(nombres('x', 'tests/test_app.py y src/app.py'), ['src/app.py', 'tests/test_app.py'])   # en el orden del diff
+        self.assertEqual(nombres('sin ninguno'), [])
+        self.assertEqual(review.diff_de_los_nombrados(pedir('nada'), DIFF), '')
+
+    def test_el_diff_de_un_lote_tiene_tope(self):
+        grande = DIFF + 'diff --git a/src/otro.py b/src/otro.py\n--- a/src/otro.py\n+++ b/src/otro.py\n@@ -1,1 +1,2 @@\n x = 1\n' \
+            + ''.join(f'+y{i} = {i}\n' for i in range(5000))
+        self.assertGreater(len(grande), review.LOTE_DIFF_MAX)
+        texto = review.diff_de_los_nombrados([('C1', 'src/otro.py y src/app.py')], grande)
+        self.assertEqual(len(texto), review.LOTE_DIFF_MAX)
+
+    def test_sin_fichero_nombrado_el_bloque_diff_lo_dice(self):
+        self.spec('la suma devuelve x + y', 'la suma tiene su test')
+        self.correr()
+        self.assertEqual(self.bloque('lote', 'diff'), '(ningun criterio de este bloque nombra un fichero del diff)')
+
+    def test_cada_lote_ve_el_diff_de_sus_criterios(self):
+        self.spec(*['criterio'] * 6, 'el test va en `tests/test_app.py`')
+        self.mundo.adjuntos['1'] = self.mundo.adjuntos['1'].replace(b'C1 criterio', b'C1 la suma en `src/app.py`')
+        self.correr()
+        primero, segundo = self.bloque('lote', 'diff', 0), self.bloque('lote', 'diff', 1)
+        self.assertIn('src/app.py', primero)
+        self.assertNotIn('tests/test_app.py', primero)
+        self.assertIn('tests/test_app.py', segundo)
+        self.assertNotIn('src/app.py', segundo)
+
+    def test_la_rubrica_del_lote_manda_mirar_el_diff_y_no_da_por_incumplido_lo_que_no_se_cito(self):
+        self.correr()
+        lote = self.prompt('lote', plano=True)
+        for frase in ('con el bloque `diff` (el diff de los ficheros que nombran los criterios de este bloque',
+                      '«ninguna» en las citas no quiere decir que el criterio no se cumpla',
+                      'una linea del bloque `citas` o del bloque `diff`',
+                      'la linea de la version NUEVA del fichero'):
+            self.assertIn(frase, lote)
+
+    # (2) sin citas, ➖
+
+    def test_una_ausencia_sin_citas_es_un_menos_si_el_fichero_esta_en_el_diff_o_no_se_dijo(self):
+        self.sin_citas()
+        for nombre, fila in (('sin fichero', {}), ('fichero que el diff muestra', {'fichero': 'tests/test_app.py'})):
+            with self.subTest(nombre):
+                self.mundo.comentarios.clear()
+                self.juicio([cumple(1), self.ausente(2, **fila)])
+                self.assertEqual(self.correr(), 0, self.salida_texto)
+                self.assertVeredicto('PASA', motivos='')
+                self.assertRegex(self.comentario(), r'\*\*C2\*\* ➖ .*no demostrable en el diff')
+                self.assertEqual(self.mundo.contents, [], 'no hace falta mirar el head')
+
+    def test_una_ausencia_sin_citas_de_un_fichero_que_no_esta_en_el_diff_ni_en_el_head_sigue_bloqueando(self):
+        self.sin_citas()
+        self.juicio([cumple(1), self.ausente(2, fichero='tests/test_nuevo.py')])
+        self.assertEqual(self.correr(), 1, self.salida_texto)
+        self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
+        self.assertEqual(self.mundo.contents, [f'tests/test_nuevo.py?ref={SHA}'])
+        self.assertIn('ausencia comprobada: el fichero no existe en el head', self.comentario())
+
+    def test_una_ausencia_sin_citas_de_un_fichero_que_si_esta_en_el_head_es_un_menos(self):
+        self.sin_citas()
+        self.mundo.ficheros['tests/test_nuevo.py'] = 'def test_x(): pass\n'
+        self.juicio([cumple(1), self.ausente(2, fichero='tests/test_nuevo.py')])
+        self.assertEqual(self.correr(), 0, self.salida_texto)
+        self.assertVeredicto('PASA', motivos='')
+        self.assertRegex(self.comentario(), r'\*\*C2\*\* ➖ .*no demostrable en el diff')
+        self.assertEqual(self.n('verifica'), 0)
+
+    def test_una_ausencia_con_citas_sigue_bloqueando_como_siempre(self):
+        self.juicio([cumple(1), self.ausente(2, fichero='tests/test_app.py')])   # las citas por defecto traen `return x + y`
+        self.assertEqual(self.correr(), 1, self.salida_texto)
+        self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
+
+    def test_un_rojo_con_una_cita_que_contradice_bloquea_aunque_el_criterio_no_tenga_citas(self):
+        self.sin_citas()
+        self.juicio([cumple(1), self.ausente(2, evidencia='tests/test_app.py:4', cita='def test_f(self): pass', nota='el test no comprueba nada')])
+        self.assertEqual(self.correr(), 1, self.salida_texto)
+        self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
+
+    def test_un_menos_por_falta_de_citas_cuenta_en_las_bajas_del_evalua(self):
+        res = {'criterios': [{'baja': 'no demostrable en el diff: el criterio no tiene citas'}], 'hallazgos': []}
+        self.assertEqual(review.bajas_de(res), 'C.no_demostrable:1')
+
+    # (3) los hallazgos de la caza de fallos no bloquean
+
+    def hallazgo(self, tipo='correccion', severity='alta', **k):
+        return {'file': 'src/app.py', 'line': 12, 'severity': severity, 'tipo': tipo, 'cita': 'return x + y', 'summary': 'suma mal',
+                **({'entrada': 'f(1, 2)', 'salida_esperada': '3', 'salida_codigo': '4'} if tipo == 'correccion' else {}), **k}
+
+    def test_un_hallazgo_nunca_bloquea_y_se_publica_como_observacion(self):
+        for tipo in ('correccion', 'arquitectura'):
+            for severity in ('alta', 'media'):
+                with self.subTest(f'{tipo} {severity}'):
+                    self.mundo.comentarios.clear()
+                    self.juicio([cumple(1), cumple(2, 'tests/test_app.py:4')], [self.hallazgo(tipo, severity)])
+                    self.assertEqual(self.correr(), 0, self.salida_texto)
+                    self.assertVeredicto('PASA', motivos='')
+                    texto = self.comentario()
+                    self.assertIn('### Observaciones (no bloquean)', texto)
+                    self.assertIn('suma mal', texto)
+                    self.assertNotIn('### Hallazgos', texto)
+
+    def test_con_un_criterio_que_bloquea_el_hallazgo_sigue_siendo_una_observacion(self):
+        self.juicio([cumple(1), self.ausente(2, evidencia='tests/test_app.py:4', cita='def test_f(self): pass', nota='el test no comprueba nada')],
+                    [self.hallazgo()])
+        self.assertEqual(self.correr(), 1)
+        self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
+        texto = self.comentario()
+        self.assertIn('### Observaciones (no bloquean)', texto)
+        self.assertEqual(texto.count('suma mal'), 1, 'solo como observacion, no tambien como hallazgo a arreglar')
+
+    def test_evaluar_hallazgos_no_marca_ninguno_como_bloqueante(self):
+        dato = {'hallazgos': [self.hallazgo('correccion', 'alta'), self.hallazgo('arquitectura', 'media'),
+                              self.hallazgo('correccion', 'media', entrada='', salida_esperada='', salida_codigo='')]}
+        self.assertEqual([h['bloquea'] for h in review.evaluar_hallazgos(dato)], [False, False, False])
+
+    def test_la_rubrica_de_la_caza_dice_que_sus_hallazgos_no_bloquean(self):
+        self.correr()
+        hallazgos = self.prompt('hallazgos', plano=True)
+        self.assertIn('Los hallazgos no bloquean la PR: se publican como observaciones', hallazgos)
+        self.assertNotIn('bloquea la PR.', hallazgos)
+        self.assertNotIn('el codigo lo baja a observacion', hallazgos)
 
 
 class TestEsquema(Base):
