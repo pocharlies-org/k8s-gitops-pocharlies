@@ -1,0 +1,19 @@
+diff --git a/k8s/kustomization.yaml b/k8s/kustomization.yaml
+index 4be33c8..496cd65 100644
+--- a/k8s/kustomization.yaml
++++ b/k8s/kustomization.yaml
+@@ -8,10 +8,11 @@ resources:
+   - apex-redirect.yaml
+ images:
+   # Bump newTag to the pushed git sha after each CI build (same pattern as
+-  # k8s-blog-pocharlies). SC-1334: build de ea6ee45 (SC-1339: índice /soluciones/
+-  # y /en/solutions/; run 36691438945, digest sha256:77a81cd67d9a…).
++  # k8s-blog-pocharlies). INFRA-396/INFRA-806: build de ef0a150 (rediseño de la home:
++  # hero, reveal, tema, AVIF/WebP; run
++  # https://github.com/pocharlies-org/k8s-web-pocharlies/actions/runs/38012152077).
+   - name: harbor.e-dani.com/homelab/web-edani
+-    newTag: "ea6ee4551085bb3c71579d7f741b96657831c67a"
++    newTag: "ef0a15005746c58f5ba7134edb1b9feb69ca7088"
+ patches:
+   - target:
+       kind: Deployment

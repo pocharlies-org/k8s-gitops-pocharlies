@@ -1,0 +1,1102 @@
+diff --git a/.company/changes/sc-2161-p3-desvio.md b/.company/changes/sc-2161-p3-desvio.md
+new file mode 100644
+index 0000000..3e6cb22
+--- /dev/null
++++ b/.company/changes/sc-2161-p3-desvio.md
+@@ -0,0 +1,4 @@
++- Hoy: `GET /-/health` devuelve los contadores y `company_inflight`, y un 429 o una respuesta servida con créditos de uso llegan a la sesión tal cual.
++- Al lado: `/-/health` gana `failover: {activo, sin_creditos, desvios: [{de, a, desde, hasta, peticiones}], intentos, exitos, sin_cuenta, creditos}` (aditivo; `de` es un id o `h:` + 8 hex, `a` es un id). Con `vivo: true` en `cuenta-failover.json`, una sesión en vivo sin cuota sigue en otra cuenta. Con `CLAUDE_ROUTER_SIN_CREDITOS=1`, una respuesta servida con créditos no llega a la sesión: va a otra cuenta o vuelve un 429 de límite.
++- Quién se mueve: nadie está obligado. `company_cuenta.desvios_vivos()` (x86-host-runtime, P2/P5a) ya lee `failover.desvios`, y las demás claves de `/-/health` no cambian.
++- Dónde se decidió: `nota-architect-plan.md` de SC-2161 (§2 y §5, APROBADO), Dani en el comentario 29240 (el pool) y el alcance de «sin créditos» que Dani pasó por la sesión el 10-10-2026.
+diff --git a/.company/evidence/sc-2161-p3-desvio.md b/.company/evidence/sc-2161-p3-desvio.md
+new file mode 100644
+index 0000000..3150e3d
+--- /dev/null
++++ b/.company/evidence/sc-2161-p3-desvio.md
+@@ -0,0 +1,115 @@
++# SC-2161 P3: evidencia (10-10-2026, x86 `ubuntu`, node v22.23.3)
++
++## Smokes
++
++`node tests/smoke-failover.js`: **PASA, 43/43**. `smoke-install` 12/12 (abajo). Los de siempre siguen en verde: `smoke-backend-flip` 7/7, `smoke-company-claude-gate` 13/13, `smoke-company-inflight` 4/4, `smoke-limit-log` 17/17 y `smoke-plan-gate` 27/27. En CI los corre `.github/workflows/smokes.yml` (`arc-k8s`).
++
++```
++ok   1: el cliente recibe el 200 del destino
++ok   1: en streaming (el primer trozo llega antes del ultimo)
++ok   1: Anthropic ve origen y luego destino, nada mas
++ok   1: reintento con cabeceras identicas salvo authorization
++ok   1: reintento con el cuerpo identico byte a byte
++ok   7: ni la misma organizacion, ni un id fuera de la regex, ni un token 0644
++ok   2: pegajoso: directa al destino
++ok   2: /-/health.failover lleva el desvio
++ok   2: contadores
++ok   2: corta se desvia y la siguiente va directa
++ok   2: vencido el reset, vuelve a su cuenta
++ok   4: 429 sin senal: intacto y sin reintento
++ok   5: x-claude-class: company: el 429 de hoy, sin desvio
++ok   5: x-api-key: el 429 de hoy, sin desvio
++ok   h: el login por defecto se desvia al primero del orden
++ok   h: /-/health lo nombra por su huella
++ok   2: destino agotado: fuera el desvio y al siguiente candidato (origen sigue sin cuota: ni se prueba)
++ok   3: dos intentos como mucho (c3 no se prueba)
++ok   3: sin cuenta: el 429 ORIGINAL byte a byte
++ok   3: FAILOVER-SIN-CUENTA en el log
++ok   3: el fallo del candidato se loguea con su cuerpo
++ok   3: s queda sin cuota y c1 y c2 en la cache negativa: la siguiente va directa a c3
++ok   3: sin_cuenta=1
++ok   5: vivo:false: el 429 de hoy, sin desvio
++ok   5: vivo ausente: el 429 de hoy, sin desvio
++ok   5: fichero ausente: el 429 de hoy, sin desvio
++ok   5: fichero ilegible: el 429 de hoy, sin desvio
++ok   5: de mas de 10 minutos: el 429 de hoy, sin desvio
++ok   5: v desconocida: el 429 de hoy, sin desvio
++ok   5: sin CLAUDE_ROUTER_FAILOVER_FILE: el 429 de hoy, sin desvio
++ok   creditos: con candidato, sirve el candidato
++ok   creditos: el candidato recibe el cuerpo identico
++ok   creditos: y queda el desvio pegajoso
++ok   creditos: x-claude-class: company pasa intacta
++ok   creditos: sin candidato (sin vivo), 429 sintetico
++ok   creditos: la siguiente, 429 sintetico SIN salir a Anthropic
++ok   creditos: FAILOVER-SIN-CUENTA-CREDITOS en el log
++ok   creditos: /-/health
++ok   creditos: candidato tambien con creditos -> 429 sintetico
++ok   creditos: sin CLAUDE_ROUTER_SIN_CREDITOS pasa intacta
++ok   creditos: linea CREDITOS en cada 2xx con la senal
++ok   6: ningun token en stdout, /-/health ni cuerpos
++ok   6: el log nombra cuentas por id u h:
++
++43/43 checks
++```
++
++## Drop-in (ronda 1 del juez, 10-10)
++
++Las tres variables se han ido de `systemd/claude-router.service` a `systemd/claude-router.service.d/failover.conf`, que `install.sh` instala con 0644. El `deploy.sh` del plugin reescribe la unidad desde cero y no toca `.service.d/`. `node tests/smoke-install.js`: **PASA, 12/12**. Usa un HOME temporal, `systemctl`, `curl` y `launchctl` simulados y ni `XDG_RUNTIME_DIR` ni DBus, así que el systemd real no se toca. Clona el plugin público y ejecuta su `deploy.sh --force` encima.
++
++```
++ok   el drop-in versionado lleva las tres variables
++ok   la unidad versionada no las lleva
++ok   install.sh termina bien
++ok   los systemctl fueron al stub (el systemd real no se toca)
++ok   install.sh instala el drop-in tal cual
++ok   el drop-in queda 0644
++ok   la unidad instalada no lleva las variables y si el node
++ok   clon del plugin publico
++ok   deploy.sh del plugin no nombra .service.d
++ok   deploy.sh --force del plugin termina bien
++ok   deploy.sh regenera la unidad (es el caso que borraria las lineas)
++ok   y el drop-in sigue intacto
++
++12/12 checks
++```
++
++## Fixtures
++
++- `tests/fixtures/429-limite-7d.json`: **real**. Es un `claude -p` 2.1.296 (config aislada, sin hooks) con el setup-token de `flash`, que tenía la ventana semanal al 100 %, pasando por el router de `main` en el puerto 18897 con un grifo delante (18898). Anthropic contestó 429 con `unified-status: rejected`, `representative-claim: seven_day`, `7d-status: rejected`, `overage-status: rejected`, `retry-after: 442377` y cuerpo en `content-encoding: br`. Sin token ni huella; request-id, organización, workspace, cf-ray y traceresponse van redactados.
++- `tests/fixtures/429-sin-senal.json`: **real**. La misma cuenta, pero con una petición mínima que no es de Claude Code. Anthropic da un 429 `rate_limit_error` sin ninguna cabecera `anthropic-ratelimit-*`, y ese es el caso que no se desvía.
++- **No hay 5 h real.** Ninguna cuenta tenía la ventana de 5 h agotada sin tener también la semanal (`max` la tuvo al 100 % con el reset ya pasado; no la probé porque habría gastado cuota). La regla acepta `five_hour` por ser el mismo campo (`representative-claim`), pero no está medido.
++- `tests/fixtures/200-creditos.json`: **sintética** (lo dice su `_nota`). Ninguna cuenta con créditos activos se ha agotado todavía.
++
++## Cabeceras de créditos confirmadas en el binario
++
++En `~/.local/share/claude/versions/2.1.296`, la función que arma el estado (`Gl`) hace:
++`isUsingOverage = anthropic-ratelimit-unified-status === "rejected" && anthropic-ratelimit-unified-overage-status ∈ {"allowed", "allowed_warning"}` y
++`overageInUse = anthropic-ratelimit-unified-overage-in-use === "true"`. Los resets vienen en `anthropic-ratelimit-unified-reset` y `anthropic-ratelimit-unified-overage-reset`; el motivo, en `anthropic-ratelimit-unified-overage-disabled-reason`; las ventanas, en `anthropic-ratelimit-unified-{5h,7d,7d_oi,overage}-{utilization,reset,surpassed-threshold}`.
++
++## El CLI real ante el 429 sintético
++
++`claude -p` 2.1.296, con un token falso, contra el router de la rama (`CLAUDE_ROUTER_SIN_CREDITOS=1`) y un Anthropic falso que sirve el 200 con créditos de la fixture. El router dejó `CREDITOS src=h:… status=200` y `FAILOVER-SIN-CUENTA-CREDITOS`. El CLI respondió `You've hit your limit · resets Oct 15, 5:19am (Europe/Madrid)` y escribió en el transcript `{"isApiErrorMessage": true, "error": "rate_limit", "apiError": "usage_limit_reached"}`, que es justo lo que busca `con_aviso()` de SC-2267.
++
++## Riesgo §2.4: medido con cuentas reales
++
++Usé un router de la rama en el 18899, con un fichero de orden propio en el scratchpad (`vivo: true`, `orden: [correo]` y el `org` del fichero vivo, sin tocarlo), y un grifo en el 18900.
++
++1. Con `sergio` (CloudBlue) y `claude-opus-5-5` generé una sesión con 1 bloque `thinking` firmado y 1 `tool_use`.
++2. `--resume` de esa sesión con el token de `flash` (CloudBlue, agotada). El router registró `LIMITE-429`, luego `FAILOVER src=flash -> correo hasta=2026-10-15T03:00:00Z` y después `FAILOVER-STICKY`. Resultado: **200** y la respuesta correcta.
++   - Primer turno en el destino: `cache_read_input_tokens` **0**, `cache_creation_input_tokens` **25153**.
++   - Segundo turno (pegajoso): `cache_read` **25153**, `cache_creation` **113**.
++3. El caso duro: reenvié la petición del turno de herramienta en curso (el `thinking` firmado por `sergio` en el último mensaje de `assistant`, junto al `tool_use` y su `tool_result`) con el token de `flash`, y llegó a `correo` (Moreno Ibáñez). **200**.
++4. Lo mismo, con `metadata.user_id.account_uuid` cambiado por el de la cuenta E-dani del login por defecto (ni `correo` ni su organización). **200**.
++
++Conclusión: ni la firma del `thinking` ni `metadata.user_id` dan 400 en una cuenta de otra organización, así que la salida de §2.4 (quitar los `thinking`) no hace falta y no la he escrito. Lo que cuesta el cambio es reescribir el contexto en la caché del destino una vez.
++
++## Criterios (P3 del plan, §2 y §7)
++
++- Smoke 1 (429 real, otro token, 200 en streaming, cuerpo y cabeceras idénticos salvo `authorization`): ok.
++- Smoke 2 (pegajoso hasta `until`; vencido, vuelve a probar la original): ok.
++- Smoke 3 (candidato agotado o en error, el siguiente; ninguno, el 429 original byte a byte y `FAILOVER-SIN-CUENTA`): ok.
++- Smoke 4 (429 sin señal unificada, intacto): ok, con la captura real sin señal.
++- Smoke 5 (compañía, `x-api-key`, `vivo:false` o ausente, fichero ausente, ilegible, viejo, `v` desconocida o sin variable: como hoy): ok.
++- Smoke 6 (ningún token en stdout, `/-/health` ni cuerpos): ok con tokens falsos. El grep con los valores reales es de qa (§7.6).
++- Smoke 7 (misma organización, id fuera de la regex y token 0644 ignorados): ok.
++- Sin créditos (alcance de Dani del 10-10): candidato que sirve, 429 sintético sin candidato, siguiente petición sin salir a Anthropic, intacta sin la variable y con `x-claude-class: company`, línea `CREDITOS`: ok.
+diff --git a/.github/workflows/smokes.yml b/.github/workflows/smokes.yml
+new file mode 100644
+index 0000000..ccd89b0
+--- /dev/null
++++ b/.github/workflows/smokes.yml
+@@ -0,0 +1,38 @@
++# Los smokes del router (tests/smoke-*.js) en cada PR y en main. Hasta SC-2161 P3 nadie los
++# ejecutaba en CI (ARCHITECTURE.md: «no se verifico que CI los ejecute»), y el desvio de cuenta
++# mueve credenciales: no puede descansar en tests que no corren. Node sin dependencias, fakes
++# locales, sin red ni secretos.
++name: smokes
++
++on:
++  pull_request:
++  push:
++    branches: [main]
++  workflow_dispatch:
++
++permissions:
++  contents: read
++
++concurrency:
++  group: ${{ github.workflow }}-${{ github.ref }}
++  cancel-in-progress: true
++
++jobs:
++  smokes:
++    # arc-k8s no trae node: lo pone setup-node (skill ci-runners-arc).
++    runs-on: arc-k8s
++    steps:
++      - uses: actions/checkout@v4
++      - uses: actions/setup-node@v4
++        with:
++          node-version: "22"
++      - name: tests/smoke-*.js
++        run: |
++          set -u
++          rc=0
++          for t in tests/smoke-*.js; do
++            echo "::group::$t"
++            node "$t" || { rc=1; echo "::error title=smoke en rojo::$t"; }
++            echo "::endgroup::"
++          done
++          exit $rc
+diff --git a/ARCHITECTURE.md b/ARCHITECTURE.md
+index 10a88b1..a740422 100644
+--- a/ARCHITECTURE.md
++++ b/ARCHITECTURE.md
+@@ -11,17 +11,17 @@
+ 
+ ## Dependencias (en ambos sentidos)
+ 
+-- Depende de: LiteLLM (ns `litellm`; el catálogo vive en `k8s-litellm-pocharlies`), `api.anthropic.com` y el panel DGX para la configuración de enrutado (`CLAUDE_ROUTER_ROUTING_CONFIG_URL`, interruptor «Claude» de la compañía y `claude_gate`).
+-- Dependen de él: todas las sesiones de Claude Code del x86 y del Mac; `claude-local-router` (copia empaquetada); la unidad `claude-router-front.service` del host en `x86-host-runtime-pocharlies` (vínculo exacto no verificado).
++- Depende de: LiteLLM (ns `litellm`; el catálogo vive en `k8s-litellm-pocharlies`), `api.anthropic.com` y el panel DGX para la configuración de enrutado (`CLAUDE_ROUTER_ROUTING_CONFIG_URL`, interruptor «Claude» de la compañía y `claude_gate`). Desde SC-2161 P3 lee además dos ficheros de `x86-host-runtime-pocharlies`: `~/.company/jira-trigger/cuenta-failover.json` (`file.claude-failover.v1`, lo escribe `company-agent`) y los `<id>.token` de `~/.config/claude-cuentas` (`file.claude-cuentas.v1`, solo esos ficheros). Ambos contratos están registrados en el `CONTRACTS.yaml` de ese repo; aquí llevan el marcador `CONTRACT:`.
++- Dependen de él: todas las sesiones de Claude Code del x86 y del Mac; `claude-local-router` (copia empaquetada); la unidad `claude-router-front.service` del host en `x86-host-runtime-pocharlies` (vínculo exacto no verificado); `company_cuenta.desvios_vivos()` de `x86-host-runtime-pocharlies`, que lee `failover.desvios` de `/-/health` para el panel (`de` es un id o `h:` + 8 hex, `a` un id).
+ - Contrato implícito con el panel: la forma de la configuración de enrutado; cambiarla exige tocar `dgx-infra` en el mismo cambio.
+ 
+ ## Stack
+ 
+-Node sin dependencias (`bin/claude-router.js`, 626 líneas), shell (`install.sh`), unidades systemd y launchd, y smokes en Node (`tests/smoke-*.js`).
++Node sin dependencias (`bin/claude-router.js`, 857 líneas), shell (`install.sh`), unidades systemd y launchd, y smokes en Node (`tests/smoke-*.js`).
+ 
+ ## Componentes compartidos
+ 
+-- `bin/claude-router.js`: **el** router. Ruteo por modelo; `GET /v1/models` local (sin esto el CLI valida `--model` contra el catálogo de Anthropic y falla con `unrecognized_model`); sustitución de credenciales (el OAuth de Anthropic nunca sale hacia LiteLLM); guardarraíl de historial mezclado (`CLAUDE_ROUTER_MIXED=strip`); `claude_gate` (la compañía solo saca a Anthropic los modelos de su lista); contador de peticiones de la compañía en vuelo; 403 en vez de salir a Anthropic cuando el interruptor «Claude» está apagado; línea de log `LIMITE-429` (SC-2161 P1) por cada 429 que devuelve Anthropic, con `src` (hash corto del token, nunca el token), modelo, `error.type`, `retry-after` y las cabeceras `anthropic-ratelimit-*`: solo observa, el 429 sigue al cliente intacto.
++- `bin/claude-router.js`: **el** router. Ruteo por modelo; `GET /v1/models` local (sin esto el CLI valida `--model` contra el catálogo de Anthropic y falla con `unrecognized_model`); sustitución de credenciales (el OAuth de Anthropic nunca sale hacia LiteLLM); guardarraíl de historial mezclado (`CLAUDE_ROUTER_MIXED=strip`); `claude_gate` (la compañía solo saca a Anthropic los modelos de su lista); contador de peticiones de la compañía en vuelo; 403 en vez de salir a Anthropic cuando el interruptor «Claude» está apagado; línea de log `LIMITE-429` (SC-2161 P1) por cada 429 que devuelve Anthropic, con `src` (hash corto del token, nunca el token), modelo, `error.type`, `retry-after` y las cabeceras `anthropic-ratelimit-*`; desvío de cuenta de las sesiones en vivo sin cuota (SC-2161 P3: con `vivo: true` en el fichero de orden, el mismo cuerpo con el token de otra cuenta; `failover` en `/-/health`) y «sin créditos» (`CLAUDE_ROUTER_SIN_CREDITOS=1`: una respuesta servida con créditos de uso no llega a la sesión). Detalle en el README, «Desvío de cuenta y sin créditos».
+ - `bin/claude-statusline`: indicador de backend.
+ 
+ ## Cómo se construye
+@@ -30,15 +30,16 @@ Un cambio de ruteo se hace solo aquí y, en el mismo ciclo, se actualiza la copi
+ 
+ ## Tests
+ 
+-`tests/smoke-backend-flip.js`, `smoke-company-claude-gate.js`, `smoke-company-inflight.js`, `smoke-limit-log.js` y `smoke-plan-gate.js` (smokes de Node; no se verificó que CI los ejecute).
++`tests/smoke-backend-flip.js`, `smoke-company-claude-gate.js`, `smoke-company-inflight.js`, `smoke-failover.js`, `smoke-install.js`, `smoke-limit-log.js` y `smoke-plan-gate.js` (smokes de Node con fakes locales; `smoke-install.js` ejecuta `install.sh` y el `deploy.sh` del plugin con un HOME temporal y `systemctl` simulado, y clona el plugin público si no se le pasa `CLAUDE_LOCAL_ROUTER_DIR`). Desde SC-2161 P3 los ejecuta `.github/workflows/smokes.yml` en cada PR y en `main`. Fixtures en `tests/fixtures/`: dos 429 reales capturados el 10-10-2026 y un 200 con créditos sintético (lo dice su `_nota`).
+ 
+ ## CI/CD y despliegue
+ 
+-`.github/workflows/bundle-drift.yml` (runner `ubuntu-latest`; se dispara con cambios de `bin/claude-router.js`, la unidad o el propio workflow): falla si la copia del plugin público `claude-local-router` diverge. Además los workflows estándar `duplicados.yml` y `pr-review.yml`. Despliegue: `./install.sh --statusline` copia el router a `~/.local/bin` y activa la unidad; solo los procesos nuevos leen la URL.
++`.github/workflows/bundle-drift.yml` (runner `arc-k8s`; se dispara con cambios de `bin/claude-router.js`, la unidad o el propio workflow): falla si la copia del plugin público `claude-local-router` diverge. Además `smokes.yml` (runner `arc-k8s` con `setup-node`) y los workflows estándar `duplicados.yml` y `pr-review.yml`. Despliegue: `./install.sh --statusline` copia el router a `~/.local/bin`, instala la unidad y el drop-in `claude-router.service.d/failover.conf` y reinicia el servicio; solo los procesos nuevos leen la URL.
+ 
+ ## Decisiones y trampas
+ 
+ - El 21-09-2026 la copia congelada del plugin se llevó por delante perfiles de chat de OWU-50 y reactivó el desvío a Opus retirado el 17-09; `bundle-drift` es lo que lo impide. El repo del plugin es público y este privado: la comprobación va aquí.
+ - Los dos desvíos automáticos (local saturado → nube, cuota → local) se retiraron el 17-09-2026 con su código; ningún `CLAUDE_ROUTER_FALLBACK_*` se lee ya. La saturación local la gestiona la admisión de LiteLLM.
+ - `behavesAs: sonnet` en las filas locales del selector: sin eso el CLI aborta con «Prompt is too long» ante un modelo desconocido.
+-- El job de CI en `ubuntu-latest` debería ir a `arc-k8s`.
++- SC-2161 P3 (10-10-2026): el desvío entre cuentas cambia solo la credencial, nunca el modelo ni `max_tokens` (lección del 17-09). El orden y el umbral no se calculan aquí: llegan en el fichero de `company-agent`, y el router solo aprende del 429 que ve. Nada se enciende sin `vivo: true`, y un fichero de más de 10 minutos apaga el desvío solo. Medido el 10-10: una firma de `thinking` y un `metadata.user_id` de otra organización no dan 400 en el destino.
++- Dos desplegadores de la misma unidad: `./install.sh` de aquí y el `deploy.sh` del plugin, que regenera `claude-router.service` desde cero cada vez que despliega otros bytes. Por eso lo que solo es de esta casa no va en la unidad sino en drop-ins de `claude-router.service.d/`, que el plugin no toca: `failover.conf` (versionado en `systemd/claude-router.service.d/`, lo instala `install.sh`) con `CLAUDE_ROUTER_FAILOVER_FILE`, `CLAUDE_ROUTER_ACCOUNTS_DIR` y `CLAUDE_ROUTER_SIN_CREDITOS`, y los que se ponen a mano (`force-local.conf`, `claude-gate.conf`). El plugin público no lleva nada de eso. Lo comprueba `tests/smoke-install.js`.
+diff --git a/README.md b/README.md
+index c7368f3..706e883 100644
+--- a/README.md
++++ b/README.md
+@@ -52,11 +52,34 @@ claude -p --model opus 'responde OK'                   # debe salir ANTHROPIC
+ | estado | `systemctl --user status claude-router` |
+ | recargar la key de LiteLLM | `systemctl --user reload claude-router` (SIGHUP) |
+ | cambiar qué se considera local | `CLAUDE_ROUTER_LOCAL_RE` en la unidad (por defecto `^(qwen\|tooling\|or-\|alibaba-\|litellm/)`, sin distinguir mayúsculas) |
+-| desvío automático (a Opus, o a local por cuota) | **no existe** desde el 17-09-2026: el modelo que sale es el que elegiste. Ver las dos secciones de «por qué» |
++| desvío automático (a Opus, o a local por cuota) | **no existe** desde el 17-09-2026: el modelo que sale es el que elegiste. Ver las dos secciones de «por qué». Lo que sí hay desde SC-2161 P3 es cambiar de **cuenta** con el mismo modelo: «Desvío de cuenta y sin créditos» |
+ | desinstalar | `systemctl --user disable --now claude-router` y quitar `env.ANTHROPIC_BASE_URL` de `~/.claude/settings.json` |
+-| 429 de límite de Anthropic | solo se **observa** (SC-2161 P1): `journalctl --user -u claude-router \| grep LIMITE-429` da `LIMITE-429 src=h:xxxxxxxx model=… error.type=… headers={…}` con `retry-after` y todas las `anthropic-ratelimit-*`. `src` es el hash corto (8 hex de sha256) del token del `Authorization`, nunca el token. El 429 llega al cliente intacto; sin variable de entorno ni contador. Prueba: `node tests/smoke-limit-log.js` |
++| 429 de límite de Anthropic | solo se **observa** (SC-2161 P1): `journalctl --user -u claude-router \| grep LIMITE-429` da `LIMITE-429 src=h:xxxxxxxx model=… error.type=… headers={…}` con `retry-after` y todas las `anthropic-ratelimit-*`. `src` es el hash corto (8 hex de sha256) del token del `Authorization`, nunca el token. Sin el desvío de cuenta encendido, el 429 llega al cliente intacto. Prueba: `node tests/smoke-limit-log.js` |
++| desvío de cuenta y sin créditos | `curl -s :18791/-/health \| jq .failover`; `journalctl --user -u claude-router \| grep -E 'FAILOVER\|CREDITOS'`. Se apaga sin reiniciar con `vivo` en el panel o borrando el fichero de orden. Ver la sección de abajo |
+ | compañía sin Claude | interruptor «Claude» en `dgx.e-dani.com/claude-sessions#settings`. Llega por el campo `company` de `/api/model-routing/config` (TTL 60 s): con `company.claude=false`, un `POST /v1/messages` con `x-claude-class: company` a un modelo de Anthropic recibe **403** y la puerta `plan=claude` no desvía a la compañía. Las sesiones humanas no llevan la cabecera y no cambian. `company_blocked` en `/-/health`. Prueba: `node tests/smoke-company-claude-gate.js` |
+ 
++## Desvío de cuenta y sin créditos (SC-2161 P3, 10-10-2026)
++
++Cuando una sesión en vivo se queda sin cuota, el router repite la misma petición con el token de otra cuenta. El modelo, el cuerpo y las cabeceras son los mismos; solo cambia `authorization`. El desvío retirado el 17-09 cambiaba de modelo en silencio, y este no lo hace.
++
++El orden no lo decide el router. `company-agent` (x86-host-runtime) escribe cada 30 s `~/.company/jira-trigger/cuenta-failover.json` (contrato `file.claude-failover.v1`) con el `orden` de `company_cuenta.reparto()`, la organización de cada cuenta y el interruptor `vivo` del panel. El router lo lee de `CLAUDE_ROUTER_FAILOVER_FILE`. Si el fichero falta, no se puede leer, no trae `vivo: true` o su `generado` tiene más de 10 minutos, todo va como antes.
++
++Un 429 cuenta como «sin cuota» si trae `anthropic-ratelimit-unified-status: rejected` y el reclamo es `five_hour` o `seven_day`. La regla sale de una captura real, `tests/fixtures/429-limite-7d.json`, y mira solo cabeceras porque Anthropic manda el cuerpo comprimido en br. Un 429 sin esa señal pasa intacto (`tests/fixtures/429-sin-senal.json`).
++
++Con el 429 en la mano, el router prueba hasta dos cuentas del orden, nunca la de origen ni otra de su organización. La primera que contesta 2xx se emite en streaming, y desde entonces la cuenta de origen va directa a esa hasta su reset (log `FAILOVER` y después `FAILOVER-STICKY`). Si ninguna sirve, el cliente recibe el 429 original byte a byte (`FAILOVER-SIN-CUENTA`). Una cuenta que ha contestado `rejected` no se vuelve a probar hasta su reset. No se desvían la compañía (`x-claude-class: company`, porque sus cuentas las lleva el bus), las peticiones con `x-api-key`, los modelos locales ni las forzadas a local.
++
++Los tokens son los `<id>.token` (setup-token de un año) de `CLAUDE_ROUTER_ACCOUNTS_DIR`, y solo los de las cuentas que nombra el fichero: id válido, una línea, 0600 y del mismo usuario. El router nunca abre un `.credentials.json`. Un token solo sale hacia `api.anthropic.com` (o hacia el fake local de los smokes); nunca va a un log ni a `/-/health`, donde las cuentas aparecen por su id o como `h:` + 8 hex.
++
++«Sin créditos» se activa con `CLAUDE_ROUTER_SIN_CREDITOS=1` y no depende de `vivo`. Una cuenta con créditos de uso activos no da 429 al agotar su ventana: Anthropic la sirve con créditos y la sesión sigue gastando sin que nadie lo vea. El router reconoce esa respuesta por las cabeceras que lee el CLI 2.1.296 (`…-overage-in-use: true`, o `…-status: rejected` con `…-overage-status` `allowed` o `allowed_warning`). La corta sin escribir nada al cliente, prueba otra cuenta si el desvío está encendido y, si no hay ninguna, devuelve un 429 de límite (`FAILOVER-SIN-CUENTA-CREDITOS`). Probado con el CLI real: enseña «You've hit your limit · resets …» y deja `error: rate_limit` en el transcript, que es lo que mueve la conversación de cuenta (SC-2267). Hasta el reset, las peticiones siguientes de esa cuenta reciben el 429 sin salir a Anthropic. Además, cada 2xx con créditos deja una línea `CREDITOS src=… headers={…}`, haga algo el router o no. Todavía no hay captura real de esa respuesta: `tests/fixtures/200-creditos.json` es sintética y lo dice.
++
++`/-/health` lo enseña en `failover: {activo, sin_creditos, desvios: [{de, a, desde, hasta, peticiones}], intentos, exitos, sin_cuenta, creditos}`, que el panel lee con `company_cuenta.desvios_vivos()`. Para apagar el desvío sin reiniciar basta con `vivo` en el panel o con borrar el fichero de orden; «sin créditos» se quita borrando el drop-in `failover.conf`, y eso sí exige reiniciar.
++
++Lo medí el 10-10 con cuentas reales (riesgo §2.4 del plan). Desvié a `correo` (Moreno Ibáñez) una sesión con un bloque `thinking` firmado por una cuenta de CloudBlue, dentro del turno de herramienta en curso, y con `metadata.user_id` de otra cuenta: 200, así que no hace falta quitar los `thinking`. El primer turno en el destino escribe todo el contexto en caché (25.153 tokens, `cache_read` 0) y el segundo ya lo lee (`cache_read` 25.153).
++
++Las tres variables (`CLAUDE_ROUTER_FAILOVER_FILE`, `CLAUDE_ROUTER_ACCOUNTS_DIR` y `CLAUDE_ROUTER_SIN_CREDITOS`) van en un drop-in, `systemd/claude-router.service.d/failover.conf`, y no en la unidad. El motivo es el plugin: su `SessionStart` (`scripts/deploy.sh`) reescribe `claude-router.service` desde cero cada vez que despliega otros bytes, y con ellas en la unidad el desvío y el corte de créditos se apagarían en el siguiente despliegue del plugin sin que nadie se enterase. El plugin no toca `claude-router.service.d/`, igual que no toca los drop-ins puestos a mano, así que el resultado ya no depende de qué se ejecute antes. `./install.sh` deja el drop-in en `~/.config/systemd/user/claude-router.service.d/failover.conf` (0644). `node tests/smoke-install.js` lo comprueba con un HOME temporal y `systemctl` simulado: instala, ejecuta el `deploy.sh --force` del plugin encima y verifica que el drop-in sigue intacto.
++
++Despliegue: `./install.sh` reinicia el router y corta los streams de todas las sesiones, así que va en un hueco. Prueba del router: `node tests/smoke-failover.js` (los 7 casos del plan y los de créditos).
++
+ ## Por qué ya no hay desvío a Opus (17-09-2026)
+ 
+ Hubo un desvío automático `local → claude-opus-5` desde el 14-09. Va fuera. Duró tres días y
+diff --git a/bin/claude-router.js b/bin/claude-router.js
+index b74dd58..d6ff4be 100755
+--- a/bin/claude-router.js
++++ b/bin/claude-router.js
+@@ -70,8 +70,14 @@
+ // Un 429 de Anthropic deja ademas la linea `LIMITE-429 src=h:xxxxxxxx model=... error.type=...
+ // headers={anthropic-ratelimit-*, retry-after}` (SC-2161 P1; solo log, sin variable de entorno:
+ // el reenvio no cambia).
++//   CLAUDE_ROUTER_FAILOVER_FILE  ('' = apagado) SC-2161 P3: el orden de cuentas que escribe company-agent
++//                            (file.claude-failover.v1). Con `vivo: true`, una sesion en vivo sin cuota sigue
++//                            en otra cuenta. Ver "desvio de cuenta" abajo y en el README.
++//   CLAUDE_ROUTER_ACCOUNTS_DIR   (~/.config/claude-cuentas) de donde salen los `<id>.token` del desvio.
++//   CLAUDE_ROUTER_SIN_CREDITOS   ('' = apagado; '1') una respuesta servida con creditos de uso no llega a
++//                            una sesion en vivo: otra cuenta o un 429 de limite. No depende de `vivo`.
+ // SIGHUP recarga el fichero de entorno. GET /-/health devuelve contadores.
+-const http = require('http'), https = require('https'), fs = require('fs'), os = require('os'), path = require('path'), crypto = require('crypto');
++const http = require('http'), https = require('https'), fs = require('fs'), os = require('os'), path = require('path'), crypto = require('crypto'), zlib = require('zlib');
+ 
+ const PORT = Number(process.env.CLAUDE_ROUTER_PORT || 18791);
+ const LOCAL_RE = new RegExp(process.env.CLAUDE_ROUTER_LOCAL_RE || '^(qwen|tooling|or-|alibaba-|q38-|litellm/)', 'i');
+@@ -424,7 +430,227 @@ function logLimit429(ur, headers, model) {
+   });
+ }
+ 
+-function forward(req, res, target, headers, body, tag, trackCompany, model) {
++// --- desvio de cuenta sin cuota y sin creditos (SC-2161 P3) ---------------------------------
++// CONTRACT: file.claude-failover.v1
++// CONTRACT: file.claude-cuentas.v1
++// Una sesion EN VIVO cuya cuenta se queda sin cuota sigue en otra, sin intervencion. MISMO modelo, mismo cuerpo, mismas
++// cabeceras: solo cambia `authorization` (leccion del 17-09: nada de reescribir `model` ni `max_tokens`). El orden y el umbral
++// NO se deciden aqui: los escribe company-agent (x86-host-runtime) en CLAUDE_ROUTER_FAILOVER_FILE desde company_cuenta.reparto();
++// el router solo lo lee y aprende de lo que le contesta Anthropic. Los tokens son los setup-token de un ano de `<id>.token`
++// (CLAUDE_ROUTER_ACCOUNTS_DIR); nunca un .credentials.json (su refresh rota y lo pisariamos).
++// Sin creditos (CLAUDE_ROUTER_SIN_CREDITOS=1, no depende de `vivo`): una cuenta con los creditos de uso activados no da 429 al
++// agotar su ventana, se sirve con creditos y la sesion sigue gastando sin aviso. Esa respuesta no llega al cliente: se corta,
++// se prueba otra cuenta si el desvio esta encendido y, si no hay, sale un 429 de limite que el CLI ensena como tal.
++// Elegible: Bearer sin x-api-key; ni compania (x-claude-class: su cuenta la gobierna el bus), ni modelo local, ni forzada a local;
++// y el desvio encendido (fichero con v=1, `vivo: true`, `generado` de menos de 10 min, destino api.anthropic.com o el fake local
++// de los smokes) o CLAUDE_ROUTER_SIN_CREDITOS=1. Todo lo demas, como hoy. El token no sale nunca hacia otro host, ni a un log,
++// ni a /-/health.
++const FAILOVER_FILE = (process.env.CLAUDE_ROUTER_FAILOVER_FILE || '').trim();
++const ACCOUNTS_DIR = process.env.CLAUDE_ROUTER_ACCOUNTS_DIR || path.join(os.homedir(), '.config', 'claude-cuentas');
++const SIN_CREDITOS = process.env.CLAUDE_ROUTER_SIN_CREDITOS === '1';
++const FAILOVER_HOST_OK = (ANTHROPIC.protocol === 'https:' && ANTHROPIC.hostname === 'api.anthropic.com') || ANTHROPIC.hostname === '127.0.0.1';
++const TOKEN_ID_RE = /^[a-z0-9][a-z0-9-]{0,31}$/; // la clase del contrato: nunca se construye una ruta con otro id
++const TOPE = 65536, FO_MAX = 256, U = 'anthropic-ratelimit-unified-';
++// desvios: src -> {a, desde, hasta, peticiones}; negra: id -> hasta (no es destino); sinCuota: src -> {hasta, h, creditos}
++const fo = { visto: 0, mtime: null, cfg: null, tokens: new Map(), porHash: new Map(), desvios: new Map(), negra: new Map(),
++  sinCuota: new Map(), stats: { intentos: 0, exitos: 0, sin_cuenta: 0, creditos: 0 } };
++const sha256 = (t) => crypto.createHash('sha256').update(t).digest('hex');
++const ahoraS = () => Math.floor(Date.now() / 1000);
++function poner(m, k, v) { m.delete(k); m.set(k, v); if (m.size > FO_MAX) m.delete(m.keys().next().value); }
++
++// «Sin cuota» = 429 con la senal unificada de suscripcion: estado rechazado y reclamo de 5 h o semanal. Solo cabeceras: el
++// cuerpo llega comprimido (br en la captura real, tests/fixtures/429-limite-7d.json). Un 429 sin esa senal no se desvia.
++function esLimiteDeCuenta(status, h) {
++  return status === 429 && h[`${U}status`] === 'rejected' && ['five_hour', 'seven_day'].includes(h[`${U}representative-claim`]);
++}
++// «Con creditos» = lo que el CLI 2.1.296 llama overageInUse o isUsingOverage (su funcion que lee estas cabeceras).
++const usaCreditos = (h) => h[`${U}overage-in-use`] === 'true'
++  || (h[`${U}status`] === 'rejected' && ['allowed', 'allowed_warning'].includes(h[`${U}overage-status`]));
++// El reset de la ventana agotada; si no lo hay (o ya paso), el de los creditos; si tampoco, 10 min.
++const resetDe = (h) => [h[`${U}reset`], h[`${U}overage-reset`]].map(Number).find((r) => r > ahoraS()) || ahoraS() + 600;
++
++// La regla de token valido de file.claude-cuentas.v1 (una linea, sin espacios) y ademas regular, 0600 y nuestro.
++function leerToken(id) {
++  let fd = null;
++  try {
++    fd = fs.openSync(path.join(ACCOUNTS_DIR, `${id}.token`), fs.constants.O_RDONLY | fs.constants.O_NONBLOCK | fs.constants.O_NOFOLLOW);
++    const st = fs.fstatSync(fd);
++    if (!st.isFile() || (st.mode & 0o077) || st.uid !== process.getuid() || st.size > 4096) return null;
++    const buf = Buffer.alloc(4096);
++    const s = buf.toString('utf8', 0, fs.readSync(fd, buf, 0, 4096, 0));
++    return /^[^\s]+\n?$/.test(s) ? s.trim() : null;
++  } catch { return null; } finally { if (fd !== null) fs.closeSync(fd); }
++}
++
++// El fichero de orden, releido si cambia su mtime (stat como mucho cada 5 s). Con `vivo` apagado no se lee ningun token.
++function failoverCfg() {
++  if (!FAILOVER_FILE || !FAILOVER_HOST_OK) return null;
++  if (Date.now() - fo.visto >= 5000) {
++    fo.visto = Date.now();
++    let m = null;
++    try { m = fs.statSync(FAILOVER_FILE).mtimeMs; } catch {}
++    if (m !== fo.mtime) {
++      fo.mtime = m; fo.cfg = null; fo.tokens.clear(); fo.porHash.clear();
++      try {
++        const d = m === null ? null : JSON.parse(fs.readFileSync(FAILOVER_FILE, 'utf8'));
++        if (d && d.v === 1 && d.vivo === true && typeof d.generado === 'number' && Array.isArray(d.orden)) {
++          const org = d.org && typeof d.org === 'object' ? d.org : {};
++          for (const id of new Set([...d.orden, ...Object.keys(org)])) {
++            const t = typeof id === 'string' && TOKEN_ID_RE.test(id) ? leerToken(id) : null;
++            if (t) { fo.tokens.set(id, t); fo.porHash.set(sha256(t), id); }
++          }
++          fo.cfg = { generado: d.generado, org, orden: d.orden.filter((id) => fo.tokens.has(id)) };
++        }
++      } catch { log('FAILOVER fichero de orden ilegible: sin desvio'); }
++    }
++  }
++  return fo.cfg && ahoraS() - fo.cfg.generado < 600 ? fo.cfg : null;
++}
++
++// Quien es la peticion: el id cuyo token casa con el Bearer o, si ninguno (login por defecto de ~/.claude, su token rota, o el
++// desvio apagado), `h:` + 8 hex de su sha256. null = no elegible.
++function origenDesvio(headers) {
++  const m = /^Bearer\s+(\S+)$/i.exec(String(headers.authorization || ''));
++  if (!m || headers['x-api-key'] || !(failoverCfg() || SIN_CREDITOS)) return null;
++  const h = sha256(m[1]);
++  return fo.porHash.get(h) || `h:${h.slice(0, 8)}`;
++}
++
++function failoverHealth() {
++  const activo = !!failoverCfg();
++  const desvios = activo ? [...fo.desvios].filter(([, d]) => d.hasta > ahoraS())
++    .map(([de, d]) => ({ de, a: d.a, desde: d.desde, hasta: d.hasta, peticiones: d.peticiones })) : [];
++  return { activo, sin_creditos: SIN_CREDITOS, desvios, ...fo.stats };
++}
++
++// Un 429 de limite que el CLI ensena como tal (y deja `error: rate_limit` en el transcript, lo que mueve la conversacion por
++// SC-2267): las cabeceras unificadas de la respuesta que lo decidio, con los creditos rechazados para que no diga «usando creditos».
++function sintetico(m) {
++  const headers = { 'content-type': 'application/json', 'x-should-retry': 'false', 'retry-after': String(Math.max(0, m.hasta - ahoraS())) };
++  for (const [k, v] of Object.entries(m.h)) if (k.startsWith(U)) headers[k] = v;
++  delete headers[`${U}overage-in-use`];
++  Object.assign(headers, { [`${U}status`]: 'rejected', [`${U}overage-status`]: 'rejected', [`${U}reset`]: String(m.hasta) });
++  return { status: 429, headers, body: Buffer.from(JSON.stringify({ type: 'error', error: { type: 'rate_limit_error',
++    message: "This request would exceed your account's rate limit. Please try again later." } })) };
++}
++function emitir(res, r) { if (!res.headersSent) res.writeHead(r.status, r.headers); res.end(r.body); }
++
++// 1. Desvio vigente de esta cuenta: directa al destino. Si el destino se agota, tira de creditos o rechaza el token, fuera el
++//    desvio y vuelta a empezar; cualquier otra respuesta (un 400 de la propia peticion, un 529) llega tal cual.
++// 2. Cuenta sabida sin cuota (una respuesta suya dijo `rejected`) hasta su reset: ni se prueba; a otra cuenta o, si no hay, el
++//    429 sintetico. Sin creditos activos, solo cuando el desvio esta encendido (sin el, como hoy: la prueba Anthropic).
++function desviar(req, res, hdrs, body, tag, model, src) {
++  const cfg = failoverCfg(), d = fo.desvios.get(src), sc = fo.sinCuota.get(src);
++  const x = { req, res, hdrs, body, tag, model, src };
++  if (cfg && d && d.hasta > ahoraS() && fo.tokens.has(d.a)) {
++    return forward(req, res, ANTHROPIC, { ...hdrs, authorization: `Bearer ${fo.tokens.get(d.a)}` }, body, `${tag} FAILOVER-STICKY ${src} -> ${d.a}`, undefined, model, (ur) => {
++      if (!ur) return false;
++      const cred = SIN_CREDITOS && ur.statusCode < 300 && usaCreditos(ur.headers);
++      if (ur.statusCode < 300 && !cred) { d.peticiones++; log(`FAILOVER-STICKY src=${src} -> ${d.a}`); return false; }
++      const lim = cred || esLimiteDeCuenta(ur.statusCode, ur.headers);
++      if (!lim && ur.statusCode !== 401 && ur.statusCode !== 403) return false;
++      poner(fo.negra, d.a, lim ? resetDe(ur.headers) : ahoraS() + 60);
++      fo.desvios.delete(src);
++      log(`FAILOVER-STICKY src=${src} -> ${d.a} ${ur.statusCode}${cred ? ' con creditos' : ''}: se deja el desvio`);
++      if (cred) ur.destroy(); else ur.resume();
++      desviar(req, res, hdrs, body, tag, model, src);
++      return true;
++    });
++  }
++  if (sc && sc.hasta > ahoraS() && (cfg || sc.creditos)) {
++    const orig = sintetico(sc);
++    if (cfg) return probarCandidatos({ ...x, hasta: sc.hasta, creditos: sc.creditos, sintetico: true, original: orig }, 0);
++    fo.stats.creditos++;
++    log(`FAILOVER-SIN-CUENTA-CREDITOS src=${src}: 429 sin salir a Anthropic hasta ${new Date(sc.hasta * 1000).toISOString()}`);
++    return emitir(res, orig);
++  }
++  probarOriginal(x);
++}
++
++// 3. Como hoy, salvo: un 429 de limite con el desvio encendido (se guarda entero, tope 64 KiB, antes de escribir nada) o un 2xx
++//    con creditos con CLAUDE_ROUTER_SIN_CREDITOS=1 (se corta sin escribir nada). Toda respuesta `rejected` deja la marca.
++function probarOriginal(x) {
++  const { req, res, hdrs, body, tag, model, src } = x;
++  forward(req, res, ANTHROPIC, hdrs, body, tag, undefined, model, (ur) => {
++    if (!ur) return false;
++    const cred = SIN_CREDITOS && ur.statusCode < 300 && usaCreditos(ur.headers) && !/count_tokens/.test(req.url);
++    const hasta = resetDe(ur.headers);
++    if (ur.headers[`${U}status`] === 'rejected' || cred) {
++      poner(fo.sinCuota, src, { hasta, h: ur.headers, creditos: SIN_CREDITOS && usaCreditos(ur.headers) });
++      if (TOKEN_ID_RE.test(src)) poner(fo.negra, src, hasta); // que nadie la elija de destino antes de que el panel lo vea
++    }
++    const cfg = failoverCfg();
++    if (cred) {
++      ur.destroy();
++      const orig = sintetico(fo.sinCuota.get(src));
++      if (cfg) { probarCandidatos({ ...x, hasta, creditos: true, sintetico: true, original: orig }, 0); return true; }
++      fo.stats.creditos++;
++      log(`FAILOVER-SIN-CUENTA-CREDITOS src=${src}: la respuesta con creditos no sale; 429`);
++      emitir(res, orig);
++      return true;
++    }
++    if (!cfg || !esLimiteDeCuenta(ur.statusCode, ur.headers)) return false;
++    logLimit429(ur, hdrs, model);
++    const bufs = []; let n = 0;
++    const data = (c) => {
++      bufs.push(c); n += c.length;
++      if (n > TOPE) { ur.off('data', data); ur.off('close', fin); res.writeHead(ur.statusCode, ur.headers); res.write(Buffer.concat(bufs)); ur.pipe(res); }
++    };
++    const fin = () => probarCandidatos({ ...x, hasta, original: { status: ur.statusCode, headers: ur.headers, body: Buffer.concat(bufs) } }, 0);
++    ur.on('data', data); ur.on('close', fin);
++    return true;
++  });
++}
++
++// 4. Hasta 2 candidatos del orden (fuera el origen, su organizacion y la cache negativa). 2xx sin creditos: se emite en
++//    streaming y queda el desvio hasta el reset del origen. Si no, cache negativa (hasta SU reset si esta agotado o con creditos,
++//    60 s si es otro error) y el siguiente. Sin candidato que sirva: el 429 ORIGINAL byte a byte (o el sintetico).
++function probarCandidatos(x, n) {
++  const { req, res, src } = x;
++  if (res.destroyed) return; // el cliente se fue: no se gasta otro intento
++  const cfg = fo.cfg || { orden: [], org: {} };
++  const c = n < 2 && cfg.orden.find((id) => id !== src && !(cfg.org[src] && cfg.org[id] === cfg.org[src])
++    && !(fo.negra.get(id) > ahoraS()) && fo.tokens.has(id));
++  if (!c) {
++    if (x.creditos) fo.stats.creditos++; else fo.stats.sin_cuenta++;
++    log(`FAILOVER-SIN-CUENTA${x.creditos ? '-CREDITOS' : ''} src=${src} intentos=${n}: el 429 ${x.sintetico ? 'sintetico' : 'original'}`);
++    return emitir(res, x.original);
++  }
++  fo.stats.intentos++;
++  forward(req, res, ANTHROPIC, { ...x.hdrs, authorization: `Bearer ${fo.tokens.get(c)}` }, x.body, `${x.tag} FAILOVER ${src} -> ${c}`, undefined, x.model, (ur, err) => {
++    const cred = ur && SIN_CREDITOS && usaCreditos(ur.headers);
++    if (ur && ur.statusCode < 300 && !cred) {
++      fo.stats.exitos++;
++      poner(fo.desvios, src, { a: c, desde: ahoraS(), hasta: x.hasta, peticiones: 1 });
++      log(`FAILOVER src=${src} -> ${c} hasta=${new Date(x.hasta * 1000).toISOString()}`);
++      return false;
++    }
++    const lim = ur && (cred || esLimiteDeCuenta(ur.statusCode, ur.headers));
++    poner(fo.negra, c, lim ? resetDe(ur.headers) : ahoraS() + 60);
++    if (!ur) { log(`FAILOVER-CANDIDATO src=${src} -> ${c} ERROR ${err.code || err.message}`); probarCandidatos(x, n + 1); return true; }
++    if (ur.statusCode < 300) { ur.destroy(); log(`FAILOVER-CANDIDATO src=${src} -> ${c} ${ur.statusCode} con creditos`); probarCandidatos(x, n + 1); return true; }
++    const bufs = []; let k = 0;
++    ur.on('data', (b) => { if (k < TOPE) { bufs.push(b); k += b.length; } });
++    ur.on('close', () => {
++      let t = Buffer.concat(bufs);
++      try { t = ur.headers['content-encoding'] === 'br' ? zlib.brotliDecompressSync(t) : ur.headers['content-encoding'] === 'gzip' ? zlib.gunzipSync(t) : t; } catch {}
++      log(`FAILOVER-CANDIDATO src=${src} -> ${c} ${ur.statusCode} ${t.toString('utf8').slice(0, 200).replace(/[^\x20-\x7e]/g, '.')}`);
++      probarCandidatos(x, n + 1);
++    });
++    return true;
++  });
++}
++
++// Cada 2xx de Anthropic con creditos deja una linea, como LIMITE-429, haga o no algo el router: la primera vez real queda capturada.
++function logCreditos(ur, headers, model) {
++  const tok = String(headers.authorization || headers['x-api-key'] || '').replace(/^Bearer\s+/i, '');
++  const hs = {};
++  for (const [k, v] of Object.entries(ur.headers)) if (k === 'retry-after' || k.startsWith('anthropic-ratelimit-')) hs[k] = v;
++  log(`CREDITOS src=${tok ? `h:${sha256(tok).slice(0, 8)}` : '-'} model=${safe(model ?? '-')} status=${ur.statusCode} headers=${JSON.stringify(hs)}`);
++}
++
++// `intercept(ur, err)`, solo el desvio: si devuelve true se queda con la respuesta (o el error) y `forward` no escribe nada.
++function forward(req, res, target, headers, body, tag, trackCompany, model, intercept) {
+   const t0 = Date.now();
+   let cid = null;
+   if (trackCompany) { cid = ++companySeq; companyInflight.set(cid, 'pendiente'); }
+@@ -435,6 +661,10 @@ function forward(req, res, target, headers, body, tag, trackCompany, model) {
+     protocol: target.protocol, hostname: target.hostname, port: target.port || undefined, agent: agents[target.protocol],
+     method: req.method, path: req.url, headers: { ...headers, host: target.host },
+   }, (ur) => {
++    // Un stream cortado a medias emite 'error': sin oyente eso es un proceso muerto.
++    ur.on('error', (e) => log(`${tag} ERROR stream ${e.message}`));
++    if (target === ANTHROPIC && ur.statusCode < 300 && usaCreditos(ur.headers)) logCreditos(ur, headers, model);
++    if (intercept && intercept(ur)) return;
+     if (cid !== null) {
+       const group = String(ur.headers['x-litellm-model-group'] || '').toLowerCase();
+       companyInflight.set(cid, group.startsWith('alibaba-') ? 'alibaba' : 'local');
+@@ -444,10 +674,8 @@ function forward(req, res, target, headers, body, tag, trackCompany, model) {
+     ur.pipe(res);
+     if (ur.statusCode === 429 && target === ANTHROPIC) logLimit429(ur, headers, model);
+     ur.on('end', () => log(`${tag} ${ur.statusCode} ${Date.now() - t0}ms ${req.method} ${req.url}`));
+-    // Un stream cortado a medias emite 'error': sin oyente eso es un proceso muerto.
+-    ur.on('error', (e) => log(`${tag} ERROR stream ${e.message}`));
+   });
+-  up.on('error', (e) => { log(`${tag} ERROR ${e.code || ''} ${e.message}`); fail(res, 502, `${target.host}: ${e.message}`); });
++  up.on('error', (e) => { log(`${tag} ERROR ${e.code || ''} ${e.message}`); if (!(intercept && intercept(null, e))) fail(res, 502, `${target.host}: ${e.message}`); });
+   res.on('close', () => { if (!res.writableFinished) up.destroy(); }); // el cliente se fue: cancela arriba
+   if (body !== undefined) up.end(body); else req.pipe(up);
+ }
+@@ -461,7 +689,7 @@ const server = http.createServer((req, res) => {
+   if (req.url === '/-/health') {
+     res.writeHead(200, { 'content-type': 'application/json' });
+     return res.end(JSON.stringify({ ok: true, port: PORT, litellm: LITELLM.url.host, local_re: LOCAL_RE.source,
+-      mixed: MIXED, bad_keys: BAD_KEYS, ...stats, company_inflight: companyInflightStats() }));
++      mixed: MIXED, bad_keys: BAD_KEYS, ...stats, company_inflight: companyInflightStats(), failover: failoverHealth() }));
+   }
+   // GET /v1/models: el CLI de Claude valida --model contra esta lista (arranque frio y
+   // subagentes la vuelven a pedir). Sin handler cae en el passthrough a api.anthropic.com,
+@@ -532,6 +760,9 @@ const server = http.createServer((req, res) => {
+         }
+       }
+       stats.anthropic++;
++      // SC-2161 P3: una sesion en vivo con Bearer, modelo de Anthropic y el desvio encendido puede seguir en otra cuenta.
++      const src = !force && !LOCAL_RE.test(model) && !isCompany(req) ? origenDesvio(hdrs) : null;
++      if (src) return desviar(req, res, hdrs, outBody, tag, (payload && payload.model) || model, src);
+       return forward(req, res, ANTHROPIC, hdrs, outBody, tag, undefined, (payload && payload.model) || model);
+     };
+     const sendLocal = () => {
+diff --git a/env.example b/env.example
+index 864fa95..44368c2 100644
+--- a/env.example
++++ b/env.example
+@@ -1,3 +1,6 @@
+ # ~/.config/claude-local/env  (chmod 600) — lo lee claude-router para el lado LiteLLM
+ export ANTHROPIC_BASE_URL="https://litellm.lan.e-dani.com"
+ export ANTHROPIC_AUTH_TOKEN="sk-...key virtual de LiteLLM..."
++# SC-2161 P3: el desvio de cuenta y «sin creditos» NO se configuran aqui (este fichero solo da el lado LiteLLM).
++# Van en la unidad: CLAUDE_ROUTER_FAILOVER_FILE, CLAUDE_ROUTER_ACCOUNTS_DIR, CLAUDE_ROUTER_SIN_CREDITOS
++# (systemd/claude-router.service). Sin ellas, el router se comporta como antes.
+diff --git a/install.sh b/install.sh
+index 07cbe24..cfb9b96 100755
+--- a/install.sh
++++ b/install.sh
+@@ -19,6 +19,9 @@ case "$(uname -s)" in
+   Linux)
+     mkdir -p "$HOME/.config/systemd/user"
+     sed "s|__NODE__|$NODE|" "$HERE/systemd/claude-router.service" > "$HOME/.config/systemd/user/claude-router.service"
++    # SC-2161 P3: el desvio y «sin creditos» van en un drop-in, que el deploy.sh del plugin no pisa.
++    mkdir -p "$HOME/.config/systemd/user/claude-router.service.d"
++    install -m 644 "$HERE/systemd/claude-router.service.d/failover.conf" "$HOME/.config/systemd/user/claude-router.service.d/failover.conf"
+     systemctl --user daemon-reload
+     systemctl --user enable --now claude-router.service
+     systemctl --user restart claude-router.service ;;
+diff --git a/systemd/claude-router.service b/systemd/claude-router.service
+index e8c9db7..5382bfa 100644
+--- a/systemd/claude-router.service
++++ b/systemd/claude-router.service
+@@ -28,6 +28,9 @@ Environment=CLAUDE_ROUTER_LOCAL_RE=^(qwen|tooling|or-|alibaba-|q38-|litellm/)
+ # reescribia solo `model`, no `max_tokens`, y la peticion llegaba al modelo local pidiendo los
+ # 64000 de salida de fable -> 198144 de prompt utilizable -> 400 ContextWindowExceeded en
+ # bucle. Ver "Por que tampoco hay desvio a local por cuota" en el README.
++# SC-2161 P3 (10-10-2026): las variables del desvio de cuenta y «sin creditos» NO van aqui: el
++# SessionStart del plugin claude-local-router regenera esta unidad sin ellas. Van en el drop-in
++# systemd/claude-router.service.d/failover.conf, que instala ./install.sh y el plugin no toca.
+ 
+ [Install]
+ WantedBy=default.target
+diff --git a/systemd/claude-router.service.d/failover.conf b/systemd/claude-router.service.d/failover.conf
+new file mode 100644
+index 0000000..38e6673
+--- /dev/null
++++ b/systemd/claude-router.service.d/failover.conf
+@@ -0,0 +1,14 @@
++# SC-2161 P3 (10-10-2026): desvio de cuenta de las sesiones EN VIVO sin cuota y «sin creditos».
++# Drop-in y no linea de la unidad: el SessionStart del plugin claude-local-router (scripts/deploy.sh)
++# regenera claude-router.service desde cero cada vez que despliega otros bytes, y se llevaria estas
++# lineas sin avisar. No toca claude-router.service.d/, igual que pasa con los drop-ins hechos a mano.
++# Lo instala ./install.sh en ~/.config/systemd/user/claude-router.service.d/failover.conf (0644).
++#
++# El fichero de orden lo escribe company-agent (x86-host-runtime) cada 30 s; solo con `vivo: true`
++# (interruptor del panel) hace algo, asi que FAILOVER_FILE sola no enciende nada. SIN_CREDITOS=1 si
++# actua desde el arranque: una respuesta servida con creditos de uso no llega a la sesion (otra cuenta
++# o un 429 de limite). Para apagarla, borrar este fichero y reiniciar el servicio.
++[Service]
++Environment=CLAUDE_ROUTER_FAILOVER_FILE=%h/.company/jira-trigger/cuenta-failover.json
++Environment=CLAUDE_ROUTER_ACCOUNTS_DIR=%h/.config/claude-cuentas
++Environment=CLAUDE_ROUTER_SIN_CREDITOS=1
+diff --git a/tests/fixtures/200-creditos.json b/tests/fixtures/200-creditos.json
+new file mode 100644
+index 0000000..22682c4
+--- /dev/null
++++ b/tests/fixtures/200-creditos.json
+@@ -0,0 +1,28 @@
++{
++  "_nota": "SINTETICA, no es una captura (SC-2161 P3, 10-10-2026). Ninguna cuenta con creditos de uso activos se ha agotado todavia en los datos, asi que no hay respuesta real que guardar. Es un 200 en streaming servido CON creditos tras agotar la ventana semanal, armado con los NOMBRES de cabecera que lee claude 2.1.296 (~/.local/share/claude/versions/2.1.296, la funcion que arma isUsingOverage y overageInUse): isUsingOverage = anthropic-ratelimit-unified-status 'rejected' y anthropic-ratelimit-unified-overage-status 'allowed' o 'allowed_warning'; overageInUse = anthropic-ratelimit-unified-overage-in-use 'true'; resets en anthropic-ratelimit-unified-reset y anthropic-ratelimit-unified-overage-reset; ventanas en anthropic-ratelimit-unified-{5h,7d,overage}-{status,utilization,reset}. Los valores son inventados y el resto de cabeceras salen de 429-limite-7d.json. Cuando llegue la primera respuesta real, la linea CREDITOS del router la deja en el journal y sustituye a esta.",
++  "captured_at": "2026-10-10T00:07:02Z",
++  "status": 200,
++  "headers": {
++    "content-type": "text/event-stream; charset=utf-8",
++    "cache-control": "no-cache",
++    "anthropic-ratelimit-unified-status": "rejected",
++    "anthropic-ratelimit-unified-representative-claim": "seven_day",
++    "anthropic-ratelimit-unified-reset": "1792033200",
++    "anthropic-ratelimit-unified-fallback-percentage": "0.5",
++    "anthropic-ratelimit-unified-5h-status": "allowed",
++    "anthropic-ratelimit-unified-5h-utilization": "0.0",
++    "anthropic-ratelimit-unified-5h-reset": "1791608400",
++    "anthropic-ratelimit-unified-7d-status": "rejected",
++    "anthropic-ratelimit-unified-7d-utilization": "1.0",
++    "anthropic-ratelimit-unified-7d-reset": "1792033200",
++    "anthropic-ratelimit-unified-7d-surpassed-threshold": "1.0",
++    "anthropic-ratelimit-unified-overage-status": "allowed",
++    "anthropic-ratelimit-unified-overage-in-use": "true",
++    "anthropic-ratelimit-unified-overage-utilization": "0.02",
++    "anthropic-ratelimit-unified-overage-reset": "1793491200",
++    "request-id": "req_REDACTADO",
++    "anthropic-organization-id": "00000000-0000-0000-0000-000000000000",
++    "server": "cloudflare"
++  },
++  "body": "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_SINTETICO\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-opus-5-5\",\"content\":[],\"stop_reason\":null,\"usage\":{\"input_tokens\":12,\"output_tokens\":1}}}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hola (pagado con creditos)\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":8}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
++}
+diff --git a/tests/fixtures/429-limite-7d.json b/tests/fixtures/429-limite-7d.json
+new file mode 100644
+index 0000000..f550bee
+--- /dev/null
++++ b/tests/fixtures/429-limite-7d.json
+@@ -0,0 +1,39 @@
++{
++  "_": "SC-2161 P3: 429 REAL de Anthropic a una peticion de claude 2.1.296 (claude -p, haiku) con el setup-token de una cuenta con el limite SEMANAL agotado, capturado el 10-10-2026 entre el CLI y el router de main en un puerto propio. Sin token ni huella; request-id, organizacion, workspace, cf-ray y traceresponse redactados. El cuerpo va DESCOMPRIMIDO: Anthropic lo mando con content-encoding br (el fake lo recomprime), por eso la regla de limite mira solo las cabeceras.",
++  "captured_at": "2026-10-10T00:07:02Z",
++  "status": 429,
++  "headers": {
++    "date": "Sat, 10 Oct 2026 00:07:02 GMT",
++    "content-type": "application/json",
++    "transfer-encoding": "chunked",
++    "connection": "keep-alive",
++    "x-should-retry": "true",
++    "anthropic-ratelimit-unified-5h-status": "allowed",
++    "anthropic-ratelimit-unified-representative-claim": "seven_day",
++    "anthropic-ratelimit-unified-overage-disabled-reason": "group_zero_credit_limit",
++    "anthropic-ratelimit-unified-overage-status": "rejected",
++    "anthropic-ratelimit-unified-reset": "1792033200",
++    "anthropic-ratelimit-unified-5h-utilization": "0.0",
++    "anthropic-ratelimit-unified-7d-reset": "1792033200",
++    "anthropic-ratelimit-unified-5h-reset": "1791608400",
++    "anthropic-ratelimit-unified-7d-status": "rejected",
++    "anthropic-ratelimit-unified-7d-surpassed-threshold": "1.0",
++    "anthropic-ratelimit-unified-fallback-percentage": "0.5",
++    "retry-after": "442377",
++    "anthropic-ratelimit-unified-7d-utilization": "1.0",
++    "anthropic-ratelimit-unified-status": "rejected",
++    "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
++    "request-id": "req_REDACTADO",
++    "traceresponse": "REDACTADO",
++    "anthropic-organization-id": "00000000-0000-0000-0000-000000000000",
++    "anthropic-workspace-id": "wrkspc_REDACTADO",
++    "vary": "Accept-Encoding",
++    "content-encoding": "br",
++    "server": "cloudflare",
++    "cf-cache-status": "DYNAMIC",
++    "x-robots-tag": "none",
++    "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
++    "cf-ray": "REDACTADO"
++  },
++  "body": "{\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"This request would exceed your account's rate limit. Please try again later.\"},\"request_id\":\"req_REDACTADO\"}"
++}
+diff --git a/tests/fixtures/429-sin-senal.json b/tests/fixtures/429-sin-senal.json
+new file mode 100644
+index 0000000..f94ddc1
+--- /dev/null
++++ b/tests/fixtures/429-sin-senal.json
+@@ -0,0 +1,24 @@
++{
++  "_": "SC-2161 P3: 429 REAL de Anthropic SIN la senal unificada de suscripcion (ninguna cabecera anthropic-ratelimit-*): la misma cuenta agotada de 429-limite-7d.json, pero con una peticion minima que no es de Claude Code (sin sus betas ni su system prompt), capturada el 10-10-2026 por el router de main en un puerto propio. Es el caso «429 que no es de limite de cuenta»: el router no lo desvia. Sin token ni huella; identificadores redactados.",
++  "captured_at": "2026-10-10T00:06:06.115Z",
++  "status": 429,
++  "headers": {
++    "date": "Sat, 10 Oct 2026 00:06:06 GMT",
++    "content-type": "application/json",
++    "transfer-encoding": "chunked",
++    "connection": "keep-alive",
++    "x-should-retry": "true",
++    "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
++    "request-id": "req_REDACTADO",
++    "traceresponse": "REDACTADO",
++    "anthropic-organization-id": "00000000-0000-0000-0000-000000000000",
++    "anthropic-workspace-id": "wrkspc_REDACTADO",
++    "vary": "Accept-Encoding",
++    "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
++    "server": "cloudflare",
++    "cf-cache-status": "DYNAMIC",
++    "x-robots-tag": "none",
++    "cf-ray": "REDACTADO"
++  },
++  "body": "{\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"Error\"},\"request_id\":\"req_REDACTADO\"}"
++}
+diff --git a/tests/smoke-failover.js b/tests/smoke-failover.js
+new file mode 100644
+index 0000000..995e1d8
+--- /dev/null
++++ b/tests/smoke-failover.js
+@@ -0,0 +1,300 @@
++// Smoke test del desvio de cuenta ante un 429 de limite (SC-2161 P3) contra bin/claude-router.js.
++// Los 7 casos de la seccion 7 del plan (nota-architect-plan.md de SC-2161) y los de «sin creditos». Un Anthropic falso
++// contesta segun el token: el 429 es el REAL de tests/fixtures/429-limite-7d.json (con su cuerpo recomprimido en br, como
++// llega), el 429 sin senal, el de tests/fixtures/429-sin-senal.json, y el 200 con creditos, el SINTETICO de
++// tests/fixtures/200-creditos.json. Los `*-reset` se corren a hoy (misma distancia que en la captura). Tokens falsos, sin red.
++//
++//   node tests/smoke-failover.js [ruta/al/claude-router.js]
++const http = require('http');
++const fs = require('fs');
++const os = require('os');
++const path = require('path');
++const zlib = require('zlib');
++const crypto = require('crypto');
++const { spawn } = require('child_process');
++
++const ROUTER = process.argv[2] || path.join(__dirname, '..', 'bin', 'claude-router.js');
++const P_LLM = 18951, P_ANT = 18952;
++let pRouter = 18953;
++const FX = (n) => JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', n), 'utf8'));
++const LIMITE = FX('429-limite-7d.json'), SIN_SENAL = FX('429-sin-senal.json'), CREDITOS = FX('200-creditos.json');
++const huella = (t) => 'h:' + crypto.createHash('sha256').update(t).digest('hex').slice(0, 8);
++
++// --- cuentas falsas: token -> id; `estado[id]` = lo que contesta Anthropic a ese token ------------------
++const IDS = ['origen', 'mismaorg', 'abierta', 'Mala_Id', 'destino', 'otro', 'corta', 'minuto', 's', 'c1', 'c2', 'c3', 'cre', 'cre2'];
++const TOK = Object.fromEntries(IDS.map((id) => [id, `sk-ant-oat01-FALSO-${id}-${crypto.randomBytes(12).toString('hex')}`]));
++const DESCONOCIDO = `sk-ant-oat01-FALSO-sin-fichero-${crypto.randomBytes(12).toString('hex')}`;
++const PORTOK = Object.fromEntries(Object.entries(TOK).map(([id, t]) => [t, id]));
++const estado = { origen: 'limite', corta: 'limite', minuto: 'sin-senal', s: 'limite', c1: '400', c2: 'limite', '?': 'limite', cre: 'creditos', cre2: 'creditos' };
++const reset = {}; // id -> epoch s que sustituye al reset de la fixture
++const vistas = []; // [{id, headers, body}] lo que recibio Anthropic, en orden
++
++// El 429 de limite tal cual lo manda Anthropic: cabeceras de la fixture y cuerpo en br. Bytes fijos por cuenta.
++const alDia = (fx) => {
++  const d = Math.floor(Date.now() / 1000) - Math.floor(Date.parse(fx.captured_at) / 1000), h = { ...fx.headers };
++  for (const k of Object.keys(h)) if (k.endsWith('-reset')) h[k] = String(Number(h[k]) + d);
++  return h;
++};
++const limiteDe = (id) => {
++  const h = alDia(LIMITE);
++  if (reset[id]) {
++    for (const k of ['anthropic-ratelimit-unified-reset', 'anthropic-ratelimit-unified-7d-reset']) h[k] = String(reset[id]);
++    h['retry-after'] = String(Math.max(0, reset[id] - Math.floor(Date.now() / 1000)));
++  }
++  return { status: 429, headers: h, body: zlib.brotliCompressSync(Buffer.from(LIMITE.body)) };
++};
++const SIN_SENAL_RESP = { status: 429, headers: SIN_SENAL.headers, body: Buffer.from(SIN_SENAL.body) };
++const enviados = []; // las respuestas de error que mando el falso, para comparar byte a byte
++
++let ackTrozo = null; // el cliente avisa al recibir el primer trozo del stream
++const ant = http.createServer((req, res) => {
++  const bufs = []; req.on('data', (c) => bufs.push(c));
++  req.on('end', async () => {
++    const tok = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
++    const id = PORTOK[tok] || '?';
++    vistas.push({ id, headers: { ...req.headers }, body: Buffer.concat(bufs) });
++    const e = estado[id] || 'ok';
++    if (e === 'limite' || e === 'sin-senal') {
++      const r = e === 'limite' ? limiteDe(id) : SIN_SENAL_RESP;
++      enviados.push(r);
++      res.writeHead(r.status, r.headers); return res.end(r.body);
++    }
++    if (e === 'creditos') { res.writeHead(200, alDia(CREDITOS)); return res.end(CREDITOS.body); }
++    if (e === '400') {
++      res.writeHead(400, { 'content-type': 'application/json' });
++      return res.end('{"type":"error","error":{"type":"invalid_request_error","message":"thinking: invalid signature"}}');
++    }
++    // 200 en streaming: el segundo trozo no sale hasta que el cliente ha visto el primero (o 2 s).
++    res.writeHead(200, { 'content-type': 'text/event-stream', 'x-quien': id });
++    res.write(`event: message_start\ndata: {"quien":"${id}"}\n\n`);
++    await Promise.race([new Promise((r) => { ackTrozo = r; }), new Promise((r) => setTimeout(r, 2000))]);
++    res.end('event: message_stop\ndata: {}\n\n');
++  });
++});
++const llm = http.createServer((req, res) => { req.resume(); res.writeHead(500); res.end('LiteLLM no deberia recibir nada'); });
++
++const BODY = JSON.stringify({ model: 'claude-opus-5-5', max_tokens: 64000, stream: true, metadata: { user_id: 'u-origen' },
++  messages: [{ role: 'user', content: 'hola' }] });
++function post(port, extra = {}, p = '/v1/messages?beta=true') {
++  return new Promise((resolve, reject) => {
++    const rq = http.request({ host: '127.0.0.1', port, path: p, method: 'POST', headers: {
++      'content-type': 'application/json', 'content-length': Buffer.byteLength(BODY), 'anthropic-version': '2023-06-01',
++      'anthropic-beta': 'oauth-2025-04-20,context-1m-2025-08-07', 'x-claude-code-session-id': 'sid-1', 'accept-encoding': 'gzip, br', ...extra } }, (r) => {
++      const bufs = []; let streamed = false;
++      r.on('data', (c) => { if (!bufs.length && ackTrozo) { streamed = true; ackTrozo(); ackTrozo = null; } bufs.push(c); });
++      r.on('end', () => resolve({ status: r.statusCode, headers: r.headers, raw: Buffer.concat(bufs), streamed }));
++    });
++    rq.on('error', reject); rq.end(BODY);
++  });
++}
++const get = (port, p) => new Promise((resolve, reject) => {
++  http.get({ host: '127.0.0.1', port, path: p }, (r) => { let d = ''; r.on('data', (c) => d += c); r.on('end', () => resolve(d)); }).on('error', reject);
++});
++let fails = 0, checks = 0;
++function check(name, cond, extra) { checks++; if (!cond) { fails++; console.log(`FAIL ${name}`, extra !== undefined ? JSON.stringify(extra).slice(0, 600) : ''); } else console.log(`ok   ${name}`); }
++const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
++const bearer = (id) => ({ authorization: `Bearer ${TOK[id]}` });
++const HOP = new Set(['connection', 'transfer-encoding', 'keep-alive', 'date']);
++// ¿Es la respuesta exactamente la que mando Anthropic? estado, cabeceras (sin las de salto) y bytes del cuerpo.
++const identica = (r, e) => r.status === e.status && r.raw.equals(e.body)
++  && Object.entries(e.headers).every(([k, v]) => HOP.has(k) || r.headers[k] === v);
++
++const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'failover-smoke-'));
++const cuentas = path.join(dir, 'cuentas'); fs.mkdirSync(cuentas, { mode: 0o700 });
++for (const id of IDS) fs.writeFileSync(path.join(cuentas, `${id}.token`), `${TOK[id]}\n`, { mode: id === 'abierta' ? 0o644 : 0o600 });
++fs.chmodSync(path.join(cuentas, 'abierta.token'), 0o644);
++const envFile = path.join(dir, 'env');
++fs.writeFileSync(envFile, `export ANTHROPIC_BASE_URL=http://127.0.0.1:${P_LLM}\nexport ANTHROPIC_AUTH_TOKEN=sk-litellm-fake\n`);
++const orden = (nombre, datos) => { const f = path.join(dir, nombre); fs.writeFileSync(f, typeof datos === 'string' ? datos : JSON.stringify(datos), { mode: 0o600 }); return f; };
++const ahora = () => Math.floor(Date.now() / 1000);
++const ORG = { origen: 'A', mismaorg: 'A', abierta: 'D', Mala_Id: 'E', destino: 'B', otro: 'C', corta: 'A', minuto: 'I' };
++
++const routers = [];
++let out = '';
++async function arrancar(extraEnv) {
++  const port = pRouter++;
++  const env = { ...process.env, CLAUDE_ROUTER_PORT: String(port), CLAUDE_ROUTER_ENV_FILE: envFile, CLAUDE_ROUTER_FLIP_DIR: dir,
++    CLAUDE_ROUTER_ANTHROPIC_URL: `http://127.0.0.1:${P_ANT}`, CLAUDE_ROUTER_ROUTING_CONFIG_URL: 'http://127.0.0.1:1/nadie',
++    CLAUDE_ROUTER_ACCOUNTS_DIR: cuentas, ...extraEnv };
++  for (const [k, v] of Object.entries(env)) if (v === undefined) delete env[k];
++  const r = spawn(process.execPath, [ROUTER], { env, stdio: ['ignore', 'pipe', 'pipe'] });
++  r.stdout.on('data', (d) => out += d); r.stderr.on('data', (d) => out += d);
++  routers.push(r);
++  for (let i = 0; i < 40; i++) { try { await get(port, '/-/health'); break; } catch { await sleep(100); } }
++  return port;
++}
++const desde = () => vistas.length;
++const idsDesde = (n) => vistas.slice(n).map((v) => v.id);
++
++(async () => {
++  await new Promise((r) => llm.listen(P_LLM, '127.0.0.1', r));
++  await new Promise((r) => ant.listen(P_ANT, '127.0.0.1', r));
++  const bodies = [];
++  try {
++    const A = await arrancar({ CLAUDE_ROUTER_FAILOVER_FILE: orden('orden-a.json', { v: 1, generado: ahora(), vivo: true, umbral: 95,
++      orden: ['mismaorg', 'Mala_Id', '../abierta', 'abierta', 'destino', 'otro'], org: ORG }) });
++
++    // 1. 429 de limite REAL -> el mismo cuerpo y las mismas cabeceras con otro token -> 200 en streaming.
++    let n = desde();
++    const r1 = await post(A, bearer('origen'));
++    bodies.push(r1.raw);
++    check('1: el cliente recibe el 200 del destino', r1.status === 200 && r1.headers['x-quien'] === 'destino', { s: r1.status, ids: idsDesde(n) });
++    check('1: en streaming (el primer trozo llega antes del ultimo)', r1.streamed);
++    check('1: Anthropic ve origen y luego destino, nada mas', idsDesde(n).join() === 'origen,destino', idsDesde(n));
++    const [o, d] = vistas.slice(n);
++    const difs = o && d ? [...new Set([...Object.keys(o.headers), ...Object.keys(d.headers)])].filter((k) => o.headers[k] !== d.headers[k]) : ['?'];
++    check('1: reintento con cabeceras identicas salvo authorization', difs.join() === 'authorization', difs);
++    check('1: reintento con el cuerpo identico byte a byte', !!(o && d && o.body.equals(d.body) && o.body.equals(Buffer.from(BODY))));
++
++    // 7. misma organizacion, id fuera de la regex y token 0644: nunca se usan.
++    check('7: ni la misma organizacion, ni un id fuera de la regex, ni un token 0644', !vistas.some((v) => ['mismaorg', 'Mala_Id', 'abierta'].includes(v.id)), vistas.map((v) => v.id));
++
++    // 2. pegajoso por cuenta de origen: la siguiente va directa al destino.
++    n = desde();
++    const r2 = await post(A, bearer('origen'));
++    bodies.push(r2.raw);
++    check('2: pegajoso: directa al destino', r2.status === 200 && idsDesde(n).join() === 'destino', idsDesde(n));
++    let h = JSON.parse(await get(A, '/-/health'));
++    const dv = (h.failover && h.failover.desvios || []).find((x) => x.de === 'origen');
++    check('2: /-/health.failover lleva el desvio', h.failover && h.failover.activo === true && dv && dv.a === 'destino'
++      && dv.peticiones === 2 && Math.abs(dv.hasta - Number(alDia(LIMITE)['anthropic-ratelimit-unified-reset'])) <= 2 && dv.desde <= ahora(), h.failover);
++    check('2: contadores', h.failover && h.failover.exitos === 1 && h.failover.intentos === 1 && h.failover.sin_cuenta === 0, h.failover);
++    // ... y al vencer el reset vuelve a probar la cuenta original.
++    reset.corta = ahora() + 2;
++    n = desde();
++    await post(A, bearer('corta'));
++    await post(A, bearer('corta'));
++    check('2: corta se desvia y la siguiente va directa', idsDesde(n).join() === 'corta,destino,destino', idsDesde(n));
++    await sleep(2600);
++    estado.corta = 'ok';
++    n = desde();
++    const r2b = await post(A, bearer('corta'));
++    check('2: vencido el reset, vuelve a su cuenta', r2b.status === 200 && idsDesde(n).join() === 'corta', idsDesde(n));
++
++    // 4. un 429 SIN la senal unificada pasa intacto.
++    n = desde();
++    const r4 = await post(A, bearer('minuto'));
++    check('4: 429 sin senal: intacto y sin reintento', identica(r4, SIN_SENAL_RESP) && idsDesde(n).join() === 'minuto', { s: r4.status, ids: idsDesde(n) });
++
++    // 5a. compania y x-api-key: como hoy, ni desvio ni pegajoso (origen tiene desvio vigente).
++    for (const [nombre, extra] of [['x-claude-class: company', { ...bearer('origen'), 'x-claude-class': 'company' }],
++      ['x-api-key', { ...bearer('origen'), 'x-api-key': 'sk-ant-api-falsa' }]]) {
++      n = desde();
++      const r = await post(A, extra);
++      check(`5: ${nombre}: el 429 de hoy, sin desvio`, identica(r, enviados[enviados.length - 1]) && idsDesde(n).join() === 'origen', idsDesde(n));
++    }
++
++    // origen h: (login por defecto: el Bearer no casa con ningun fichero). Sin exclusion de organizacion.
++    n = desde();
++    const rh = await post(A, { authorization: `Bearer ${DESCONOCIDO}` });
++    check('h: el login por defecto se desvia al primero del orden', rh.status === 200 && idsDesde(n).join() === '?,mismaorg', idsDesde(n));
++    h = JSON.parse(await get(A, '/-/health'));
++    check('h: /-/health lo nombra por su huella', (h.failover?.desvios || []).some((x) => x.de === huella(DESCONOCIDO) && x.a === 'mismaorg'), h.failover);
++
++    // 2. si el destino del desvio se agota, se deja el desvio y se empieza por la cuenta original.
++    estado.destino = 'limite';
++    n = desde();
++    const r2c = await post(A, bearer('origen'));
++    h = JSON.parse(await get(A, '/-/health'));
++    check('2: destino agotado: fuera el desvio y al siguiente candidato (origen sigue sin cuota: ni se prueba)', r2c.status === 200 && idsDesde(n).join() === 'destino,otro'
++      && (h.failover?.desvios || []).some((x) => x.de === 'origen' && x.a === 'otro'), { ids: idsDesde(n), fo: h.failover });
++    estado.destino = 'ok';
++
++    // 3. candidato que falla (400, y luego otro agotado) -> 429 ORIGINAL byte a byte y FAILOVER-SIN-CUENTA.
++    const B = await arrancar({ CLAUDE_ROUTER_FAILOVER_FILE: orden('orden-b.json', { v: 1, generado: ahora(), vivo: true, umbral: 95,
++      orden: ['c1', 'c2', 'c3'], org: { s: 'A', c1: 'B', c2: 'C', c3: 'D' } }) });
++    reset.c2 = ahora() + 7200; // el 429 de c2 no es igual al de s: se comprueba que sale el ORIGINAL
++    n = desde();
++    const i0 = enviados.length;
++    const r3 = await post(B, bearer('s'));
++    const original = enviados[i0];
++    check('3: dos intentos como mucho (c3 no se prueba)', idsDesde(n).join() === 's,c1,c2', idsDesde(n));
++    check('3: sin cuenta: el 429 ORIGINAL byte a byte', identica(r3, original), { s: r3.status });
++    check('3: FAILOVER-SIN-CUENTA en el log', /FAILOVER-SIN-CUENTA src=s\b/.test(out));
++    check('3: el fallo del candidato se loguea con su cuerpo', /FAILOVER-CANDIDATO src=s -> c1 400 .*invalid signature/.test(out));
++    n = desde();
++    const r3b = await post(B, bearer('s'));
++    check('3: s queda sin cuota y c1 y c2 en la cache negativa: la siguiente va directa a c3', r3b.status === 200 && idsDesde(n).join() === 'c3', idsDesde(n));
++    h = JSON.parse(await get(B, '/-/health'));
++    check('3: sin_cuenta=1', h.failover?.sin_cuenta === 1 && h.failover?.exitos === 1, h.failover);
++
++    // 5b. vivo:false, fichero ausente, ilegible, de mas de 10 minutos y sin variable: idéntico a hoy.
++    const base = { v: 1, generado: ahora(), vivo: true, umbral: 95, orden: ['destino'], org: ORG };
++    for (const [nombre, f] of [
++      ['vivo:false', orden('o-off.json', { ...base, vivo: false })],
++      ['vivo ausente', orden('o-sin.json', { ...base, vivo: undefined })],
++      ['fichero ausente', path.join(dir, 'no-existe.json')],
++      ['fichero ilegible', orden('o-roto.json', '{"v":1,"vivo":tr')],
++      ['de mas de 10 minutos', orden('o-viejo.json', { ...base, generado: ahora() - 601 })],
++      ['v desconocida', orden('o-v2.json', { ...base, v: 2 })],
++      ['sin CLAUDE_ROUTER_FAILOVER_FILE', undefined]]) {
++      const P = await arrancar({ CLAUDE_ROUTER_FAILOVER_FILE: f });
++      n = desde();
++      const r = await post(P, bearer('origen'));
++      const hh = JSON.parse(await get(P, '/-/health'));
++      check(`5: ${nombre}: el 429 de hoy, sin desvio`, identica(r, enviados[enviados.length - 1]) && idsDesde(n).join() === 'origen'
++        && hh.failover && hh.failover.activo === false, { ids: idsDesde(n), fo: hh.failover });
++    }
++
++    // Creditos (CLAUDE_ROUTER_SIN_CREDITOS=1): un 2xx servido con creditos no llega al cliente.
++    const U = 'anthropic-ratelimit-unified-';
++    const esSintetico = (r) => { let b = null; try { b = JSON.parse(r.raw); } catch {}
++      return r.status === 429 && b?.error?.type === 'rate_limit_error' && r.headers[`${U}status`] === 'rejected'
++        && r.headers[`${U}overage-status`] === 'rejected' && !(`${U}overage-in-use` in r.headers) && Number(r.headers['retry-after']) > 0
++        && r.headers[`${U}7d-utilization`] === '1.0' && r.headers[`${U}representative-claim`] === 'seven_day'; };
++    const C1 = await arrancar({ CLAUDE_ROUTER_SIN_CREDITOS: '1', CLAUDE_ROUTER_FAILOVER_FILE: orden('orden-c1.json', { v: 1, generado: ahora(),
++      vivo: true, umbral: 95, orden: ['destino'], org: { cre: 'X', destino: 'B' } }) });
++    n = desde();
++    const c1 = await post(C1, bearer('cre'));
++    bodies.push(c1.raw);
++    check('creditos: con candidato, sirve el candidato', c1.status === 200 && c1.headers['x-quien'] === 'destino' && idsDesde(n).join() === 'cre,destino'
++      && !c1.raw.includes('pagado con creditos'), { s: c1.status, ids: idsDesde(n) });
++    const [co, cd] = vistas.slice(n);
++    check('creditos: el candidato recibe el cuerpo identico', !!(co && cd && co.body.equals(cd.body)));
++    n = desde();
++    await post(C1, bearer('cre'));
++    check('creditos: y queda el desvio pegajoso', idsDesde(n).join() === 'destino', idsDesde(n));
++    n = desde();
++    const cc = await post(C1, { ...bearer('cre'), 'x-claude-class': 'company' });
++    check('creditos: x-claude-class: company pasa intacta', cc.status === 200 && cc.raw.toString() === CREDITOS.body && idsDesde(n).join() === 'cre', idsDesde(n));
++
++    const C2 = await arrancar({ CLAUDE_ROUTER_SIN_CREDITOS: '1' });
++    n = desde();
++    const c2 = await post(C2, bearer('cre'));
++    bodies.push(c2.raw);
++    check('creditos: sin candidato (sin vivo), 429 sintetico', esSintetico(c2) && idsDesde(n).join() === 'cre', { s: c2.status, h: c2.headers, b: c2.raw.toString() });
++    n = desde();
++    const c2b = await post(C2, bearer('cre'));
++    check('creditos: la siguiente, 429 sintetico SIN salir a Anthropic', esSintetico(c2b) && idsDesde(n).length === 0, idsDesde(n));
++    check('creditos: FAILOVER-SIN-CUENTA-CREDITOS en el log', /FAILOVER-SIN-CUENTA-CREDITOS src=h:[0-9a-f]{8}/.test(out));
++    h = JSON.parse(await get(C2, '/-/health'));
++    check('creditos: /-/health', h.failover?.sin_creditos === true && h.failover?.creditos === 2 && h.failover?.activo === false, h.failover);
++
++    const C4 = await arrancar({ CLAUDE_ROUTER_SIN_CREDITOS: '1', CLAUDE_ROUTER_FAILOVER_FILE: orden('orden-c4.json', { v: 1, generado: ahora(),
++      vivo: true, umbral: 95, orden: ['cre2'], org: { cre: 'X', cre2: 'Y' } }) });
++    n = desde();
++    const c4 = await post(C4, bearer('cre'));
++    check('creditos: candidato tambien con creditos -> 429 sintetico', esSintetico(c4) && idsDesde(n).join() === 'cre,cre2', idsDesde(n));
++
++    const C3 = await arrancar({ CLAUDE_ROUTER_FAILOVER_FILE: orden('orden-c3.json', { v: 1, generado: ahora(), vivo: true, umbral: 95,
++      orden: ['destino'], org: { cre: 'X', destino: 'B' } }) });
++    n = desde();
++    const c3 = await post(C3, bearer('cre'));
++    check('creditos: sin CLAUDE_ROUTER_SIN_CREDITOS pasa intacta', c3.status === 200 && c3.raw.toString() === CREDITOS.body && idsDesde(n).join() === 'cre', idsDesde(n));
++    check('creditos: linea CREDITOS en cada 2xx con la senal', (out.match(/CREDITOS src=h:[0-9a-f]{8} model=claude-opus-5-5 status=200 headers=\{.*overage-in-use/g) || []).length >= 4);
++
++    // 6. ningun token en el log, en /-/health ni en lo que recibe el cliente.
++    await sleep(100);
++    const healths = (await Promise.all([A, B, C1, C2].map((p) => get(p, '/-/health')))).join('\n');
++    const fuga = [...Object.values(TOK), DESCONOCIDO].filter((t) => out.includes(t) || healths.includes(t) || bodies.some((b) => b.includes(t))
++      || out.includes(t.slice(-24)));
++    check('6: ningun token en stdout, /-/health ni cuerpos', fuga.length === 0, fuga.length);
++    check('6: el log nombra cuentas por id u h:', /FAILOVER src=origen -> destino/.test(out) && /FAILOVER-STICKY src=origen -> destino/.test(out), out.split('\n').filter((l) => l.includes('FAILOVER')));
++  } finally {
++    for (const r of routers) r.kill();
++    llm.close(); ant.close();
++    fs.rmSync(dir, { recursive: true, force: true });
++  }
++  console.log(`\n${checks - fails}/${checks} checks`);
++  process.exit(fails ? 1 : 0);
++})();
+diff --git a/tests/smoke-install.js b/tests/smoke-install.js
+new file mode 100644
+index 0000000..5d0cc4f
+--- /dev/null
++++ b/tests/smoke-install.js
+@@ -0,0 +1,69 @@
++// Smoke de ./install.sh y del drop-in del desvio (SC-2161 P3). install.sh instala
++// claude-router.service.d/failover.conf (0644, el de systemd/) con las tres variables, la unidad principal
++// no las lleva, y el deploy.sh del plugin claude-local-router (que regenera la unidad desde cero en cada
++// despliegue) no toca el drop-in.
++//
++// Nunca toca el systemd real: HOME es un temporal, systemctl, curl y launchctl son stubs al principio del
++// PATH y el entorno no lleva XDG_RUNTIME_DIR ni DBUS_SESSION_BUS_ADDRESS, asi que ni un systemctl de verdad
++// llegaria al bus del usuario. El deploy.sh es el de CLAUDE_LOCAL_ROUTER_DIR (plugins/local-router) o, si no
++// esta, el de un clon superficial del repo publico.
++//
++//   node tests/smoke-install.js
++const fs = require('fs');
++const os = require('os');
++const path = require('path');
++const { spawnSync } = require('child_process');
++
++const REPO = path.join(__dirname, '..');
++const DROPIN_SRC = path.join(REPO, 'systemd', 'claude-router.service.d', 'failover.conf');
++const VARS = ['CLAUDE_ROUTER_FAILOVER_FILE', 'CLAUDE_ROUTER_ACCOUNTS_DIR', 'CLAUDE_ROUTER_SIN_CREDITOS'];
++let fails = 0, checks = 0;
++function check(name, cond, extra) { checks++; if (!cond) { fails++; console.log(`FAIL ${name}`, extra !== undefined ? String(extra).slice(0, 800) : ''); } else console.log(`ok   ${name}`); }
++
++if (process.platform !== 'linux') { console.log('solo Linux (systemd): nada que probar aqui'); process.exit(0); }
++
++const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'install-smoke-'));
++const home = path.join(tmp, 'home'), stubs = path.join(tmp, 'stubs'), calls = path.join(tmp, 'calls.log');
++fs.mkdirSync(stubs, { recursive: true });
++fs.mkdirSync(path.join(home, '.config', 'claude-local'), { recursive: true });
++fs.mkdirSync(path.join(home, '.claude'), { recursive: true }); // los dos instaladores dan por hecho que existe
++fs.writeFileSync(path.join(home, '.config', 'claude-local', 'env'), 'export ANTHROPIC_BASE_URL="http://127.0.0.1:1"\nexport ANTHROPIC_AUTH_TOKEN="sk-falsa"\n', { mode: 0o600 });
++for (const c of ['systemctl', 'launchctl']) fs.writeFileSync(path.join(stubs, c), `#!/bin/sh\necho "${c} $*" >> "${calls}"\n`, { mode: 0o755 });
++fs.writeFileSync(path.join(stubs, 'curl'), `#!/bin/sh\necho "curl $*" >> "${calls}"\necho '{"ok":true}'\n`, { mode: 0o755 });
++const env = { PATH: `${stubs}:${process.env.PATH}`, HOME: home, LANG: 'C.UTF-8', CLAUDE_ROUTER_PORT: '18979' };
++const unidad = path.join(home, '.config', 'systemd', 'user', 'claude-router.service');
++const dropin = path.join(home, '.config', 'systemd', 'user', 'claude-router.service.d', 'failover.conf');
++const leer = (f) => { try { return fs.readFileSync(f, 'utf8'); } catch { return null; } };
++const sinVars = (s) => !!s && !VARS.some((v) => new RegExp(`^Environment=${v}=`, 'm').test(s));
++
++try {
++  check('el drop-in versionado lleva las tres variables', VARS.every((v) => new RegExp(`^Environment=${v}=`, 'm').test(leer(DROPIN_SRC) || ''))
++    && /^\[Service\]$/m.test(leer(DROPIN_SRC) || ''));
++  check('la unidad versionada no las lleva', sinVars(leer(path.join(REPO, 'systemd', 'claude-router.service'))));
++
++  const i = spawnSync('bash', [path.join(REPO, 'install.sh')], { env, encoding: 'utf8' });
++  check('install.sh termina bien', i.status === 0, i.stderr + i.stdout);
++  check('los systemctl fueron al stub (el systemd real no se toca)', /systemctl --user daemon-reload/.test(leer(calls) || '')
++    && /systemctl --user restart claude-router.service/.test(leer(calls) || ''), leer(calls));
++  check('install.sh instala el drop-in tal cual', leer(dropin) === leer(DROPIN_SRC));
++  check('el drop-in queda 0644', fs.existsSync(dropin) && (fs.statSync(dropin).mode & 0o777) === 0o644);
++  check('la unidad instalada no lleva las variables y si el node', sinVars(leer(unidad)) && !/__NODE__/.test(leer(unidad) || ''), leer(unidad));
++
++  let plugin = process.env.CLAUDE_LOCAL_ROUTER_DIR;
++  if (!plugin) {
++    const c = spawnSync('git', ['clone', '-q', '--depth', '1', 'https://github.com/pocharlies-org/claude-local-router', path.join(tmp, 'plugin')], { encoding: 'utf8' });
++    check('clon del plugin publico', c.status === 0, c.stderr);
++    plugin = path.join(tmp, 'plugin', 'plugins', 'local-router');
++  }
++  const deploy = path.join(plugin, 'scripts', 'deploy.sh');
++  check('deploy.sh del plugin no nombra .service.d', !/\.service\.d/.test(leer(deploy) || '.service.d'));
++  const antes = leer(unidad);
++  const d = spawnSync('bash', [deploy, '--force'], { env: { ...env, CLAUDE_PLUGIN_ROOT: plugin }, encoding: 'utf8' });
++  check('deploy.sh --force del plugin termina bien', d.status === 0, d.stderr + d.stdout);
++  check('deploy.sh regenera la unidad (es el caso que borraria las lineas)', !!leer(unidad) && leer(unidad) !== antes && sinVars(leer(unidad)), leer(unidad));
++  check('y el drop-in sigue intacto', leer(dropin) === leer(DROPIN_SRC) && (fs.statSync(dropin).mode & 0o777) === 0o644);
++} finally {
++  fs.rmSync(tmp, { recursive: true, force: true });
++}
++console.log(`\n${checks - fails}/${checks} checks`);
++process.exit(fails ? 1 : 0);

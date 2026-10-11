@@ -1,0 +1,13 @@
+diff --git a/voice/omnivoice-dgx2.yaml b/voice/omnivoice-dgx2.yaml
+index d8122f8c..692092a7 100644
+--- a/voice/omnivoice-dgx2.yaml
++++ b/voice/omnivoice-dgx2.yaml
+@@ -184,7 +184,7 @@ spec:
+           tolerationSeconds: 180
+       containers:
+         - name: omnivoice-tts
+-          image: harbor.lan.e-dani.com/homelab/dgx-infra/omnivoice:ci-b46d476ecd320965f65dd983288129ad47d1981d@sha256:1300475e15d607f05d2ec3518e321b288bdee05c5c6af10888cb66b74cfb34df
++          image: harbor.lan.e-dani.com/homelab/dgx-infra/omnivoice:ci-b46d476ecd320965f65dd983288129ad47d1981d@sha256:e642001d741655228754005749a8beaa609def585658a1b57a45567ee37381ad
+           imagePullPolicy: IfNotPresent
+           ports:
+             - name: http

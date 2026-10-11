@@ -1,0 +1,329 @@
+diff --git a/.company/evidence/DGX-780-tp3-jobs-ci.md b/.company/evidence/DGX-780-tp3-jobs-ci.md
+new file mode 100644
+index 00000000..416b3b16
+--- /dev/null
++++ b/.company/evidence/DGX-780-tp3-jobs-ci.md
+@@ -0,0 +1,39 @@
++# DGX-780 · evidencia de la PR de los Jobs TP=3 y ci.yml (rama DGX-780-tp3-jobs-ci)
++
++Dónde: x86 (`ubuntu`), sin GPU. Python 3.12, Ruff 0.12.4 y kubectl v1.36.2+k3s1 (Kustomize v5.8.1). Base: `pin/qwen38-tp3-20261010` en `63dd55f1`.
++
++Esta PR va la **última**. `ci.yml` corre los tests de las otras tres PR, y la kustomización monta `k8s/qwen38fn-tp3/convert.py`, que trae la #138. Hasta que esas tres estén en la línea pin, su CI no puede pasar. Lo de abajo se midió sobre el árbol combinado: pin más las cuatro ramas.
++
++## Pasos Ruff y Unittest de `ci.yml`, tal cual (árbol combinado)
++
++- `ruff check …` (la lista del paso, con los seis ficheros TP=3): **PASA**, `All checks passed!`.
++- `python -m unittest …` (la lista del paso): 656 tests, 56 skipped. Hay 34 errores y todos son el mismo: `RuntimeError: cannot read reviewed source: tools/rho_external_attestor.py`, de los tests RHO, que leen fuentes de un checkout de git. El árbol combinado no es un checkout, y el árbol pin pelado da los mismos 34 sin ningún fichero de DGX-780. Los cuatro módulos TP=3 y el contrato FlashInfer dan 70 tests, OK.
++- `python3 tools/check_ci_security.py`: **PASA** con el re-pin de `WORKFLOW_SHA256`.
++
++## C2 · ningún byte de TP=2 cambia
++
++El Job `convert` guarda `SUMS_ANTES=$(sha256sum < "$SRC/SHA256SUMS")` y pasa el `sha256sum -c` antes de convertir. Al acabar, aborta si el `SHA256SUMS` ya no es el mismo, repite el `sha256sum -c` y solo entonces deja la marca. Además, el origen va montado de solo lectura. La guarda probada en bash: con el `SHA256SUMS` intacto sale `intacto` y rc=0; con una línea añadida, `ABORTA` y rc=1.
++
++## C9 · no reinicia el residente (árbol combinado frente a 63dd55f1)
++
++`kubectl kustomize overlays/ornith-sm121v5-lmheadw4-20260721`, objeto a objeto:
++
++```
++igual Deployment/llm/qwen38-flash-next-head
++igual Deployment/llm/qwen38-flash-next-worker
++nuevos: ['ConfigMap/llm/qwen38fn-tp3', 'Job/llm/qwen38fn-tp3-convert', 'Job/llm/qwen38fn-tp3-publish', 'Job/llm/qwen38fn-tp3-serve', 'Service/llm/qwen38fn-tp3-serve']
++quitados: []
++cambiados: ['ConfigMap/llm/qwen38-flash-next-vllm-launch']
++```
++
++El ConfigMap nuevo `qwen38fn-tp3` es plano y de nombre fijo (`disableNameSuffixHash`). El launch cambiado es el de la PR de los parches.
++
++## C10 · los tres Jobs, sobre el render
++
++```
++qwen38fn-tp3-convert  dgx3        sin-gpu NVIDIA_VISIBLE_DEVICES=void req==lim 16Gi sin-ttl sin-etiquetas-arbitro
++qwen38fn-tp3-publish  nvidia-dgx  sin-gpu NVIDIA_VISIBLE_DEVICES=void req==lim 4Gi  sin-ttl sin-etiquetas-arbitro
++qwen38fn-tp3-serve    dgx3        sin-gpu NVIDIA_VISIBLE_DEVICES=void req==lim 1Gi  sin-ttl sin-etiquetas-arbitro
++```
++
++El espacio libre en dgx1, la descarga por la red del CNI, los enlaces relativos, el `sha256sum -c` de la vista y el renombrado atómico de `publish` están en `convert.py publish` (#138), con su test `ServePublishTest`.
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index c5c4813d..24f9515e 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -75,6 +75,12 @@ jobs:
+       - name: Ruff
+         run: >-
+           ruff check
++          k8s/qwen38fn-tp3/convert.py
++          tools/qwen38_tp_logits_compare.py
++          tools/test_qwen38fn_tp3_convert.py
++          tools/test_qwen38fn_tp3_patches.py
++          tools/test_qwen38fn_fi_ep_uneven.py
++          tools/test_qwen38_tp_logits_compare.py
+           tools/capture_llm_256k_inventory.py
+           tools/check_ci_security.py
+           tools/check_ornith_toolloop_guards.py
+@@ -235,6 +241,10 @@ jobs:
+           python -m unittest
+           tools/test_bge_pool_contract.py
+           tools/test_qwen38_flashinfer_contract.py
++          tools/test_qwen38fn_tp3_convert.py
++          tools/test_qwen38fn_tp3_patches.py
++          tools/test_qwen38fn_fi_ep_uneven.py
++          tools/test_qwen38_tp_logits_compare.py
+           tools/test_llm_256k_compare.py
+           tools/test_rho_control_live_schema.py
+           tools/test_rho_kubernetes_api.py
+diff --git a/k8s/kustomization.yaml b/k8s/kustomization.yaml
+index 1bb47a0d..ad2326bd 100644
+--- a/k8s/kustomization.yaml
++++ b/k8s/kustomization.yaml
+@@ -50,6 +50,8 @@ resources:
+   # Rollback = repin al SHA anterior, que aun lo incluia.
+   # Motivo: sglang#36537 (bucle de token 0). Detalle en la cabecera del vllm.
+   - qwen38-flash-next-nvfp4-vllm.yaml
++  # DGX-780: Jobs sin GPU que escriben el checkpoint TP=3 en dgx3 y lo publican en dgx1. No tocan head ni worker.
++  - qwen38fn-tp3-jobs.yaml
+   # Service `tooling`: el asiento del residente del perfil global, resuelto por
+   # etiqueta de pool en vez de por un controlador que reescribe LiteLLM en
+   # caliente. Va DESPUES de los deployments que llevan la etiqueta, aunque el
+@@ -96,6 +98,12 @@ resources:
+ # rollout lo fuerza ya el cambio de imagen del pod template. Los .npy (10 KB)
+ # entran como binaryData. Detalle: docs/qwen38-flash-next-ursucipian-nightly-20260909.md
+ configMapGenerator:
++  # DGX-780: el conversor TP=3 (convert/verify/serve/publish) de los Jobs de qwen38fn-tp3-jobs.yaml.
++  - name: qwen38fn-tp3
++    namespace: llm
++    options: { disableNameSuffixHash: true }
++    files:
++      - qwen38fn-tp3/convert.py
+   # 27-09-2026: fuentes del kernel determinista persistent_topk (vllm#55122 / vllm#51782),
+   # fijadas por sha256 en qwen38-flash-next-kernel-det/SHA256SUMS. launch.sh las compila.
+   - name: qwen38fn-kernel-det
+diff --git a/k8s/qwen38fn-tp3-jobs.yaml b/k8s/qwen38fn-tp3-jobs.yaml
+new file mode 100644
+index 00000000..7aa89510
+--- /dev/null
++++ b/k8s/qwen38fn-tp3-jobs.yaml
+@@ -0,0 +1,211 @@
++# DGX-780 · checkpoint TP=3 del hibrido qwen38fn-mtp-nvidia-fp8-hybrid (rev 7b719225), SIN GPU.
++#
++#  1. convert (dgx3): sha256sum -c de la copia local de solo lectura (/srv/ai-lab/models/...-7b719225),
++#     convert.py convert (aborta si el config.json no casa o si no hay 1,2x el espacio que escribe; el log
++#     dice cuantos GiB reescribe), install.py de ursucipian (las capas que carga el motor) y convert.py verify
++#     (equivalencia + verify-loaders a tp=3). Compara el SHA256SUMS del origen con el de antes y vuelve a
++#     pasar el sha256sum -c: ningun byte de TP=2 cambia. La marca .built-tp3-7b719225 solo se deja con verify.json PASA.
++#  2. serve (dgx3): HTTP de solo lectura de la vista TP=3 detras del Service ClusterIP qwen38fn-tp3-serve.
++#     Termina cuando publish pide GET /fin; asi el Job queda Complete.
++#  3. publish (nvidia-dgx): espera la marca, exige verify.json PASA y espacio libre en dgx1 (1,2x lo que trae),
++#     trae lo reescrito por la red del CNI (NO es el enlace CX7), enlaza lo demas a la vista hermana con
++#     enlaces relativos, sha256sum -c de la vista entera y renombra de forma atomica a
++#     /home/dibanerz/.cache/huggingface/qwen38fn-mtp-nvidia-fp8-hybrid-tp3.
++#
++# Idempotentes por marca: convert sale 0 con .built-tp3-7b719225, publish con el destino ya renombrado.
++# Sin GPU (NVIDIA_VISIBLE_DEVICES=void, sin nvidia.com/gpu) y sin etiquetas gpu.dgx-infra/*: el arbitro no los
++# cuenta. Sin ttlSecondsAfterFinished a proposito (Argo los recrearia). Un Job no se edita: si hace falta otra
++# pasada, otro nombre (-2) y el prune retira el viejo. El codigo es k8s/qwen38fn-tp3/convert.py (ConfigMap
++# qwen38fn-tp3, configMapGenerator sin sufijo de hash en kustomization.yaml).
++apiVersion: v1
++kind: Service
++metadata:
++  name: qwen38fn-tp3-serve
++  namespace: llm
++  labels:
++    app: qwen38fn-tp3-serve
++spec:
++  type: ClusterIP
++  selector:
++    app: qwen38fn-tp3-serve
++  ports:
++    - { name: http, port: 8080, targetPort: 8080 }
++---
++apiVersion: batch/v1
++kind: Job
++metadata:
++  name: qwen38fn-tp3-convert
++  namespace: llm
++  labels:
++    app: qwen38fn-tp3-convert
++spec:
++  backoffLimit: 2
++  activeDeadlineSeconds: 21600
++  template:
++    metadata:
++      labels:
++        app: qwen38fn-tp3-convert
++    spec:
++      restartPolicy: OnFailure
++      enableServiceLinks: false
++      automountServiceAccountToken: false
++      nodeSelector:
++        kubernetes.io/hostname: dgx3
++      tolerations:
++        - { key: dedicated, operator: Equal, value: llm, effect: NoSchedule }
++      containers:
++        - name: convert
++          image: docker.io/vllm/vllm-openai@sha256:96b234afa2867031ad0a226b149a06483861e613e3a3083da53398d347b5ffbd
++          imagePullPolicy: IfNotPresent
++          command: ["bash", "-c"]
++          args:
++            - |
++              set -euo pipefail
++              SRC=/models/src OUT=/models/tp3
++              MARK="$OUT/.built-tp3-7b719225"
++              if [ -f "$MARK" ]; then echo "QWEN_TP3_CONVERT ya construido: $MARK"; exit 0; fi
++              SUMS_ANTES=$(sha256sum < "$SRC/SHA256SUMS")
++              (cd "$SRC" && sha256sum --check --quiet --strict SHA256SUMS)
++              python3 -I -u /tp3/convert.py convert --src "$SRC" --out "$OUT"
++              # Las capas que carga el motor son las de la imagen con ursucipian encima (launch.sh hace lo mismo).
++              mkdir -p /tmp/ursu-bundle
++              tar -C /opt/ursu --exclude='..*' -chf - . | tar -C /tmp/ursu-bundle -xf -
++              python3 /tmp/ursu-bundle/install.py
++              python3 -I -u /tp3/convert.py verify --src "$SRC" --out "$OUT" --json "$OUT/verify.json"
++              # C2: ningun byte de TP=2 cambia. El SHA256SUMS es el mismo y cada fichero sigue casando con el.
++              if [ "$(sha256sum < "$SRC/SHA256SUMS")" != "$SUMS_ANTES" ]; then
++                echo "QWEN_TP3_CONVERT ABORTA: el SHA256SUMS de TP=2 ha cambiado" >&2
++                exit 1
++              fi
++              (cd "$SRC" && sha256sum --check --quiet --strict SHA256SUMS)
++              echo "QWEN_TP3_CONVERT origen TP=2 intacto: SHA256SUMS igual y sha256sum -c OK antes y despues"
++              : > "$MARK"
++          env:
++            - { name: NVIDIA_VISIBLE_DEVICES, value: "void" }
++          # verify-loaders no materializa la ngram_embedding de un rango (~15,9 GiB FP8): va en meta y carga una
++          # ventana de filas (C-a). Un OOMKill sale como fallo del Job, nunca como PASA (no hay marca).
++          resources:
++            requests: { cpu: "4", memory: 16Gi }
++            limits: { memory: 16Gi }
++          volumeMounts:
++            - { name: src, mountPath: /models/src, readOnly: true }
++            - { name: tp3, mountPath: /models/tp3 }
++            - { name: code, mountPath: /tp3, readOnly: true }
++            - { name: ursu-root, mountPath: /opt/ursu, readOnly: true }
++            - { name: ursu-overlays, mountPath: /opt/ursu/overlays, readOnly: true }
++            - { name: ursu-refusal, mountPath: /opt/ursu/refusal, readOnly: true }
++            - { name: ursu-refusal-payload, mountPath: /opt/ursu/refusal/payload, readOnly: true }
++      volumes:
++        - name: src
++          hostPath: { path: /srv/ai-lab/models/qwen38fn-mtp-nvidia-fp8-hybrid-7b719225, type: Directory }
++        - name: tp3
++          hostPath: { path: /srv/ai-lab/models/qwen38fn-mtp-nvidia-fp8-hybrid-tp3-7b719225, type: DirectoryOrCreate }
++        - name: code
++          configMap: { name: qwen38fn-tp3 }
++        - name: ursu-root
++          configMap: { name: qwen38fn-ursu-root }
++        - name: ursu-overlays
++          projected:
++            sources:
++              - configMap: { name: qwen38fn-ursu-overlays-a }
++              - configMap: { name: qwen38fn-ursu-overlays-b }
++        - name: ursu-refusal
++          configMap: { name: qwen38fn-ursu-refusal }
++        - name: ursu-refusal-payload
++          configMap: { name: qwen38fn-ursu-refusal-payload }
++---
++apiVersion: batch/v1
++kind: Job
++metadata:
++  name: qwen38fn-tp3-serve
++  namespace: llm
++  labels:
++    app: qwen38fn-tp3-serve
++spec:
++  backoffLimit: 6
++  activeDeadlineSeconds: 172800
++  template:
++    metadata:
++      labels:
++        app: qwen38fn-tp3-serve
++    spec:
++      restartPolicy: OnFailure
++      enableServiceLinks: false
++      automountServiceAccountToken: false
++      nodeSelector:
++        kubernetes.io/hostname: dgx3
++      tolerations:
++        - { key: dedicated, operator: Equal, value: llm, effect: NoSchedule }
++      containers:
++        - name: serve
++          image: docker.io/vllm/vllm-openai@sha256:96b234afa2867031ad0a226b149a06483861e613e3a3083da53398d347b5ffbd
++          imagePullPolicy: IfNotPresent
++          command: ["python3", "-I", "-u", "/tp3/convert.py", "serve", "--out", "/models/tp3", "--port", "8080"]
++          env:
++            - { name: NVIDIA_VISIBLE_DEVICES, value: "void" }
++          ports:
++            - { name: http, containerPort: 8080 }
++          resources:
++            requests: { cpu: "1", memory: 1Gi }
++            limits: { memory: 1Gi }
++          volumeMounts:
++            - { name: tp3, mountPath: /models/tp3, readOnly: true }
++            - { name: code, mountPath: /tp3, readOnly: true }
++      volumes:
++        - name: tp3
++          hostPath: { path: /srv/ai-lab/models/qwen38fn-mtp-nvidia-fp8-hybrid-tp3-7b719225, type: DirectoryOrCreate }
++        - name: code
++          configMap: { name: qwen38fn-tp3 }
++---
++apiVersion: batch/v1
++kind: Job
++metadata:
++  name: qwen38fn-tp3-publish
++  namespace: llm
++  labels:
++    app: qwen38fn-tp3-publish
++spec:
++  backoffLimit: 3
++  activeDeadlineSeconds: 172800
++  template:
++    metadata:
++      labels:
++        app: qwen38fn-tp3-publish
++    spec:
++      restartPolicy: OnFailure
++      enableServiceLinks: false
++      automountServiceAccountToken: false
++      nodeSelector:
++        kubernetes.io/hostname: nvidia-dgx
++      tolerations:
++        - { key: dedicated, operator: Equal, value: llm, effect: NoSchedule }
++      containers:
++        - name: publish
++          image: docker.io/vllm/vllm-openai@sha256:96b234afa2867031ad0a226b149a06483861e613e3a3083da53398d347b5ffbd
++          imagePullPolicy: IfNotPresent
++          command:
++            - python3
++            - -I
++            - -u
++            - /tp3/convert.py
++            - publish
++            - --url
++            - http://qwen38fn-tp3-serve.llm.svc.cluster.local:8080
++            - --dest
++            - /hf/qwen38fn-mtp-nvidia-fp8-hybrid-tp3
++            - --sibling
++            - qwen38fn-mtp-nvidia-fp8-hybrid
++          env:
++            - { name: NVIDIA_VISIBLE_DEVICES, value: "void" }
++          resources:
++            requests: { cpu: "2", memory: 4Gi }
++            limits: { memory: 4Gi }
++          volumeMounts:
++            - { name: hf, mountPath: /hf }
++            - { name: code, mountPath: /tp3, readOnly: true }
++      volumes:
++        # El worker lee los pesos de aqui (hostPath del disco local de nvidia-dgx); el head, por el NFS de este mismo directorio.
++        - name: hf
++          hostPath: { path: /home/dibanerz/.cache/huggingface, type: Directory }
++        - name: code
++          configMap: { name: qwen38fn-tp3 }
+diff --git a/tools/check_ci_security.py b/tools/check_ci_security.py
+index 1defc5f4..72504cf6 100644
+--- a/tools/check_ci_security.py
++++ b/tools/check_ci_security.py
+@@ -85,7 +85,7 @@
+     "    steps:",
+ )
+ TOP_LEVEL_JOBS = "jobs:"
+-WORKFLOW_SHA256 = "6df72927970657ec0e8a5f6c5320936d6359514b0a324bb16512a2c2419cd372"
++WORKFLOW_SHA256 = "9bb5b5ac26e47dab3a06629348292e5e5ddceae3eea0d507b934b55439145e05"
+ 
+ 
+ def validate(workflow_source: str | bytes, lock: str) -> None:

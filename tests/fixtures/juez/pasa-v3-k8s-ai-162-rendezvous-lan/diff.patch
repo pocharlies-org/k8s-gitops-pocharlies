@@ -1,0 +1,207 @@
+diff --git a/.company/evidence/DGX-818-glm-lan.md b/.company/evidence/DGX-818-glm-lan.md
+new file mode 100644
+index 0000000..356bb1d
+--- /dev/null
++++ b/.company/evidence/DGX-818-glm-lan.md
+@@ -0,0 +1,63 @@
++# DGX-818 · GLM-5.3-Flash TP=3: rendezvous y bootstrap por la LAN, mentat en el triangulo
++
++Donde: x86, worktree sobre pin/glm53-ventana-20261010 (1a500ac). Cluster: no se ha tocado; solo `kubectl kustomize` (sin red) y lectura de codigo.
++Criterio: C3 (parte LAN). Overlay tocado: solo `overlays/glm53-tp3-ventana-k4-20261010`; `k8s/` y main no cambian.
++
++## La premisa que se comprobo: VLLM_HOST_IP no es el origen de tcp://10.0.2.3
++Hipotesis 2(b) del doc: «VLLM_HOST_IP = MENTAT_NODE_IP puede no cerrar el rendezvous». Confirmada por el primer arranque (`glm-arranque/head-prev.log`:
++`distributed_init_method=tcp://10.0.2.3:44155`, luego `DistStoreError: Timed out after 601 seconds waiting for clients. 2/3 clients joined`). Pero la IP no sale de VLLM_HOST_IP:
++
++| pieza (commit) | hecho |
++|---|---|
++| vllm `ddd6fbca`, `v1/executor/ray_executor_v2.py:131` | `create_dist_init_method` (el TCPStore del rango 0) usa `ray.util.get_node_ip_address()`, no `get_ip()` |
++| idem `:211` y `:337` | la cola de respuesta de cada worker y la de difusion de la cabeza, con `connect_ip=ray.util.get_node_ip_address()` (`shm_broadcast.py:542` hace bind en esa IP) |
++| idem `v1/executor/ray_utils.py:34` | `VLLM_HOST_IP` es «worker-specific»: no se copia de la cabeza a los workers |
++| vllm, `grep get_ip()` en todo `vllm/` | el resto de usos son el ejecutor Ray v1, DP-ray, NIXL, kv_events, mooncake: ninguno corre en este arranque; `initialize_ray_cluster(require_gpu_on_driver=False)` tampoco lo usa |
++| mentat `v0.17.1` `python/ray/util/__init__.py:38` | `get_node_ip_address()` lee `MENTAT_FABRIC_IP` y luego `MENTAT_NODE_IP`; «does not read any engine's own address variable» (GUIDE.md:446); un valor puesto en el entorno del contenedor «is the operator pinning the answer» (`:19-26`) |
++| mentat `rust/mentatd/src/agent.rs:213-225` | el agente reclama identidad solo con `MENTAT_NODE_IP`; `ray start --node-ip-address` se acepta e ignora (`GUIDE.md:171`). En el arranque: `agent=glm53@dgx3@ node_ip=` vacio |
++| mentat `agent.rs:757-762` | el rango se lanza con el entorno heredado del agente (sin `env_clear`) mas el del demonio |
++| mentat `daemon.rs:1633-1641` | el demonio escribe `MENTAT_NODE_IP` (la identidad del nodo, 10.0.x) y `MENTAT_FABRIC_IP` solo si el grupo cae en una isla `rdma`; `mentat.env` no lleva la etiqueta `rdma` (y TP=3 es `FABRIC_LAYOUT=mesh`, sin claim) |
++| kindling `a3c3a1d7` `image/entrypoint.sh:424-431` | con `ROLE=head`, `VLLM_HOST_IP` debe ser `HEAD_HOST` (y en un worker, no serlo); `:415` `RAY_ADDRESS=HEAD_HOST:6379` |
++
++Consecuencias: (1) poner `VLLM_HOST_IP` en la LAN no movia el rendezvous y pararia la cabeza con `FATAL: ROLE=head, but VLLM_HOST_IP=... is not HEAD_HOST` en la primera linea del
++entrypoint; (2) el mando que si lo mueve y no toca mentat es `MENTAT_FABRIC_IP` en el contenedor `vllm` de cada rango. El triangulo en ese contenedor sigue: `HEAD_HOST`, `VLLM_HOST_IP`;
++en `mentatd`: `MENTAT_NODE_IP`, `MENTAT_PEERS` (S-6, DGX-811). ARX no usa direcciones: `dist.all_gather_object` por el grupo gloo (kindling `experimental/arx/arx.py:152`), ahora por la LAN.
++
++## Rojo (04811c5, los tests antes del overlay)
++Resultado: FAIL (esperado).
++```
++$ python3 tools/test_glm53_tp3_ventana.py
++FAIL/ERROR: test_rendezvous_y_bootstrap_por_la_lan (x3 rangos)      KeyError: 'MENTAT_FABRIC_IP'
++FAIL: test_mentat_se_queda_en_el_triangulo (x3 rangos)               falta MENTAT_FABRIC_IP en el contenedor vllm
++FAIL: test_receta_nccl_de_la_sonda_v3c_en_los_tres_rangos (x3)       NCCL_SOCKET_IFNAME seguia siendo el del cable
++Ran 26 tests / FAILED (failures=6, errors=3)
++```
++
++## Verde (33ece00)
++Resultado: PASS.
++```
++$ python3 tools/test_glm53_tp3_ventana.py
++Ran 26 tests / OK
++$ python3 -m unittest <los 22 ficheros de la lista Unittest de ci.yml>
++Ran 753 tests / OK (skipped=57)
++$ ruff check <la lista Ruff de ci.yml, los de este cambio>   # 0.12.4
++All checks passed!
++$ python3 tools/check_ci_security.py                          # ci.yml no cambia
++rc=0
++$ kubectl kustomize overlays/glm53-tp3-ventana-k4-20261010    # por rango: ROLE, VLLM_HOST_IP, HEAD_HOST, MENTAT_FABRIC_IP, GLOO/NCCL_SOCKET_IFNAME | mentatd
++head        head    10.0.2.3  10.0.2.3  192.168.50.143  enP7s7  | MENTAT_NODE_IP=10.0.2.3  MENTAT_PEERS=10.0.2.1:6379,10.0.4.2:6379
++worker-dgx1 worker  10.0.2.1  10.0.2.3  192.168.50.140  enP7s7  | MENTAT_NODE_IP=10.0.2.1  MENTAT_PEERS=10.0.0.2:6379,10.0.2.3:6379
++worker-dgx2 worker  10.0.4.2  10.0.4.3  192.168.50.141  enP7s7  | MENTAT_NODE_IP=10.0.4.2  MENTAT_PEERS=10.0.0.1:6379,10.0.4.3:6379
++```
++`VentanaNoCambiaTest` (el render de `overlays/sparks-ventana-20261010` es el de 92fb200) pasa: el cambio no sale del overlay de GLM.
++
++## C3 (parte LAN)
++- Los tres rangos: `MENTAT_FABRIC_IP` = su IP de la LAN (.143 cabeza, .140 dgx1, .141 dgx2), `GLOO_SOCKET_IFNAME` y `NCCL_SOCKET_IFNAME` = `enP7s7`: PASS (`test_rendezvous_y_bootstrap_por_la_lan`).
++- mentat sin cambios (`mentat.env`, `mentatd` entero, `HEAD_HOST`, `VLLM_HOST_IP`, `CLUSTER_SUBNET`, `FABRIC_SUBNETS`, ARX): PASS (`test_mentat_se_queda_en_el_triangulo`, `test_arx_se_queda_como_esta`).
++- `VLLM_HOST_IP` pareado con `HEAD_HOST` como exige el entrypoint: PASS (`test_vllm_host_ip_no_pasa_a_la_lan_porque_el_entrypoint_lo_ata_a_head_host`).
++
++## Lo que NO se ha medido (es de la ventana)
++Que el rango herede `MENTAT_FABRIC_IP` es lectura de codigo (mentat `agent.rs:757`, `daemon.rs:1635`, shim `util/__init__.py:38`): no hay `cargo` en el x86 y el `mentatd` del scratchpad es arm64, asi que
++`tests/test_vllm_shape.py` de mentat no se ha corrido. Comprobacion en la ventana, en el primer minuto del log de la cabeza (`parallel_state.py` «world_size=3 rank=0 ... distributed_init_method=»):
++debe decir `tcp://192.168.50.143:` y no `tcp://10.0.2.3:`. Si dice 10.0.2.3, la hipotesis cae: lo siguiente son rutas /32 en el host (dgx-infra).
++Alcance del socket: los MessageQueue de vLLM ya escuchaban en la IP anunciada (bind en `connect_ip`); ahora es la de la LAN en vez de la del cable.
+diff --git a/overlays/glm53-tp3-ventana-k4-20261010/kustomization.yaml b/overlays/glm53-tp3-ventana-k4-20261010/kustomization.yaml
+index 22d9131..0fb95f4 100644
+--- a/overlays/glm53-tp3-ventana-k4-20261010/kustomization.yaml
++++ b/overlays/glm53-tp3-ventana-k4-20261010/kustomization.yaml
+@@ -9,6 +9,8 @@
+ #    parcheada de DGX-815 por volumen de imagen, conexion diferida y el grafo del generador de la imagen con el orden de rangos de GLM. Va solo aqui:
+ #    patch-nccl-ring.yaml y start.sh. ARX (VLLM_ARX_RING=1) y todo lo demas de la receta de GLM se quedan como estan, salvo lo que la receta NCCL no admite
+ #    (NCCL_IB_SUBNET_AWARE_ROUTING=1 de recipe.env, el NCCL_IB_HCA de cada rango y lo que el entrypoint de la imagen deriva o corre por su cuenta: ver start.sh).
++#  - el rendezvous de vLLM y los bootstrap de NCCL y gloo por la LAN (enP7s7), no por el cable de cada rango: el triangulo no tiene una subred comun a los
++#    tres (primer arranque, 20:41Z). mentat se queda en el triangulo (S-6). Por que y con que mando: el comentario de los parches por rango.
+ # VUELTA: PR de k8s-gitops-pocharlies que pone `ai` en el SHA de overlays/sparks-ventana-salida-20261010 (el render de a51da60 con la misma pausa), o en el de la
+ # ventana. Uso: la Application `ai` con este path, en el SHA de este overlay, tras leer gpu-arbiter-state y con docs/glm-5.3-flash-tp3.md de main.
+ apiVersion: kustomize.config.k8s.io/v1beta1
+@@ -33,22 +35,31 @@ configMapGenerator:
+ patches:
+   - path: patch-nccl-ring.yaml
+     target: { kind: Deployment, name: "glm53-tp3-(head|worker-dgx1|worker-dgx2)" }
+-  # El host de ring.conf de cada rango (el nodo del Deployment): lo dice el manifiesto, no se adivina.
++  # Por rango (el nodo del Deployment; lo dice el manifiesto, no se adivina):
++  #  - GLM_NCCL_RING_HOST: el host de ring.conf, para el grafo de start.sh;
++  #  - MENTAT_FABRIC_IP, GLOO_SOCKET_IFNAME y NCCL_SOCKET_IFNAME: el rendezvous y los bootstrap por la LAN de gestion (enP7s7), como el TP=3 de qwen38.
++  #    Con el cable del triangulo (10.0.x) los tres rangos usaron tcp://10.0.2.3 (la IP de dgx3 en su cable con dgx1) y dgx2 no la alcanza: el TCPStore
++  #    murio con 2/3 clientes (DGX-818, 20:41Z). Esa IP no sale de VLLM_HOST_IP: RayExecutorV2 la pide a ray.util.get_node_ip_address() (vllm ddd6fbca,
++  #    ray_executor_v2.py:131/211/337) y el shim de mentat 0.17.1 contesta MENTAT_FABRIC_IP y, si no, MENTAT_NODE_IP (python/ray/util/__init__.py:38).
++  #    MENTAT_FABRIC_IP en el contenedor es el mando que el shim documenta («the operator pinning the answer»): el agente lanza cada rango con el
++  #    entorno del contenedor y el demonio solo la escribe si el grupo cae en una isla `rdma` (mentat.env no lleva esa etiqueta). Cada MessageQueue
++  #    de vLLM hace bind en esa IP, que es de su nodo. VLLM_HOST_IP, HEAD_HOST, MENTAT_NODE_IP y MENTAT_PEERS (S-6: mentatd por lo y los CX7) NO se
++  #    tocan: el entrypoint de la imagen exige VLLM_HOST_IP == HEAD_HOST en la cabeza (entrypoint.sh:424) y HEAD_HOST es el demonio de la cabeza por el cable.
+   - patch: |-
+       apiVersion: apps/v1
+       kind: Deployment
+       metadata: { name: glm53-tp3-head, namespace: llm }
+-      spec: { template: { spec: { containers: [ { name: vllm, env: [ { name: GLM_NCCL_RING_HOST, value: dgx3 } ] } ] } } }
++      spec: { template: { spec: { containers: [ { name: vllm, env: [ { name: GLM_NCCL_RING_HOST, value: dgx3 }, { name: MENTAT_FABRIC_IP, value: "192.168.50.143" }, { name: GLOO_SOCKET_IFNAME, value: enP7s7 }, { name: NCCL_SOCKET_IFNAME, value: enP7s7 } ] } ] } } }
+   - patch: |-
+       apiVersion: apps/v1
+       kind: Deployment
+       metadata: { name: glm53-tp3-worker-dgx1, namespace: llm }
+-      spec: { template: { spec: { containers: [ { name: vllm, env: [ { name: GLM_NCCL_RING_HOST, value: dgx1 } ] } ] } } }
++      spec: { template: { spec: { containers: [ { name: vllm, env: [ { name: GLM_NCCL_RING_HOST, value: dgx1 }, { name: MENTAT_FABRIC_IP, value: "192.168.50.140" }, { name: GLOO_SOCKET_IFNAME, value: enP7s7 }, { name: NCCL_SOCKET_IFNAME, value: enP7s7 } ] } ] } } }
+   - patch: |-
+       apiVersion: apps/v1
+       kind: Deployment
+       metadata: { name: glm53-tp3-worker-dgx2, namespace: llm }
+-      spec: { template: { spec: { containers: [ { name: vllm, env: [ { name: GLM_NCCL_RING_HOST, value: dgx2 } ] } ] } } }
++      spec: { template: { spec: { containers: [ { name: vllm, env: [ { name: GLM_NCCL_RING_HOST, value: dgx2 }, { name: MENTAT_FABRIC_IP, value: "192.168.50.141" }, { name: GLOO_SOCKET_IFNAME, value: enP7s7 }, { name: NCCL_SOCKET_IFNAME, value: enP7s7 } ] } ] } } }
+   # La receta de GLM fija NCCL_IB_SUBNET_AWARE_ROUTING=1 (strusty, triangle-dgxos.yaml) y la del anillo escrito en el grafo no lo lleva: sale del ConfigMap solo aqui.
+   - patch: |-
+       apiVersion: v1
+diff --git a/overlays/glm53-tp3-ventana-k4-20261010/patch-nccl-ring.yaml b/overlays/glm53-tp3-ventana-k4-20261010/patch-nccl-ring.yaml
+index fef7f0e..092cf0f 100644
+--- a/overlays/glm53-tp3-ventana-k4-20261010/patch-nccl-ring.yaml
++++ b/overlays/glm53-tp3-ventana-k4-20261010/patch-nccl-ring.yaml
+@@ -23,7 +23,7 @@ spec:
+             - { name: NCCL_CUMEM_ENABLE, value: "1" }
+             - { name: NCCL_RUNTIME_CONNECT, value: "1" }
+             - { name: NCCL_ALGO, value: "Ring" }
+-            # El resto del entorno de la sonda. NCCL_CROSS_NIC=1 ya es el de recipe.env; NCCL_SOCKET_IFNAME y GLOO_SOCKET_IFNAME siguen siendo los de cada cable (GLM).
++            # El resto del entorno de la sonda. NCCL_CROSS_NIC=1 ya es el de recipe.env; NCCL_SOCKET_IFNAME y GLOO_SOCKET_IFNAME (la LAN, enP7s7) van en los parches por rango de kustomization.yaml.
+             - { name: NCCL_IB_MERGE_NICS, value: "0" }
+             - { name: NCCL_NET_PLUGIN, value: "none" }
+             - { name: NCCL_IB_DISABLE, value: "0" }
+diff --git a/tools/test_glm53_tp3_ventana.py b/tools/test_glm53_tp3_ventana.py
+index e9698ea..9e99a5d 100644
+--- a/tools/test_glm53_tp3_ventana.py
++++ b/tools/test_glm53_tp3_ventana.py
+@@ -43,6 +43,10 @@
+ # El anillo de rangos de GLM: dgx3 (rango 0) -> dgx1 (1) -> dgx2 (2) -> dgx3. Es el de qwen38 al reves y el del anillo ARX de la base.
+ ORDEN = ("dgx3", "dgx1", "dgx2")
+ ORDEN_QWEN38 = ("dgx2", "dgx1", "dgx3")
++# La LAN de gestion de cada Spark (enP7s7): por ella van el rendezvous y los bootstrap, como en el TP=3 de qwen38 (DGX-781/817) y en la sonda
++# (nccl_sonda.py CONTROL). Las IP son las de CLAUDE.md (nodos) y las del VLLM_HOST_IP de ese TP=3; el triangulo no tiene subred comun a los tres.
++LAN_IFNAME = "enP7s7"
++LAN = {"dgx1": "192.168.50.140", "dgx2": "192.168.50.141", "dgx3": "192.168.50.143"}
+ # Lo que la receta de GLM fija en contra y el overlay quita (C3), y lo que la receta de la sonda no lleva.
+ SIN = ("NCCL_IB_GID_INDEX", "NCCL_IB_SUBNET_AWARE_ROUTING", "NCCL_IB_SUBNET_PREFIX_LEN", "NCCL_IB_HCA", "NCCL_GRAPH_FILE")
+ MODO_K4 = {"KV_CACHE_MEMORY": "17179869184", "EXPECT_PAGESIZE": "4096", "REQUIRE_DISPRAM": "0"}
+@@ -114,9 +118,8 @@ def test_receta_nccl_de_la_sonda_v3c_en_los_tres_rangos(self):
+         for n, dep in rangos(self.objs).items():
+             with self.subTest(n=n):
+                 e = efectivo(self.objs, dep)
+-                base = efectivo(self.base, self.base[("Deployment", "llm", n)])
+-                # Los sockets de bootstrap son los de cada cable (la receta de GLM, que esta historia no toca); el resto es la sonda.
+-                esperado_n = {**esperado, "NCCL_SOCKET_IFNAME": base["NCCL_SOCKET_IFNAME"]}
++                # El socket de bootstrap de NCCL es el de la LAN (test_rendezvous_y_bootstrap_por_la_lan); el resto es la sonda.
++                esperado_n = {**esperado, "NCCL_SOCKET_IFNAME": LAN_IFNAME}
+                 self.assertEqual({k: v for k, v in e.items() if k.startswith("NCCL_")}, esperado_n)
+                 self.assertEqual(e["LD_PRELOAD"], sonda.LIB_PARCHEADA)
+                 self.assertEqual(e["VLLM_NCCL_SO_PATH"], sonda.LIB_PARCHEADA)
+@@ -130,6 +133,48 @@ def test_el_host_de_ring_conf_de_cada_rango(self):
+         for n, dep in rangos(self.objs).items():
+             self.assertEqual(efectivo(self.objs, dep)["GLM_NCCL_RING_HOST"], RANGOS[n][1], n)
+ 
++    def test_rendezvous_y_bootstrap_por_la_lan(self):
++        # El primer arranque (20:41Z) murio con `DistStoreError: ... 2/3 clients joined`: los tres rangos usaron tcp://10.0.2.3 (la IP del cable dgx3-dgx1) y
++        # dgx2 no la alcanza. La IP del rendezvous NO sale de VLLM_HOST_IP: RayExecutorV2 la pide a `ray.util.get_node_ip_address()` (vllm ddd6fbca,
++        # v1/executor/ray_executor_v2.py:131, 211 y 337), que en el shim de mentat 0.17.1 es MENTAT_FABRIC_IP y, si no, MENTAT_NODE_IP
++        # (python/ray/util/__init__.py:38). El valor de MENTAT_FABRIC_IP del contenedor llega al rango (hereda el entorno del agente; el demonio solo
++        # lo escribe si el grupo cae en una isla `rdma`, y mentat.env no lleva esa etiqueta): cada rango la lleva con SU IP de la LAN. Bootstrap de
++        # NCCL y gloo por la interfaz de la LAN, como el TP=3 de qwen38 que arranco.
++        self.assertEqual(LAN_IFNAME, ventana.sonda().CONTROL["NCCL_SOCKET_IFNAME"])
++        for n, dep in rangos(self.objs).items():
++            with self.subTest(n=n):
++                e = efectivo(self.objs, dep)
++                self.assertEqual(e["MENTAT_FABRIC_IP"], LAN[RANGOS[n][1]])
++                self.assertEqual(e["GLOO_SOCKET_IFNAME"], LAN_IFNAME)
++                self.assertEqual(e["NCCL_SOCKET_IFNAME"], LAN_IFNAME)
++
++    def test_mentat_se_queda_en_el_triangulo(self):
++        # S-6 (DGX-811: mentatd 6379/6380 solo por lo y los CX7): identidad, pares, cabeza y anuncios no cambian. En el contenedor vllm solo entra
++        # MENTAT_FABRIC_IP; MENTAT_NODE_IP no (con el, el agente reclamaria esa identidad: mentatd agent.rs claimed_node_ip).
++        self.assertEqual(cm_data(self.objs, "glm53-tp3-mentat"), cm_data(self.base, "glm53-tp3-mentat"))
++        for n, dep in rangos(self.objs).items():
++            with self.subTest(n=n):
++                base = self.base[("Deployment", "llm", n)]
++                e, e0 = efectivo(self.objs, dep), efectivo(self.base, base)
++                self.assertNotIn("MENTAT_NODE_IP", e)
++                self.assertEqual({k for k in e if k.startswith("MENTAT_")} - {k for k in e0 if k.startswith("MENTAT_")}, {"MENTAT_FABRIC_IP"})
++                for k in ("HEAD_HOST", "VLLM_HOST_IP", "CLUSTER_SUBNET", "FABRIC_SUBNETS", "ARX_RING_NEXT_HCAS", "ARX_RING_PREV_HCAS"):
++                    self.assertEqual(e[k], e0[k], k)
++                self.assertTrue(e["HEAD_HOST"].startswith("10.0."), "HEAD_HOST es la direccion del demonio de la cabeza por el triangulo")
++                mentatd = lambda d: next(c for c in d["spec"]["template"]["spec"]["containers"] if c["name"] == "mentatd")  # noqa: E731
++                self.assertEqual(mentatd(dep), mentatd(base))
++                for ic, ic0 in zip(dep["spec"]["template"]["spec"]["initContainers"], base["spec"]["template"]["spec"]["initContainers"]):
++                    self.assertEqual(ic.get("env"), ic0.get("env"))  # EXPECT_ADDRS: los cuatro CX7 de cada nodo
++
++    def test_vllm_host_ip_no_pasa_a_la_lan_porque_el_entrypoint_lo_ata_a_head_host(self):
++        # kindling a3c3a1d image/entrypoint.sh:424-431: con ROLE=head, VLLM_HOST_IP tiene que ser HEAD_HOST (y en un worker, no serlo), y HEAD_HOST
++        # es la direccion del demonio de la cabeza (RAY_ADDRESS=HEAD_HOST:6379, por el triangulo, S-6). VLLM_HOST_IP en la LAN pararia la cabeza
++        # en el arranque (FATAL) y no movia el rendezvous (ver el test anterior). Las dos direcciones por rango se quedan como en la base.
++        for n, dep in rangos(self.objs).items():
++            with self.subTest(n=n):
++                e = efectivo(self.objs, dep)
++                self.assertEqual(e["VLLM_HOST_IP"] == e["HEAD_HOST"], e["ROLE"] == "head")
++
+     def test_sin_el_chequeo_nccl_del_entrypoint(self):
+         # fabric-check.py (FABRIC_CHECK=1, el defecto) corre un all-reduce NCCL con los rangos en ORDEN DE LLEGADA, no en el del anillo del
+         # grafo: con la lib y el grafo de la receta colgaria hasta su tope. Es el mando que documenta el entrypoint (aviso solamente).

@@ -1,0 +1,219 @@
+diff --git a/CONTRACTS.yaml b/CONTRACTS.yaml
+index debbb5eb..2101774c 100644
+--- a/CONTRACTS.yaml
++++ b/CONTRACTS.yaml
+@@ -851,6 +851,23 @@ contracts:
+       `propio` engine's marker stays `v1`, another comment. Any change
+       to the line is a new ci.llm-review-bot.marcador.v3 entry beside this one, never an edit. Marker:
+       `# CONTRACT: ci.llm-review-bot.marcador.v2` on `MARCADOR_V2_RE`.
++  - id: cli.company-aprobar.aprobar
++    kind: schema
++    value: "company-aprobar <owner/repo>#<n> --rol qa|architect|security --aprueba|--rechaza --nota \"<por qué>\""
++    role: provider
++    files:
++      - libexec/company-aprobar
++    status: active
++    note: >-
++      The verdict signature: posts the commit status `aprobacion/<rol>` on the PR head via the real gh (shared
++      `pocharlies` token, so the status itself carries no role identity). SC-2169 (09-10-2026, incident on
++      k8s-openclaw-qwen36#574 head 1764584c: an sre-devops Hermes profile signed `aprobacion/qa`): when the
++      environment carries JIRA_ROL it must equal `--rol`, inside and outside a company session; without JIRA_ROL
++      and outside a session only the live subagent signs (SC-2222), judged by the company-roles guard on
++      `agent_type`. The gh wrapper routes every call mentioning `status` or `aprobacion` and blocks writes to
++      either endpoint form (`/statuses/<sha>` and `/commits/<sha>/status`, repos or repositories id) that
++      mention `aprobacion/`, so the verdict cannot be written by hand around this command. Consumers: qa, architect, security, the async
++      tech-lead's Workflow children (SC-2111). Marker: `# CONTRACT: cli.company-aprobar.aprobar` on `aprobar()`.
+   - id: cli.company-aprobar.fusionar
+     kind: schema
+     value: "company-aprobar fusionar <owner/repo>#<n>"
+diff --git a/bin/gh b/bin/gh
+index 96aa1c95..fa84e418 100755
+--- a/bin/gh
++++ b/bin/gh
+@@ -21,6 +21,8 @@ fi
+ # Ni HOME ni PATH ni PYTHONPATH (architect, #557): con ellos, `HOME=/tmp/x gh pr merge` ejecutaría una puerta falsa.
+ APROBAR="$(/usr/bin/getent passwd "$(/usr/bin/id -u)" | /usr/bin/cut -d: -f6)/.local/libexec/x86-host-runtime/company-aprobar"
+ case "$*" in
+-  *[Mm]erge*|*[Gg]raph[Qq][Ll]*) exec /usr/bin/python3 -I "$APROBAR" envoltorio "$REAL" "$@" ;;
++  # SC-2169: «status» enruta también los endpoints de estados de commit (es prefijo de «statuses»), y
++  # «aprobacion» los que escriban un veredicto por cualquier otra vía; company-aprobar decide en `que_es`.
++  *[Mm]erge*|*[Gg]raph[Qq][Ll]*|*status*|*aprobacion*) exec /usr/bin/python3 -I "$APROBAR" envoltorio "$REAL" "$@" ;;
+ esac
+ exec "$REAL" "$@"
+diff --git a/ci/test_company_aprobar.py b/ci/test_company_aprobar.py
+index a84ee99c..a994c209 100644
+--- a/ci/test_company_aprobar.py
++++ b/ci/test_company_aprobar.py
+@@ -343,7 +343,9 @@ def test_el_cli_dice_de_que_sha_sale_cada_veredicto_tambien_cuando_esta_lista(se
+ 
+     def test_aprobar_firma_el_head(self):
+         gh = GhFalso({"headRefOid": self.HEAD})
+-        with mock.patch.object(ca, "_gh", side_effect=gh):
++        with mock.patch.dict(os.environ), mock.patch.object(ca, "_gh", side_effect=gh):
++            os.environ.pop("JIRA_ROL", None)          # SC-2169: con un rol ajeno en el entorno del test no firmaría
++            os.environ.pop("COMPANY_SESION", None)
+             ca.aprobar("o/r", "7", "qa", True, "ok", None)
+         self.assertTrue(any(c[0] == "api" and c[1].endswith(f"/statuses/{self.HEAD}") for c in gh.llamadas), gh.llamadas)
+ 
+@@ -428,7 +430,7 @@ def gh(*args):
+         self.assertIn("state=success", post)
+ 
+     def test_la_nota_es_obligatoria(self):
+-        with self.assertRaises(ValueError):
++        with mock.patch.dict(os.environ, {"JIRA_ROL": "qa"}), self.assertRaises(ValueError):
+             ca.aprobar("o/r", "7", "qa", True, "  ", None)
+ 
+     def test_security_registra_su_contexto_propio(self):
+@@ -450,9 +452,32 @@ def test_security_no_se_suplanta_dentro_de_la_compania(self):
+                 ca.aprobar("o/r", "7", "security", True, "sí, soy security", None)
+ 
+     def test_un_rol_que_no_aprueba_sigue_fuera(self):
+-        with self.assertRaises(ValueError):
++        with mock.patch.dict(os.environ, {"JIRA_ROL": "developer"}), self.assertRaises(ValueError):
+             ca.aprobar("o/r", "7", "developer", True, "me autoapruebo", None)
+ 
++    def test_sc2169_un_perfil_con_rol_no_firma_como_qa_fuera_de_sesion(self):
++        """SC-2169: el check corría solo con COMPANY_SESION=1 y un perfil Hermes de sre-devops (JIRA_ROL puesto,
++        sin la marca) firmó `aprobacion/qa`. Con JIRA_ROL en el entorno, el rol manda siempre."""
++        for sesion in (None, "0", ""):
++            entorno = {"JIRA_ROL": "sre-devops"} if sesion is None else {"JIRA_ROL": "sre-devops", "COMPANY_SESION": sesion}
++            with self.subTest(sesion=sesion), mock.patch.dict(os.environ, entorno):
++                with self.assertRaises(PermissionError):
++                    ca.aprobar("o/r", "7", "qa", True, "lo di yo", None)
++
++    def test_sc2169_el_subagente_en_vivo_sin_jira_rol_sigue_firmando(self):
++        """SC-2222: el subagente de live no lleva JIRA_ROL y su identidad la juzga el guard de company-roles por
++        `agent_type`; sin rol y fuera de sesión no se le puede vetar por ausencia (era el caso del docstring)."""
++        llamadas = []
++
++        def gh(*args):
++            llamadas.append(args)
++            return {"headRefOid": "e" * 40} if args[:2] == ("pr", "view") else None
++        with mock.patch.dict(os.environ), mock.patch.object(ca, "_gh", side_effect=gh):
++            os.environ.pop("JIRA_ROL", None)
++            os.environ.pop("COMPANY_SESION", None)
++            ca.aprobar("o/r", "7", "qa", True, "revisado por el hijo company-qa", None)
++        self.assertIn("context=aprobacion/qa", llamadas[-1])
++
+     def _firma(self, entorno, rol):
+         """aprobar() con ese entorno de la unidad; devuelve las llamadas a gh (vacío si la negó)."""
+         llamadas = []
+@@ -615,6 +640,25 @@ def test_graphql_y_alias_se_bloquean(self):
+         self.assertEqual(ca.que_es(["api", "graphql", "-f", "query=mutation{mergePullRequest(input:{})}"])[0], "bloqueo")
+         self.assertEqual(ca.que_es(["alias", "set", "pm", "pr merge"])[0], "bloqueo")
+ 
++    def test_sc2169_firmar_aprobacion_por_gh_api_se_bloquea(self):
++        """SC-2169: `gh api .../statuses/<sha> -f context=aprobacion/qa` escribía el veredicto a mano, sin cuenta."""
++        sha = "a" * 40
++        for args in (["api", f"repos/o/r/statuses/{sha}", "-f", "context=aprobacion/qa", "-f", "state=success"],
++                     ["api", "-X", "POST", f"repos/o/r/statuses/{sha}", "-F", "context=aprobacion/security"],
++                     ["api", f"/repos/o/r/statuses/{sha}", "-f", "description=APROBADO: lo di yo",
++                      "-f", "context=aprobacion/architect", "-f", "state=success"],
++                     # qa (70-qa.md del #841): la otra forma del endpoint de create-commit-status
++                     ["api", f"repos/o/r/commits/{sha}/status", "-f", "context=aprobacion/qa", "-f", "state=success"],
++                     ["api", "-X", "POST", f"repositories/123/commits/{sha}/status", "-f", "context=aprobacion/qa"]):
++            self.assertEqual(ca.que_es(args)[0], "bloqueo", args)
++
++    def test_leer_unos_statuses_o_escribir_un_contexto_ajeno_no_es_firmar(self):
++        sha = "a" * 40
++        self.assertEqual(ca.que_es(["api", f"repos/o/r/statuses/{sha}"])[0], "otro", "leer el estado no es firmar")
++        self.assertEqual(ca.que_es(["api", f"repos/o/r/commits/{sha}/status"])[0], "otro", "leer por la otra forma tampoco")
++        self.assertEqual(ca.que_es(["api", "-X", "POST", f"repos/o/r/statuses/{sha}", "-f", "context=ci/otro",
++                                   "-f", "state=success"])[0], "otro", "otro contexto no es un veredicto")
++
+ 
+ class Envoltorio(unittest.TestCase):
+     def test_merge_no_listo_no_llega_al_gh_de_verdad(self):
+diff --git a/ci/test_gh_puerta.py b/ci/test_gh_puerta.py
+index 7c126a58..0ec34205 100644
+--- a/ci/test_gh_puerta.py
++++ b/ci/test_gh_puerta.py
+@@ -73,6 +73,26 @@ def test_lo_demas_pasa_directo(self):
+         self.assertIn("REAL pr view 7", r.stdout)
+         self.assertNotIn("aprobar", r.stdout)
+ 
++    def test_sc2169_escribir_aprobacion_por_api_enruta_a_la_puerta(self):
++        """SC-2169 (qa, 70-qa.md del #841): el `case` del envoltorio solo mencionaba merge/graphql y un
++        `gh api .../statuses` escribía veredictos sin pasar por company-aprobar. Debe enrutarlos."""
++        sha = "a" * 40
++        for args in ([f"repos/o/r/statuses/{sha}", "-f", "context=aprobacion/qa", "-f", "state=success"],
++                     [f"repos/o/r/commits/{sha}/status", "-f", "context=aprobacion/qa"]):
++            r = self._correr(["api", *args], 1)
++            with self.subTest(args=args):
++                self.assertNotEqual(r.returncode, 0)
++                self.assertNotIn("REAL", r.stdout, "la escritura no debe llegar al gh de verdad")
++                self.assertIn("aprobar envoltorio", r.stdout)
++
++    def test_sc2169_leer_statuses_tambien_enruta_pero_no_bloquea(self):
++        """Leer estados pasa por el envoltorio (menciona «status») pero `que_es` dice «otro» y la puerta
++        deja pasar (el exec del gh de verdad con «otro» lo prueba test_company_aprobar.Envoltorio)."""
++        sha = "a" * 40
++        r = self._correr(["api", f"repos/o/r/commits/{sha}/status"], 0)
++        self.assertEqual(r.returncode, 0)
++        self.assertIn("aprobar envoltorio", r.stdout)
++
+ 
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/libexec/company-aprobar b/libexec/company-aprobar
+index bbbd0819..a67423bf 100755
+--- a/libexec/company-aprobar
++++ b/libexec/company-aprobar
+@@ -17,8 +17,10 @@ envoltorio de `gh` (bin/gh) no deja hacer `gh pr merge` hasta que `listo()` diga
+   company-aprobar hallazgos <owner/repo>#<n> [--json]   (SC-2182: lo que dijo el juez sobre el head)
+   company-aprobar muestra <owner/repo>#<n>... | --desde <ISO> [--json]   (SC-2217: de cada PR, el juez, su diff y su texto, de una vez)
+ 
+-En una sesión de la compañía el rol sale de JIRA_ROL y no se puede suplantar; fuera (una sesión interactiva que usa
+-los agentes company-qa / company-architect) se pasa con --rol. Una sola excepción (SC-2111): el tech-lead asíncrono lleva
++El rol sale de JIRA_ROL y, cuando lo lleva, `--rol` debe coincidir SIEMPRE, dentro y fuera de una sesión de la
++compañía (SC-2169: un perfil Hermes de sre-devops firmó `aprobacion/qa` porque el check solo corría con
++COMPANY_SESION=1). Sin JIRA_ROL y fuera de sesión solo firma el subagente en vivo (SC-2222), cuya identidad juzga
++el guard de company-roles por `agent_type`. Una sola excepción (SC-2111): el tech-lead asíncrono lleva
+ a qa y architect como hijos de su Workflow, que heredan su entorno (JIRA_ROL=tech-lead); `aprobar` deja pasar
+ `--rol qa|architect` con COMPANY_SESION=1 ∧ JIRA_ROL=tech-lead, fijado aquí y nunca por una variable. Que el hijo sea de
+ verdad qa o architect (y no el propio tech-lead, ni un hijo genérico) lo comprueba el guard de company-roles por
+@@ -540,6 +542,7 @@ def estado(repo: str, n: str) -> dict:
+             "juez": {k: v for k, v in juez.items() if k != "hallazgos"} if juez else None}
+ 
+ 
++# CONTRACT: cli.company-aprobar.aprobar
+ def aprobar(repo: str, n: str, rol: str, aprueba: bool, nota: str, url: str | None) -> str:
+     propio = os.getenv("JIRA_ROL")
+     sesion = os.getenv("COMPANY_SESION") == "1"
+@@ -547,8 +550,14 @@ def aprobar(repo: str, n: str, rol: str, aprueba: bool, nota: str, url: str | No
+         if not (sesion and rol in ROLES):
+             raise PermissionError(f"el tech-lead solo firma como {' o '.join(ROLES)}, por los hijos de su Workflow y dentro de su "
+                                   f"sesión de la compañía: --rol {rol} no")
+-    elif sesion and propio != rol:
+-        raise PermissionError(f"esta sesión es de {propio or 'otro rol'}: solo {rol} aprueba como {rol}")
++    elif propio is None and not sesion:
++        pass                       # SC-2222: el subagente en vivo no lleva JIRA_ROL; su identidad la juzga el guard
++                                   # de company-roles por `agent_type`, no el entorno. Sin rol ni sesión no se le veta.
++    elif propio != rol:            # SC-2169: con rol en el entorno manda siempre, dentro y fuera de una sesión
++                                   # (un perfil Hermes de sre-devops firmó `aprobacion/qa` porque el check solo
++                                   # corría con COMPANY_SESION=1)
++        raise PermissionError(f"quien firma es {propio or 'una sesión sin JIRA_ROL'}: el veredicto de {rol} solo lo registra "
++                              f"su cuenta (JIRA_ROL={rol}); quien no es {rol} no firma por él")
+     if rol not in APROBADORES:
+         raise ValueError(f"rol {rol!r}: solo {', '.join(APROBADORES)} aprueban")
+     if not nota.strip():
+@@ -758,6 +767,9 @@ def puerta(args: list[str], juzgado: dict | None = None) -> int:
+ # qué llamada es un merge; bin/gh solo la trae cuando menciona «merge».
+ MERGE_API_RE = re.compile(r"(?:^|/)repos/([^/]+)/([^/]+)/pulls/(\d+)/merge/?$")
+ MERGE_API_ID_RE = re.compile(r"(?:^|/)repositories/\d+/pulls/\d+/merge/?$")
++# SC-2169: escribir a mano un estado `aprobacion/*` con `gh api` saltaba la firma por cuenta del rol.
++# Las dos formas del endpoint: /statuses/<sha> y /commits/<sha>/status (qa, 70-qa.md del #841).
++STATUS_API_RE = re.compile(r"(?:^|/)(?:repos/[^/]+/[^/]+|repositories/\d+)/(?:statuses/[^/?]+|commits/[^/?]+/status)(?:\?|$)")
+ GRAPHQL_MERGE = ("mergePullRequest", "enablePullRequestAutoMerge", "mergeBranch")
+ FLAGS_CON_VALOR = ("-R", "--repo", "--hostname")
+ 
+@@ -820,6 +832,9 @@ def que_es(args: list[str]) -> tuple[str, object]:
+     if cmd == "pr" and sub == "merge":
+         return "pr-merge", resto
+     if cmd == "api":
++        if any(STATUS_API_RE.search(a.split("?", 1)[0]) for a in args) and any("aprobacion/" in a for a in args):
++            return "bloqueo", ("un veredicto `aprobacion/*` no se registra con `gh api`: usa `company-aprobar <repo>#<n> "
++                               "--rol <tu rol> --aprueba|--rechaza --nota …`, que exige la cuenta del rol (SC-2169)")
+         for a in args:
+             m = MERGE_API_RE.search(a.split("?", 1)[0])
+             if m and _metodo(args) == "PUT":

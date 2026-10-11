@@ -1,0 +1,319 @@
+diff --git a/.company/evidence/DGX-815-sonda-v3-subpath.md b/.company/evidence/DGX-815-sonda-v3-subpath.md
+new file mode 100644
+index 0000000..8e7d805
+--- /dev/null
++++ b/.company/evidence/DGX-815-sonda-v3-subpath.md
+@@ -0,0 +1,48 @@
++# DGX-810 · sonda NCCL v3b (montaje del volumen image con subPath), rama DGX-815-sonda-v3-subpath
++
++Donde: x86, worktree sobre pin/sparks-ventana-20261010 en 5a1789d. Cluster: solo lectura (`kubectl get nodes`) y un `kubectl apply --dry-run=server` de los tres Jobs; no se ha creado nada.
++Comandos: `python3 -m unittest tools.test_sparks_ventana_pin` (con y sin `NCCL_RING_DIR`) y `ruff check` 0.12.4 sobre la sonda y el test.
++
++## Causa (los v3 de #156)
++Los tres Jobs fallaron antes de empezar: `can't open file '/opt/nccl-ring/nccl_ring_graph.py'`. Un volumen `image` monta la RAIZ de la imagen. Los COPY de
++`images/nccl-ring/Dockerfile` en main f1ace9f (lineas 59-61) dejan `/opt/nccl-ring/lib/libnccl.so.2`, `/opt/nccl-ring/nccl_ring_graph.py` y `/opt/nccl-ring/ring.conf`,
++asi que con `mountPath: /opt/nccl-ring` y sin subPath quedaban en `/opt/nccl-ring/opt/nccl-ring/...` (y el `LD_PRELOAD` apuntaba al mismo sitio vacio).
++
++## Arreglo
++`subPath: opt/nccl-ring` en el montaje: el directorio de la raiz de la imagen es el que se monta en `/opt/nccl-ring`, y las rutas de `nccl_sonda.py`
++(`LIB_PARCHEADA`, `GENERADOR`) quedan como estaban. Los volumenes `image` admiten subPath desde k8s 1.33; kubelet y containerd de los 8 nodos: v1.36.2+k3s1 / containerd 2.3.2-k3s2.
++Un Job no se puede cambiar: `sparks-nccl-sonda-v3b-dgx1/2/3` (fichero `nccl-sonda-v3b-jobs.yaml`, label `app: sparks-nccl-sonda-v3b`) y los `sparks-nccl-sonda-v3-dgxN` ya no estan en el render, para que el prune de `ai` se los lleve.
++
++## Rojo con el montaje de #156
++Resultado: FAIL (esperado). Quitando `subPath` de los tres montajes del manifiesto v3b, `test_las_rutas_de_la_sonda_son_las_de_los_copy_del_dockerfile_mas_el_montaje` falla en los tres hosts:
++```
++AssertionError: Tuples differ: ('/opt/nccl-ring/lib/libnccl.so.2', '/opt/nccl-ring/nccl_ring_graph.py') != ('/opt/nccl-ring/opt/nccl-ring/lib/libnccl.so.2', ...)
++```
++Antes de este cambio ningun test lo veia: `test_la_lib_y_el_generador_son_los_de_la_imagen_montada_en_el_job` compara la sonda con constantes del propio test, no con el Dockerfile.
++
++## Verde: esta rama
++Resultado: PASS.
++```
++$ python3 -m unittest tools.test_sparks_ventana_pin
++Ran 60 tests in 3.6s
++OK (skipped=1)
++$ NCCL_RING_DIR=<generador y ring.conf de main f1ace9f> python3 -m unittest tools.test_sparks_ventana_pin
++Ran 60 tests in 3.9s
++OK
++$ ruff check (0.12.4) overlays/sparks-ventana-20261010/nccl_sonda.py tools/test_sparks_ventana_pin.py
++All checks passed!
++$ kubectl apply --dry-run=server -f <los tres Jobs v3b del render>
++job.batch/sparks-nccl-sonda-v3b-dgx{1,2,3} created (server dry run)
++```
++El test omitido sin `NCCL_RING_DIR` es el que corre `casos_v3` con el generador de verdad (no esta en esta linea); no cambia con esta PR.
++
++## Que prueba cada cosa (C1, C2)
++- C1: el render de la ventana trae los tres Jobs `sparks-nccl-sonda-v3b-dgxN` con el volumen `image` por digest y el montaje con `subPath: opt/nccl-ring`; ningun `sparks-nccl-sonda-v3-*`
++  (`test_los_v3_de_156_no_estan_en_el_render_y_los_v3b_si`, `test_ventana_no_toca_nada_mas`). Siguen siendo el Job de la v2 mas el volumen, su montaje y el pull secret.
++- C2: `test_las_rutas_de_la_sonda_son_las_de_los_copy_del_dockerfile_mas_el_montaje` fija las tres rutas del Dockerfile de main (`DOCKERFILE_NCCL_RING`), las lleva a traves del
++  montaje de cada Job (`ruta_en_contenedor`: mountPath + ruta menos subPath) y exige que coincidan con `LIB_PARCHEADA` y `GENERADOR` de la sonda, y que `ring.conf` quede junto al generador
++  (lo lee con `Path(__file__).with_name`). `test_el_montaje_de_156_sin_subpath_no_casaba_con_las_rutas_de_la_sonda` fija el caso que fallo.
++
++## Lo que no prueba (es de la ventana)
++Que el kubelet monte el subPath de un volumen `image` en los Sparks y que NCCL complete el all-reduce con la lib parcheada: lo dira `kubectl logs` de los tres Jobs v3b.
++Si el subPath no entrase, el Job fallaria igual antes de empezar y el log dira el fichero que falta.
+diff --git a/overlays/sparks-ventana-20261010/kustomization.yaml b/overlays/sparks-ventana-20261010/kustomization.yaml
+index 52bd631..907cbf0 100644
+--- a/overlays/sparks-ventana-20261010/kustomization.yaml
++++ b/overlays/sparks-ventana-20261010/kustomization.yaml
+@@ -9,8 +9,9 @@
+ #    que llega con el arbitro ya en sync-paused (otro commit de esta ventana, o la vuelta) o en el recovering que deja el
+ #    prune de head y worker (profile_components_missing con solo esos dos deployments), que pausa igual que desde ready.
+ # Mas la sonda: nccl_sonda.py (ConfigMap sparks-nccl-sonda) y un Job por Spark: v1 en nccl-sonda-jobs.yaml, v2 (anillo de
+-# NCCL escrito a mano) en nccl-sonda-v2-jobs.yaml y v3 (DGX-815: la v2 con la libnccl.so.2 parcheada de la imagen nccl-ring,
+-# montada como volumen de imagen por digest) en nccl-sonda-v3-jobs.yaml.
++# NCCL escrito a mano) en nccl-sonda-v2-jobs.yaml y v3b (DGX-815: la v2 con la libnccl.so.2 parcheada de la imagen nccl-ring,
++# montada como volumen de imagen por digest, con subPath) en nccl-sonda-v3b-jobs.yaml. Los v3 de #156 no arrancaron (montaje
++# sin subPath) y no estan en el render: el prune de `ai` se los lleva.
+ # VUELTA: PR de k8s-gitops-pocharlies que pone `ai` en el mismo SHA con path overlays/sparks-ventana-salida-20261010
+ # (el render de a51da60 con esta misma pausa). Volver a a51da60 tal cual no pasa: su pausa aborta en sync-paused.
+ apiVersion: kustomize.config.k8s.io/v1beta1
+@@ -19,7 +20,7 @@ resources:
+   - ../ornith-sm121v5-lmheadw4-20260721
+   - nccl-sonda-jobs.yaml
+   - nccl-sonda-v2-jobs.yaml
+-  - nccl-sonda-v3-jobs.yaml
++  - nccl-sonda-v3b-jobs.yaml
+ components:
+   - ../../k8s/components/sparks-ventana-pausa-20261010
+ configMapGenerator:
+diff --git a/overlays/sparks-ventana-20261010/nccl-sonda-v3-jobs.yaml b/overlays/sparks-ventana-20261010/nccl-sonda-v3b-jobs.yaml
+similarity index 77%
+rename from overlays/sparks-ventana-20261010/nccl-sonda-v3-jobs.yaml
+rename to overlays/sparks-ventana-20261010/nccl-sonda-v3b-jobs.yaml
+index 2c306fa..1479fff 100644
+--- a/overlays/sparks-ventana-20261010/nccl-sonda-v3-jobs.yaml
++++ b/overlays/sparks-ventana-20261010/nccl-sonda-v3b-jobs.yaml
+@@ -3,18 +3,22 @@
+ # misma sonda con la libnccl.so.2 parcheada de la imagen nccl-ring (images/nccl-ring, DGX-815): el Job la monta como volumen de imagen por digest
+ # (kubelet la baja de Harbor con harbor-pull) en /opt/nccl-ring, solo lectura, y nccl_sonda.py la carga con LD_PRELOAD en el hijo de cada caso y
+ # escribe el grafo con el generador de esa imagen. Matriz `v3`: la lib parcheada sin grafo (control) y con el grafo de 2 y de 4 canales.
+-# Un Job no se puede cambiar: nombres nuevos, y los v1 y v2 se quedan en el render con sus logs. Todo lo demas, igual que los v2: hostNetwork,
+-# /dev/infiniband, IPC_LOCK, sin secretos, imagen vLLM 96b234af y una GPU, la del nodo (tools/test_sparks_ventana_pin.py comprueba que son el v2
+-# mas el volumen, su montaje y el pull secret). La evidencia es `kubectl logs` de los tres: una linea JSON por caso en stdout (con `nccl_libs`
+-# y `canales_net`, las lineas «Channel ... via NET/IB/N» de send y receive) y el grafo de cada caso, en stderr. Sin ttlSecondsAfterFinished,
+-# por lo mismo que los v1: ArgoCD recrearia un Job borrado y la sonda se repetiria.
++# v3b (DGX-810): los v3 (#156) fallaron antes de empezar con «can't open file '/opt/nccl-ring/nccl_ring_graph.py'». Un volumen `image` monta la
++# RAIZ de la imagen, y los COPY del Dockerfile de nccl-ring dejan los ficheros en /opt/nccl-ring/ de esa raiz: con mountPath /opt/nccl-ring
++# quedaban en /opt/nccl-ring/opt/nccl-ring/. `subPath: opt/nccl-ring` (los volumenes image lo admiten desde k8s 1.33) monta solo ese
++# directorio y las rutas de nccl_sonda.py quedan como estaban. Un Job no se puede cambiar: nombres nuevos (v3b) y los v3 salen del render,
++# para que el prune de `ai` los borre; no tienen mas log que ese error. Los v1 y v2 se quedan con sus logs. Todo lo demas, igual que los v2:
++# hostNetwork, /dev/infiniband, IPC_LOCK, sin secretos, imagen vLLM 96b234af y una GPU, la del nodo (tools/test_sparks_ventana_pin.py comprueba
++# que son el v2 mas el volumen, su montaje y el pull secret, y que el montaje casa con los COPY del Dockerfile). La evidencia es `kubectl logs`
++# de los tres: una linea JSON por caso en stdout (con `nccl_libs` y `canales_net`, las lineas «Channel ... via NET/IB/N» de send y receive) y
++# el grafo de cada caso, en stderr. Sin ttlSecondsAfterFinished, por lo mismo que los v1: ArgoCD recrearia un Job borrado y la sonda se repetiria.
+ apiVersion: batch/v1
+ kind: Job
+ metadata:
+-  name: sparks-nccl-sonda-v3-dgx2
++  name: sparks-nccl-sonda-v3b-dgx2
+   namespace: llm
+   labels:
+-    app: sparks-nccl-sonda-v3
++    app: sparks-nccl-sonda-v3b
+ spec:
+   backoffLimit: 0
+   # barrera inicial (1800 s) + 3 casos x (tope 240 s + margen)
+@@ -22,7 +26,7 @@ spec:
+   template:
+     metadata:
+       labels:
+-        app: sparks-nccl-sonda-v3
++        app: sparks-nccl-sonda-v3b
+     spec:
+       restartPolicy: Never
+       imagePullSecrets:
+@@ -56,7 +60,7 @@ spec:
+             - { name: sonda, mountPath: /sonda, readOnly: true }
+             - { name: infiniband, mountPath: /dev/infiniband }
+             - { name: shm, mountPath: /dev/shm }
+-            - { name: nccl-ring, mountPath: /opt/nccl-ring, readOnly: true }
++            - { name: nccl-ring, mountPath: /opt/nccl-ring, subPath: opt/nccl-ring, readOnly: true }
+       volumes:
+         - name: sonda
+           configMap: { name: sparks-nccl-sonda }
+@@ -72,10 +76,10 @@ spec:
+ apiVersion: batch/v1
+ kind: Job
+ metadata:
+-  name: sparks-nccl-sonda-v3-dgx1
++  name: sparks-nccl-sonda-v3b-dgx1
+   namespace: llm
+   labels:
+-    app: sparks-nccl-sonda-v3
++    app: sparks-nccl-sonda-v3b
+ spec:
+   backoffLimit: 0
+   # barrera inicial (1800 s) + 3 casos x (tope 240 s + margen)
+@@ -83,7 +87,7 @@ spec:
+   template:
+     metadata:
+       labels:
+-        app: sparks-nccl-sonda-v3
++        app: sparks-nccl-sonda-v3b
+     spec:
+       restartPolicy: Never
+       imagePullSecrets:
+@@ -117,7 +121,7 @@ spec:
+             - { name: sonda, mountPath: /sonda, readOnly: true }
+             - { name: infiniband, mountPath: /dev/infiniband }
+             - { name: shm, mountPath: /dev/shm }
+-            - { name: nccl-ring, mountPath: /opt/nccl-ring, readOnly: true }
++            - { name: nccl-ring, mountPath: /opt/nccl-ring, subPath: opt/nccl-ring, readOnly: true }
+       volumes:
+         - name: sonda
+           configMap: { name: sparks-nccl-sonda }
+@@ -133,10 +137,10 @@ spec:
+ apiVersion: batch/v1
+ kind: Job
+ metadata:
+-  name: sparks-nccl-sonda-v3-dgx3
++  name: sparks-nccl-sonda-v3b-dgx3
+   namespace: llm
+   labels:
+-    app: sparks-nccl-sonda-v3
++    app: sparks-nccl-sonda-v3b
+ spec:
+   backoffLimit: 0
+   # barrera inicial (1800 s) + 3 casos x (tope 240 s + margen)
+@@ -144,7 +148,7 @@ spec:
+   template:
+     metadata:
+       labels:
+-        app: sparks-nccl-sonda-v3
++        app: sparks-nccl-sonda-v3b
+     spec:
+       restartPolicy: Never
+       imagePullSecrets:
+@@ -178,7 +182,7 @@ spec:
+             - { name: sonda, mountPath: /sonda, readOnly: true }
+             - { name: infiniband, mountPath: /dev/infiniband }
+             - { name: shm, mountPath: /dev/shm }
+-            - { name: nccl-ring, mountPath: /opt/nccl-ring, readOnly: true }
++            - { name: nccl-ring, mountPath: /opt/nccl-ring, subPath: opt/nccl-ring, readOnly: true }
+       volumes:
+         - name: sonda
+           configMap: { name: sparks-nccl-sonda }
+diff --git a/overlays/sparks-ventana-20261010/nccl_sonda.py b/overlays/sparks-ventana-20261010/nccl_sonda.py
+index 820cb6a..89ed5f9 100644
+--- a/overlays/sparks-ventana-20261010/nccl_sonda.py
++++ b/overlays/sparks-ventana-20261010/nccl_sonda.py
+@@ -19,11 +19,11 @@
+ «On cables, with no switch», e image/fabric_ring.py de kindlingai/glm-5.3-flash-gx10@a3c3a1d7); ese repo no tiene licencia:
+ solo se ha leido como referencia, el codigo es propio.
+ 
+-Matriz v3 (argumento `v3`, los Jobs sparks-nccl-sonda-v3-dgxN, DGX-815): la v2 con la libnccl.so.2 parcheada de la imagen nccl-ring
++Matriz v3 (argumento `v3`, los Jobs sparks-nccl-sonda-v3b-dgxN, DGX-815): la v2 con la libnccl.so.2 parcheada de la imagen nccl-ring
+ (images/nccl-ring: con una GPU por nodo envia por la segunda <net> del canal y recibe por la primera), que el Job monta como volumen
+-de imagen en /opt/nccl-ring y cada caso carga con LD_PRELOAD en su hijo. El grafo lo escribe el generador de esa imagen
+-(nccl_ring_graph.py, con la copia de ring.conf), no `grafo()` de aqui. Casos: la lib parcheada sin grafo (el control) y con el grafo de 2
+-y de 4 canales. En la linea JSON de cada caso, `nccl_libs` (las libnccl que el hijo tiene mapeadas) y `canales_net` (las lineas
++de imagen en /opt/nccl-ring (subPath opt/nccl-ring: los COPY de la imagen dejan ahi sus ficheros, dentro de su raiz) y cada caso carga
++con LD_PRELOAD en su hijo. El grafo lo escribe el generador de esa imagen (nccl_ring_graph.py, con la copia de ring.conf), no `grafo()` de aqui.
++Casos: la lib parcheada sin grafo (el control) y con el grafo de 2 y de 4 canales. En la linea JSON de cada caso, `nccl_libs` (las libnccl que el hijo tiene mapeadas) y `canales_net` (las lineas
+ «Channel ... [send|receive] via NET/IB/N» de NCCL, la evidencia de por que dispositivo envia y recibe cada canal).
+ """
+ 
+diff --git a/tools/test_sparks_ventana_pin.py b/tools/test_sparks_ventana_pin.py
+index 16806a3..d0a53e2 100644
+--- a/tools/test_sparks_ventana_pin.py
++++ b/tools/test_sparks_ventana_pin.py
+@@ -25,6 +25,7 @@
+ import ipaddress
+ import json
+ import os
++import posixpath
+ import re
+ import subprocess
+ import sys
+@@ -57,6 +58,9 @@
+ NCCL_RING = "harbor.lan.e-dani.com/homelab/nccl-ring@sha256:79db26e7877a099847cf12c2067a3dd3f02156c51a0d77386691b272316ce77e"
+ NCCL_RING_MONTAJE = "/opt/nccl-ring"
+ LIB_PARCHEADA = f"{NCCL_RING_MONTAJE}/lib/libnccl.so.2"
++# Donde los COPY de images/nccl-ring/Dockerfile (main, lineas 59-61) dejan los ficheros EN LA RAIZ de la imagen. Un volumen `image` monta
++# esa raiz, asi que un mountPath sin subPath los pone en mountPath + estas rutas (DGX-810: #156 lo olvido y la sonda no arranco).
++DOCKERFILE_NCCL_RING = {"lib": "/opt/nccl-ring/lib/libnccl.so.2", "generador": "/opt/nccl-ring/nccl_ring_graph.py", "ring.conf": "/opt/nccl-ring/ring.conf"}
+ VOZ = ("omnivoice-tts-nvfp4", "stt-turbo")
+ # El unico blocker que deja el prune de head y worker de qwen38 (CM comfyui/gpu-arbiter-state, medido el 10-10 a las 13:04Z).
+ BLOCKER_QWEN38 = {"type": "profile_components_missing", "deployments": ["qwen38-flash-next-head", "qwen38-flash-next-worker"]}
+@@ -99,6 +103,13 @@ def job(objs, name):
+     return objs[("Job", "llm", name)]
+ 
+ 
++def ruta_en_contenedor(montaje, ruta_en_imagen):
++    """Donde ve el contenedor un fichero de una imagen montada como volumen `image` con este volumeMount: el volumen es la RAIZ de la
++    imagen y `subPath` elige un directorio de ella. None si el fichero queda fuera del subPath."""
++    rel = posixpath.relpath(ruta_en_imagen, "/" + montaje.get("subPath", "").strip("/"))
++    return None if rel.startswith("..") else posixpath.join(montaje["mountPath"], rel)
++
++
+ def script(objs, name):
+     return job(objs, name)["spec"]["template"]["spec"]["containers"][0]["args"][0]
+ 
+@@ -229,7 +240,7 @@ def test_ventana_no_toca_nada_mas(self):
+         quitados = {("Deployment", "llm", "qwen38-flash-next-head"), ("Deployment", "llm", "qwen38-flash-next-worker"),
+                     ("Job", "llm", "llm-deploy-resume")}
+         sonda_objs = {("ConfigMap", "llm", "sparks-nccl-sonda")} | {("Job", "llm", f"sparks-nccl-sonda-{h}") for h in SPARKS.values()}
+-        sonda_objs |= {("Job", "llm", f"sparks-nccl-sonda-v{v}-{h}") for v in (2, 3) for h in SPARKS.values()}
++        sonda_objs |= {("Job", "llm", f"sparks-nccl-sonda-v{v}-{h}") for v in (2, "3b") for h in SPARKS.values()}
+         self.assertEqual(set(ventana) - set(ornith), sonda_objs)
+         self.assertEqual(set(ornith) - set(ventana), quitados)
+         for key in set(ornith) - quitados - {("Job", "llm", "llm-deploy-pause")}:
+@@ -474,9 +485,10 @@ def test_los_v1_siguen_como_estaban(self):
+ 
+ 
+ class SondaV3JobsTest(SondaJobsTest):
+-    """Los Jobs de la sonda v3 (DGX-815): los de la v2 mas la libnccl.so.2 parcheada, que entra como volumen de imagen por digest."""
++    """Los Jobs de la sonda v3b (DGX-815, DGX-810): los de la v2 mas la libnccl.so.2 parcheada, que entra como volumen de imagen por digest.
++    Los v3 de #156 no arrancaron (montaje sin subPath), no estan en el render y los v3b son su relevo con otro nombre."""
+ 
+-    PREFIJO, ARCHIVO = "sparks-nccl-sonda-v3", SONDA
++    PREFIJO, ARCHIVO = "sparks-nccl-sonda-v3b", SONDA
+ 
+     def test_ejecutan_la_matriz_v3_y_caben_en_su_plazo(self):
+         s = sonda()
+@@ -484,7 +496,7 @@ def test_ejecutan_la_matriz_v3_y_caben_en_su_plazo(self):
+             with self.subTest(host=host):
+                 self.assertEqual(j["spec"]["template"]["spec"]["containers"][0]["command"], ["python3", "-u", "/sonda/nccl_sonda.py", "v3"])
+                 self.assertGreater(j["spec"]["activeDeadlineSeconds"], s.BARRERA_S + len(s.V3) * s.TOPE_S)
+-                self.assertEqual(j["metadata"]["labels"]["app"], "sparks-nccl-sonda-v3")
++                self.assertEqual(j["metadata"]["labels"]["app"], "sparks-nccl-sonda-v3b")
+ 
+     def test_la_lib_parcheada_entra_como_volumen_de_imagen_por_digest_y_de_solo_lectura(self):
+         for host, j in self.jobs.items():
+@@ -499,6 +511,35 @@ def test_la_lib_parcheada_entra_como_volumen_de_imagen_por_digest_y_de_solo_lect
+                 # la lib va solo al hijo de cada caso (la matriz): en el entorno del pod la heredaria tambien el proceso del TCPStore
+                 self.assertNotIn("LD_PRELOAD", {e["name"] for e in c["env"]})
+ 
++    def test_las_rutas_de_la_sonda_son_las_de_los_copy_del_dockerfile_mas_el_montaje(self):
++        # La clase del fallo de #156: la sonda abre LIB_PARCHEADA y GENERADOR, y el fichero esta donde el COPY lo dejo en la raiz de la imagen
++        # (DOCKERFILE_NCCL_RING) vista a traves del montaje del Job. Con mountPath /opt/nccl-ring y sin subPath queda en /opt/nccl-ring/opt/nccl-ring/...
++        s = sonda()
++        for host, j in self.jobs.items():
++            with self.subTest(host=host):
++                pod = j["spec"]["template"]["spec"]
++                (vol,) = [v["name"] for v in pod["volumes"] if "image" in v]
++                (monta,) = [m for m in pod["containers"][0]["volumeMounts"] if m["name"] == vol]
++                self.assertFalse(monta.get("subPath", "").startswith("/"))  # el API pide un subPath relativo
++                vistas = {k: ruta_en_contenedor(monta, r) for k, r in DOCKERFILE_NCCL_RING.items()}
++                self.assertEqual((s.LIB_PARCHEADA, s.GENERADOR), (vistas["lib"], vistas["generador"]))
++                # el generador lee ring.conf junto a si mismo (RING_CONF = Path(__file__).with_name("ring.conf"))
++                self.assertEqual(vistas["ring.conf"], posixpath.join(posixpath.dirname(vistas["generador"]), "ring.conf"))
++
++    def test_el_montaje_de_156_sin_subpath_no_casaba_con_las_rutas_de_la_sonda(self):
++        # lo que paso: el error del Job fue «can't open file '/opt/nccl-ring/nccl_ring_graph.py'»
++        s = sonda()
++        sin_subpath = {"mountPath": NCCL_RING_MONTAJE}
++        self.assertEqual(ruta_en_contenedor(sin_subpath, DOCKERFILE_NCCL_RING["generador"]), "/opt/nccl-ring/opt/nccl-ring/nccl_ring_graph.py")
++        self.assertNotEqual(ruta_en_contenedor(sin_subpath, DOCKERFILE_NCCL_RING["generador"]), s.GENERADOR)
++        self.assertEqual(ruta_en_contenedor({**sin_subpath, "subPath": "opt/nccl-ring"}, DOCKERFILE_NCCL_RING["generador"]), s.GENERADOR)
++        self.assertIsNone(ruta_en_contenedor({**sin_subpath, "subPath": "usr/lib"}, DOCKERFILE_NCCL_RING["generador"]))
++
++    def test_los_v3_de_156_no_estan_en_el_render_y_los_v3b_si(self):
++        # un Job no se puede cambiar: los v3 salen del render para que el prune se los lleve y la sonda corre con nombres nuevos
++        jobs = {n for k, _, n in self.objs if k == "Job" and n.startswith("sparks-nccl-sonda-v3")}
++        self.assertEqual(jobs, {f"sparks-nccl-sonda-v3b-{h}" for h in SPARKS.values()})
++
+     def test_es_el_job_de_la_v2_mas_la_lib_y_nada_mas(self):
+         # misma seguridad (hostNetwork, /dev/infiniband, solo IPC_LOCK, sin secretos, imagen de vLLM por digest, una GPU): lo unico que
+         # cambia es el nombre, la matriz y lo que trae la lib (el volumen, su montaje y el pull secret de Harbor)

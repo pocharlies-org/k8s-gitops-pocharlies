@@ -1,0 +1,321 @@
+diff --git a/CONTRACTS.yaml b/CONTRACTS.yaml
+index 3ece52c9..b55f403a 100644
+--- a/CONTRACTS.yaml
++++ b/CONTRACTS.yaml
+@@ -755,6 +755,8 @@ contracts:
+       on the check inside `lanzar()`.
+       SC-2184: `--perfil supervisor` (verified by cgroup) now launches every role with `lanza_supervisor` in roles.json (qa, pm, release and the
+       desatascador) on any key that is not live work, not only qa on a Request; the shape and the refusal are unchanged.
++      SC-2295 (10-10-2026), note only: with the company switched off (`jira-trigger/apagada`) `lanzar` also refuses (exit 3, `NO: compañía apagada`)
++      before any sid, except the secretarias and the ACC keys. Invocation shape and value unchanged; no consumer has to move.
+   - id: cli.company-sesion.mensaje.en-vivo
+     kind: schema
+     value: "company-sesion mensaje --perfil P --rol R --key K [--esperar S] < texto"
+@@ -771,6 +773,8 @@ contracts:
+       someone to `mensaje`: the bus parks it (`espera_hasta` in its registry entry) and retries at the reset. `mensaje` still
+       resumes it earlier and the mark clears itself. Invocation shape unchanged; `relanzar_por_cuota` and `mover_de_cuenta`
+       only gain an optional `reintento` argument.
++      SC-2295 (10-10-2026), note only: with the company switched off, `mensaje` to a stopped session refuses (exit 3, `NO: compañía
++      apagada`) instead of resuming it; a live session still receives the message. Invocation shape and value unchanged.
+       SC-2212 (09-10-2026), note only: `mensaje --esperar` (and the bus's `turno_cerrado_de`, the canonical decision) no
+       longer treat a turn whose close was BLOCKED by the Stop hook (`company_estado_hook.py`) as closed: the hook leaves a
+       mark per session (`bots/stop-bloqueo/<sid>`, the epoch of the block) and the wait continues until the role's
+diff --git a/ci/test_company_buzon.py b/ci/test_company_buzon.py
+index 2841c711..c524626a 100644
+--- a/ci/test_company_buzon.py
++++ b/ci/test_company_buzon.py
+@@ -159,7 +159,7 @@ def test_sin_synapse_operativo_el_barrido_entrega_por_turno_con_tope(self):
+         with mock.patch.object(sy, "activo", return_value=False), \
+                 mock.patch.object(sy, "publicar", side_effect=AssertionError("sin Synapse no se publica")), \
+                 mock.patch.object(sy, "ENTREGA_LOCAL_MAX", 3), mock.patch.object(sy, "entregas_en_vuelo", return_value=0), \
+-                mock.patch.object(enc, "_unidad_turno", side_effect=lambda u, d, a: lanzadas.append((u, a)) or (True, u)):
++                mock.patch.object(enc, "_unidad_turno", side_effect=lambda u, d, a, *_: lanzadas.append((u, a)) or (True, u)):
+             hecho = sy.barrer(600)
+         self.assertEqual(len(hecho), 3)
+         self.assertEqual([u for u, _ in lanzadas], ["turno-cto-SC-3-buzon", "turno-cto-SC-1-buzon", "turno-cto-SC-2-buzon"])
+@@ -178,7 +178,7 @@ def test_el_tope_es_de_entregas_a_la_vez_no_por_pasada(self):
+             lanzadas = []
+             with mock.patch.object(sy, "activo", return_value=False), mock.patch.object(sy, "ENTREGA_LOCAL_MAX", 3), \
+                     mock.patch.object(sy, "entregas_en_vuelo", return_value=vuelo), \
+-                    mock.patch.object(enc, "_unidad_turno", side_effect=lambda u, d, a: lanzadas.append(u) or (True, u)):
++                    mock.patch.object(enc, "_unidad_turno", side_effect=lambda u, d, a, *_: lanzadas.append(u) or (True, u)):
+                 sy.barrer(600)
+             self.assertEqual(lanzadas, esperadas, vuelo)
+ 
+@@ -215,7 +215,7 @@ def test_operativo_pero_sin_entregar_tambien_va_por_turno(self):
+         with mock.patch.object(sy, "activo", return_value=True), \
+                 mock.patch.object(sy, "publicar", side_effect=RuntimeError("RabbitMQ: HTTP 401")), \
+                 mock.patch.object(sy, "entregas_en_vuelo", return_value=0), \
+-                mock.patch.object(enc, "_unidad_turno", side_effect=lambda u, d, a: lanzadas.append(u) or (True, u)):
++                mock.patch.object(enc, "_unidad_turno", side_effect=lambda u, d, a, *_: lanzadas.append(u) or (True, u)):
+             sy.barrer(600)
+         self.assertEqual(lanzadas, ["turno-cto-SC-7-buzon"])
+ 
+diff --git a/ci/test_company_encargos.py b/ci/test_company_encargos.py
+index 7bf86bcc..74b7e94e 100644
+--- a/ci/test_company_encargos.py
++++ b/ci/test_company_encargos.py
+@@ -514,6 +514,47 @@ def test_el_bus_no_manda_al_cto_lo_que_ya_recibe_como_vigilante(self):
+         d.assert_not_called(); e.assert_not_called()
+ 
+ 
++class ApagadaSC2295(unittest.TestCase):
++    """SC-2295 (C3, C4): con `apagada` no nace ningún turno-* de un perfil de la compañía; las Acciones y la secretaria no cambian."""
++    def setUp(self):
++        self.estado = tempfile.mkdtemp()
++        self.addCleanup(lambda: __import__("shutil").rmtree(self.estado, True))
++        Path(self.estado, "apagada").touch()
++        p = mock.patch.dict(os.environ, {"STATE_DIR": self.estado})
++        p.start()
++        self.addCleanup(p.stop)
++
++    def test_apagada_para_niega_la_compania_y_exime_acciones_y_secretaria(self):
++        self.assertIn("apagada", enc.apagada_para("developer", "SC-1"))
++        self.assertIsNone(enc.apagada_para("secretaria-dani", "SC-1"))
++        self.assertIsNone(enc.apagada_para("developer", "ACC-3"))
++
++    def test_sin_fichero_no_niega_nada(self):
++        Path(self.estado, "apagada").unlink()
++        self.assertIsNone(enc.apagada_para("developer", "SC-1"))
++
++    def test_turno_de_la_compania_apagada_no_nace(self):
++        with mock.patch.object(enc, "_guarda_pruebas", return_value=None), mock.patch("subprocess.run") as run:
++            ok, det = enc._unidad_turno("turno-cto-SC-1-x", "TURNO cto SC-1", ["x"], "cto", "SC-1")
++        self.assertFalse(ok)
++        self.assertIn("apagada", det)
++        run.assert_not_called()
++
++    def test_guarda_de_pruebas_y_apagada_a_la_vez_siguen_bloqueando(self):
++        with mock.patch.dict(os.environ, {"COMPANY_BOTS_DIR": "/tmp/x"}), mock.patch("subprocess.run") as run:
++            ok, det = enc._unidad_turno("turno-cto-SC-1-x", "TURNO cto SC-1", ["x"], "cto", "SC-1")
++        self.assertFalse(ok)
++        self.assertIn("entorno de pruebas", det)
++        run.assert_not_called()
++
++    def test_turno_de_una_accion_o_de_la_secretaria_sigue_con_la_compania_apagada(self):
++        with mock.patch.object(enc, "_guarda_pruebas", return_value=None), mock.patch("subprocess.run") as run:
++            run.return_value = mock.Mock(returncode=0, stdout="", stderr="")
++            ok_acc, _ = enc._unidad_turno("turno-secretaria-ACC-3-x", "TURNO", ["x"], "secretaria", "ACC-3")
++            ok_sec, _ = enc._unidad_turno("turno-secretaria-SC-1-x", "TURNO", ["x"], "secretaria-dani", "SC-1")
++        self.assertEqual((ok_acc, ok_sec, run.call_count), (True, True, 2))
++
++
+ if __name__ == "__main__":
+     unittest.main()
+ 
+diff --git a/ci/test_company_sesion.py b/ci/test_company_sesion.py
+index fcab09cf..930492ed 100644
+--- a/ci/test_company_sesion.py
++++ b/ci/test_company_sesion.py
+@@ -24,6 +24,7 @@
+ # SC-1818: sin ritmo de arranques (y su reloj en el TMP, nunca en el ~/.company del host)
+ os.environ["COMPANY_RITMO_S"] = "0"
+ os.environ.setdefault("COMPANY_BOTS_DIR", os.path.join(TMP, "bots"))
++os.environ["STATE_DIR"] = os.path.join(TMP, "estado")       # SC-2295: nunca el `apagada` del host
+ sys.path.insert(0, RAIZ)
+ _loader = importlib.machinery.SourceFileLoader("company_sesion", os.path.join(RAIZ, "company-sesion"))
+ _spec = importlib.util.spec_from_loader("company_sesion", _loader)
+@@ -2631,5 +2632,67 @@ def test_con_la_fijada_agotada_pasa_a_la_siguiente_por_renovacion(self):
+             self.assertEqual(cs.mover_de_cuenta({"cuenta": "c"}, self.AHORA), "b", "b renueva en 6 d; c, la actual, ya está excluida")
+ 
+ 
++class Apagada(Base):
++    """SC-2295: con la compañía apagada (el fichero `apagada` en STATE_DIR) no nace ni se reanuda una sesión de la
++    compañía; lo vivo sigue; las Acciones (ACC, rol secretaria) no cambian."""
++    def setUp(self):
++        super().setUp()
++        self.estado = tempfile.mkdtemp()
++        self.addCleanup(shutil.rmtree, self.estado, True)
++        self.patches_estado = mock.patch.dict(os.environ, {"STATE_DIR": self.estado})
++        self.patches_estado.start()
++        self.addCleanup(self.patches_estado.stop)
++
++    def apagar(self, on=True):
++        ruta = os.path.join(self.estado, "apagada")
++        if on:
++            Path(ruta).touch()
++        else:
++            Path(ruta).unlink(missing_ok=True)
++
++    def test_c1_lanzar_apagada_niega_con_exit_3_antes_de_crear_sid(self):
++        self.apagar()
++        err = io.StringIO()
++        with mock.patch.object(sys, "stdin", io.StringIO("implementa x")), contextlib.redirect_stderr(err):
++            rc = cs.main(["lanzar", "--perfil", "cto", "--rol", "developer", "--key", "SC-1"])
++        self.assertEqual(rc, 3)
++        self.assertIn("compañía apagada", err.getvalue())
++        self.assertEqual(self.jet.lanzadas, [])
++        self.assertIsNone(cs.sesion_de("SC-1", "developer"))
++
++    def test_c2_mensaje_a_sesion_parada_no_la_reanuda_con_la_compania_apagada(self):
++        cs.lanzar("cto", "developer", "SC-1", "a", 0)
++        self.apagar()
++        with self.assertRaises(cs.Negado) as e:
++            cs.mensaje("cto", "developer", "SC-1", "sigue", 0)
++        self.assertIn("compañía apagada", str(e.exception))
++        self.assertEqual(len(self.jet.lanzadas), 1, "la parada no se reanuda")
++
++    def test_c2_mensaje_a_sesion_viva_se_entrega_con_la_compania_apagada(self):
++        cs.lanzar("cto", "developer", "SC-1", "a", 0)
++        sid = cs.sesion_de("SC-1", "developer")["sid"]
++        self.jet.vivas[sid] = "ses-developer-SC-1-x"
++        self.apagar()
++        cs.mensaje("cto", "developer", "SC-1", "qa dice: falla Z", 0)
++        self.assertEqual(self.jet.entregas, [("ses-developer-SC-1-x", "qa dice: falla Z")])
++
++    def test_c4_secretaria_y_acciones_no_cambian_con_la_compania_apagada(self):
++        self.apagar()
++        cs.comprobar_apagada("secretaria", "SC-1", "lanzar")          # rol secretaria: pasa
++        cs.comprobar_apagada("pm", "ACC-3", "lanzar")                 # clave ACC: pasa
++        with self.assertRaises(cs.Negado):
++            cs.comprobar_apagada("developer", "SC-1", "lanzar")       # lo demás: niega
++
++    def test_con_codigos_el_supervisor_lo_ve_como_sin_hueco_y_lo_reintenta(self):
++        self.apagar()
++        with mock.patch.object(sys, "stdin", io.StringIO("x")), contextlib.redirect_stderr(io.StringIO()):
++            rc = cs.main(["lanzar", "--codigos", "--perfil", "cto", "--rol", "developer", "--key", "SC-1"])
++        self.assertEqual(rc, cs.company_encargos.CODIGO_SIN_HUECO)
++
++    def test_sin_fichero_apagada_no_niega_nada(self):
++        cs.lanzar("cto", "developer", "SC-1", "a", 0)
++        self.assertEqual(len(self.jet.lanzadas), 1)
++
++
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/ci/test_jira_epic_trigger.py b/ci/test_jira_epic_trigger.py
+index 61b023e3..e47bff96 100644
+--- a/ci/test_jira_epic_trigger.py
++++ b/ci/test_jira_epic_trigger.py
+@@ -11677,3 +11677,16 @@ def test_activo_el_respaldo_de_una_pieza_negada_es_la_excepcion_negada_no_un_eve
+                 mock.patch.object(self.ENC, "enviar", side_effect=lambda *a, **k: enviadas.append((a, k)) or (True, "ok")):
+             jet.devolver_al_dueno("SC-9314", pieza, "SC-9300")
+         self.assertEqual(enviadas[1][1]["tipo"], "evento", "con `off`, el respaldo de siempre")
++
++
++class ApagadaLanzarSC2295(unittest.TestCase):
++    """SC-2295 (C3): el punto único que lanza sesiones (`_lanzar`) no arranca ni reanuda nada con la compañía apagada."""
++    def test_lanzar_con_la_compania_apagada_no_arranca_unidad(self):
++        estado = tempfile.mkdtemp()
++        Path(estado, "apagada").touch()
++        with mock.patch.dict(os.environ, {"STATE_DIR": estado}), mock.patch("subprocess.run") as run:
++            ok, det = jet._lanzar("SC-1", SID, "repo-b", "qwen38-flash-next", "brief", nuevo=True, agente="company-developer",
++                                  prefijo="ses-developer")
++        self.assertFalse(ok)
++        self.assertIn("apagada", det)
++        run.assert_not_called()
+diff --git a/libexec/company-sesion b/libexec/company-sesion
+index f77d66ec..f39640be 100755
+--- a/libexec/company-sesion
++++ b/libexec/company-sesion
+@@ -100,6 +100,10 @@ class NegadoSinHueco(Negado):
+     codigo = company_encargos.CODIGO_SIN_HUECO
+ 
+ 
++class NegadoApagada(NegadoSinHueco):
++    """SC-2295: la compañía apagada no arranca ni reanuda nada. Código de «sin hueco» (lo reintenta el barrido al encender)."""
++
++
+ class NegadoSinDirectorio(Negado):
+     codigo = company_encargos.CODIGO_SIN_DIRECTORIO  # transitorio: SC-1621 aún no lo ha creado; el supervisor reintenta
+ 
+@@ -985,6 +989,12 @@ def _campos_jira(key: str) -> dict:
+     return campos
+ 
+ 
++def comprobar_apagada(rol: str, key: str, accion: str) -> None:
++    """SC-2295: con `apagada` no nace ni se reanuda una sesión de la compañía; las Acciones y la secretaria siguen."""
++    if (motivo := company_encargos.apagada_para(rol, key)):
++        raise NegadoApagada(f"{motivo}. {accion} de {rol} de {key} no se hace hasta que se encienda.")
++
++
+ def comprobar_en_vivo(key: str, accion: str = "lanzar") -> None:
+     """¿Es `key` un ticket en vivo de Dani (asignado a él, con una etiqueta marcador, o hijo de uno que lo es)? Negado si
+     lo es o si no se puede leer en Jira (el ticket o su padre). Las Acciones (ACC) quedan fuera: una Acción en «Espera a Dani»,
+@@ -1008,6 +1018,7 @@ def lanzar(perfil: str, rol: str, key: str, encargo: str, esperar_s: int, nueva:
+     # Rechaza (NO, exit 3) la key en vivo de Dani (SC-2074, SC-2099: asignada, etiqueta o hija de épica suya), antes de crear sid.
+     # Va DESPUÉS del par comprobar/comprobar_quien_lanza (el test 5c de ci/test_jira_epic_trigger.py busca ese par contiguo).
+     comprobar_en_vivo(key)
++    comprobar_apagada(rol, key, "lanzar")
+     comprobar_plan_architect(perfil, rol, key)
+     comprobar_referencias(perfil, rol, encargo)
+     previa = sesion_de(key, rol)
+@@ -1182,6 +1193,7 @@ def mensaje(perfil: str, rol: str, key: str, texto: str, esperar_s: int) -> str:
+     desde = time.time()
+     unit = unidad_viva(s["sid"])
+     if not unit:
++        comprobar_apagada(rol, key, "mensaje")      # SC-2295: una parada no se reanuda; una viva sí recibe el mensaje
+         try:
+             s["modelo"], s["nivel"] = modelo_de(rol, _issue(key))     # se reanuda con el de la dificultad vigente
+         except Negado:
+diff --git a/libexec/company_encargos.py b/libexec/company_encargos.py
+index 5782f03d..4be23a93 100644
+--- a/libexec/company_encargos.py
++++ b/libexec/company_encargos.py
+@@ -632,6 +632,16 @@ def consulta(perfil: str, key: str, texto: str, timeout: int) -> tuple[str, bool
+         return f"api_server {perfil} no disponible: {str(e)[:150]}", False
+ 
+ 
++def apagada_para(quien: str, key: str) -> str | None:
++    """SC-2295: el motivo por el que no arranca ni se reanuda nada de la compañía con el interruptor `apagada` (STATE_DIR), o None.
++    Las Acciones (clave ACC) y la secretaria no cambian: se barren con la compañía apagada a propósito (jira-epic-trigger «0a»)."""
++    if "secretaria" in quien or (key or "").split("-")[0] == PROYECTO_ACCIONES:
++        return None
++    if not os.path.exists(os.path.join(os.getenv("STATE_DIR", f"{HOME}/.company/jira-trigger"), "apagada")):
++        return None
++    return "compañía apagada: no nace ni se reanuda nada de la compañía (jira-trigger/apagada)"
++
++
+ def _guarda_pruebas() -> str | None:
+     """Solo los tests mueven COMPANY_BOTS_DIR. La unidad no hereda su entorno: correría con el HOME real contra el
+     Hermes real y avisaría al vigilante real. El 01-10 un test sin el parche lanzó 47 turnos «SC-1» desde ~/src y
+@@ -641,10 +651,11 @@ def _guarda_pruebas() -> str | None:
+     return None
+ 
+ 
+-def _unidad_turno(unit: str, descripcion: str, argv: list[str]) -> tuple[bool, str]:
+-    """La unidad `turno-*` que da un turno (o vacía un buzón, SC-1872): UN solo sitio con su guarda de tests."""
++def _unidad_turno(unit: str, descripcion: str, argv: list[str], perfil: str = "", key: str = "") -> tuple[bool, str]:
++    """La unidad `turno-*` que da un turno (o vacía un buzón, SC-1872): UN solo sitio con su guarda de tests y la de apagada."""
+     import subprocess
+-    if (prueba := _guarda_pruebas()):
++    prueba = _guarda_pruebas() or apagada_para(perfil, key)
++    if prueba:
+         return False, prueba
+     os.makedirs(TURNOS, exist_ok=True)
+     r = subprocess.run(["systemd-run", "--user", "--unit", unit, "--collect", "--description", descripcion,
+@@ -666,7 +677,7 @@ def _lanzar_turno(perfil: str, key: str, texto: str) -> tuple[bool, str]:
+     with open(msg, "w") as f:
+         f.write(texto)
+     ok, det = _unidad_turno(f"turno-{perfil}-{key}-{n}", f"TURNO {perfil} {key}",
+-                            [os.path.realpath(__file__), "turno", perfil, key, msg])
++                            [os.path.realpath(__file__), "turno", perfil, key, msg], perfil, key)
+     if ok:
+         import despertador
+         despertador.despierta(key)                     # le llega un turno: deja de «solo esperar»
+diff --git a/libexec/company_synapse.py b/libexec/company_synapse.py
+index a4128044..c116c8b2 100644
+--- a/libexec/company_synapse.py
++++ b/libexec/company_synapse.py
+@@ -156,7 +156,7 @@ def mas_viejo(pk: tuple[str, str]) -> float:
+         return os.path.getmtime(os.path.join(company_buzon._dir(*pk), nombres[0])) if nombres else float("inf")
+     for perfil, key in sorted(company_buzon.no_vacios(antiguedad_s, ahora), key=mas_viejo)[:hueco]:
+         ok, det = company_encargos._unidad_turno(f"turno-{perfil}-{key}-buzon", f"TURNO {perfil} {key} (buzón)",
+-                                                 [buzon_py, "vaciar", perfil, key])
++                                                 [buzon_py, "vaciar", perfil, key], perfil, key)
+         hecho.append(f"{perfil}:{key} " + ("entregado por turno-*" if ok else f"sin entregar: {det[:120]}"))
+     return hecho
+ 
+diff --git a/libexec/jira-epic-trigger.py b/libexec/jira-epic-trigger.py
+index b268a948..2a14a93e 100644
+--- a/libexec/jira-epic-trigger.py
++++ b/libexec/jira-epic-trigger.py
+@@ -4708,6 +4708,8 @@ def _lanzar(key: str, sid: str, repo: str, model: str, mensaje: str, nuevo: bool
+             publicar: bool = True, cwd_fijo: str | None = None) -> tuple[bool, str]:
+     """`cwd_fijo` (SC-1620, solo el rol secretaria): el proceso nace Y se reanuda en ese directorio, sin pasar por
+     `cwd_de_sesion` (que lo pondría en WORKSPACE, ~/compania, con los worktrees de la compañía) y sin `--add-dir`."""
++    if (motivo := company_encargos.apagada_para(f"{prefijo or ''} {agente}", key)):     # SC-2295: nada nuevo con la compañía apagada
++        return False, motivo
+     trabajo = repo if repo.startswith("/") else os.path.join(REPOS, repo)
+     cwd = cwd_fijo or cwd_de_sesion(sid, trabajo, nuevo)
+     extra = args_workspace(cwd, trabajo)

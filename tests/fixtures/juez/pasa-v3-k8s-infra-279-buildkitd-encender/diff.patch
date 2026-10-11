@@ -1,0 +1,28 @@
+diff --git a/buildkit/buildkitd-arm64-dgx3.yaml b/buildkit/buildkitd-arm64-dgx3.yaml
+index 359172f..086452a 100644
+--- a/buildkit/buildkitd-arm64-dgx3.yaml
++++ b/buildkit/buildkitd-arm64-dgx3.yaml
+@@ -6,9 +6,11 @@
+ #   - fijado a dgx3 (no a gx10-ec3d: allí comparte nodo con el residente y tiene
+ #     16Gi / 2 CPU, y la compilación de FlashKDA/CUTLASS no cabe);
+ #   - requests 32Gi / limits 64Gi y 8-10 CPU, sin GPU (el smoke GPU es un Job aparte);
+-#   - `replicas: 0` (DGX-796): se encendió con #274 para el build de la imagen GLM
+-#     (sha256:5b79d9ac…) y se apagó al acabarlo (rama DGX-796-builder-down). El PVC
+-#     de caché se queda.
++#   - `replicas: 1` TEMPORAL (DGX-815): encendido solo para construir la imagen
++#     nccl-ring (k8s-ai-pocharlies, .github/workflows/build-nccl-ring-image.yml).
++#     Al acabar el build vuelve a `replicas: 0` en una PR hermana de una línea,
++#     como #278 de DGX-796 (la vez anterior: #274 encendió, #278 apagó; imagen GLM
++#     sha256:5b79d9ac…). El PVC de caché se queda.
+ #
+ # Labels propios (arch: arm64-dgx3): el Service `buildkitd-arm64` selecciona
+ # app=buildkitd + arch=arm64 y no debe repartir builds hacia este pod.
+@@ -22,7 +24,7 @@ metadata:
+     app: buildkitd
+     arch: arm64-dgx3
+ spec:
+-  replicas: 0
++  replicas: 1
+   # La caché es un PVC local-path (RWO) del nodo -> Recreate evita dos pods
+   # peleando por el mismo volumen en un rollout.
+   strategy:

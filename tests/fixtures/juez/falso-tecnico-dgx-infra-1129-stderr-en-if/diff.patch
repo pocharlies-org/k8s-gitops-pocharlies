@@ -1,0 +1,512 @@
+diff --git a/.company/evidence/SKIRM-111-notify-synapse-monitor-hmac.md b/.company/evidence/SKIRM-111-notify-synapse-monitor-hmac.md
+new file mode 100644
+index 000000000..332d8ff83
+--- /dev/null
++++ b/.company/evidence/SKIRM-111-notify-synapse-monitor-hmac.md
+@@ -0,0 +1,41 @@
++# SKIRM-111 (C3) · evidencia de `notify-synapse-monitor.sh` firmando
++
++Dónde corrió: el x86 (Python 3.12.3, pytest 9.0.3, node 22.23.3, curl y bash del sistema), sobre esta rama. No hay red ni clúster: el conector es un servidor local que hace la misma comprobación que la puerta del conector, y la clave es la de prueba `vector-secret-not-a-real-key`.
++
++## Pruebas: PASS (20 de 20, ninguna omitida)
++
++```
++python3 -m pytest tests/test_notify_synapse_monitor_signing.py -v
++...
++tests/test_notify_synapse_monitor_signing.py::test_vectores_del_conector[hola--sha256=afcb69...] PASSED
++tests/test_notify_synapse_monitor_signing.py::test_vectores_del_conector[ñandú ☃ "q" \ \n\t línea-42-sha256=c92ca6...] PASSED
++tests/test_notify_synapse_monitor_signing.py::test_vectores_del_conector[hola 👍🏽--sha256=267114...] PASSED
++tests/test_notify_synapse_monitor_signing.py::test_el_cuerpo_es_lo_que_escribe_json_stringify PASSED
++tests/test_notify_synapse_monitor_signing.py::test_cuerpo_identico_a_json_stringify_en_todo_el_plano_basico PASSED
++tests/test_notify_synapse_monitor_signing.py::test_el_script_firma_lo_que_envia_y_el_conector_lo_acepta PASSED
++... (20 passed in 2.71s)
++```
++
++- Vectores: los tres cuerpos de envío de `connectors/telegram/src/api/public-routes.test.ts` (k8s-socialmedia-pocharlies, SKIRM-111), con la clave y el timestamp fijos de ese test (`1760000000`). El cuarto, el de `{}`, es la firma de un GET y este script no hace GET: solo se comprueba que el firmador de la prueba da su literal.
++- Cuerpo contra `JSON.stringify`: `test_cuerpo_identico_a_json_stringify_en_todo_el_plano_basico` compara byte a byte el cuerpo del script con el de `node -e 'JSON.stringify(...)'` para todos los puntos de código de U+0001 a U+2FFF (sin sustitutos) más emoji. Se omite si no hay `node`; aquí corrió. DEL y U+2028 salen en crudo, los controles como `\u00xx` en minúscula, y un `\u007f` escrito a mano en el texto sale con la barra duplicada.
++- Extremo a extremo: el script entero contra el conector local, con un mensaje que lleva DEL, emoji, comillas, `\u007f` escrito a mano y un salto de línea: el conector acepta la firma, el cuerpo recibido es el que reescribiría `JSON.stringify`, y la clave no aparece ni en la salida, ni en el error, ni en los argumentos de `curl` (un `curl` delante en el PATH los anota).
++- Sin fichero de clave: avisa y envía sin firma (solo vale mientras el conector no la exija). Con fichero de modo distinto de 600, de otro propietario, vacío, un directorio o un enlace roto: no envía nada, sale con 1 y no imprime la clave.
++
++Prueba de que la prueba muerde: con `.replace("\x7f", "\\u007f")` en el cuerpo (lo que haría `jq`) fallan 3 pruebas (`test_el_cuerpo_es_lo_que_escribe_json_stringify`, la de `node` y la de extremo a extremo); restaurado, 20 de 20.
++
++## Estático: PASS
++
++```
++bash -n services/monitoring/scripts/notify-synapse-monitor.sh        # sin salida
++shellcheck -s bash services/monitoring/scripts/notify-synapse-monitor.sh   # v0.11.0, sin hallazgos, código 0
++```
++
++Comprobación de la receta de provisión del fichero de clave (el `go-template` de la cabecera del script), con un Secret de mentira en cliente, sin tocar el clúster: `kubectl create secret generic t --from-literal=CONNECTOR_SHARED_SECRET=test-value --dry-run=client -o go-template='{{index .data "CONNECTOR_SHARED_SECRET" | base64decode}}'` imprime `test-value`, sin salto de línea final.
++
++## Criterios (C3 de `00-spec.md` de SKIRM-111)
++
++- Firma leyendo el secreto de un fichero 0600: `test_el_script_firma_lo_que_envia_y_el_conector_lo_acepta` y los vectores.
++- Sin secreto en el repo, en `argv` ni en el log: `test_el_script_no_lleva_la_ip_fija_ni_clave`, y el anotador de `curl` del extremo a extremo.
++- Prueba con un secreto de prueba y `shellcheck`: arriba.
++- Comprobación de permisos 0600 y propietario sin imprimir el valor: el propio script la hace (`sign_request`) y la cabecera documenta cómo provisionar el fichero y cómo comprobarlo con `stat` y `sha256sum | cut -c1-12`.
++- Destino: el nombre DNS del Service en lugar de la ClusterIP fija.
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 7e1c2d616..2ce874d96 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -170,7 +170,8 @@ jobs:
+             tests/test_chat_patches.py \
+             tests/test_chat_patchguard.py \
+             tests/test_cosmos3_nano_deploy_contract.py \
+-            tests/test_roce_ring_contract.py
++            tests/test_roce_ring_contract.py \
++            tests/test_notify_synapse_monitor_signing.py
+           # DGX-667: el fondo del cartel Uriel (poster-service) no tenía ni un test.
+           python3 -m pip install --disable-pip-version-check -q pillow httpx fastapi python-multipart 'numpy<2'
+           python3 -m pytest tests/test_uriel_poster_background.py -q
+diff --git a/services/monitoring/scripts/notify-synapse-monitor.sh b/services/monitoring/scripts/notify-synapse-monitor.sh
+index cdd0c6ad1..2b923f8fd 100755
+--- a/services/monitoring/scripts/notify-synapse-monitor.sh
++++ b/services/monitoring/scripts/notify-synapse-monitor.sh
+@@ -11,29 +11,52 @@
+ #   scripts stay focused on apt; this script owns one job.
+ #
+ # Why it only runs on x86:
+-#   telegram-connector now runs in-cluster (k8s namespace whatsapp-mcp,
+-#   service `telegram-connector`, port 3002). Its ClusterIP is routable
+-#   from any k3s node, and x86 is a node — so a plain curl from x86
+-#   reaches it. (The pre-k8s design `docker exec`'d into the connector
+-#   container on the whatsappmcp_default docker network; that container is
+-#   gone. DGX1/DGX2 still call this script via `ssh x86 …`.)
++#   telegram-connector runs in-cluster (k8s namespace whatsapp-mcp, service
++#   `telegram-connector`, port 3002), reachable from any k3s node, and x86 is
++#   a node — so a plain curl from x86 reaches it. (The pre-k8s design
++#   `docker exec`'d into the connector container; that container is gone.)
++#   DGX1/DGX2 call this script via `ssh x86 …`.
+ #
+ # Why curl:
+ #   x86 ships curl natively; no need for the old node one-shot.
+ #
+-# Why the /api/public path:
+-#   The HMAC-signed /api/v1/messages/:chatId endpoint exists, but the
+-#   connector also exposes /api/public/send/:chatId with no auth, mounted
+-#   precisely for internal infra (brain/dashboard/cron). It accepts
+-#   `{text, topicId}` (topicId = Telegram forum message_thread_id) and
+-#   saves us managing a shared secret. The service is a ClusterIP with no
+-#   IngressRoute — never exposed to the LAN — so the lack of auth is fine.
++# Where the connector is:
++#   By the DNS name of its Service, so it survives the Service being
++#   recreated (a ClusterIP does not). It needs the host to resolve
++#   *.cluster.local through CoreDNS; override with CONNECTOR_URL.
+ #
+-# The ClusterIP below is that of Service whatsapp-mcp/telegram-connector
+-# (stable since 2026-05; it only changes if the Service object is
+-# recreated). Re-resolve with:
+-#   kubectl -n whatsapp-mcp get svc telegram-connector \
+-#     -o jsonpath='{.spec.clusterIP}'
++# How the send is signed (SKIRM-111):
++#   /api/public/send/:chatId sits behind the connector's HMAC gate. The request
++#   carries x-connector-timestamp and x-connector-signature =
++#   sha256=HMAC(key, "<ts>:<body>"), and the connector computes <body> as
++#   JSON.stringify of the body it parsed. So the bytes sent must be the bytes
++#   JSON.stringify would write: compact, DEL and non-ASCII characters raw.
++#   jq is not that (it writes DEL as \u007f and the signature would not match,
++#   silently, for a message that has one). So sign_request builds the body and
++#   signs that very string with one python3 snippet (json.dumps with
++#   ensure_ascii=False, like telegram-sync), and curl sends it unchanged with
++#   --data-binary: nothing is serialised twice.
++#
++# The key (never in git, argv or the log):
++#   A file with mode 0600 owned by CONNECTOR_SECRET_OWNER (default dibanez),
++#   by default /home/dibanez/.config/notify-synapse-monitor/connector-secret
++#   (override: CONNECTOR_SECRET_FILE). It is not under $HOME because the
++#   weekly timer runs this as root and the DGX nodes reach it over ssh as
++#   dibanez. It holds the CONNECTOR_SHARED_SECRET field of the 1Password item
++#   `whatsapp-mcp`, the same value the connector has. Provision it as dibanez
++#   on x86 without printing it (the Secret is what the ExternalSecret builds
++#   from 1Password, so after a force-sync it is the current value):
++#     umask 077
++#     mkdir -p ~/.config/notify-synapse-monitor
++#     kubectl -n whatsapp-mcp get secret whatsapp-mcp-secrets \
++#       -o go-template='{{index .data "CONNECTOR_SHARED_SECRET" | base64decode}}' \
++#       > ~/.config/notify-synapse-monitor/connector-secret
++#   Check it without printing it: `stat -c '%a %U %s' <file>` and
++#   `sha256sum <file> | cut -c1-12`, never `cat`. Repeat after a rotation.
++#   A file that is not a regular file, not mode 600 or not owned by the owner
++#   is refused. If there is no file at all the script warns and sends
++#   unsigned, which works only while the connector does not require a
++#   signature.
+ #
+ # Usage:
+ #   notify-synapse-monitor.sh --status ok|warn|fail \
+@@ -41,6 +64,45 @@
+ #                             --summary <text> \
+ #                             [--reboot-pending]
+ 
++# sign_request TEXT TOPIC KEYFILE OWNER [TS]
++# Prints three things, one per line group: the timestamp, the signature and
++# the body (always last, it is the exact string to send and to sign). With an
++# empty KEYFILE the timestamp and the signature are empty; with an empty TOPIC
++# the body has no topicId. TS is for tests (default: now). The key never
++# leaves the python process.
++sign_request() {
++    printf '%s' "$1" | python3 -I -c '
++import hashlib, hmac, json, os, pwd, stat, sys, time
++
++topic, key_file, owner, ts = sys.argv[1:5]
++text = sys.stdin.buffer.read().decode("utf-8", "replace")
++payload = {"text": text}
++if topic:
++    payload["topicId"] = int(topic)
++body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
++sig = ""
++if key_file:
++    try:
++        st = os.stat(key_file)
++        if not stat.S_ISREG(st.st_mode) or stat.S_IMODE(st.st_mode) != 0o600 or pwd.getpwuid(st.st_uid).pw_name != owner:
++            sys.exit("refusing " + key_file + ": it must be a regular file, mode 600, owned by " + owner)
++        with open(key_file, "rb") as f:
++            key = f.read().rstrip(b"\r\n")
++    except (OSError, KeyError) as e:
++        sys.exit("cannot read " + key_file + ": " + str(e))
++    if not key:
++        sys.exit(key_file + " is empty")
++    ts = ts or str(int(time.time()))
++    sig = "sha256=" + hmac.new(key, (ts + ":" + body).encode(), hashlib.sha256).hexdigest()
++else:
++    ts = ""
++sys.stdout.buffer.write((ts + "\n" + sig + "\n" + body).encode())
++' "$2" "$3" "$4" "${5:-}"
++}
++
++# Sourced (by the tests), only the function above is wanted.
++(return 0 2>/dev/null) && return 0
++
+ set -uo pipefail
+ 
+ STATUS=""
+@@ -55,7 +117,7 @@ while [[ $# -gt 0 ]]; do
+         --summary)        SUMMARY="${2:-}"; shift 2 ;;
+         --reboot-pending) REBOOT_PENDING=1; shift ;;
+         -h|--help)
+-            sed -n '2,46p' "$0"
++            sed -n '2,65p' "$0"
+             exit 0 ;;
+         *)
+             echo "Unknown argument: $1" >&2
+@@ -90,14 +152,28 @@ TEXT="${EMOJI} ${NODE}: ${SUMMARY}${SUFFIX}"
+ CHAT_ID="-1004409526898"
+ TOPIC_ID="1248"
+ 
+-CONNECTOR_URL="${CONNECTOR_URL:-http://10.43.47.157:3002}"
++CONNECTOR_URL="${CONNECTOR_URL:-http://telegram-connector.whatsapp-mcp.svc.cluster.local:3002}"
++KEY_FILE="${CONNECTOR_SECRET_FILE:-/home/dibanez/.config/notify-synapse-monitor/connector-secret}"
++KEY_OWNER="${CONNECTOR_SECRET_OWNER:-dibanez}"
+ 
+-BODY=$(jq -nc --arg text "$TEXT" --argjson topic "$TOPIC_ID" '{text:$text, topicId:$topic}')
++if [[ ! -e "$KEY_FILE" ]]; then
++    echo "WARN: no connector key at $KEY_FILE; sending unsigned (the connector rejects that once it requires a signature)." >&2
++    KEY_FILE=""
++fi
++
++if ! SIGNED=$(sign_request "$TEXT" "$TOPIC_ID" "$KEY_FILE" "$KEY_OWNER"); then
++    echo "Notify failed: could not prepare the signed request." >&2
++    exit 1
++fi
++TS="${SIGNED%%$'\n'*}";   SIGNED="${SIGNED#*$'\n'}"
++SIG="${SIGNED%%$'\n'*}";  BODY="${SIGNED#*$'\n'}"
++
++CURL_ARGS=(-sS --max-time 10 -X POST -H 'Content-Type: application/json' --data-binary "$BODY")
++if [[ -n "$SIG" ]]; then
++    CURL_ARGS+=(-H "x-connector-timestamp: $TS" -H "x-connector-signature: $SIG")
++fi
+ 
+-RESP=$(curl -sS --max-time 10 -X POST \
+-    -H 'Content-Type: application/json' \
+-    --data-binary "$BODY" \
+-    "$CONNECTOR_URL/api/public/send/$CHAT_ID" 2>&1)
++RESP=$(curl "${CURL_ARGS[@]}" "$CONNECTOR_URL/api/public/send/$CHAT_ID" 2>&1)
+ RC=$?
+ 
+ if [[ $RC -eq 0 ]] && [[ "$RESP" == *'"success":true'* ]]; then
+diff --git a/tests/test_notify_synapse_monitor_signing.py b/tests/test_notify_synapse_monitor_signing.py
+new file mode 100644
+index 000000000..4919f0424
+--- /dev/null
++++ b/tests/test_notify_synapse_monitor_signing.py
+@@ -0,0 +1,280 @@
++"""SKIRM-111 (C3): `notify-synapse-monitor.sh` firma sus envíos al conector de Telegram.
++
++El conector verifica `sha256=HMAC(clave, "<ts>:" + JSON.stringify(cuerpo parseado))`. El script firma los bytes
++EXACTOS que envía, y esos bytes son los que escribiría `JSON.stringify` (compactos, DEL y no ASCII en crudo): `jq`
++escribe DEL como `\\u007f` y la firma no casaría, en silencio, con un mensaje que lo llevara.
++
++Estas pruebas no tocan la red ni el clúster: el conector es un servidor local que hace la misma comprobación y la
++clave es una de prueba. Los vectores son los literales de `connectors/telegram/src/api/public-routes.test.ts` de
++`pocharlies-org/k8s-socialmedia-pocharlies` (SKIRM-111), los mismos que asserta `telegram-sync`: si el firmador
++deriva, esos literales lo dicen.
++"""
++import hashlib
++import hmac
++import json
++import os
++import pwd
++import shutil
++import stat
++import subprocess
++import threading
++import time
++from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++from pathlib import Path
++
++import pytest
++
++ROOT = Path(__file__).resolve().parents[1]
++SCRIPT = ROOT / "services" / "monitoring" / "scripts" / "notify-synapse-monitor.sh"
++BASH = shutil.which("bash")
++NODE = shutil.which("node")
++try:
++    ME = pwd.getpwuid(os.getuid()).pw_name
++except KeyError:  # el script compara el propietario por nombre: sin entrada en passwd no hay nada que probar
++    pytest.skip("el uid actual no tiene entrada en passwd", allow_module_level=True)
++
++KEY = "vector-secret-not-a-real-key"
++TS = "1760000000"
++CHAT = "-1004409526898"
++
++# (texto, topicId o "", firma): el cuerpo del conector `{ text, topicId? }` serializado con JSON.stringify.
++VECTORS = [
++    ("hola", "", "sha256=afcb691954c420b230066c0959302dd152b62921ec75013c6811b19b6f7f6ddc"),
++    (
++        'ñandú ☃ "q" \\ \n\t línea',
++        "42",
++        "sha256=c92ca6dc3907aaa9cd70640b6a66253bde649d6476b9deadcb017a628e0fc44d",
++    ),
++    ("hola 👍🏽", "", "sha256=267114fcccf55614d21e00f4b3b58281f134a9310c6179435a700740a03d56d6"),
++]
++EMPTY_BODY_VECTOR = "sha256=9c13b5d911180ca8afe1a2f4e6d7da93068aca9168ddb0d0e66781915f2a76af"
++
++
++def hmac_sha256(key: str, ts: str, body: str) -> str:
++    return "sha256=" + hmac.new(key.encode(), f"{ts}:{body}".encode(), hashlib.sha256).hexdigest()
++
++
++def key_file(tmp_path, content=KEY, mode=0o600):
++    path = tmp_path / "connector-secret"
++    path.write_text(content)
++    path.chmod(mode)
++    return path
++
++
++def sign_request(text, topic, keyfile, owner=ME, ts=TS):
++    """Llama a la función del script (sourced) y devuelve (rc, ts, firma, cuerpo, stderr)."""
++    p = subprocess.run(
++        [BASH, "-c", 'source "$1"; shift; sign_request "$@"', "_", str(SCRIPT), text, topic, str(keyfile), owner, ts],
++        capture_output=True,
++    )
++    if p.returncode != 0:
++        return p.returncode, None, None, None, p.stderr.decode()
++    got_ts, sig, body = p.stdout.split(b"\n", 2)
++    return 0, got_ts.decode(), sig.decode(), body, p.stderr.decode()
++
++
++def test_el_firmador_de_prueba_coincide_con_el_vector_del_cuerpo_vacio():
++    assert hmac_sha256(KEY, TS, "{}") == EMPTY_BODY_VECTOR
++
++
++@pytest.mark.parametrize("text,topic,expected", VECTORS)
++def test_vectores_del_conector(tmp_path, text, topic, expected):
++    rc, ts, sig, body, err = sign_request(text, topic, key_file(tmp_path))
++    assert rc == 0, err
++    assert (ts, sig) == (TS, expected)
++    assert hmac_sha256(KEY, TS, body.decode()) == expected  # lo firmado son los bytes devueltos
++
++
++def test_el_cuerpo_es_lo_que_escribe_json_stringify(tmp_path):
++    # DEL y U+2028 en crudo (jq escribiría \u007f), controles en \u00xx minúscula, y un `\u007f` escrito a mano
++    # en el texto sigue siendo texto: la barra se duplica.
++    text = 'a\x7fb\u2028c\x1fd\\u007f"'
++    rc, _, _, body, err = sign_request(text, "1248", key_file(tmp_path))
++    assert rc == 0, err
++    assert body == ('{"text":"a\x7fb\u2028c\\u001fd\\\\u007f\\"","topicId":1248}').encode()
++    assert b"\x7f" in body and b"\\u007f" not in body.replace(b"\\\\u007f", b"")
++
++
++@pytest.mark.skipif(not NODE, reason="sin node no hay JSON.stringify con el que cotejar")
++def test_cuerpo_identico_a_json_stringify_en_todo_el_plano_basico(tmp_path):
++    # Todos los puntos de código de U+0001 a U+2FFF (menos sustitutos, que no hay en UTF-8) más emoji, en un texto.
++    text = "".join(chr(c) for c in range(1, 0x3000) if not 0xD800 <= c <= 0xDFFF) + "👍🏽😀"
++    rc, _, _, body, err = sign_request(text, "1248", key_file(tmp_path))
++    assert rc == 0, err
++    js = subprocess.run(
++        [NODE, "-e", 'process.stdout.write(JSON.stringify({text: process.argv[1], topicId: 1248}))', text],
++        capture_output=True,
++        check=True,
++    )
++    assert body == js.stdout
++
++
++def test_la_clave_con_salto_de_linea_final_firma_igual(tmp_path):
++    rc, _, sig, _, err = sign_request("hola", "", key_file(tmp_path, KEY + "\n"))
++    assert rc == 0, err
++    assert sig == VECTORS[0][2]
++
++
++def test_sin_fichero_de_clave_no_hay_firma_pero_si_cuerpo(tmp_path):
++    rc, ts, sig, body, err = sign_request("hola", "1248", "")
++    assert (rc, ts, sig, body) == (0, "", "", b'{"text":"hola","topicId":1248}')
++
++
++@pytest.mark.parametrize(
++    "what,mode,content,owner",
++    [
++        ("modo 644", 0o644, KEY, ME),
++        ("modo 640", 0o640, KEY, ME),
++        ("modo 400", 0o400, KEY, ME),
++        ("otro propietario", 0o600, KEY, "nadie-lo-es"),
++        ("vacío", 0o600, "", ME),
++        ("solo salto de línea", 0o600, "\n", ME),
++    ],
++)
++def test_un_fichero_de_clave_que_no_vale_se_rechaza_sin_imprimir_la_clave(tmp_path, what, mode, content, owner):
++    rc, _, _, _, err = sign_request("hola", "", key_file(tmp_path, content, mode), owner)
++    assert rc != 0, what
++    assert KEY not in err
++
++
++def test_un_directorio_o_un_enlace_roto_no_valen_como_clave(tmp_path):
++    assert sign_request("hola", "", tmp_path)[0] != 0
++    (tmp_path / "roto").symlink_to(tmp_path / "no-existe")
++    assert sign_request("hola", "", tmp_path / "roto")[0] != 0
++
++
++# ---- El script entero contra un conector de mentira que verifica como createHMACAuth -------------------------------
++
++
++class FakeConnector:
++    """Verifica como la puerta del conector: ventana de 5 min y HMAC de `<ts>:<JSON.stringify(cuerpo parseado)>`."""
++
++    def __init__(self, status=200, reply=b'{"success":true}'):
++        self.requests = []
++        outer = self
++
++        class Handler(BaseHTTPRequestHandler):
++            def do_POST(self):
++                raw = self.rfile.read(int(self.headers["Content-Length"]))
++                ts, sig = self.headers.get("x-connector-timestamp"), self.headers.get("x-connector-signature")
++                canonical = json.dumps(json.loads(raw), ensure_ascii=False, separators=(",", ":"))
++                outer.requests.append(
++                    {
++                        "path": self.path,
++                        "raw": raw,
++                        "ts": ts,
++                        "sig": sig,
++                        "valid": bool(ts and sig)
++                        and abs(time.time() - int(ts)) <= 300
++                        and hmac.compare_digest(sig, hmac_sha256(KEY, ts, canonical)),
++                        "canonical_is_raw": canonical.encode() == raw,
++                    }
++                )
++                self.send_response(status)
++                self.send_header("Content-Length", str(len(reply)))
++                self.end_headers()
++                self.wfile.write(reply)
++
++            def log_message(self, *args):
++                pass
++
++        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
++        self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
++        threading.Thread(target=self.server.serve_forever, daemon=True).start()
++
++    def close(self):
++        self.server.shutdown()
++        self.server.server_close()
++
++
++@pytest.fixture
++def connector():
++    c = FakeConnector()
++    yield c
++    c.close()
++
++
++@pytest.fixture
++def curl_argv(tmp_path):
++    """Un `curl` delante en el PATH que anota los argumentos y delega en el de verdad."""
++    real = shutil.which("curl")
++    if not real:
++        pytest.skip("sin curl")
++    log = tmp_path / "curl-argv"
++    stub = tmp_path / "bin" / "curl"
++    stub.parent.mkdir()
++    stub.write_text(f'#!/bin/sh\nprintf \'%s\\n\' "$@" >> {log}\nexec {real} "$@"\n')
++    stub.chmod(0o755)
++    return stub.parent, log
++
++
++def run_script(connector_url, tmp_path, summary, *, keyfile, path_prefix=None, extra=()):
++    env = {
++        **os.environ,
++        "CONNECTOR_URL": connector_url,
++        "CONNECTOR_SECRET_FILE": str(keyfile),
++        "CONNECTOR_SECRET_OWNER": ME,
++    }
++    if path_prefix:
++        env["PATH"] = f"{path_prefix}:{env['PATH']}"
++    return subprocess.run(
++        [BASH, str(SCRIPT), "--status", "warn", "--node", "x86", "--summary", summary, *extra],
++        capture_output=True,
++        text=True,
++        env=env,
++    )
++
++
++def test_el_script_firma_lo_que_envia_y_el_conector_lo_acepta(connector, tmp_path, curl_argv):
++    bin_dir, argv_log = curl_argv
++    # DEL, emoji, comillas, una barra con `u007f` escrito a mano y un salto de línea: el caso que jq rompería.
++    summary = 'apt: 3 paquetes\x7f 👍🏽 "q" \\u007f\nfin'
++    p = run_script(connector.url, tmp_path, summary, keyfile=key_file(tmp_path), path_prefix=bin_dir,
++                   extra=["--reboot-pending"])
++    assert p.returncode == 0, p.stderr
++    assert p.stdout.startswith("Sent: ⚠️ x86: apt: 3 paquetes")
++    (req,) = connector.requests
++    assert req["path"] == f"/api/public/send/{CHAT}"
++    assert req["valid"], "el conector rechazaría la firma"
++    assert req["canonical_is_raw"], "el cuerpo enviado no es lo que reescribiría JSON.stringify"
++    assert b"\x7f" in req["raw"] and b"\\u007f" not in req["raw"].replace(b"\\\\u007f", b"")
++    sent = json.loads(req["raw"])
++    assert sent["topicId"] == 1248 and sent["text"].endswith(" · REBOOT pendiente") and "\x7f" in sent["text"]
++    # La clave no sale ni por la salida, ni por el error, ni por la línea de comandos de curl.
++    assert KEY not in p.stdout + p.stderr
++    argv = argv_log.read_text()
++    assert KEY not in argv and req["sig"] in argv
++
++
++def test_sin_fichero_de_clave_avisa_y_envia_sin_firma(connector, tmp_path):
++    p = run_script(connector.url, tmp_path, "todo bien", keyfile=tmp_path / "no-existe")
++    assert p.returncode == 0, p.stderr
++    assert "WARN: no connector key" in p.stderr
++    (req,) = connector.requests
++    assert (req["ts"], req["sig"]) == (None, None)
++
++
++def test_un_fichero_de_clave_con_permisos_de_mas_no_envia_nada(connector, tmp_path):
++    p = run_script(connector.url, tmp_path, "todo bien", keyfile=key_file(tmp_path, mode=0o644))
++    assert p.returncode == 1
++    assert "mode 600" in p.stderr and KEY not in p.stdout + p.stderr
++    assert connector.requests == []
++
++
++def test_un_rechazo_del_conector_se_ve_en_el_error_y_sale_con_1(tmp_path):
++    c = FakeConnector(status=401, reply=b'{"error":"Invalid signature"}')
++    try:
++        p = run_script(c.url, tmp_path, "todo bien", keyfile=key_file(tmp_path))
++    finally:
++        c.close()
++    assert p.returncode == 1
++    assert "Connector response" in p.stderr and "Invalid signature" in p.stderr
++    assert KEY not in p.stdout + p.stderr
++
++
++def test_el_script_no_lleva_la_ip_fija_ni_clave():
++    text = SCRIPT.read_text()
++    assert "10.43.47.157" not in text
++    assert "telegram-connector.whatsapp-mcp.svc.cluster.local" in text
++    assert KEY not in text
++    assert stat.S_IMODE(SCRIPT.stat().st_mode) & 0o111, "el script debe seguir siendo ejecutable"
