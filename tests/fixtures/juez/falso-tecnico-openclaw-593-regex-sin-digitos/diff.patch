@@ -1,0 +1,229 @@
+diff --git a/CONTRACTS.yaml b/CONTRACTS.yaml
+index dfa4c9e0..3ac053ea 100644
+--- a/CONTRACTS.yaml
++++ b/CONTRACTS.yaml
+@@ -96,6 +96,10 @@ contracts:
+       DGX-766 (09-10): values.yaml pierde `gmail_send`, `gmail_send_draft` y `gmail_forward` de las listas `servers` de `skirmshop` y
+       `hogar`, gana `mcp.proxy.perfiles[enviar].soloTools` y `empresa.delegar.rutas_sin_delegar` (`gmail-*`); las rutas gmail-* no cambian
+       de nombre, ruta, secreto, `rate_limit`, `deliver`, `toolsets` ni cuerpo, y el adapter no lee nada de eso: superficie sin cambios.
++      DGX-788 (10-10): `webhook.routes.gmail-skirmshop.toolsets` gana `shopify`, `picqer` y `skirmshop-plugins` (el borrador de la tienda
++      consulta pedido, envío y tarifas antes de redactar) y values.yaml gana el bloque SOUL `herencia.bloques.borrador-skirmshop`; el
++      nombre, la ruta, el secreto, el `rate_limit`, `deliver`, `deliver_extra` y el cuerpo no cambian, y el adapter no lee `toolsets`:
++      superficie sin cambios. Las otras cuatro rutas gmail-* no se tocan.
+ 
+   - id: lenguaje.acotar.v1
+     kind: schema
+diff --git a/helm/hermes/values.yaml b/helm/hermes/values.yaml
+index f72cac70..86b74778 100644
+--- a/helm/hermes/values.yaml
++++ b/helm/hermes/values.yaml
+@@ -1010,7 +1010,8 @@ webhook:
+     #   un adapter gmail comprometido no puede suplantar compania/cto/secretaria.
+     # - rate_limit 6/min: los 4 buzones no dan más volumen en uso normal y es la
+     #   primera vez que una ruta despierta perfiles con contenido externo.
+-    # - toolsets EXACTOS `[brain, workspace]` (condición 4, rehecha en DGX-765 por security).
++    # - toolsets EXACTOS por ruta (condición 4, rehecha en DGX-765 por security): `[brain, workspace]`, y la de la tienda
++    #   (`gmail-skirmshop`) además `shopify`, `picqer` y `skirmshop-plugins` (DGX-788).
+     #   `hermes-telegram` NO es una herramienta: es un compuesto que se expande a terminal,
+     #   execute_code, read_file/write_file/patch, browser_*, web_*, delegate_task y
+     #   skill_manage. Con él estas rutas tenían shell en un turno despertado por un correo
+@@ -1029,7 +1030,14 @@ webhook:
+     #   toolsets de plugin van siempre (`enviar`: tarjeta_correo, y enviar solo tras los dos
+     #   toques del aprobador; `empresa`: delegar; `confirmar-pago`). Hermes registra un aviso
+     #   cosmético «no valid toolsets» con esta lista (issue #38798, medido por security): el
+-    #   conjunto resuelto es el correcto. tests/test_hermes_webhook_gmail.py fija la igualdad exacta.
++    #   conjunto resuelto es el correcto. tests/test_hermes_webhook_gmail.py fija la igualdad exacta por ruta.
++    # - DGX-788 (Dani 10-10: «el borrador es súper genérico»): `gmail-skirmshop` gana `shopify`, `picqer` y
++    #   `skirmshop-plugins` porque sin ellos el turno contestaba «estoy confirmando con el almacén» sin ver el pedido, el
++    #   envío ni las tarifas. No abre nada nuevo al perfil: la lista fina `profiles.secretaria-skirmshop.servers` ya es de
++    #   solo lectura (21 herramientas: 10 de `shopify`, 6 de `picqer`, 5 de `skirmshop-plugins`), sin shell ni social; el
++    #   envío sigue siendo de los dos toques del aprobador. Lo que un aviso externo gana es LEER datos de clientes: por
++    #   eso el bloque `borrador-skirmshop` solo los da si el remitente es el cliente del pedido. Las otras cuatro rutas no
++    #   cambian.
+     # - El prompt es "{mensaje}" y el payload del adapter llega ya envuelto por
+     #   build_mensaje (plantilla fija, datos entre marcadores, cuerpo del correo
+     #   fuera — condición 5; código en synapse, main.py notify_profile). Con `workspace`
+@@ -1089,7 +1097,7 @@ webhook:
+       deliver_extra:
+         chat_id: "-1004409526898"
+         thread_id: "9088"
+-      toolsets: [brain, workspace]
++      toolsets: [brain, workspace, shopify, picqer, skirmshop-plugins]
+       rate_limit: 6
+       secretRef: HERMES_WEBHOOK_SECRET_GMAIL
+ # Perfil default (ops): todas las rutas del gateway vivo, sin filtro de
+@@ -2753,6 +2761,22 @@ herencia:
+       manda el plugin: un cambio (`gmail_update_draft`, mismo `draft_id`), rehacer un borrador o una tarea (Recordatorio o
+       ACC por tu oficio; anótala con `tarea_ref` y, si es ACC, `tarea_url`).
+       Cuando `tarjeta_correo` conteste ok, tu respuesta final es `[SILENT]`: la tarjeta ya habla por ti.
++    # DGX-788 (Dani 10-10: «una sesión de Hermes debería usar las herramientas para generar la respuesta correctamente»):
++    # lo que `correo-borrador` deja en «busca contexto en el brain y en el hilo» es, para la tienda, consultar el pedido, el
++    # envío, el producto y las tarifas ANTES de redactar. Propio de `secretaria-skirmshop`, entre `correo-borrador` (lo afina)
++    # y `tono-skirmshop` (que sigue siendo lo último que lee). Techo en tests/fixtures/hermes_soul_baseline.json.
++    borrador-skirmshop: |
++      ## Borradores de la tienda: datos antes de redactar (propio de `secretaria-skirmshop`)
++      Con un aviso `responder`, tras la primera `tarjeta_correo` y antes de `gmail_create_draft`, consulta; no redactes de memoria.
++      1. Pedido y cliente: el nº de pedido (asunto o cuerpo, `gmail_get_message`) con `get-orders` o `get-order`; sin nº, el email de
++         `de:` con `get-customers`.
++      2. Datos de un pedido solo si el email de `de:` es el del cliente de ese pedido; si no, el borrador pide nº de pedido y email de compra.
++      3. Consulta lo que la pregunta pida: envío y seguimiento (`picqer_webshop_orders`, `picqer_shipments`, `labels_shipment_status`);
++         producto, precio y stock (`get-products`); coste y plazo de envío (`labels_rate_quote`: país, y peso y precio de los artículos).
++      4. El borrador contesta con esos datos (números, fechas, seguimiento, precios, enlace) y UN paso siguiente.
++      5. Prohibido «estoy confirmando» y «lo reviso y te digo». Si un dato no sale de las herramientas, el borrador dice cuál falta y qué se hará.
++      6. Si la solución escribe en la tienda o el almacén (reembolso, cancelación, reenvío, etiqueta nueva), no la haces tú: el borrador dice
++         qué se hará y `tarjeta_correo` lleva `tarea_ref` (la tarea, en una línea) para que Dani la cree con [Crear tarea].
+     tono-skirmshop: |
+       ## Tono y límites de la secretaria de la tienda (propio de `secretaria-skirmshop`)
+       Resumes los avisos del negocio —pedidos, envíos y etiquetas, stock, el correo de
+@@ -2828,7 +2852,7 @@ herencia:
+     secretaria-casa: [oficio-secretaria, navegador-secretaria, recibir-encargo, correo-borrador]
+     # 04-10 (INFRA-492): la quinta secretaria trabaja igual que sus hermanas (el oficio se hereda,
+     # no se copia); INFRA-493: lo propio —el tono y los límites de la tienda— es el bloque `tono-skirmshop`.
+-    secretaria-skirmshop: [oficio-secretaria, recibir-encargo, correo-borrador, tono-skirmshop]
++    secretaria-skirmshop: [oficio-secretaria, recibir-encargo, correo-borrador, borrador-skirmshop, tono-skirmshop]
+     analista: [recibir-encargo, turno-corto, responder-dani, norma-navegador]
+     # SC-2144: el quinto NAVEGANTE es un perfil de PRUEBAS de qa — la norma también es suya (el test
+     # de playwright exige que navegar y heredar la norma vayan juntos).
+diff --git a/tests/fixtures/hermes_soul_baseline.json b/tests/fixtures/hermes_soul_baseline.json
+index f4810fe0..37ddd2c1 100644
+--- a/tests/fixtures/hermes_soul_baseline.json
++++ b/tests/fixtures/hermes_soul_baseline.json
+@@ -49,7 +49,8 @@
+     "recibir-encargo": 226,
+     "oficio-secretaria": 987,
+     "correo-borrador": 142,
+-    "navegador-secretaria": 150
++    "navegador-secretaria": 150,
++    "borrador-skirmshop": 201
+   },
+   "_techo_trio": "palabras que pueden sumar juntos org + lenguaje + turno-corto (decisión de Dani, SC-2022 D4)",
+   "techo_trio": 670,
+@@ -59,5 +60,7 @@
+   "_techo_correo_borrador": "INFRA-641/644: el bloque nuevo `correo-borrador` (flujo del correo de las cinco secretarias, SC-2039): su medida al nacer y su techo (+8); DGX-746 sube el techo de 150 a 172 por la línea del topic «Correo» (22 palabras, medida 164 + 8)",
+   "techo_correo_borrador": 172,
+   "_techo_navegador_secretaria": "DGX-760: el bloque nuevo `navegador-secretaria` (trámites web de las cuatro secretarias con `browser`): su medida al nacer y su techo (+8)",
+-  "techo_navegador_secretaria": 158
++  "techo_navegador_secretaria": 158,
++  "_techo_borrador_skirmshop": "DGX-788: el bloque nuevo `borrador-skirmshop` (procedimiento de datos antes de redactar, solo de `secretaria-skirmshop`): su medida al nacer y su techo (+8)",
++  "techo_borrador_skirmshop": 209
+ }
+diff --git a/tests/test_hermes_secretaria_skirmshop_perfil.py b/tests/test_hermes_secretaria_skirmshop_perfil.py
+index 2810f395..992d2cdf 100644
+--- a/tests/test_hermes_secretaria_skirmshop_perfil.py
++++ b/tests/test_hermes_secretaria_skirmshop_perfil.py
+@@ -16,6 +16,7 @@
+   puede delegarle a ella lo fija security (INFRA-479).
+ """
+ import json
++import re
+ 
+ import pytest
+ import yaml
+@@ -111,7 +112,7 @@ def test_ruta_de_bot_a_su_topic_con_thread_exacto():
+ 
+ def test_heredad_y_soul_sin_duplicar_el_oficio():
+     assert VALUES["herencia"]["hereda"][PERFIL] == ["oficio-secretaria", "recibir-encargo", "correo-borrador",
+-                                                    "tono-skirmshop"]
++                                                    "borrador-skirmshop", "tono-skirmshop"]
+     assert PERFIL in VALUES["souls"]
+     cabecera = VALUES["herencia"]["bloques"]["oficio-secretaria"].splitlines()[0].strip()
+     assert cabecera not in VALUES["souls"][PERFIL]
+@@ -189,3 +190,30 @@ def test_acotacion_es_lo_ultimo_que_lee_el_modelo(tmp_path):
+     # el digest se conserva solo porque el perfil tiene el toolset cronjob
+     assert "cronjob" in VALUES["webhook"]["routes"][PERFIL]["toolsets"]
+     assert "el digest (tu cronjob)" in cola
++
++
++def test_el_soul_de_la_tienda_lleva_el_procedimiento_de_datos_antes_de_redactar(tmp_path):
++    """DGX-788 (C2): el bloque `borrador-skirmshop` está en el SOUL sembrado de esta secretaria y de ninguna otra, entre
++    `correo-borrador` (que afina) y `tono-skirmshop` (que sigue siendo lo último), y fija el procedimiento (a-f) con los nombres
++    REALES de las herramientas que el turno ve: cada una está en `servers` del perfil, que a su vez es de solo lectura."""
++    home = seed(str(tmp_path / "h"))
++    cabecera = "## Borradores de la tienda: datos antes de redactar"
++    soul = (home / "profiles" / PERFIL / "SOUL.md").read_text()
++    assert soul.count(cabecera) == 1
++    assert (soul.index("## Correo: avisar y preparar borradores") < soul.index(cabecera)
++            < soul.index("## Tono y límites de la secretaria de la tienda"))
++    for otra in SECRETARIAS[:-1]:
++        assert cabecera not in (home / "profiles" / otra / "SOUL.md").read_text(), otra
++    bloque = VALUES["herencia"]["bloques"]["borrador-skirmshop"]
++    assert "borrador-skirmshop" not in soul  # el nombre del bloque no se cuela en el texto
++    # (a) pedido y cliente con Shopify · (b) datos solo al cliente del pedido · (c) consultar · (d) datos + UN paso
++    # (e) prohibido prometer sin comprobar · (f) escribir = tarea para Dani, no la hace ella
++    for pieza in ("ANTES", "antes de `gmail_create_draft`", "`get-orders`", "`get-order`", "`get-customers`", "`de:`",
++                  "solo si el email de `de:` es el del cliente", "nº de pedido y email de compra", "`picqer_webshop_orders`",
++                  "`picqer_shipments`", "`labels_shipment_status`", "`labels_rate_quote`", "`get-products`", "UN paso siguiente",
++                  "Prohibido «estoy confirmando»", "cuál falta", "`tarea_ref`", "[Crear tarea]"):
++        assert pieza.lower() in bloque.lower(), pieza
++    servers = _spec()["servers"]
++    vistas = {t for tools in servers.values() for t in tools}
++    nombres = set(re.findall(r"`([a-z]+[-_][a-z_-]+)`", bloque.split("\n", 1)[1])) - {"tarjeta_correo", "gmail_create_draft", "gmail_get_message", "tarea_ref"}
++    assert nombres and nombres <= vistas, sorted(nombres - vistas)
+diff --git a/tests/test_hermes_soul_tamano.py b/tests/test_hermes_soul_tamano.py
+index dd822a22..37f07f69 100644
+--- a/tests/test_hermes_soul_tamano.py
++++ b/tests/test_hermes_soul_tamano.py
+@@ -92,3 +92,11 @@ def test_correo_borrador_cabe_en_su_techo():
+     bloque = VALUES["herencia"]["bloques"]["correo-borrador"]
+     assert len(bloque.split()) <= _FIXTURE["techo_correo_borrador"]
+     assert BLOQUES["correo-borrador"] <= _FIXTURE["techo_correo_borrador"]
++
++
++def test_borrador_skirmshop_cabe_en_su_techo():
++    """DGX-788: lo lee en cada turno solo `secretaria-skirmshop`, un LLM local compartido. Entra con su medida y su techo en el
++    fixture, como el resto de `herencia.bloques`; el techo es dato del fixture, no un número a mano."""
++    bloque = VALUES["herencia"]["bloques"]["borrador-skirmshop"]
++    assert len(bloque.split()) <= _FIXTURE["techo_borrador_skirmshop"]
++    assert BLOQUES["borrador-skirmshop"] <= _FIXTURE["techo_borrador_skirmshop"]
+diff --git a/tests/test_hermes_webhook_gmail.py b/tests/test_hermes_webhook_gmail.py
+index 315e9b3b..f395ed1b 100644
+--- a/tests/test_hermes_webhook_gmail.py
++++ b/tests/test_hermes_webhook_gmail.py
+@@ -3,8 +3,8 @@
+ 
+ - condición 1: la NetworkPolicy admite SOLO al pod del adapter gmail (namespace Y pod en el mismo `from`);
+ - condición 2: secreto HMAC propio (`secretRef`), con su ExternalSecret en forma Connect; sin él no se emite ninguna;
+-- condición 4: toolsets EXACTOS `[brain, workspace]` (sin compuestos `hermes-*`: `hermes-telegram` trae terminal y execute_code) y un tope
+-  de 6 peticiones/min;
++- condición 4: toolsets EXACTOS por ruta (`[brain, workspace]`; la de la tienda, además `shopify`, `picqer` y `skirmshop-plugins`, DGX-788),
++  sin compuestos `hermes-*` (`hermes-telegram` trae terminal y execute_code), y un tope de 6 peticiones/min;
+ - contrato `http.webhook.hermes_gmail_notify` (lado publisher): registro, marcador sobre cada ruta.
+ 
+ Cada aserción cae si se quita lo que protege (mutaciones probadas a mano en la PR).
+@@ -31,6 +31,9 @@
+ GLOBAL, PROPIO = "g" * 48, "p" * 48
+ POD_ADAPTER = {"app.kubernetes.io/name": "synapse-adapter-gmail"}
+ TOOLSETS_GMAIL = {"brain", "workspace"}
++# DGX-788: la secretaria de la tienda contesta con datos, así que su turno ve además las tres rutas de solo lectura de su perfil.
++TOOLSETS_POR_DESTINO = {"skirmshop": TOOLSETS_GMAIL | {"shopify", "picqer", "skirmshop-plugins"}}
++PROHIBIDOS = {"terminal", "file", "social", "cronjob", "execute_code", "browser", "delegation"}
+ CONTRATO = "http.webhook.hermes_gmail_notify"
+ 
+ 
+@@ -193,16 +196,21 @@ def test_las_cinco_rutas_gmail_y_su_limite():
+     assert {n for n, r in RUTAS.items() if "secretRef" in r} == set(GMAIL)
+ 
+ 
+-def test_las_cinco_rutas_gmail_llevan_exactamente_brain_y_workspace():
++def test_las_cinco_rutas_gmail_llevan_exactamente_sus_toolsets():
+     """DGX-765 (security, nota-security-dgx765 C1/C2): el override de ruta sustituye ENTERO el platform_toolsets del turno, y un
+     toolset que no está en la lista no existe en él. `workspace` es lo que deja redactar el borrador; `hermes-telegram` es un
+     COMPUESTO (terminal, execute_code, file, browser, web, delegate_task, skill_manage) y `cronjob` deja jobs que corren luego con
+     todos los toolsets: comprobar nombres sueltos no los ve, así que la lista es igualdad exacta y ningún compuesto `hermes-*`.
+-    Qué herramientas de `workspace` ve cada perfil lo acota su lista fina (tests/test_hermes_enviar_chart.py)."""
+-    for destino in PERFIL:
++    DGX-788: igualdad exacta POR RUTA; solo la de la tienda gana `shopify`, `picqer` y `skirmshop-plugins`.
++    Qué herramientas de cada toolset ve el perfil lo acota su lista fina (`servers`), de solo lectura salvo los borradores."""
++    for destino, perfil in PERFIL.items():
+         toolsets = RUTAS[f"gmail-{destino}"]["toolsets"]
+-        assert set(toolsets) == TOOLSETS_GMAIL and len(toolsets) == len(TOOLSETS_GMAIL), destino
+-        assert not [t for t in toolsets if t.startswith("hermes-")], destino
++        esperado = TOOLSETS_POR_DESTINO.get(destino, TOOLSETS_GMAIL)
++        assert set(toolsets) == esperado and len(toolsets) == len(esperado), destino
++        assert not [t for t in toolsets if t.startswith("hermes-")] and not set(toolsets) & PROHIBIDOS, destino
++        # cada toolset de la ruta es un servidor del perfil con lista fina: la ruta nunca abre más de lo que el perfil ve
++        servers = VALUES["profiles"][perfil]["servers"]
++        assert all(servers.get(t) for t in toolsets), (destino, sorted(set(toolsets) - set(servers)))
+ 
+ 
+ # --- contrato http.webhook.hermes_gmail_notify (lado publisher) ---------------------------------------------------

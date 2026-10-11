@@ -1,0 +1,110 @@
+diff --git a/ARCHITECTURE.md b/ARCHITECTURE.md
+index 59237c9e134bd..2fc8b01b847db 100644
+--- a/ARCHITECTURE.md
++++ b/ARCHITECTURE.md
+@@ -97,6 +97,7 @@ El tag es mutable: un segundo push a la misma rama lo sobrescribe en Harbor, as
+ 
+ - `2026-09` · imagen desde rama del fork + overlays puntuales en vez de fork interno divergente · chart `values.yaml` `image:` (SC-710, DGX-366)
+ - `2026-10-02` · el enlace topic→ticket no vive en el runtime: Telegram liga la clave desde el texto del mensaje · SC-1436 (decisión del CTO)
++- `2026-10-08` · `GET /api/sessions` devuelve `chat_id` y `thread_id` en cada fila: la sesión se vincula por el binding de topic de Telegram (`telegram_dm_topic_bindings`, lectura inversa por `session_id`); una sesión sin binding devuelve `null` · INFRA-776
+ - trampa: una sesión del api_server reanudada con modelo persistido re-resolvía el provider `custom` pelado → «No LLM provider configured» desde el 2.º turno · overlay `fix/api-server-named-provider-resume` (DGX-366)
+ 
+ - `2026-10-05` · el executor por defecto del loop se dimensiona a `max_concurrent_runs + 64`; `HERMES_EXECUTOR_WORKERS`
+diff --git a/docker/Dockerfile.overlay b/docker/Dockerfile.overlay
+index 1e5611d134806..e2f580c8d817f 100644
+--- a/docker/Dockerfile.overlay
++++ b/docker/Dockerfile.overlay
+@@ -1,7 +1,5 @@
+ # Overlay image: the files this branch changes, on top of the live image.
+ # Base = the tag in values.yaml of k8s-openclaw-qwen36-pocharlies (deploy/prod) when the overlay was cut.
+-ARG BASE=harbor.lan.e-dani.com/homelab/hermes-agent:fork-f24a9c7-p068a375
++ARG BASE=harbor.lan.e-dani.com/homelab/hermes-agent:fork-f24a9c7-p3426968
+ FROM ${BASE}
+ COPY --chmod=664 gateway/platforms/api_server.py /opt/hermes/gateway/platforms/api_server.py
+-COPY --chmod=644 agent/chat_completion_helpers.py /opt/hermes/agent/chat_completion_helpers.py
+-COPY --chmod=644 agent/litellm_session_header.py /opt/hermes/agent/litellm_session_header.py
+diff --git a/docker/overlay-tag b/docker/overlay-tag
+index d1ab7fe730e00..de7f8aa3c5995 100644
+--- a/docker/overlay-tag
++++ b/docker/overlay-tag
+@@ -1 +1 @@
+-fork-f24a9c7-pbddbbb7
++fork-f24a9c7-p05fbbc7
+diff --git a/gateway/platforms/api_server.py b/gateway/platforms/api_server.py
+index cdb366bc88ded..94d58954f4e00 100644
+--- a/gateway/platforms/api_server.py
++++ b/gateway/platforms/api_server.py
+@@ -2784,6 +2784,21 @@ def _session_response(session: Dict[str, Any]) -> Dict[str, Any]:
+         payload["has_model_config"] = bool(session.get("model_config"))
+         return payload
+ 
++    def _session_rows_with_topic(self, db: Any, sessions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
++        """Listing rows plus the Telegram topic each one is bound to: ``chat_id`` and ``thread_id``,
++        both None when the row has no topic or is not a Telegram session. Additive: the fields of
++        ``_session_response`` are unchanged. Reads the binding through ``db``'s reverse lookup, so it
++        runs off-loop (the caller wraps it in ``asyncio.to_thread``)."""
++        rows = []
++        for session in sessions:
++            row = self._session_response(session)
++            binding = (db.get_telegram_topic_binding_by_session(session_id=session["id"])
++                       if session.get("source") == "telegram" else None)
++            row["chat_id"] = binding["chat_id"] if binding else None
++            row["thread_id"] = binding["thread_id"] if binding else None
++            rows.append(row)
++        return rows
++
+     @staticmethod
+     def _message_response(message: Dict[str, Any]) -> Dict[str, Any]:
+         message = _project_client_message(message)
+@@ -2876,8 +2891,9 @@ async def _list() -> list:
+         # Back-filled pins arrive PAST the limit, so counting them would report
+         # another page that doesn't exist. Only the recency window decides.
+         windowed = sum(1 for s in sessions if not s.get("pinned"))
++        data = await asyncio.to_thread(self._session_rows_with_topic, db, sessions)
+         return web.json_response({
+-            "object": "list", "data": [self._session_response(s) for s in sessions],
++            "object": "list", "data": data,
+             "limit": limit, "offset": offset, "has_more": windowed >= limit})
+ 
+     @_require_auth
+diff --git a/tests/gateway/test_session_api.py b/tests/gateway/test_session_api.py
+index a49e45b04a4a5..118de9c14c1ed 100644
+--- a/tests/gateway/test_session_api.py
++++ b/tests/gateway/test_session_api.py
+@@ -1227,3 +1227,36 @@ async def ids(query: str) -> set:
+         bad = await cli.get("/api/sessions?archived=yes")
+         assert bad.status == 400
+ 
++
++
++@pytest.mark.asyncio
++async def test_list_sessions_carries_telegram_topic_fields(adapter, session_db):
++    """GET /api/sessions?source=telegram adds chat_id and thread_id per row (INFRA-776): the bound
++    topic's pair on a linked session, both null on a Telegram session with no topic and on a session
++    of another source. The fields already there keep their names and shapes."""
++    linked = session_db.create_session(
++        "topic-linked", "telegram", chat_id="67890", thread_id="topic-42")
++    unlinked = session_db.create_session("topic-lobby", "telegram")
++    other = session_db.create_session("api-row", "api_server")
++    session_db.enable_telegram_topic_mode(chat_id="67890", user_id="12345")
++    session_db.bind_telegram_topic(
++        chat_id="67890", thread_id="topic-42", user_id="12345",
++        session_key="tg:67890:topic-42", session_id=linked,
++    )
++
++    app = _create_session_app(adapter)
++    async with TestClient(TestServer(app)) as cli:
++        resp = await cli.get("/api/sessions?source=telegram")
++        assert resp.status == 200
++        rows = {row["id"]: row for row in (await resp.json())["data"]}
++
++        other_resp = await cli.get("/api/sessions?source=api_server")
++        assert other_resp.status == 200
++        other_rows = {row["id"]: row for row in (await other_resp.json())["data"]}
++
++    assert (rows[linked]["chat_id"], rows[linked]["thread_id"]) == ("67890", "topic-42")
++    assert rows[unlinked]["chat_id"] is None and rows[unlinked]["thread_id"] is None
++    assert other_rows[other]["chat_id"] is None and other_rows[other]["thread_id"] is None
++    # Additive: the pre-existing keys of a listing row are untouched.
++    assert {"id", "source", "last_active", "archived"} <= set(rows[linked])
++    assert rows[linked]["source"] == "telegram"

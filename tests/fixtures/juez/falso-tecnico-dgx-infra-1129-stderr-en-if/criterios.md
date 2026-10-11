@@ -1,0 +1,10 @@
+# SKIRM-111 · criterios del 00-spec.md
+
+- [ ] C1. `GET /api/public/dialogs`, `GET /api/public/messages/:chatId` y `POST /api/public/send/:chatId` sin firma → 401; con firma válida → como hoy; con firma de otro cuerpo o con timestamp fuera de ventana → 401. La firma de un GET es `HMAC(ts:{})`: `req.body` es `{}`. Prueba con el mismo firmador que `providerGet`. Test del router arrancado con `fetch` (sin `supertest`), añadido a la lista de `scripts.test` de `connectors/telegram/package.json`. Comando: `pnpm --filter ./connectors/telegram exec tsx --test src/<fichero>.test.ts` y `pnpm --filter ./connectors/telegram test`.
+- [ ] C2. `telegram-sync` firma lectura y envío; test Python con PostgreSQL 16 (`TELEGRAM_SYNC_TEST_DATABASE_URL` puesta; "skipped" no es pase) y un test del firmador contra el verificador del conector con vectores fijos.
+- [ ] C3. `notify-synapse-monitor.sh` firma leyendo el secreto de un fichero 0600; no hay secreto en el repo, en `argv` ni en el log. Prueba con un secreto de prueba y `shellcheck`. PR en `dgx-infra` aparte; el fichero lo provisiona `devops` (comprobación de permisos 0600 y propietario, sin imprimir el valor).
+- [ ] C4. Guard de arranque: con secreto ausente, vacío o igual al placeholder, el proceso no arranca (telegram y whatsapp-cloud); con un valor válido, arranca. Tests de la función compartida y de cada arranque.
+- [ ] C5. Orden: ninguna PR de "el conector exige" se fusiona hasta que `sre`/`qa` evidencien que `telegram-sync`, el script del host y `mcp-server` ya firman en producción (log del conector sin llamadas sin firma durante 24 h, gracias al registro de rechazos en modo aviso, o el equivalente que el architect acepte).
+- [ ] C6. Prueba de qa solo tras la rotación SC-2092: una llamada a `/api/public/dialogs` firmada con el placeholder responde 401.
+- [ ] C7. Contratos: valorar con el architect una entrada `.v1` por ruta de `/api/public/*` de Telegram (sin tocar las existentes); `pnpm contract:check` verde; 73 tools sin cambio.
+- [ ] C8. `ARCHITECTURE.md` actualizada (§2 consumidores y firma, §8 orden de despliegue y secreto del host).

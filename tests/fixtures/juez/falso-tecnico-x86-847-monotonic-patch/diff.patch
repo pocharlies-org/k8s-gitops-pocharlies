@@ -1,0 +1,65 @@
+diff --git a/ci/test_claude_rc_status.py b/ci/test_claude_rc_status.py
+index 32c2e328..bcde3d0f 100644
+--- a/ci/test_claude_rc_status.py
++++ b/ci/test_claude_rc_status.py
+@@ -359,7 +359,7 @@ def setUp(self):
+         self._antes_flush = mod.AGG_FLUSH_MIN_S
+         self._antes_volcado = mod._agg_ultimo_volcado
+         mod.AGG_FLUSH_MIN_S = 0.0
+-        mod._agg_ultimo_volcado = 0.0
++        mod._agg_ultimo_volcado = float("-inf")
+ 
+     def tearDown(self):
+         mod.PROJECTS = self._antes_projects
+@@ -702,7 +702,7 @@ def setUp(self):
+         mod.AGG_CACHE_FILE = os.path.join(self.tmp, "_agg-cache.json")
+         mod.AGG_FLUSH_MIN_S = 0.0
+         mod._agg_index_mem = None
+-        mod._agg_ultimo_volcado = 0.0
++        mod._agg_ultimo_volcado = float("-inf")
+ 
+     def tearDown(self):
+         mod.AGG_CACHE_FILE = self._antes_agg
+@@ -822,7 +822,7 @@ def test_volcado_del_indice_debounced(self):
+         entera, así que el snapshot viejo del disco es auto-consistente."""
+         ruta = self._jsonl("agent-a7.jsonl", [_asistente(model="m1", usage=USO)])
+         mod.AGG_FLUSH_MIN_S = 3600.0          # ventana amplia: solo vuelca el 1º
+-        mod._agg_ultimo_volcado = 0.0
++        mod._agg_ultimo_volcado = float("-inf")
+         mod._contadores_por_modelo(ruta)      # primer volcado: sí escribe
+         mtime_1 = os.path.getmtime(mod.AGG_CACHE_FILE)
+         linea = json.dumps(_asistente(model="m1", usage=USO)) + "\n"
+@@ -835,6 +835,18 @@ def test_volcado_del_indice_debounced(self):
+         self.assertEqual(disco["modelos"]["m1"]["turnos"], 1)  # snapshot consistente
+         self.assertEqual(disco["offset"], os.path.getsize(ruta) - len(linea.encode()))
+ 
++    def test_primer_volcado_no_depende_del_uptime_del_host(self):
++        """`time.monotonic()` cuenta desde el arranque: en un host con menos de
++        `AGG_FLUSH_MIN_S` de uptime el primer volcado tiene que escribir igual
++        (SC-2277: el CI de main cayó en un runner recién reiniciado). Módulo
++        recién cargado: lo que se prueba es el centinela inicial «nunca volcado»."""
++        m = _modulo()
++        m.AGG_CACHE_FILE = mod.AGG_CACHE_FILE
++        m.AGG_FLUSH_MIN_S = 3600.0
++        with unittest.mock.patch.object(m.time, "monotonic", return_value=5.0):
++            m._agg_volcar_si_toca({"version": m.AGG_CACHE_VERSION, "transcripts": {}})
++        self.assertTrue(os.path.exists(m.AGG_CACHE_FILE))
++
+ 
+ def _bloques(*bloques):
+     return {"type": "assistant", "timestamp": "2026-09-17T10:00:00.000Z",
+diff --git a/libexec/claude-rc-status.py b/libexec/claude-rc-status.py
+index 34659c88..58e3e749 100644
+--- a/libexec/claude-rc-status.py
++++ b/libexec/claude-rc-status.py
+@@ -843,7 +843,9 @@ def transcript(uuid: str, offset: int = 0, window: int = TRANSCRIPT_WINDOW,
+ # AGG_FLUSH_MIN_S segundos, que se repite solo. En memoria no se pierde nada:
+ # `_agg_index_mem` es la fuente de verdad del proceso.
+ AGG_FLUSH_MIN_S = float(os.getenv("RC_AGG_FLUSH_MIN_S", "10"))
+-_agg_ultimo_volcado = 0.0
++# -inf = «nunca volcado»: `time.monotonic()` cuenta desde el arranque del host, así que
++# un 0.0 haría que el primer volcado dependa del uptime (< AGG_FLUSH_MIN_S = no escribe).
++_agg_ultimo_volcado = float("-inf")
+ # ThreadingHTTPServer: cada petición es un hilo y este índice es estado compartido
+ # mutable. La llave cubre la sección entera de leer-incremental-y-persistir de
+ # `_contadores_por_modelo` (allí la justificación).

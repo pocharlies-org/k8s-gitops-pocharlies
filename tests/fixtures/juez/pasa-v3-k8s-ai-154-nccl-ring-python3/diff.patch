@@ -1,0 +1,104 @@
+diff --git a/images/nccl-ring/Dockerfile b/images/nccl-ring/Dockerfile
+index 1532f1a..77618ee 100644
+--- a/images/nccl-ring/Dockerfile
++++ b/images/nccl-ring/Dockerfile
+@@ -18,8 +18,11 @@ ARG NCCL_COMMIT
+ # nproc dentro del builder son los CPU del nodo, no los de su cgroup: un -j sin número no cabe en memoria con nvcc.
+ ARG MAX_JOBS=8
+ 
+-# Sin fijar y aceptado (como en la imagen de GLM): el compilador y git son los del archivo de Ubuntu del día del build.
+-RUN apt-get update && apt-get install -y --no-install-recommends build-essential ca-certificates git \
++# Sin fijar y aceptado (como en la imagen de GLM): el compilador, git y python3 son los del archivo de Ubuntu del día del build.
++# python3: src.build ejecuta generate_git_version.py y los generate.py de src/device (shebang `env python3`; el run 38062797791 de
++# build-nccl-ring-image.yml falló sin él) y solo usan la librería estándar; con NCCL_SRC, tools/test_nccl_ring.py lee esos intérpretes
++# del fuente. Lo demás que llama el Makefile (bash, sed, realpath, fmt, which, ar, nvcc, cuobjdump) viene de la base o de build-essential.
++RUN apt-get update && apt-get install -y --no-install-recommends build-essential ca-certificates git python3 \
+     && rm -rf /var/lib/apt/lists/*
+ 
+ WORKDIR /src/nccl
+diff --git a/tools/test_nccl_ring.py b/tools/test_nccl_ring.py
+index ecfa312..77b7b38 100644
+--- a/tools/test_nccl_ring.py
++++ b/tools/test_nccl_ring.py
+@@ -5,10 +5,13 @@
+     la copia congelada de ring.conf;
+   * el parche de NCCL v2.30.7-1: una sola línea cambia, la expresión nueva hace lo que dice (tabla de verdad compilada con cc) y,
+     con NCCL_SRC apuntando a un checkout del commit 73cf1122, aplica limpio sobre el fuente real (lo repite el Dockerfile);
+-  * el Dockerfile y el workflow: todo por digest o commit, solo sm_121, imagen final mínima, solo arm64 y a mano.
++  * el Dockerfile y el workflow: todo por digest o commit, solo sm_121, imagen final mínima, solo arm64 y a mano; y que el apt-get de
++    la etapa de build instala los intérpretes que ejecuta el build de NCCL (con NCCL_SRC los lee del fuente; el run 38062797791
++    cayó por falta de python3).
+ Lo que solo se ve en los Sparks (que NCCL envíe por la segunda <net>) es de la sonda v3.
+ """
+ 
++import ast
+ import importlib.util
+ import ipaddress
+ import os
+@@ -51,6 +54,20 @@ def devs(texto):
+     return out
+ 
+ 
++def nccl_src():
++    """El checkout de NCCL v2.30.7-1 que apunta NCCL_SRC, comprobado contra el commit que fija el Dockerfile."""
++    src = Path(os.environ["NCCL_SRC"])
++    head = subprocess.run(["git", "-C", str(src), "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
++    assert head == NCCL_COMMIT, head
++    return src
++
++
++def paquetes_apt(dockerfile):
++    """Los paquetes del `apt-get install` de la etapa de build."""
++    build = dockerfile.split("\nFROM ")[1].replace("\\\n", " ")
++    return {p for p in re.search(r"apt-get install ([^&;]+)", build).group(1).split() if not p.startswith("-")}
++
++
+ class GrafoTest(unittest.TestCase):
+     def setUp(self):
+         self.filas = gen.leer_ring_conf(RING)
+@@ -180,9 +197,7 @@ def test_aplica_limpio_y_sin_tocar_nada_mas_en_un_fuente_sintetico(self):
+ 
+     @unittest.skipUnless(os.environ.get("NCCL_SRC"), "NCCL_SRC: checkout de NVIDIA/nccl en v2.30.7-1 (73cf1122)")
+     def test_aplica_limpio_sobre_nccl_v2_30_7_1(self):
+-        src = os.environ["NCCL_SRC"]
+-        head = subprocess.run(["git", "-C", src, "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+-        self.assertEqual(head, NCCL_COMMIT)
++        src = nccl_src()
+         subprocess.run(["git", "-C", src, "apply", "--check", str(PATCH)], check=True, capture_output=True)
+         numstat = subprocess.run(["git", "-C", src, "apply", "--numstat", str(PATCH)], check=True, capture_output=True, text=True).stdout
+         self.assertEqual(numstat.split(), ["1", "1", "src/graph/search.cc"])
+@@ -218,6 +233,34 @@ def test_la_imagen_final_es_scratch_con_la_lib_el_generador_y_ring_conf(self):
+             self.assertTrue((ROOT / origen).is_file(), origen)
+         self.assertEqual(Path(gen.RING_CONF).name, "ring.conf")  # el generador lo busca al lado, donde la imagen lo pone
+ 
++    def test_el_apt_get_de_la_etapa_de_build_instala_python3(self):
++        # src.build genera nccl_git_version.h y el código de src/device con scripts `#!/usr/bin/env python3`; la base CUDA no lo trae
++        self.assertLessEqual({"build-essential", "git", "python3"}, paquetes_apt(self.docker))
++
++    @unittest.skipUnless(os.environ.get("NCCL_SRC"), "NCCL_SRC: checkout de NVIDIA/nccl en v2.30.7-1 (73cf1122)")
++    def test_los_interpretes_que_ejecuta_el_build_de_nccl_estan_en_el_apt_get(self):
++        # Los Makefile de src.build llaman a `./<ruta>.py`: el shebang de cada uno es el intérprete que la imagen debe traer, y sus
++        # imports, módulos de la librería estándar (lo único que instala el paquete python3).
++        src = nccl_src()
++        paquetes = {"python3": "python3"}  # intérprete -> paquete; bash y sh vienen en la base
++        scripts = {}
++        for mk in [src / "Makefile", src / "src/Makefile", src / "src/device/Makefile", *(src / "makefiles").glob("*.mk")]:
++            for ruta in re.findall(r"(?<![\w./$])\./([\w./-]+\.py)\b", mk.read_text(encoding="utf-8")):
++                scripts[(mk.parent / ruta).resolve()] = mk
++        self.assertLessEqual({"src/misc/generate_git_version.py", "src/device/generate.py", "src/device/symmetric/generate.py"},
++                             {str(s.relative_to(src.resolve())) for s in scripts})  # el patrón no se queda ciego
++        instalados = paquetes_apt(self.docker)
++        for script in scripts:
++            with self.subTest(script=script.name):
++                shebang = script.read_text(encoding="utf-8").splitlines()[0]
++                interprete = shebang.removeprefix("#!").split()[-1].rsplit("/", 1)[-1]
++                self.assertIn(interprete, paquetes, f"{shebang}: intérprete sin paquete conocido")
++                self.assertIn(paquetes[interprete], instalados)
++                imports = [n for n in ast.walk(ast.parse(script.read_text(encoding="utf-8"))) if isinstance(n, (ast.Import, ast.ImportFrom))]
++                modulos = {a.name.split(".")[0] for n in imports if isinstance(n, ast.Import) for a in n.names}
++                modulos |= {(n.module or "").split(".")[0] for n in imports if isinstance(n, ast.ImportFrom)}
++                self.assertLessEqual(modulos, sys.stdlib_module_names)
++
+     def test_el_parche_que_copia_el_build_es_el_del_repo(self):
+         self.assertIn(f"COPY images/nccl-ring/{PATCH.name} /tmp/nccl-ring.patch", self.docker)
+         self.assertEqual(self.wf["env"]["PATCH"], f"images/nccl-ring/{PATCH.name}")

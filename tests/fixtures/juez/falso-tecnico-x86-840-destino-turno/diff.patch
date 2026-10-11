@@ -1,0 +1,669 @@
+diff --git a/.company/evidence/sc-2212-bus-espera-al-hook.md b/.company/evidence/sc-2212-bus-espera-al-hook.md
+new file mode 100644
+index 00000000..780d3f62
+--- /dev/null
++++ b/.company/evidence/sc-2212-bus-espera-al-hook.md
+@@ -0,0 +1,134 @@
++# Evidencia · sc-2212-bus-espera-al-hook
++
++Comando (en `/home/dibanez/.cache/wt/sc2212-fix`, un proceso por fichero como el CI):
++
++```
++for f in ci/test_*.py; do python3 -m unittest ci.$(basename $f .py); done
++COMPANY_ROLES_REGISTRY=ci/fixtures/roles.json python3 -m unittest ci.test_company_aprender ci.test_company_desatascador ci.test_dreaming_nucleo ci.test_jira_rest
++```
++
++Resultado: **108/108 ficheros en verde** con el entorno del job de CI (`COMPANY_ROLES_REGISTRY`, que `ci.yml` fija a nivel
++de job). Sin esa variable fallan solo `test_company_aprender`, `test_company_desatascador`, `test_dreaming_nucleo` y
++`test_jira_rest` (KeyError del registro de roles, no del código); re-ejecutados con la variable, OK — y `test_jira_rest` y
++`test_dreaming_nucleo` dan OK también sobre `origin/main` pelado, descartando regresión.
++
++Recuento de la pasada completa (sin la variable): 104 OK, 4 FAIL por entorno.
++
++```
++    test_acc_repo: OK
++    test_acotar: OK
++    test_agent_browser_sync: OK
++    test_agent_browser_x86_watch: OK
++    test_aislamiento_host: OK
++    test_backlog_parado: OK
++    test_blog_bilingue: OK
++    test_blog_candidatos: OK
++    test_blog_pie_pieza: OK
++    test_brain_opencode_sync: OK
++    test_brain_reconciliador_staleness: OK
++    test_chat_session_trigger: OK
++    test_ci_recetas: OK
++    test_clasificacion_accion: OK
++    test_claude_aprender_hooks: OK
++    test_claude_charts: OK
++    test_claude_con_cuenta: OK
++    test_claude_cuenta_mac: OK
++    test_claude_cuentas_monitor: OK
++    test_claude_cuenta_vscode: OK
++    test_claude_modelo_subagentes: OK
++    test_claude_ponytail_matcher: OK
++    test_claude_rc_baseurl: OK
++    test_claude_rc_cuenta: OK
++    test_claude_rc_keepalive: OK
++    test_claude_rc_modelo_local: OK
++    test_claude_rc_status: OK
++    test_claude_tmux: OK
++    test_company_agent: OK
++    test_company_aprender_control: OK
++    test_company_aprender_pr: OK
++    test_company_aprender: FAIL
++    test_company_aprobar: OK
++    test_company_bots: OK
++    test_company_briefs: OK
++    test_company_burst: OK
++    test_company_burst_trabajo: OK
++    test_company_bus_poda: OK
++    test_company_bus: OK
++    test_company_bus_turnos: OK
++    test_company_buzon: OK
++    test_company_caida_jira: OK
++    test_company_capacidad: OK
++    test_company_clonar: OK
++    test_company_control: OK
++    test_company_cuenta: OK
++    test_company_desatascador: FAIL
++    test_company_encargos: OK
++    test_company_env: OK
++    test_company_estado_hook: OK
++    test_company_flujo: OK
++    test_company_huella: OK
++    test_company_live: OK
++    test_company_mcp: OK
++    test_company_modelos: OK
++    test_company_no_hereda_cuenta: OK
++    test_company_options_applier: OK
++    test_company_orquesta: OK
++    test_company_para_dani: OK
++    test_company_piezas: OK
++    test_company_ponytail_skills: OK
++    test_company_requests: OK
++    test_company_ritmo: OK
++    test_company_senal: OK
++    test_company_sesion: OK
++    test_design_request: OK
++    test_design_skills: OK
++    test_despertador: OK
++    test_dreaming_nucleo: FAIL
++    test_gh_puerta: OK
++    test_git_hooks: OK
++    test_hermes_actividad: OK
++    test_hermes_bridge: OK
++    test_hermes_despliegue: OK
++    test_install_plugin_build: OK
++    test_install_plugin_ref: OK
++    test_install_saneamiento: OK
++    test_jira_epic_trigger: OK
++    test_jira_forge_push_contrato: OK
++    test_jira_proyecto: OK
++    test_jira_rest: FAIL
++    test_lenguaje_check: OK
++    test_op_connect: OK
++    test_opencode_archive_prune: OK
++    test_opencode_restart: OK
++    test_opencode_wrapper: OK
++    test_ops_watch: OK
++    test_orquesta_vigila: OK
++    test_pago_alerta: OK
++    test_prueba_caida_jira: OK
++    test_pr_watch: OK
++    test_rastros: OK
++    test_rc_bridge: OK
++    test_rc_sessions: OK
++    test_registro_roles: OK
++    test_regresion_sc1397: OK
++    test_repartir: OK
++    test_request_mano: OK
++    test_request_vuelve: OK
++    test_sin_kanban: OK
++    test_skills_terceros: OK
++    test_stub_mcp_500: OK
++    test_tmpfiles_claude: OK
++    test_una_instancia: OK
++    test_update_watch_host_versions: OK
++    test_vigilante: OK
++    test_vscode_archivadas_kill: OK
++    test_wait_opencode_dependency: OK
++```
++
++## Criterios
++
++- C4 (hook · cuándo bloquea + espera del bus): `ci/test_company_estado_hook.py::MarcaBloqueo` (3) y
++  `ci/test_company_bus_turnos.py::BloqueaStopHook` (3 primeros) + `ci/test_company_capacidad.py::BloqueaStopHook` (5) — en verde; antes del arreglo, en rojo.
++- C6 (documentación): `ARCHITECTURE.md`, secciones de `turno_cerrado_de` y del hook.
++- Defecto H2 (`bus-medida` · cubo `ESPERA`): `ci/test_company_bus_turnos.py::BloqueaStopHook::test_un_cierre_con_espera_vigilable_no_es_sin_estado`
++  y `ci/test_company_bus.py::BusMedida` (LOG con la línea `it ESPERA`) — en verde.
+diff --git a/.company/specs/SC-2212/50-entrega.md b/.company/specs/SC-2212/50-entrega.md
+index 167a90a9..c6c7b9b6 100644
+--- a/.company/specs/SC-2212/50-entrega.md
++++ b/.company/specs/SC-2212/50-entrega.md
+@@ -48,3 +48,63 @@ Los dos `Stop` reales de la primera sesión son `ci/fixtures/estado-turnos/event
+ - Las sesiones que ya viven no llevan el hook hasta que se reanuden: el `--settings` se fija al nacer.
+ - Un turno que muere por cuota o por la API no se bloquea (`clasificar_texto`). `PARA DANI:` solo, sin `ESTADO:`, tampoco: `esperas_de` lo da por cierre vigilable.
+ - Documento reflejado: `ARCHITECTURE.md`. La línea `[DECISION]` de la épica (con `company_orquesta`) la completa P2.
++
++---
++
++# Arreglo del NO PASA de qa (segunda ronda, SC-2212 · 70-qa.md de SC-2209, id 24313)
++
++El defecto medido: el hook bloquea el cierre sin `ESTADO:`, pero el transcript acaba en el `stop_hook_summary` de ESE
++bloqueo y `turno_cerrado` lo ve cerrado. Reproducido (sid `91c03b43`, pm de SC-2171): bloqueo 15:57:29.469Z y journal del
++bus 17:57:32 «turno cerrado (sin ESTADO), a nadie; unidad parada» — ~3 s después, con el transcript sin continuación. La
++contraprueba (`3f12964d`) continuó a los 9 s y cerró con `ESTADO: ENTREGA`: el bloqueo aterrizaba solo cuando el bus no
++cazaba la ventana. PR: x86-host-runtime-pocharlies#<número>, rama `sc-2212-bus-espera-al-hook`, contra `main`.
++
++## Qué se hizo (la clase, no el caso)
++
++- `libexec/company_capacidad.py`: el hook, al bloquear, deja una marca por sesión (`~/.company/bots/stop-bloqueo/<sid>`,
++  contenido: el `id_turno` que bloqueó, escrito best-effort). `turno_cerrado_de` — el criterio canónico que usan bus,
++  `company-sesion`, despertador y encargos — no da por cerrado un turno mientras la marca señale el último y no hayan
++  pasado `STOP_BLOQUEO_S` (120 s, env). Pasado el tope sin continuación, cierra sin ESTADO como antes: nada cuelga. La
++  gramática de `ESTADO:` no se copia: la marca la escribe solo el hook, en el único momento en que sabe que bloqueó.
++- `libexec/company_estado_hook.py`: `decidir` escribe la marca antes de devolver el `reason`; si el escritorio falla, el
++  bloqueo se emite igual.
++- `libexec/company_bus.py`: `turnos_cerrados` etiqueta el cierre en el journal por `ESPERA` cuando no hay `ESTADO:` pero
++  sí una `ESPERA:` vigilable (`despertador.esperas_de`, la misma del hook). Con eso `company-ctl bus-medida` lo cuenta en
++  su cubo: de los 21 turnos sin ESTADO en 3 h de la medida de qa, 10 llevaban `ESPERA:` válida y se contaban mal.
++- Mismo race, mismos consumidores: `company-sesion.esperar_turno` espera la continuación antes de devolver la respuesta
++  (si no, devolvía el texto previo al bloqueo y marcaba el turno como visto), y `company_desatascador.turno()` pasa del
++  `jet.turno_cerrado` duplicado a `company_capacidad.turno_cerrado_de`, el criterio canónico.
++- `ARCHITECTURE.md`: documentado en la sección de `turno_cerrado_de` y en la del hook.
++
++## Cómo verificarlo
++
++- `COMPANY_ROLES_REGISTRY=ci/fixtures/roles.json python3 -m unittest ci/test_company_bus_turnos.py ci/test_company_estado_hook.py ci/test_company_capacidad.py ci/test_company_bus.py` (cada fichero en su proceso, como el CI): clases nuevas
++  `BloqueaStopHook` (bus: bloqueo → ni reparto ni parada; continuación con ESTADO → se reparte por esa línea; tope
++  caducado → sin ESTADO y parada; ESPERA vigilable → cubo `ESPERA` en `medir`), `MarcaBloqueo` (hook: la marca sale con
++  el `id_turno`, nada si no bloquea, el bloqueo se emite si la marca falla) y `BloqueaStopHook` en capacidad. Antes del
++  arreglo: 7 de esos casos en rojo (el primero, el exacto de la reproducción, fallaba igual que qa).
++- Suite completa del repo, un fichero por proceso: salida en `.company/evidence/sc-2212-bus-espera-al-hook.md`.
++- En vivo, tras el merge: un turno de sesión `ses-*` que cierre sin línea debe dejar en el journal del bus, ≤ 24 h, cero
++  «turno cerrado (sin ESTADO) … unidad parada» a los segundos de un bloqueo del hook, y `company-ctl bus-medida` debe
++  sacar los cierres con `ESPERA:` del cubo «sin ESTADO» (lo mide qa al cierre de la épica; no se verifica en esta PR).
++
++## Checklist de `00-spec.md` (estado tras esta ronda)
++
++- [x] A1, Dónde va el hook, Entrada, Cuándo bloquea, Documentación: como en la primera ronda; esta PR extiende «Cuándo
++  bloquea» con la marca y la espera del bus, y la Documentación con las dos secciones.
++- [x] Sonda (A2c): hecha en la primera ronda (arriba). El bloqueo que no aterrizaba es lo que qa midió después y lo que
++  arregla esta ronda; la verificación en vivo de que aterriza queda para el cierre de la épica (medida de 24 h).
++
++## Reutilizado (esta ronda)
++
++- `company_capacidad.turno_cerrado_de` y su sello `abierto` (SC-2064 P5a): el punto único donde se decide «turno
++  cerrado» — el arreglo va ahí, no en el bucle del bus; `bots_dir()` ya existía para la ruta de la marca.
++- `jet.id_turno` (`jira-epic-trigger.py`): la identidad del turno ya era la que usaba el bus para no repetir avisos; la
++  marca la usa como clave de validez (misma señal, sin gramática nueva).
++- `despertador.esperas_de`: la cubificación de `ESPERA` en el bus es la misma llamada que ya hacía `company_orquesta.marca_de`
++  (se calcula una vez y se reutiliza; no se copia la gramática, como exige la `[DECISION]` de la épica).
++- Buscado: `rg -n "TURNO CERRADO|turno cerrado|bus-medida|company_bus|estado_hook"`, `rg -n "stop_hook_summary"` (el
++  punto exacto del race en `jira-epic-trigger.py:1764`), `rg -n "\.turno_cerrado\("` (los tres consumidores directos:
++  capacidad, desatascador, esperar_turno). `company-duplicados`: sin clones nuevos.
++- Nuevo: la marca (`marcar_stop_bloqueo`/`bloqueo_stop_pendiente`, 3 funciones en `company_capacidad.py`), la etiqueta
++  `ESPERA` en el journal, y sus tests.
+diff --git a/ARCHITECTURE.md b/ARCHITECTURE.md
+index 9e9fdf27..a00431ce 100644
+--- a/ARCHITECTURE.md
++++ b/ARCHITECTURE.md
+@@ -281,7 +281,15 @@ línea; sin `ESTADO:` obligatorio: pm, it y security cierran sin él); sin `desd
+ `company_bus.turnos_cerrados` y `barrer_ociosas`, `company_capacidad.trabajando`, `company-sesion` (`mensaje`, `leer`, `ver`),
+ `company_encargos._sesion_trabajando` y `despertador.despertadores`. `esperar_turno` pasa su propio `desde` a `turno_cerrado`.
+ El sello caduca: a los `TURNO_GRACIA_S` (120 s) de `abierto` sin que el turno nuevo aparezca, el mensaje no llegó y vale el cierre
+-de siempre, así que una sesión nunca se queda «trabajando» por un mensaje perdido. Una entrada sin `abierto` (anterior a esto) se
++de siempre, así que una sesión nunca se queda «trabajando» por un mensaje perdido.
++Tampoco lo está un cierre bloqueado por el hook `Stop` (SC-2212, el NO PASA de qa de SC-2209: medido, el bus repartía «sin ESTADO»
++y paraba la unidad ~3 s después del bloqueo — sid 91c03b43, pm de SC-2171 — antes de que el rol escribiera su línea): al bloquear,
++el hook deja una marca en `~/.company/bots/stop-bloqueo/<sid>` con el `id_turno` que bloqueó, y `turno_cerrado_de` (y `esperar_turno`,
++que llama a `bloqueo_stop_pendiente` directamente) no dan el turno por cerrado mientras la marca señale el último turno y no hayan
++pasado `STOP_BLOQUEO_S` (120 s); pasado el tope sin continuación, cierra sin ESTADO como antes. La gramática de `ESTADO:` no se copia:
++la marca la escribe solo el hook, en el único momento en que sabe que bloqueó. Y `company_bus.turnos_cerrados` etiqueta el cierre en el
++journal por `ESPERA` cuando no hay `ESTADO:` pero sí una `ESPERA:` vigilable (`despertador.esperas_de`), así que `company-ctl bus-medida`
++lo cuenta en su propio cubo y no como «sin ESTADO». Una entrada sin `abierto` (anterior a esto) se
+ comporta como antes, y un `company-sesion` viejo con un bus nuevo, o al revés, también (el campo es aditivo).
+ `_reconstruir` (la entrada que `lanzar` rehace desde el comentario SESIÓN de la issue) NO sella `abierto`, porque no abre ningún
+ turno, pero siembra `visto` (mtime del transcript) y `turno_visto` (`id_turno`): lo ya cerrado antes de reconstruir no es nuevo.
+@@ -294,7 +302,7 @@ cada sitio en `ci/test_company_capacidad.py`, `ci/test_despertador.py` y `ci/tes
+ 
+ [DECISION: x86-host-runtime-pocharlies: el hook que exige `ESTADO:` es libexec/company_estado_hook.py, que importa la gramática de company-sesion (`estado_de`, `_cierre`) y despertador (`esperas_de`) sin copiarla; solo `jira-epic-trigger.settings_sesion` lo pone en un `--settings` (`company_aprender.settings_arranque` suma las listas de `Stop`, no las pisa). Architect, SC-2209, 09-10-2026]
+ 
+-`Stop` de las sesiones `ses-*` (solo actúa con `COMPANY_SESION=1`): bloquea una vez por turno (`stop_hook_active`) un cierre sin `ESTADO:` ni `ESPERA:` vigilable y falla abierto. Con él, `company-sesion.progreso_en_jira` manda a PROGRESO el HITO, ENTREGA y ESPERO de pm, it, problem y security. Tests: `ci/test_company_estado_hook.py`.
++`Stop` de las sesiones `ses-*` (solo actúa con `COMPANY_SESION=1`): bloquea una vez por turno (`stop_hook_active`) un cierre sin `ESTADO:` ni `ESPERA:` vigilable y falla abierto. Al bloquear deja la marca `~/.company/bots/stop-bloqueo/<sid>` (contenido: el `id_turno` bloqueado) que `company_capacidad.turno_cerrado_de` consulta para no dar el turno por cerrado antes de la continuación (SC-2212, ver el párrafo de arriba). Con él, `company-sesion.progreso_en_jira` manda a PROGRESO el HITO, ENTREGA y ESPERO de pm, it, problem y security. Tests: `ci/test_company_estado_hook.py`, `ci/test_company_bus_turnos.py::BloqueaStopHook`.
+ 
+ ## Componente canónico: la orquesta, el bus que entrega en código `libexec/company_orquesta.py` (SC-2213, P2 de SC-2209)
+ 
+diff --git a/CONTRACTS.yaml b/CONTRACTS.yaml
+index 1a16d0c5..eab27fd7 100644
+--- a/CONTRACTS.yaml
++++ b/CONTRACTS.yaml
+@@ -756,6 +756,13 @@ contracts:
+       someone to `mensaje`: the bus parks it (`espera_hasta` in its registry entry) and retries at the reset. `mensaje` still
+       resumes it earlier and the mark clears itself. Invocation shape unchanged; `relanzar_por_cuota` and `mover_de_cuenta`
+       only gain an optional `reintento` argument.
++      SC-2212 (09-10-2026), note only: `mensaje --esperar` (and the bus's `turno_cerrado_de`, the canonical decision) no
++      longer treat a turn whose close was BLOCKED by the Stop hook (`company_estado_hook.py`) as closed: the hook leaves a
++      mark per session (`bots/stop-bloqueo/<sid>`, the blocked `id_turno`) and the wait continues until the role's
++      continuation or `STOP_BLOQUEO_S` (120 s), after which the turn closes without `ESTADO:` as before. Before this, a
++      waiting caller could get the pre-block text and the bus could stop the unit ~3 s after the block (measured, pm of
++      SC-2171). Invocation shape unchanged; `company_desatascador.turno()` moves from a duplicate of `jet.turno_cerrado`
++      to the canonical `company_capacidad.turno_cerrado_de` (same decision, same marker file).
+   - id: jira.etiquetas.en-vivo-de-dani
+     kind: allowlist
+     value: "ejecucion-sesion-dani"
+diff --git a/ci/test_company_bus.py b/ci/test_company_bus.py
+index 815a9442..5703c8ce 100644
+--- a/ci/test_company_bus.py
++++ b/ci/test_company_bus.py
+@@ -247,6 +247,7 @@ def gh(*a):
+ bus: sesiones: SC-2 tech-lead: turno cerrado (ESPERO), a nadie; unidad parada
+ bus: sesiones: SC-2 tech-lead: turno cerrado (HITO), registrado como PROGRESO en SC-2; unidad parada
+ bus: sesiones: SC-9 pm: turno cerrado (sin ESTADO), registrado como PROGRESO en SC-9; unidad parada
++bus: sesiones: SC-9 it: turno cerrado (ESPERA), registrado como PROGRESO en SC-9; unidad parada
+ bus: sesiones: SC-7 developer: turno para el tech-lead de SC-1 diferido, siguen trabajando developer de SC-8
+ bus: SC-3: evento podado, no crea encargo (no es un cambio de estado)
+ """
+@@ -257,9 +258,10 @@ class BusMedida(unittest.TestCase):
+ 
+     def test_medir_cuenta_turnos_tickets_y_por_rol_y_estado(self):
+         m = bus.medir(LOG.splitlines())
+-        self.assertEqual((m["turnos"], m["tickets"]), (6, 4))
++        self.assertEqual((m["turnos"], m["tickets"]), (7, 4))
+         self.assertEqual(m["por"][("tech-lead", "ESPERO")], 3)
+         self.assertEqual(m["por"][("pm", "sin ESTADO")], 1)
++        self.assertEqual(m["por"][("it", "ESPERA")], 1)          # SC-2212: un cierre con `ESPERA:` vigilable no es «sin ESTADO»
+         self.assertEqual(m["tech_lead_espero"], 3)
+ 
+     def test_company_ctl_bus_medida_lee_el_journal_del_bus_de_las_ultimas_horas(self):
+@@ -275,7 +277,8 @@ def run(cmd, **kw):
+         self.assertEqual(visto[0][:5], ["journalctl", "--user", "-u", "company-bus", "--since"])
+         self.assertEqual(visto[0][5], "24 hours ago")
+         out = salida.getvalue()
+-        self.assertIn("últimas 24 h · 6 turnos cerrados en 4 tickets", out)
++        self.assertIn("últimas 24 h · 7 turnos cerrados en 4 tickets", out)
++        self.assertIn("  it ESPERA: 1", out)
+         self.assertIn("  tech-lead ESPERO: 3", out)
+         self.assertEqual(out.strip().splitlines()[-1], "tech-lead ESPERO: 3")
+ 
+diff --git a/ci/test_company_bus_turnos.py b/ci/test_company_bus_turnos.py
+index 277ad442..4beb7637 100644
+--- a/ci/test_company_bus_turnos.py
++++ b/ci/test_company_bus_turnos.py
+@@ -51,6 +51,7 @@
+ bots = cargar("company_bots")
+ JET_DE_VERDAD = bots._jet           # el supervisor de verdad (SC-2064 P5a): `Base` lo sustituye por el simulado
+ bus = cargar("company_bus")
++cap = cargar("company_capacidad")   # SC-2212: la marca del bloqueo del hook Stop la escribe el hook y la lee `turno_cerrado_de`
+ _loader = importlib.machinery.SourceFileLoader("company_sesion_t", str(LIB / "company-sesion"))
+ cs = importlib.util.module_from_spec(importlib.util.spec_from_loader("company_sesion_t", _loader))
+ _loader.exec_module(cs)
+@@ -191,6 +192,56 @@ def test_un_turno_nuevo_si_se_avisa(self):
+         self.assertEqual([t.split("\n")[1] for _, t, _ in self.enviados], ["uno", "dos"])
+ 
+ 
++class BloqueaStopHook(Base):
++    """SC-2212 (el NO PASA de qa de la épica SC-2209): el hook Stop bloquea un cierre sin `ESTADO:` y el rol escribe su
++    línea unos segundos después. El transcript acaba en el `stop_hook_summary` de ESE bloqueo y `turno_cerrado` lo ve
++    cerrado: medido (sid 91c03b43, pm de SC-2171, 09-10), el bus repartía «sin ESTADO» y paraba la unidad ~3 s después
++    del bloqueo, antes de la continuación. Mientras la marca del hook señala el último turno, el turno no está cerrado;
++    llega la continuación y se reparte por esa línea; sin ella pasado el tope (`STOP_BLOQUEO_S`), cierra sin ESTADO como hoy.
++    Y un cierre con `ESPERA:` vigilable (que el hook deja pasar) no es «sin ESTADO»: `bus-medida` lo cuenta en su cubo."""
++
++    def test_bloqueo_del_hook_no_da_el_turno_por_cerrado_ni_para_la_unidad(self):
++        sid = self.sesion("SC-20", "pm", perfil="pm")
++        self.jet.cerrar(sid, "a-1", "criterios verificados, sin línea de cierre")
++        cap.marcar_stop_bloqueo(self.jet, sid)                      # lo que el hook hace al bloquear
++        self.assertEqual(bus.turnos_cerrados(), [], "en la ventana del bloqueo: nada que repartir")
++        self.assertEqual(self.jet.paradas, [], "y la unidad no se para: el rol está escribiendo su línea")
++        self.assertEqual(self.enviados, [])
++        self.assertEqual(self.progresos, [])
++
++    def test_la_continuacion_con_estado_se_reparte_por_esa_linea(self):
++        sid = self.sesion("SC-20", "pm", perfil="pm")
++        self.jet.cerrar(sid, "a-1", "criterios verificados")
++        cap.marcar_stop_bloqueo(self.jet, sid)
++        bus.turnos_cerrados()
++        self.jet.cerrar(sid, "a-2", "criterios verificados\nESTADO: ENTREGA")      # la continuación llegó
++        out = bus.turnos_cerrados()
++        self.assertEqual(len(out), 1)
++        self.assertIn("turno cerrado (ENTREGA)", out[0])
++        self.assertEqual(self.jet.paradas, [sid])
++
++    def test_sin_continuacion_pasado_el_tope_se_da_por_cerrado_sin_estado(self):
++        sid = self.sesion("SC-20", "pm", perfil="pm")
++        self.jet.cerrar(sid, "a-1", "criterios verificados")
++        cap.marcar_stop_bloqueo(self.jet, sid)
++        ruta = Path(cap.bots_dir(), "stop-bloqueo", sid)
++        viejo = time.time() - cap.STOP_BLOQUEO_S - 1
++        os.utime(ruta, (viejo, viejo))                              # la ventana caducó sin continuación
++        out = bus.turnos_cerrados()
++        self.assertEqual(len(out), 1)
++        self.assertIn("turno cerrado (sin ESTADO)", out[0])
++        self.assertEqual(self.jet.paradas, [sid])
++
++    def test_un_cierre_con_espera_vigilable_no_es_sin_estado(self):
++        sid = self.sesion("SC-20", "it", perfil="it")
++        self.jet.cerrar(sid, "a-1", "vigilo la PR\n\nESPERA: ci pocharlies-org/x86-host-runtime-pocharlies#840 → fusiono con LISTA")
++        out = bus.turnos_cerrados()
++        self.assertEqual(len(out), 1)
++        self.assertIn("turno cerrado (ESPERA)", out[0])
++        self.assertNotIn("sin ESTADO", out[0])
++        self.assertEqual(bus.medir([f"sesiones: {out[0]}"])["por"][("it", "ESPERA")], 1)
++
++
+ class Reparto(Base):
+     def test_el_maker_va_a_su_tech_lead_aunque_este_en_la_epica(self):
+         self.sesion("SC-1", "tech-lead")
+diff --git a/ci/test_company_capacidad.py b/ci/test_company_capacidad.py
+index 8a2acfb4..3b967378 100644
+--- a/ci/test_company_capacidad.py
++++ b/ci/test_company_capacidad.py
+@@ -704,6 +704,56 @@ class Jet:
+         self.assertEqual(miradas, ["aaaaaaaa-1"], "la que no tiene unidad activa no se mira")
+ 
+ 
++class BloqueaStopHook(unittest.TestCase):
++    """SC-2212 (el NO PASA de qa de SC-2209): la marca que el hook `Stop` deja al bloquear un cierre. Mientras señala
++    el turno que hoy es el último y no han pasado `STOP_BLOQUEO_S`, `turno_cerrado_de` NO da el turno por cerrado (el rol
++    está escribiendo su línea bajo el aviso del hook; medido, el bus paraba la unidad ~3 s después del bloqueo). La
++    continuación (otro `id_turno`) o el tope caducado lo devuelven al cierre de siempre, sin ESTADO."""
++
++    def setUp(self):
++        import time
++        self.t = time
++        d = tempfile.TemporaryDirectory(prefix="bloqueo-stop-")
++        self.addCleanup(d.cleanup)
++        p = mock.patch.dict(os.environ, {"COMPANY_BOTS_DIR": d.name})
++        p.start()
++        self.addCleanup(p.stop)
++
++    def jet(self, turno):
++        class Jet:
++            turno_cerrado = staticmethod(lambda sid, desde=0.0: True)
++            id_turno = staticmethod(lambda sid: turno)
++        return Jet
++
++    def marca(self, sid):
++        return Path(cc.bots_dir(), "stop-bloqueo", sid)
++
++    def test_marca_vigente_sobre_el_turno_actual_no_es_cierre(self):
++        cc.marcar_stop_bloqueo(self.jet("a-1"), "s-1")
++        self.assertEqual(self.marca("s-1").read_text(), "a-1")
++        self.assertFalse(cc.turno_cerrado_de(self.jet("a-1"), {"sid": "s-1"}), "en la ventana del bloqueo: sigue abierto")
++
++    def test_la_continuacion_con_otro_id_de_turno_si_es_cierre(self):
++        cc.marcar_stop_bloqueo(self.jet("a-1"), "s-1")
++        self.assertTrue(cc.turno_cerrado_de(self.jet("a-2"), {"sid": "s-1"}),
++                        "llegó la continuación: la marca es de otro turno, vale el cierre")
++
++    def test_la_marca_caduca_sin_continuacion_vale_el_cierre_de_siempre(self):
++        cc.marcar_stop_bloqueo(self.jet("a-1"), "s-1")
++        viejo = self.t.time() - cc.STOP_BLOQUEO_S - 1
++        os.utime(self.marca("s-1"), (viejo, viejo))
++        self.assertTrue(cc.turno_cerrado_de(self.jet("a-1"), {"sid": "s-1"}),
++                        "pasado el tope sin continuación: cerrado sin ESTADO, como antes del arreglo")
++
++    def test_sin_marca_lo_de_siempre(self):
++        self.assertTrue(cc.turno_cerrado_de(self.jet("a-1"), {"sid": "s-1"}))
++
++    def test_un_sid_suerto_no_escribe_ni_rompe(self):
++        cc.marcar_stop_bloqueo(self.jet("a-1"), "../escape")
++        self.assertFalse(cc.bloqueo_stop_pendiente(self.jet("a-1"), "../escape"))
++        self.assertTrue(cc.turno_cerrado_de(self.jet("a-1"), {"sid": "../escape"}), "con un sid inválido, el cierre de siempre")
++
++
+ class ReservaCierre(unittest.TestCase):
+     """SC-1981: plazas del proveedor que los constructores no toman mientras haya historias en validación."""
+ 
+diff --git a/ci/test_company_estado_hook.py b/ci/test_company_estado_hook.py
+index a2eb0d23..f741b86a 100644
+--- a/ci/test_company_estado_hook.py
++++ b/ci/test_company_estado_hook.py
+@@ -112,6 +112,47 @@ def test_evento_que_no_es_stop_no_bloquea(self):
+         self.assertIsNone(hook.decidir("no es un dict", ENV))
+ 
+ 
++class MarcaBloqueo(unittest.TestCase):
++    """SC-2212 (el NO PASA de qa de SC-2209): al bloquear, el hook deja una marca por sesión
++    (`bots/stop-bloqueo/<sid>`, contenido: el `id_turno` que bloqueó) para que `company_capacidad.turno_cerrado_de` no dé
++    el turno por cerrado antes de la continuación: medido, el bus paraba la unidad ~3 s después del bloqueo (pm de
++    SC-2171). Si no bloquea no deja nada; si escribir falla, el bloqueo se emite igual."""
++
++    def setUp(self):
++        self.dir = tempfile.mkdtemp(prefix="marca-bloqueo-")
++        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
++        (Path(self.dir) / "-proyecto").mkdir()
++        self.bots = Path(self.dir, "bots")
++        self.cap = cargar("company_capacidad")
++        for p in (mock.patch.object(company_bots._jet(), "PROJECTS_DIR", self.dir),
++                  mock.patch.dict(os.environ, {"COMPANY_BOTS_DIR": str(self.bots)})):
++            p.start()
++            self.addCleanup(p.stop)
++
++    def transcript(self, texto):
++        (Path(self.dir) / "-proyecto" / f"{SID}.jsonl").write_text(json.dumps(
++            {"type": "assistant", "uuid": "a-1", "message": {"role": "assistant", "content": [
++                {"type": "text", "text": texto}]}}) + "\n")
++
++    def marca(self):
++        return self.bots / "stop-bloqueo" / SID
++
++    def test_bloquear_deja_la_marca_con_el_id_del_turno(self):
++        self.transcript(TURNOS["pm_sin_estado"]["texto"])
++        self.assertIsNotNone(decide(TURNOS["pm_sin_estado"]["texto"]))
++        self.assertEqual(self.marca().read_text(), "a-1")
++
++    def test_un_cierre_valido_no_deja_marca(self):
++        self.transcript(TURNOS["secretaria_entrega"]["texto"])
++        self.assertIsNone(decide(TURNOS["secretaria_entrega"]["texto"]))
++        self.assertFalse(self.marca().exists())
++
++    def test_si_falla_el_escritorio_de_la_marca_el_bloqueo_se_emite_igual(self):
++        self.transcript(TURNOS["pm_sin_estado"]["texto"])
++        with mock.patch.object(self.cap, "marcar_stop_bloqueo", side_effect=OSError("disco lleno")):
++            self.assertIsNotNone(decide(TURNOS["pm_sin_estado"]["texto"]))
++
++
+ class Transcript(unittest.TestCase):
+     """Sin `last_assistant_message` (un Claude Code más viejo), el texto sale del transcript con `jet.ultimo_turno`."""
+ 
+diff --git a/libexec/company-sesion b/libexec/company-sesion
+index 6bae2ea2..fb99b4d1 100755
+--- a/libexec/company-sesion
++++ b/libexec/company-sesion
+@@ -750,10 +750,12 @@ def esperar_turno(sid: str, desde: float, esperar_s: int, key: str = "", rol: st
+     jet = _jet()
+     if esperar_s <= 0:
+         return "ENTREGADO: la sesión está trabajando. Su respuesta, con `company-sesion leer`."
++    import company_capacidad   # SC-2212: el bloqueo del hook `Stop` no es cierre: hay que esperar la continuación
+     fin = time.time() + esperar_s
+     while time.time() < fin:
+         j = jet.transcript(sid)
+-        if j and os.path.getmtime(j) > desde and jet.turno_cerrado(sid, desde):
++        if j and os.path.getmtime(j) > desde and jet.turno_cerrado(sid, desde) \
++                and not company_capacidad.bloqueo_stop_pendiente(jet, sid):
+             if key and rol:
+                 marcar_visto(key, rol, os.path.getmtime(j), turno=jet.id_turno(sid))
+             return jet.ultimo_turno(sid)["texto"][-SALIDA_MAX:] or "(el turno acabó sin texto)"
+diff --git a/libexec/company_bus.py b/libexec/company_bus.py
+index ca8680bc..f3240e14 100644
+--- a/libexec/company_bus.py
++++ b/libexec/company_bus.py
+@@ -1001,6 +1001,10 @@ def turnos_cerrados() -> list[str]:
+                           "estado): cuenta como atasco de la épica. Con varios en 24 h sube la dificultad.")
+                 out.append(f"{key} {rol}: turno sin avance, atasco apuntado en {epica}")
+         estado, detalle = cs.estado_de(texto)
++        # SC-2212: un cierre con `ESPERA:` vigilable (el hook lo deja pasar y el despertador lo vigila) no es «sin
++        # ESTADO»: `company-ctl bus-medida` lo cuenta en su propio cubo. La gramática es la del hook, no una copia.
++        esperas = despertador.esperas_de(texto, time.time())
++        etiqueta = estado or ("ESPERA" if esperas else "sin ESTADO")
+         perfil = s["perfil"]
+         tl = cs.tech_lead_de(key, company_bots.padre(key)) if perfil == "cto" and rol != cs.TECH_LEAD else None
+         modo = company_orquesta.modo()
+@@ -1023,14 +1027,14 @@ def turnos_cerrados() -> list[str]:
+         en_jira = False
+         a_quien = None
+         if modo != "off":                      # SC-2213: la tabla de la orquesta. `aviso` decide y lo deja en el log; `activo` actúa
+-            marca = company_orquesta.marca_de(texto, bool(despertador.esperas_de(texto, time.time())))
++            marca = company_orquesta.marca_de(texto, bool(esperas))
+             d, motivo = company_orquesta.destino_turno(perfil, rol, estado, tl is not None, marca, detalle)
+             if modo == "aviso":
+                 company_orquesta.decision(key, "turno", d.replace("_", "-"), motivo, aviso=True)
+         if modo == "activo":
+             ok, det, a_quien = _turno_a_la_costura(cs, key, rol, s, estado, texto, tl, cabecera, d, motivo)
+             if ok is None:
+-                out.append(f"{key} {rol}: turno cerrado ({estado or 'sin ESTADO'}), {det}; lo reintento")
++                out.append(f"{key} {rol}: turno cerrado ({etiqueta}), {det}; lo reintento")
+                 continue
+         elif (cs.progreso_en_jira(perfil, rol, estado, modo=modo) and texto == texto_turno
+                 and not texto_turno.startswith("(el turno acabó sin texto)")):
+@@ -1066,7 +1070,7 @@ def turnos_cerrados() -> list[str]:
+             cs.marcar_visto(key, rol, os.path.getmtime(j))
+             a_quien = a_quien or (f"registrado como PROGRESO en {key}" if en_jira else "a nadie" if destino is None else f"entregado al tech-lead de {tl[0]}"
+                                   if destino == cs.TECH_LEAD else f"avisado el perfil {destino}")
+-            out.append(f"{key} {rol}: turno cerrado ({estado or 'sin ESTADO'}), {a_quien}; "
++            out.append(f"{key} {rol}: turno cerrado ({etiqueta}), {a_quien}; "
+                        + ("sigue a la vista" if vista else "unidad parada"))
+             despertador.tras_turno(key, f"{rol}:{key}", texto)    # ¿le queda a su épica quien la despierte? (30-09)
+         else:
+@@ -1076,6 +1080,7 @@ def turnos_cerrados() -> list[str]:
+ 
+ # SC-2184 (C11): `company-ctl bus-medida --horas N`, el mismo recuento que la auditoría del 08-10 («1.474 turnos cerrados en 328 tickets: tech-lead
+ # ESPERO 375, pm sin ESTADO 134…»): las líneas `sesiones: <clave> <rol>: turno cerrado (<ESTADO>)` que deja `turnos_cerrados` en el journal del bus.
++# SC-2212: un cierre con `ESPERA:` vigilable sale como `ESPERA`, su cubo; `sin ESTADO` queda solo para lo que de verdad no cerró.
+ # El valor que importa es `tech-lead ESPERO` (objetivo < 50 en 24 h tras el despliegue); lo mide qa al cierre.
+ TURNO_CERRADO_RE = re.compile(r"sesiones: (\S+) (\S+): turno cerrado \(([^)]*)\)")
+ 
+diff --git a/libexec/company_capacidad.py b/libexec/company_capacidad.py
+index 0e826223..45a9a113 100644
+--- a/libexec/company_capacidad.py
++++ b/libexec/company_capacidad.py
+@@ -693,16 +693,66 @@ def sitio(modelo: str | None, uso: dict[str, int], est: dict | None = None, cfg:
+ # turno sigue sin aparecer pasado este plazo es un mensaje que no llegó: caduca y vale lo de siempre.
+ TURNO_GRACIA_S = int(os.getenv("TURNO_GRACIA_S", "120"))
+ 
++# SC-2212 (el NO PASA de qa de la épica SC-2209): el hook `Stop` (`company_estado_hook.py`) bloquea un cierre sin
++# `ESTADO:` y el rol escribe su línea unos segundos después. En esa ventana el transcript acaba en el
++# `stop_hook_summary` de ESE bloqueo y `jet.turno_cerrado` lo ve cerrado: medido (sid 91c03b43, pm de SC-2171, 09-10),
++# el bus repartía «sin ESTADO» y paraba la unidad ~3 s después del bloqueo, segando la continuación. Al bloquear, el
++# hook deja una marca por sesión (`bots_dir()/stop-bloqueo/<sid>`, contenido: el `id_turno` que bloqueó): mientras la
++# marca señale el turno que hoy es el último y no hayan pasado STOP_BLOQUEO_S, el turno NO está cerrado. Pasado el tope
++# sin continuación, se da por cerrado sin ESTADO, como antes del arreglo. La gramática de `ESTADO:` no se copia: la
++# marca la escribe solo el hook, en el único momento en que sabe que bloqueó.
++STOP_BLOQUEO_S = float(os.getenv("STOP_BLOQUEO_S", "120"))
++
++
++def _ruta_stop_bloqueo(sid: str) -> str | None:
++    """La marca es un fichero por sid bajo `bots_dir()`; un sid que no es una palabra (no se fía del evento) no tiene."""
++    if not re.fullmatch(r"[\w-]{1,64}", sid or ""):
++        return None
++    return os.path.join(bots_dir(), "stop-bloqueo", sid)
++
++
++def marcar_stop_bloqueo(jet, sid: str) -> None:
++    """Lo que el hook `Stop` hace al BLOQUEAR un turno (SC-2212): deja la marca que lee `turno_cerrado_de`. Best
++    effort: si no se puede escribir, el bus cierra el turno como antes del arreglo; nunca rompe el bloqueo."""
++    ruta = _ruta_stop_bloqueo(sid)
++    if not ruta:
++        return
++    os.makedirs(os.path.dirname(ruta), exist_ok=True)
++    for viejo in os.scandir(os.path.dirname(ruta)):        # una marca por sesión: las caducadas no se acumulan
++        if viejo.is_file() and time.time() - viejo.stat().st_mtime > STOP_BLOQUEO_S:
++            try:
++                os.remove(viejo.path)
++            except OSError:
++                pass
++    with open(ruta, "w") as f:
++        f.write(jet.id_turno(sid) or "")
++
++
++def bloqueo_stop_pendiente(jet, sid: str) -> bool:
++    """¿El hook `Stop` bloqueó el cierre del turno que hoy es el último y sigue sin continuación? (SC-2212)"""
++    ruta = _ruta_stop_bloqueo(sid)
++    if not ruta:
++        return False
++    try:
++        with open(ruta) as f:
++            turno = f.read().strip()
++        ts = os.path.getmtime(ruta)
++    except OSError:
++        return False
++    return bool(turno) and time.time() - ts < STOP_BLOQUEO_S and jet.id_turno(sid) == turno
++
+ 
+ def turno_cerrado_de(jet, s: dict) -> bool:
+     """¿El turno de esta entrada del registro de company-sesion está cerrado? Cuenta solo el cerrado DESPUÉS de su
+     sello `abierto` (`jet.turno_cerrado(sid, desde)`: qué es «después» es suyo): el turno viejo, ya cerrado cuando se
+     abrió el nuevo, no es el de ahora. Pasado TURNO_GRACIA_S sin que el nuevo aparezca, el sello caduca y vale el
+-    cierre de siempre, así que una sesión nunca se queda «trabajando» por un mensaje perdido. Es la ÚNICA lectura de
+-    `abierto`: la usan el bus, `company-sesion`, el despertador y los encargos. Una entrada sin sello, como siempre."""
++    cierre de siempre, así que una sesión nunca se queda «trabajando» por un mensaje perdido. SC-2212: un cierre
++    bloqueado por el hook `Stop` no es cierre mientras su marca señale el último turno (`bloqueo_stop_pendiente`).
++    Es la ÚNICA lectura de `abierto`: la usan el bus, `company-sesion`, el despertador y los encargos. Una entrada
++    sin sello, como siempre."""
+     abierto = float(s.get("abierto") or 0)
+     if jet.turno_cerrado(s["sid"], abierto):
+-        return True
++        return not bloqueo_stop_pendiente(jet, s["sid"])
+     return bool(abierto) and time.time() - abierto > TURNO_GRACIA_S and jet.turno_cerrado(s["sid"])
+ 
+ 
+diff --git a/libexec/company_desatascador.py b/libexec/company_desatascador.py
+index ffa2dc54..84a371a2 100644
+--- a/libexec/company_desatascador.py
++++ b/libexec/company_desatascador.py
+@@ -497,11 +497,12 @@ def lanzar(self, key, rol, instruccion):
+             return "reintenta"
+ 
+     def turno(self, key):
+-        cs = self.j._company_sesion()
++        import company_capacidad  # SC-2212: el criterio canónico (`turno_cerrado_de`), no una copia: un cierre bloqueado
++        cs = self.j._company_sesion()   # por el hook `Stop` aún no es cierre (la sesión está escribiendo su DECISION)
+         s = cs.sesion_de(key, ROL)
+         if not s:
+             return None
+-        return self.j.turno_cerrado(s["sid"], float(s.get("abierto") or 0)), self.j.ultimo_turno(s["sid"])["texto"]
++        return company_capacidad.turno_cerrado_de(self.j, s), self.j.ultimo_turno(s["sid"])["texto"]
+ 
+     def fusionar(self, key, pr):
+         """Solo una PR abierta que cita `key` en el título: lo que el rol lee de un ticket es texto de terceros, y la puerta de merge
+diff --git a/libexec/company_estado_hook.py b/libexec/company_estado_hook.py
+index 007b67be..d53d2117 100644
+--- a/libexec/company_estado_hook.py
++++ b/libexec/company_estado_hook.py
+@@ -11,7 +11,9 @@
+ Bloquea solo si se cumple TODO: `COMPANY_SESION=1` y `COMPANY_APRENDIZ` distinto de 1, `stop_hook_active` falso (como
+ mucho UN bloqueo por turno; el tope nativo de Claude Code, 8, es solo la red), sin `background_tasks`, mensaje no vacío, el
+ turno no murió por cuota o error de la API y no lleva `ESTADO:` válido ni `ESPERA:` vigilable. La gramática no se copia: es
+-`company-sesion.estado_de` y `despertador.esperas_de`, la misma que lee el bus. Falla ABIERTO: cualquier excepción sale con
++`company-sesion.estado_de` y `despertador.esperas_de`, la misma que lee el bus. Al bloquear deja una marca por sesión
++(`company_capacidad.marcar_stop_bloqueo`): mientras señale el último turno, `turno_cerrado_de` no lo da por cerrado y el bus
++no para la unidad antes de la continuación (SC-2212, el NO PASA de qa de SC-2209). Falla ABIERTO: cualquier excepción sale con
+ 0 y sin salida, y el turno cierra como siempre.
+ """
+ import json
+@@ -40,6 +42,7 @@ def decidir(evento, env=os.environ) -> str | None:
+     sys.path.insert(0, LIBEXEC)
+     import company_bots
+     import company_bus
++    import company_capacidad
+     import company_control
+     import despertador
+     if "last_assistant_message" in evento:
+@@ -51,6 +54,13 @@ def decidir(evento, env=os.environ) -> str | None:
+     cs = company_bus._company_sesion()
+     if cs.estado_de(texto)[0] or despertador.esperas_de(texto, time.time()):
+         return None
++    # SC-2212 (el NO PASA de qa de SC-2209): la marca de que ESTE turno queda bloqueado, para que el bus no lo dé por
++    # cerrado ni pare la unidad antes de la continuación (medido: ~3 s después del bloqueo, pm de SC-2171). Si escribir
++    # falla se emite el bloqueo igual: sin marca el bus cierra el turno como antes del arreglo.
++    try:
++        company_capacidad.marcar_stop_bloqueo(company_bots._jet(), str(evento.get("session_id") or ""))
++    except Exception:  # noqa: BLE001
++        pass
+     return REASON.format(cierre=cs._cierre(ETIQUETAS))
+ 
+ 

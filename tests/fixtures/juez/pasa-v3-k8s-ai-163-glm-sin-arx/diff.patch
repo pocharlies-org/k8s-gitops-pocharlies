@@ -1,0 +1,180 @@
+diff --git a/.company/evidence/DGX-818-glm-sin-arx.md b/.company/evidence/DGX-818-glm-sin-arx.md
+new file mode 100644
+index 0000000..fab58f4
+--- /dev/null
++++ b/.company/evidence/DGX-818-glm-sin-arx.md
+@@ -0,0 +1,40 @@
++# DGX-818: experimento sin ARX en el overlay de la ventana
++
++Rol: devops · Fecha: 2026-10-11 · Donde: x86 (worktree de DGX-818-glm-sin-arx, desde b3f92e8) · Estado: PASA (tests y render; lo que solo se ve arrancando es de la ventana)
++
++## Interruptor real de ARX (kindling a3c3a1d7, checkout leido, no recordado)
++`experimental/arx/cuda_communicator.py:109-122`: `ArxCommunicator` solo se construye con `os.environ.get("VLLM_ARX_ALLREDUCE") == "1"` (y solo en el grupo tp);
++`ArxBig` solo si `arx_comm` existe. `all_reduce`, `_arx_reduce_scatter` y `_arx_all_gather` caen a PyNccl cuando `arx_comm is None`.
++`grep -c VLLM_ARX image/entrypoint.sh` = 0: el entrypoint no lo pisa. `VLLM_GLM_ARX_PREFETCH` (fixes/model.py:103) es el unico otro mando que solo vale con ARX.
++
++## Tests en rojo primero (commit anterior), sobre el overlay de b3f92e8
++```
++SUBFAILED(n='glm53-tp3-worker-dgx2') tools/test_glm53_tp3_ventana.py::RenderTest::test_receta_nccl_de_la_sonda_v3c_en_los_tres_rangos
++FAILED tools/test_glm53_tp3_ventana.py::RenderTest::test_subnet_aware_routing_se_anula_solo_en_el_overlay
++8 failed, 26 passed, 26 subtests passed in 3.34s
++```
++
++## Tests en verde con el cambio
++```
++$ python3 -m pytest tools/test_glm53_tp3_ventana.py tools/test_sparks_ventana_pin.py -q
++92 passed, 1 skipped, 136 subtests passed   (el skip es NCCL_RING_DIR, de la sonda v3; ya lo era)
++```
++
++## Render del overlay, antes (b3f92e8) contra despues: `kubectl kustomize overlays/glm53-tp3-ventana-k4-20261010`
++```
++      3 >           value: INIT,NET,PROXY
++      3 <           value: INIT,NET
++      3 >             name: glm53-tp3-recipe-<hash>
++      3 <             name: glm53-tp3-recipe-<hash>
++      1 <   VLLM_GLM_ARX_PREFETCH: "1"
++      1 >   VLLM_GLM_ARX_PREFETCH: "0"
++      1 <   VLLM_ARX_ALLREDUCE: "1"
++      1 >   VLLM_ARX_ALLREDUCE: "0"
++      1 >   name: glm53-tp3-recipe-<hash>
++      1 <   name: glm53-tp3-recipe-<hash>
++```
++(el nombre del ConfigMap de la receta cambia de hash: los tres rangos reinician al sincronizar, como pide el comentario de la base.)
++
++## Criterios
++- C3 (experimento sin ARX en el overlay de la ventana): VLLM_ARX_ALLREDUCE=0 y VLLM_GLM_ARX_PREFETCH=0 solo en el ConfigMap de la receta del overlay; NCCL_DEBUG_SUBSYS=INIT,NET,PROXY; comentario con el experimento y la vuelta.
++- C4: el render de `overlays/sparks-ventana-20261010` no cambia (VentanaNoCambiaTest), la base sigue con ARX (test_experimento_sin_arx_en_los_tres_rangos), pausa y sin qwen38 (VentanaTest).
+diff --git a/overlays/glm53-tp3-ventana-k4-20261010/kustomization.yaml b/overlays/glm53-tp3-ventana-k4-20261010/kustomization.yaml
+index 0fb95f4..7c38cff 100644
+--- a/overlays/glm53-tp3-ventana-k4-20261010/kustomization.yaml
++++ b/overlays/glm53-tp3-ventana-k4-20261010/kustomization.yaml
+@@ -7,8 +7,16 @@
+ #    overlays/glm-5.3-flash-tp3-k4-20261010 (main): KV_CACHE_MEMORY de 16 GiB, EXPECT_PAGESIZE=4096, REQUIRE_DISPRAM=0;
+ #  - la receta NCCL de la sonda v3c que paso y que funciono con qwen38 TP=3 (DGX-817, overlays/qwen38-tp3-ventana-20261010 de pin/qwen38-tp3-20261010): libnccl.so.2
+ #    parcheada de DGX-815 por volumen de imagen, conexion diferida y el grafo del generador de la imagen con el orden de rangos de GLM. Va solo aqui:
+-#    patch-nccl-ring.yaml y start.sh. ARX (VLLM_ARX_RING=1) y todo lo demas de la receta de GLM se quedan como estan, salvo lo que la receta NCCL no admite
+-#    (NCCL_IB_SUBNET_AWARE_ROUTING=1 de recipe.env, el NCCL_IB_HCA de cada rango y lo que el entrypoint de la imagen deriva o corre por su cuenta: ver start.sh).
++#    patch-nccl-ring.yaml y start.sh. Todo lo demas de la receta de GLM se queda como esta, salvo lo que la receta NCCL no admite (NCCL_IB_SUBNET_AWARE_ROUTING=1 de
++#    recipe.env, el NCCL_IB_HCA de cada rango y lo que el entrypoint de la imagen deriva o corre por su cuenta: ver start.sh) y ARX (siguiente punto).
++#  - EXPERIMENTO DE AISLAMIENTO (DGX-818, tercer arranque), NO la receta de GLM: ARX apagado. El segundo arranque (b3f92e8) pasa el rendezvous, NCCL hace `Init COMPLETE`
++#    y ARX se inicializa, pero el anillo NCCL se queda a medias (nunca «Connected all rings», ~2 de 4 canales por rango) y la API no escucha; qwen38 TP=3 con la misma lib,
++#    el mismo grafo y el mismo entorno NCCL pero SIN ARX conecta. Aqui el all-reduce va por PyNccl. El interruptor real es VLLM_ARX_ALLREDUCE: el cuda_communicator.py de
++#    kindling (a3c3a1d) solo construye ArxCommunicator con `== "1"` y ArxBig solo si existe el anterior; el entrypoint de la imagen no toca ninguna VLLM_ARX_*. Se apaga
++#    tambien VLLM_GLM_ARX_PREFETCH (el prefetch de L2 que solo vale con ARX). VLLM_ARX_RING, ARX_RING_*_HCAS y los tamanos quedan como estan: sin el interruptor son inertes.
++#    Y NCCL_DEBUG_SUBSYS lleva PROXY (patch-nccl-ring.yaml) por si el anillo vuelve a colgarse: el hilo proxy dice en que QP.
++#    VUELTA DEL EXPERIMENTO: quitar VLLM_ARX_ALLREDUCE y VLLM_GLM_ARX_PREFETCH del parche del ConfigMap `glm53-tp3-recipe` (abajo; la base los trae a 1) y volver a
++#    NCCL_DEBUG_SUBSYS "INIT,NET" en patch-nccl-ring.yaml. Un revert de la PR que lo trajo (DGX-818) hace las dos cosas.
+ #  - el rendezvous de vLLM y los bootstrap de NCCL y gloo por la LAN (enP7s7), no por el cable de cada rango: el triangulo no tiene una subred comun a los
+ #    tres (primer arranque, 20:41Z). mentat se queda en el triangulo (S-6). Por que y con que mando: el comentario de los parches por rango.
+ # VUELTA: PR de k8s-gitops-pocharlies que pone `ai` en el SHA de overlays/sparks-ventana-salida-20261010 (el render de a51da60 con la misma pausa), o en el de la
+@@ -61,11 +69,12 @@ patches:
+       metadata: { name: glm53-tp3-worker-dgx2, namespace: llm }
+       spec: { template: { spec: { containers: [ { name: vllm, env: [ { name: GLM_NCCL_RING_HOST, value: dgx2 }, { name: MENTAT_FABRIC_IP, value: "192.168.50.141" }, { name: GLOO_SOCKET_IFNAME, value: enP7s7 }, { name: NCCL_SOCKET_IFNAME, value: enP7s7 } ] } ] } } }
+   # La receta de GLM fija NCCL_IB_SUBNET_AWARE_ROUTING=1 (strusty, triangle-dgxos.yaml) y la del anillo escrito en el grafo no lo lleva: sale del ConfigMap solo aqui.
++  # EXPERIMENTO DE AISLAMIENTO (DGX-818): ARX apagado, solo aqui (la base y el overlay k4 de main lo traen a 1). Para deshacerlo: quitar las dos lineas VLLM_*_ARX_*.
+   - patch: |-
+       apiVersion: v1
+       kind: ConfigMap
+       metadata: { name: glm53-tp3-recipe, namespace: llm }
+-      data: { NCCL_IB_SUBNET_AWARE_ROUTING: null }
++      data: { NCCL_IB_SUBNET_AWARE_ROUTING: null, VLLM_ARX_ALLREDUCE: "0", VLLM_GLM_ARX_PREFETCH: "0" }
+   # La ventana: sin residente qwen38 y sin el resume (los mismos tres $patch: delete que overlays/sparks-ventana-20261010).
+   - patch: |-
+       $patch: delete
+diff --git a/overlays/glm53-tp3-ventana-k4-20261010/patch-nccl-ring.yaml b/overlays/glm53-tp3-ventana-k4-20261010/patch-nccl-ring.yaml
+index 092cf0f..69b16bd 100644
+--- a/overlays/glm53-tp3-ventana-k4-20261010/patch-nccl-ring.yaml
++++ b/overlays/glm53-tp3-ventana-k4-20261010/patch-nccl-ring.yaml
+@@ -34,7 +34,8 @@ spec:
+             - { name: NCCL_IB_AUTO_DETECT, value: "0" }
+             - { name: NCCL_NVLS_ENABLE, value: "0" }
+             - { name: NCCL_DEBUG, value: "INFO" }
+-            - { name: NCCL_DEBUG_SUBSYS, value: "INIT,NET" }
++            # PROXY (DGX-818, experimento sin ARX): el hilo proxy dice en que QP se queda el anillo si vuelve a colgarse. Deshacer: "INIT,NET", como la sonda.
++            - { name: NCCL_DEBUG_SUBSYS, value: "INIT,NET,PROXY" }
+             # La libnccl.so.2 de DGX-815 (con una GPU por nodo envia por la segunda <net> del canal y recibe por la primera). La carga LD_PRELOAD en torch.distributed y PyNccl
+             # de vLLM la abre por ctypes con su ruta: sin VLLM_NCCL_SO_PATH cargaria la de serie, que no conecta en el triangulo.
+             - { name: LD_PRELOAD, value: "/opt/nccl-ring/lib/libnccl.so.2" }
+diff --git a/tools/test_glm53_tp3_ventana.py b/tools/test_glm53_tp3_ventana.py
+index 9e99a5d..ee5c8be 100644
+--- a/tools/test_glm53_tp3_ventana.py
++++ b/tools/test_glm53_tp3_ventana.py
+@@ -9,6 +9,10 @@
+ luego el `/entrypoint.sh` de la imagen, que no se toca. El script se ejecuta aqui tal cual sale del render, con el generador de verdad
+ (`k8s/nccl-ring/nccl_ring_graph.py`, de main) y un entrypoint falso que vuelca su entorno.
+ Lo que solo se ve arrancando (`Connected all rings`, `via NET/IB`, KV real) es de la ventana, no de este test.
++
++Experimento de aislamiento (DGX-818, tercer arranque): el overlay apaga ARX (el all-reduce RDMA propio de kindling) para ver si el cuelgue del
++anillo NCCL, que qwen38 TP=3 sin ARX no tiene, es de ARX. El interruptor real es `VLLM_ARX_ALLREDUCE` (cuda_communicator.py de kindling a3c3a1d solo
++construye `ArxCommunicator` con `== "1"`, y `ArxBig` solo si el anterior existe); sin el, todo all-reduce, reduce-scatter y all-gather va por PyNccl.
+ """
+ 
+ import copy
+@@ -47,6 +51,10 @@
+ # (nccl_sonda.py CONTROL). Las IP son las de CLAUDE.md (nodos) y las del VLLM_HOST_IP de ese TP=3; el triangulo no tiene subred comun a los tres.
+ LAN_IFNAME = "enP7s7"
+ LAN = {"dgx1": "192.168.50.140", "dgx2": "192.168.50.141", "dgx3": "192.168.50.143"}
++# El experimento anade PROXY a NCCL_DEBUG_SUBSYS (la sonda lleva INIT,NET): si el anillo vuelve a colgarse, el hilo proxy dice en que QP se queda.
++DEBUG_SUBSYS = "INIT,NET,PROXY"
++# Los dos mandos de ARX que el experimento apaga solo en este overlay: el interruptor y el prefetch de L2 que solo vale con ARX (kindling KNOBS/README).
++SIN_ARX = {"VLLM_ARX_ALLREDUCE": "0", "VLLM_GLM_ARX_PREFETCH": "0"}
+ # Lo que la receta de GLM fija en contra y el overlay quita (C3), y lo que la receta de la sonda no lleva.
+ SIN = ("NCCL_IB_GID_INDEX", "NCCL_IB_SUBNET_AWARE_ROUTING", "NCCL_IB_SUBNET_PREFIX_LEN", "NCCL_IB_HCA", "NCCL_GRAPH_FILE")
+ MODO_K4 = {"KV_CACHE_MEMORY": "17179869184", "EXPECT_PAGESIZE": "4096", "REQUIRE_DISPRAM": "0"}
+@@ -119,7 +127,7 @@ def test_receta_nccl_de_la_sonda_v3c_en_los_tres_rangos(self):
+             with self.subTest(n=n):
+                 e = efectivo(self.objs, dep)
+                 # El socket de bootstrap de NCCL es el de la LAN (test_rendezvous_y_bootstrap_por_la_lan); el resto es la sonda.
+-                esperado_n = {**esperado, "NCCL_SOCKET_IFNAME": LAN_IFNAME}
++                esperado_n = {**esperado, "NCCL_SOCKET_IFNAME": LAN_IFNAME, "NCCL_DEBUG_SUBSYS": DEBUG_SUBSYS}
+                 self.assertEqual({k: v for k, v in e.items() if k.startswith("NCCL_")}, esperado_n)
+                 self.assertEqual(e["LD_PRELOAD"], sonda.LIB_PARCHEADA)
+                 self.assertEqual(e["VLLM_NCCL_SO_PATH"], sonda.LIB_PARCHEADA)
+@@ -250,22 +258,41 @@ def test_el_parche_solo_toca_la_receta(self):
+                 self.assertEqual([c for c in nspec["containers"] if c["name"] != "vllm"], [c for c in bspec["containers"] if c["name"] != "vllm"])
+                 self.assertEqual(base["metadata"], nuevo["metadata"])
+ 
+-    def test_arx_se_queda_como_esta(self):
++    def test_experimento_sin_arx_en_los_tres_rangos(self):
++        # DGX-818 (experimento de aislamiento): VLLM_ARX_ALLREDUCE=0 es el interruptor real y VLLM_GLM_ARX_PREFETCH=0 el unico otro mando que solo vale con ARX.
++        # El resto de ARX (anillo, HCAs, tamanos, ARXBIG=0) no se toca: sin el interruptor es inerte y deshacer el experimento es quitar dos lineas.
+         for n, dep in rangos(self.objs).items():
+             with self.subTest(n=n):
+                 antes = efectivo(self.base, self.base[("Deployment", "llm", n)])
+                 ahora = efectivo(self.objs, dep)
+-                arx = {k: v for k, v in ahora.items() if k.startswith(("VLLM_ARX", "ARX_"))}
+-                self.assertEqual(arx, {k: v for k, v in antes.items() if k.startswith(("VLLM_ARX", "ARX_"))})
+-                self.assertEqual(arx["VLLM_ARX_RING"], "1")
+-                self.assertIn("ARX_RING_NEXT_HCAS", arx)
++                self.assertEqual({k: ahora[k] for k in SIN_ARX}, SIN_ARX)
++                self.assertEqual({k: antes[k] for k in SIN_ARX}, {"VLLM_ARX_ALLREDUCE": "1", "VLLM_GLM_ARX_PREFETCH": "1"})  # la base sigue con ARX
++                arx = lambda e: {k: v for k, v in e.items() if k.startswith(("VLLM_ARX", "ARX_"))}  # noqa: E731
++                self.assertEqual({k: v for k, v in arx(ahora).items() if k not in SIN_ARX}, {k: v for k, v in arx(antes).items() if k not in SIN_ARX})
++                self.assertEqual(ahora["VLLM_ARX_RING"], "1")
++                self.assertEqual(ahora["VLLM_ARXBIG"], "0")  # ArxBig solo existe con ArxCommunicator: con el interruptor a 0 no hay ninguno de los dos
++
++    def test_el_overlay_dice_que_es_un_experimento_y_como_deshacerlo(self):
++        texto = (OVERLAY / "kustomization.yaml").read_text(encoding="utf-8")
++        self.assertIn("EXPERIMENTO DE AISLAMIENTO", texto)
++        self.assertIn("VLLM_ARX_ALLREDUCE", texto)
++        self.assertIn("VUELTA DEL EXPERIMENTO", texto)
++
++    def test_ni_el_entorno_del_contenedor_ni_el_script_de_arranque_pisan_el_interruptor(self):
++        # El entrypoint de kindling a3c3a1d no menciona VLLM_ARX_* (grep del checkout): un valor del entorno llega tal cual a vLLM. Aqui solo puede pisarlo un `env`
++        # del Deployment o el script, que ganarian al ConfigMap.
++        script = cm_data(self.objs, "glm53-tp3-nccl-ring")["start.sh"]
++        for k in SIN_ARX:
++            self.assertNotIn(k, script)
++        for n, dep in rangos(self.objs).items():
++            self.assertFalse({e["name"] for e in vllm(dep).get("env", [])} & set(SIN_ARX), n)
+ 
+     def test_subnet_aware_routing_se_anula_solo_en_el_overlay(self):
+         self.assertEqual(cm_data(self.base, "glm53-tp3-recipe")["NCCL_IB_SUBNET_AWARE_ROUTING"], "1")
+         self.assertNotIn("NCCL_IB_SUBNET_AWARE_ROUTING", cm_data(self.objs, "glm53-tp3-recipe"))
+         # el resto de la receta de GLM es la de la base
+         recipe = {k: v for k, v in cm_data(self.base, "glm53-tp3-recipe").items() if k != "NCCL_IB_SUBNET_AWARE_ROUTING"}
+-        self.assertEqual(cm_data(self.objs, "glm53-tp3-recipe"), recipe)
++        self.assertEqual(cm_data(self.objs, "glm53-tp3-recipe"), {**recipe, **SIN_ARX})
+ 
+     def test_la_base_sigue_inerte_y_sin_la_receta(self):
+         for n in RANGOS:
