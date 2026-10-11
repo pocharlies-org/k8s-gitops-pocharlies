@@ -1709,8 +1709,13 @@ spec:
     # Efecto de la sync: el prune retira qwen38 TP=3 (qwen38-flash-next-head, -worker y -worker-dgx3, y el PV/PVC hf-cache-dgx1-dgx3-llm-ro) y el
     # PostSync llm-deploy-resume; el PreSync llm-deploy-pause deja la voz a 0 mientras dure la prueba.
     # ROLLBACK de esto (volver a qwen38 TP=3): 01f9b4da163dcf4626e6d33db0c450fababd7e10 con path overlays/qwen38-tp3-ventana-20261010.
-    targetRevision: b4052f1dae714c643eddad8eca259e9c0de6847a
-    path: overlays/glm53-tp3-ventana-k64-20261010
+    # 11-10-2026 (DGX-820, C5): 92fb200 otra vez, path overlays/sparks-ventana-20261010, la misma ventana que la #593. GLM TP=3 en 64K
+    # (b4052f1) se cae al reservar la caché KV con dispram (`cuMemsetD8 failed: CUresult 700`) y Dani pide investigar en dgx3 por qué no
+    # funciona el 64K: para eso hacen falta las GPU de los Sparks libres, y la ventana no lleva ninguna carga (el residente sigue caído y
+    # el tráfico va a Alibaba).
+    # ROLLBACK de esto (volver a GLM en 64K): b4052f1dae714c643eddad8eca259e9c0de6847a con path overlays/glm53-tp3-ventana-k64-20261010.
+    targetRevision: 92fb20060dcb84ceb624c95b6a1090a48e824f76
+    path: overlays/sparks-ventana-20261010
   destination:
     server: https://kubernetes.default.svc
     namespace: llm
