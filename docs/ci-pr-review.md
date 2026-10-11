@@ -343,15 +343,19 @@ el productor.
 **Un PR desde un fork** no recibe secretos: el job sale en verde sin marcador, y `company-aprobar` sin marcador queda
 en su modo legado.
 
-**Evaluación** (`workflow_dispatch` con `engine: juez`, o a mano):
+**Evaluación** (`workflow_dispatch` con `engine: juez`, o a mano). El corpus se reparte en tres partes con
+`scripts/juez_split.py` (ver abajo) y el workflow mide la de prueba:
 
+    python3 scripts/juez_split.py prueba tests/fixtures/juez /tmp/juez-prueba
     REVIEW_LITELLM_URL=… REVIEW_LITELLM_KEY=… REVIEW_MODEL=… \
-      python3 .github/actions/llm-review/review.py --evalua tests/fixtures/juez --pasadas 3 --max-falsos 0.10
+      python3 .github/actions/llm-review/review.py --evalua /tmp/juez-prueba --pasadas 3 --max-falsos 0.10 --max-falsos-pasa 1
 
-Corre el juez con el modelo real sobre `tests/fixtures/juez/`, `--pasadas` veces. Por pasada imprime los aciertos, los
-`NO_PASA`, los `NO_PASA` falsos (los de un caso cuya `clase` no es `real`), cuántos de los casos reales están en `NO_PASA`
-(`n reales = 9/9`) y `verificaciones=<n>`. Sale 0 solo si en todas las pasadas los falsos son menos de `--max-falsos` de los
-`NO_PASA` y todos los reales están en `NO_PASA`. Sin `--max-falsos` manda `--umbral N/M` (7/8 por defecto), como antes.
+Corre el juez con el modelo real sobre un directorio de casos, `--pasadas` veces. Por pasada imprime los aciertos, los
+`NO_PASA`, los `NO_PASA` falsos (los de un caso cuya `clase` no es `real`), los falsos `PASA` (un `PASA` donde se esperaba otra
+cosa), cuántos de los casos reales están en `NO_PASA` (`n reales = 9/9`), `verificaciones=<n>` y `llamadas=<n>` al modelo. Sale 0
+solo si en todas las pasadas se cumplen los límites que se dieron: `--max-falsos` (una fracción de los casos; el igual cuenta),
+`--max-falsos-pasa` (un entero) y `--min-reales` (un entero o `todos`). Sin ninguno manda `--umbral N/M` (7/8 por defecto). Al
+final dice qué alias aceptó `response_format: json_schema` y cuál lo rechazó.
 
 El corpus tiene un directorio por caso con `criterios.md` (el `00-spec.md` del ticket el día del veredicto, o el último si
 no se conserva la versión), `diff.patch`, `esperado` (`PASA`, `NO_PASA`, `EN_ESPERA` o `SIN_VEREDICTO`) y, opcionales,
@@ -361,16 +365,24 @@ no se conserva la versión), `diff.patch`, `esperado` (`PASA`, `NO_PASA`, `EN_ES
 `sin_criterios` o `falso_tecnico`, `falso_recortado`, `falso_evidencia`, `falso_otro_repo`, `falso_renumeracion`; sin ella, un
 caso que espera `NO_PASA` es `real` y los demás son `pasa`.
 
-Son 15 casos de SC-2229 (9 `PASA` y 6 `NO_PASA`; cinco de los `PASA` son commits reales de este repo, entre ellos la PR de pin
+Son 52 casos: los 15 de SC-2229 (9 `PASA` y 6 `NO_PASA`; cinco de los `PASA` son commits reales de este repo, entre ellos la PR de pin
 k8s-gitops-pocharlies#552 (DGX-745), y cuatro son sintéticos porque los reales son de repos privados y este repo es público;
-los `NO_PASA` son diffs reales estropeados a propósito) más los 13 de SC-2285, sacados de los veredictos medidos (tres
-reales, cuatro falsos técnicos, y uno de cada otra clase). Esos 13 son diffs y descripciones reales de repos privados
-sacados de GitHub; los diffs grandes (`falso-recortado-k8s-ai-138`, `falso-evidencia-llm-status-126`, `no-lista-llm-status-122`)
-son una selección de sus ficheros, y la descripción es la que tenía la PR al recogerlo, no la del día del veredicto. Un
-`SIN_VEREDICTO` cuenta como fallo; la línea de cada pasada cuenta también los falsos `PASA` (un `PASA` donde se esperaba
-`NO_PASA`). Cada caso acaba en `bajas=`: lo que las reglas dejaron de bloquear, por clase (`C.alcance:3,H.cita:1`,
+los `NO_PASA` son diffs reales estropeados a propósito), los 13 de SC-2285, sacados de los veredictos medidos (tres reales, cuatro
+falsos técnicos y uno de cada otra clase), y 24 de SC-2264, etiquetados a mano desde los 79 `NO_PASA` de la ventana del 09-10
+(`medicion-12h-nopasa.txt` de SC-2282) y desde veredictos v3 reales. Son diffs y descripciones reales de repos privados sacados de
+GitHub; los diffs grandes (`falso-recortado-k8s-ai-138`, `falso-evidencia-llm-status-126`, `no-lista-llm-status-122`) son una
+selección de sus ficheros, y la descripción es la que tenía la PR al recogerlo, no la del día del veredicto. Por clase: 10 `real`,
+15 `falso_*`, 25 `pasa`, 1 `no_lista` y 1 `sin_criterios`. Un `SIN_VEREDICTO` cuenta como fallo; la línea de cada pasada cuenta
+también los falsos `PASA`. Cada caso acaba en `bajas=`: lo que las reglas dejaron de bloquear, por clase (`C.alcance:3,H.cita:1`,
 `C.repositorio:1`), para saber si un fallo es del modelo o de una regla. Tests sin red:
 `python3 -m unittest tests.test_llm_review_juez` (un LiteLLM, un Jira y una API de GitHub de pega).
+
+**El split** (`scripts/juez_split.py`, SC-2264). Cada caso cae en `entrenamiento` (20 %), `validacion` (40 %) o `prueba` (40 %) según
+`sha256(nombre del caso) % 100` (< 20, < 60, el resto). Depende solo del nombre: añadir un caso no mueve a ninguno. De
+`entrenamiento` salen los ejemplos de la rúbrica (`EJEMPLOS_RUBRICA`; un test comprueba que ninguno viene de otra parte);
+en `validacion` se itera, y una regla nueva entra solo si ahí no sube los falsos `PASA` del juez de main; `prueba` no se toca al
+iterar y es lo que mide el workflow. `juez_split.py <parte|todos> <corpus> <destino>` copia los casos de esa parte (y el
+`ARCHITECTURE.md` común) para pasárselos a `--evalua`; vale igual con el `review.py` de main, que no conoce el split.
 
 ## El juez v3: lo que rodea a la respuesta del modelo (SC-2285)
 
@@ -426,6 +438,34 @@ configuración de siempre o si el comentario no se pudo publicar. Con `PASA`, `E
 del respaldo el job sale verde, y en los tres últimos la primera línea visible del resumen del job y del comentario es
 «PENDIENTE — no es una aprobación», con un `::notice::`. GitHub Free no protege ramas, así que la única puerta es
 `company-aprobar`, que lee el marcador. El botón verde de la interfaz de GitHub en un pendiente es el precio asumido.
+
+## El juez por fases (SC-2264)
+
+Con el modelo local `tooling` (no cambia) una sola llamada con todo (diff, criterios, normas) daba demasiados `NO_PASA` falsos.
+`juzgar` ahora hace tres preguntas, cada una con su propio esquema JSON:
+
+1. Citas. Para cada criterio, hasta `CITAS_POR_CRITERIO` = 5 líneas literales del diff. El código las busca en el diff
+   (`localizar`) y descarta la que no encuentra; las que quedan llevan su `fichero:linea`.
+2. Juicio de criterios, en lotes de `LOTE_CRITERIOS` = 5. Cada lote ve solo sus criterios, sus citas y el título y la descripción
+   de la PR, sin el diff. Un criterio de esta PR sin citas que lo cumplan es `❌` por ausencia.
+3. Fallos del diff (`correccion` y `arquitectura`), sobre el diff entero. Un hallazgo `correccion` que bloquearía debe traer el
+   caso concreto en `entrada`, `salida_esperada` y `salida_codigo`, más su `cita`. Si falta alguno de los tres baja a observación
+   por código (comprobación de forma, no de contenido). Los de `arquitectura` no llevan `entrada`.
+
+Llamadas por PR: `2 + ceil(criterios / 5)`, cada una repetida una vez si la respuesta no sirve, más una para recuperar la cita
+de hallazgos que no casan y hasta `VERIFICA_MAX_LLAMADAS` = 4 verificaciones, solo con `NO_PASA`. Antes era una sola llamada
+(más reintento y verificaciones). Una PR de 6 criterios que pasa gasta 4. `--evalua` imprime `llamadas=` por caso y por pasada.
+
+**Salida constreñida.** Cada pregunta pide `response_format: {type: json_schema}` (`ESQUEMA_CITAS`, `ESQUEMA_LOTE`,
+`ESQUEMA_HALLAZGOS`, estrictos). Si el alias contesta 400 o 422 hablando de `response_format`, se anota en `SIN_ESQUEMA`, se
+repite la misma llamada sin esquema y no se vuelve a pedir a ese alias; no cae al respaldo. El parseo de `extraer_json` y las reglas
+del código siguen igual. `REVIEW_JUEZ_ESQUEMA=no` lo apaga.
+
+**Rúbrica.** Cuatro ejemplos, todos de casos de entrenamiento: un `➖` de otro repositorio, un `❌` por ausencia dentro del alcance,
+un hallazgo `correccion` con su caso concreto y un hallazgo técnico que no se escribe porque la cita lo contradice. La regla
+nueva: no se afirma de memoria la semántica de una herramienta, un lenguaje o una API.
+
+El contrato del marcador v3 no cambia.
 
 ## Cobertura: qué repos pasan a `juez` y con qué (SC-2182, parte C)
 
