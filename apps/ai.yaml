@@ -1663,7 +1663,16 @@ spec:
     # No es una mejora propuesta: es una medida para saber si ARX es lo que cuelga el arranque.
     # ROLLBACK de este paso: b3f92e8512d151ce959d89656403e539b2bf7783 (mismo path, vuelve ARX), o volver a qwen38 TP=3 con
     # 01f9b4da163dcf4626e6d33db0c450fababd7e10 y path overlays/qwen38-tp3-ventana-20261010.
-    targetRevision: dfdc0e682f11d641d75a215370887d6ee8821636
+    # 11-10-2026 (DGX-818, cuarto paso): 66a7553 = la misma línea pin/glm53-ventana-20261010 (k8s-ai #164), mismo path.
+    # Qué cambia: vuelve ARX de la receta (VLLM_ARX_ALLREDUCE y VLLM_GLM_ARX_PREFETCH a 1; NCCL_DEBUG_SUBSYS se queda con PROXY, es solo
+    # log) y KV_CACHE_MEMORY del modo k4 baja de 16 a 12 GiB. El ConfigMap de modo y el de la receta cambian de hash y, con Recreate, los
+    # tres rangos se reinician a la vez.
+    # Por qué: la cabeza murió por la compilación JIT de CUDA (la prueba de prefix cache) con la memoria de dgx3 a 0 (RPC timeout), y el
+    # cuelgue de dfdc0e6 no era ARX (era la IP del MessageQueue), así que el experimento sin ARX se deshace.
+    # Las rutas del triángulo CX7 (DGX-819, dgx-infra #1142) ya están instaladas.
+    # ROLLBACK de este paso: dfdc0e682f11d641d75a215370887d6ee8821636 (mismo path, sin ARX y KV de 16 GiB), o volver a qwen38 TP=3
+    # con 01f9b4da163dcf4626e6d33db0c450fababd7e10 y path overlays/qwen38-tp3-ventana-20261010.
+    targetRevision: 66a75539c673a68ff02a014ae574d3598ee969ce
     path: overlays/glm53-tp3-ventana-k4-20261010
   destination:
     server: https://kubernetes.default.svc
