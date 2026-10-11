@@ -454,7 +454,8 @@ Con el modelo local `tooling` (no cambia) una sola llamada con todo (diff, crite
 
 Llamadas por PR: `2 + ceil(criterios / 5)`, cada una repetida una vez si la respuesta no sirve, más una para recuperar la cita
 de hallazgos que no casan y hasta `VERIFICA_MAX_LLAMADAS` = 4 verificaciones, solo con `NO_PASA`. Antes era una sola llamada
-(más reintento y verificaciones). Una PR de 6 criterios que pasa gasta 4. `--evalua` imprime `llamadas=` por caso y por pasada.
+(más reintento y verificaciones). Una PR de 6 criterios que pasa gasta 4. `--evalua` imprime `llamadas=` por caso y por pasada y, debajo de cada línea `FALLO`, sus motivos: cada ❌ (criterio y nota) y cada
+hallazgo que bloquea (severidad, tipo, `fichero:línea` y texto, a 200 caracteres).
 
 **Salida constreñida.** Cada pregunta pide `response_format: {type: json_schema}` (`ESQUEMA_CITAS`, `ESQUEMA_LOTE`,
 `ESQUEMA_HALLAZGOS`, estrictos). Si el alias contesta 400 o 422 hablando de `response_format`, se anota en `SIN_ESQUEMA`, se

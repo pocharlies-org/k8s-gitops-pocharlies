@@ -2745,6 +2745,24 @@ class TestEvalua3(Base):
             with self.subTest(kw):
                 self.assertEqual(self.correr_evalua('1/1', **kw), 2)
 
+    def test_los_motivos_de_cada_fallo_salen_debajo_de_su_linea_y_un_acierto_no_los_trae(self):
+        """SC-2264, iteracion 2: cada ❌ (criterio y nota) y cada hallazgo bloqueante, con tipo, severidad, fichero:linea y texto."""
+        self.caso('a-falso', 'PASA', 'falso_tecnico')
+        self.caso('b-real', 'NO_PASA', 'real')
+        largo = 'x' * 300
+        self.modelo((200, respuesta(
+            [{'n': 1, 'cumple': False, 'evidencia': 'src/app.py:12', 'cita': 'return x + y', 'nota': 'suma mal'}],
+            [{'file': 'src/app.py', 'line': 12, 'severity': 'alta', 'tipo': 'correccion', 'cita': 'return x + y',
+              'summary': largo},
+             {'file': 'src/app.py', 'line': 11, 'severity': 'baja', 'tipo': 'correccion', 'cita': 'y = 2', 'summary': 'una baja'}]), 0))
+        self.assertEqual(self.correr_evalua('2/2'), 1)
+        lineas = self.salida_texto.splitlines()
+        i = next(i for i, l in enumerate(lineas) if l.startswith('FALLO a-falso'))
+        self.assertEqual(lineas[i + 1], '    ❌ C1: suma mal')
+        self.assertEqual(lineas[i + 2], f"    [alta] correccion src/app.py:12 — {'x' * 200}…")
+        self.assertTrue(lineas[i + 3].startswith('OK    b-real'), 'la baja no bloquea y no se imprime; un acierto no trae motivos')
+        self.assertEqual(len([l for l in lineas if l.startswith('    ')]), 2)
+
     def test_c13_cli_pasa_los_flags_a_evalua(self):
         from unittest import mock
         with mock.patch.object(review, 'evalua', return_value=0) as ev:

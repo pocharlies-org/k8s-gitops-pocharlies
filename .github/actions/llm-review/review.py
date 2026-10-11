@@ -1903,6 +1903,17 @@ def bajas_de(res):
     return ','.join(f'{k}:{v}' for k, v in sorted(cuenta.items())) or '-'
 
 
+def motivos_de(res):
+    """Lo que hizo fallar un caso, una linea cada cosa (herramienta de calibracion, SC-2264): cada ❌ con su criterio y su nota,
+    y cada hallazgo que bloquea con severidad, tipo, `fichero:linea` y texto, recortado a 200 caracteres."""
+    lineas = [f"❌ {c['n']}: {limpio(c.get('nota') or c.get('texto'), 200)}" for c in res['criterios'] if c['cumple'] is False]
+    for h in res['hallazgos']:
+        if h['bloquea']:
+            donde = h['file'] + (f":{h['line']}" if h['line'] else '')
+            lineas.append(f"[{h['severity']}] {h['tipo'] or 'otro'} {donde or 'general'} — {limpio(h['summary'], 200)}")
+    return lineas
+
+
 def _leer_head(caso):
     """`leer(ruta)` de un caso del corpus: `<caso>/head/<ruta>`, el fichero completo del head de su PR."""
     raiz = (caso / 'head').resolve()
@@ -1985,6 +1996,8 @@ def evalua(directorio, umbral, pasadas=1, max_falsos=None, max_falsos_pasa=None,
             print(f"{'OK   ' if acierto else 'FALLO'} {caso.name}: esperado={esperado} "
                   f"obtenido={res['veredicto']} motivos={','.join(sorted(res['motivos'])) or '-'} "
                   f"bajas={bajas_de(res)} llamadas={LLAMADAS[0] - antes}")
+            if not acierto:
+                print(*(f'    {m}' for m in motivos_de(res)), sep='\n', end='\n' if motivos_de(res) else '')
         print(f'pasada {pasada}/{pasadas}: aciertos {aciertos}/{len(casos)} (umbral {umbral}); falsos PASA {falsos_pasa}; '
               f'NO_PASA {no_pasa}; NO_PASA falsos {falsos}; n reales = {bloqueados}/{reales}; verificaciones={verificaciones}; '
               f'llamadas={llamadas}')
