@@ -294,7 +294,8 @@ class TestJuezV3(unittest.TestCase):
 
     def test_la_evaluacion_mide_la_parte_de_prueba_con_pasadas_y_umbrales_del_split(self):
         """SC-2264 C7: la parte de prueba del corpus (no el 7/8 de los 8 casos), 3 pasadas, NO_PASA falsos <= 10 % de los
-        casos y falsos PASA <= 1, los que el juez de main tenia en esa parte (no-lista-llm-status-122, 3 de 3 pasadas)."""
+        casos y falsos PASA <= 1: de los 2 por pasada del juez de main (run 38050571335), real-socialmedia-245 cae en validacion y
+        no-lista-llm-status-122 en prueba."""
         run = paso("evaluar_juez", "Evaluate the judge")["run"]
         self.assertIn("scripts/juez_split.py prueba", run)
         self.assertIn('--evalua "$RUNNER_TEMP/juez-prueba" --pasadas 3 --max-falsos 0.10 --max-falsos-pasa 1', run)
