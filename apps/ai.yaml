@@ -1682,8 +1682,18 @@ spec:
     # Arranque de qwen38: unos 33 min, con unos 20 min SIN log tras «GPU KV cache size» (NO es cuelgue). El tráfico va a Alibaba hasta que
     # el residente responda.
     # ROLLBACK de esto (volver a GLM): 66a75539c673a68ff02a014ae574d3598ee969ce con path overlays/glm53-tp3-ventana-k4-20261010.
-    targetRevision: 01f9b4da163dcf4626e6d33db0c450fababd7e10
-    path: overlays/qwen38-tp3-ventana-20261010
+    # 11-10-2026 (DGX-820, C1): 92fb200 otra vez, path overlays/sparks-ventana-20261010, la misma ventana de DGX-810 (#581, #586). Es la
+    # ventana para la prueba del kernel de 64K (C1 de DGX-820): Dani autorizó el 11-10 reiniciar los Sparks, y para reiniciar dgx1 y dgx2
+    # hay que parar el residente sin `kubectl scale` y sin pasar al perfil creative (P1-9 de scripts/glm53/README.md en dgx-infra).
+    # Efecto de la sync: el PreSync llm-deploy-pause deja el árbitro en sync-paused y la voz (omnivoice-tts-nvfp4 y stt-turbo) a 0; el
+    # prune retira qwen38-flash-next-head, -worker y -worker-dgx3, el PostSync llm-deploy-resume y el PV/PVC hf-cache-dgx1-dgx3-llm-ro
+    # (PV Retain: el NFS no se toca). El render no deja ningún Deployment de qwen38 (solo vllm-vision-deep, a 0). Entran los Jobs de la
+    # sonda de NCCL (v1, v2 y v3c, uno por Spark, cada uno con 1 GPU): corren una vez y no tienen ttl. Los qwen38fn-tp3-* salen igual en
+    # los dos renders y siguen Complete. El tráfico va a Alibaba mientras no haya residente.
+    # El residente NO vuelve hasta que los tres nodos estén en el kernel que se decida (4K o 64K): esta app se queda en la ventana.
+    # ROLLBACK de esto (volver a qwen38 TP=3): 01f9b4da163dcf4626e6d33db0c450fababd7e10 con path overlays/qwen38-tp3-ventana-20261010.
+    targetRevision: 92fb20060dcb84ceb624c95b6a1090a48e824f76
+    path: overlays/sparks-ventana-20261010
   destination:
     server: https://kubernetes.default.svc
     namespace: llm
