@@ -93,6 +93,10 @@ class _Mundo:
         self.ficheros: dict[str, str] = {}  # GET /contents/<ruta>?ref=<sha>: el fichero completo del head
         self.contents: list[str] = []       # lo que se pidio: `ruta?ref=...`
         self.contents_caido = False
+        self.arbol: list[str] = []          # GET /git/trees/<sha>?recursive=1: las rutas del head (SC-2264, variante D)
+        self.arbol_caido = False
+        self.arbol_truncado = False
+        self.arboles = 0                    # cuantas veces se pidio
 
 
 def _manejador(mundo: _Mundo):
@@ -184,6 +188,12 @@ def _manejador(mundo: _Mundo):
                 return self._json(200, mundo.comentarios)
             if ruta == '/repos/o/r/pulls/7':
                 return self._json(*((404, {}) if mundo.pr is None else (200, mundo.pr)))
+            if ruta == f'/repos/o/r/git/trees/{SHA}':
+                mundo.arboles += 1
+                if mundo.arbol_caido:
+                    return self._json(503, {})
+                return self._json(200, {'tree': [{'path': p, 'type': 'blob'} for p in mundo.arbol] + [{'path': 'k8s', 'type': 'tree'}],
+                                        'truncated': mundo.arbol_truncado})
             m = re.fullmatch(r'/repos/o/r/contents/(.+)', ruta)
             if m:
                 fichero = urllib.parse.unquote(m.group(1))
@@ -1957,6 +1967,210 @@ class TestAusenciaDeEvidencia(Base):
                                     (caso / 'pr.md').read_text(), fuera)
                 self.assertEqual(res['veredicto'], esperado, res['motivos'])
                 self.assertEqual(bool(fuera), esperado == 'PASA')
+
+
+SPEC_FICHEROS = """\
+Rol: tech-lead · Fecha: 2026-10-08 · Sesión: x · Estado: LISTO
+
+# SC-2182 spec
+
+## Criterios (- [ ])
+
+- [ ] C1 la suma devuelve x + y en `src/app.py`
+- [x] C2 el Job vive en `k8s/jobs.yaml` y su test en `tests/test_app.py`
+"""
+
+
+class TestAusenciaDeducida(Base):
+    """SC-2264, variante D: un ❌ de ausencia sin cita y sin `fichero` deduce los ficheros candidatos de las rutas que
+    nombran el criterio y la nota, y aplica la regla de SC-2285 a lo que encuentra: recortado => ➖ evidencia no
+    disponible; en el head y no en el diff => se comprueba en el head; en ningun sitio => sigue bloqueando."""
+
+    def rojo(self, texto='', nota='falta', **k):
+        return {'n': 'C2', 'cumple': False, 'evidencia': '', 'cita': '', 'fichero': '', 'evidencia_ok': False,
+                'texto': texto, 'nota': nota, **k}
+
+    def reglas(self, c, recortados=(), arbol=None, textos=None, alcance=None):
+        llamadas = []
+
+        def leer_arbol():
+            llamadas.append(1)
+            return arbol
+
+        review.aplicar_reglas([c], [], alcance, {'src/app.py': 'x'} if textos is None else textos, list(recortados),
+                              arbol=leer_arbol)
+        c['arbol_pedido'] = len(llamadas)
+        return c
+
+    def test_los_nombres_salen_de_las_rutas_o_los_ficheros_con_extension_reconocida(self):
+        self.assertEqual(review.ficheros_nombrados(
+            'Conversor `k8s/qwen38fn-tp3/convert.py` (se ejecuta con `python3 -I`); ver ple_mmap.py:69-79 y config.json.',
+            'el diff no incluye build_ple_table.py. Tampoco README.md; e.g. v1.2 o 2.500.012 o `QWEN_TP3_VOCAB_MASK`'),
+            ['k8s/qwen38fn-tp3/convert.py', 'ple_mmap.py', 'config.json', 'build_ple_table.py', 'README.md'])
+        self.assertEqual(review.ficheros_nombrados('sin nada', None, ''), [])
+        self.assertEqual(review.ficheros_nombrados('`.github/workflows/ci.yml` y `./tools/x.sh`.'),
+                         ['.github/workflows/ci.yml', 'tools/x.sh'])
+
+    def test_k8s_ai_138_los_ficheros_que_nombra_su_spec(self):
+        criterios = dict(review.criterios_de_spec((FIXTURES / 'falso-recortado-k8s-ai-138' / 'criterios.md').read_text()))
+        self.assertIn('k8s/qwen38fn-tp3/convert.py', review.ficheros_nombrados(criterios['C1']))
+        self.assertIn('tools/test_qwen38fn_tp3_convert.py', review.ficheros_nombrados(criterios['C3']))
+        self.assertIn('k8s/qwen38-flash-next-ple-mmap/build_ple_table.py', review.ficheros_nombrados(criterios['C15']))
+
+    def test_k8s_ai_138_fichero_nombrado_y_recortado_es_evidencia_no_disponible_aunque_el_diff_no_lo_diga(self):
+        # el ❌ medido: «el diff no incluye convert.py». El criterio nombra la ruta; el recorte dejo fuera ese fichero
+        caso = FIXTURES / 'falso-recortado-k8s-ai-138'
+        criterios = dict(review.criterios_de_spec((caso / 'criterios.md').read_text()))
+        c = self.rojo(criterios['C1'], 'El diff no incluye el conversor `convert.py` que realiza la escritura de la vista TP=3')
+        self.reglas(c, recortados=['k8s/qwen38fn-tp3/convert.py', 'tools/otro.py'], arbol=[])
+        self.assertIsNone(c['cumple'])
+        self.assertIn('evidencia no disponible (recortado)', c['baja'])
+        self.assertEqual(c['arbol_pedido'], 0, 'con un recortado no hace falta el arbol del head')
+
+    def test_por_ruta_entera_por_el_final_de_la_ruta_o_por_nombre_base(self):
+        casos = (('k8s/conv/convert.py', 'k8s/conv/convert.py'),   # ruta entera
+                 ('conv/convert.py', 'k8s/conv/convert.py'),       # la ruta nombrada es el final de la del PR
+                 ('convert.py', 'k8s/conv/convert.py'),            # solo el nombre base
+                 ('repo/k8s/conv/convert.py', 'k8s/conv/convert.py'))
+        for nombrado, recortado in casos:
+            with self.subTest(nombrado):
+                c = self.reglas(self.rojo(f'el conversor `{nombrado}`'), recortados=[recortado], arbol=[])
+                self.assertIsNone(c['cumple'])
+        # con directorio en el nombre, otro directorio no casa: no se adivina
+        c = self.reglas(self.rojo('el conversor `k8s/conv/convert.py`'), recortados=['otro/dir/convert.py'], arbol=[])
+        self.assertIs(c['cumple'], False)
+
+    def test_la_nota_tambien_nombra_ficheros(self):
+        c = self.reglas(self.rojo('el conversor existe', nota='no se ve `tools/test_convert.py`'),
+                        recortados=['tools/test_convert.py'], arbol=[])
+        self.assertIsNone(c['cumple'])
+
+    def test_existe_en_el_head_y_no_en_el_diff_va_al_camino_de_comprobacion_del_head(self):
+        c = self.reglas(self.rojo('el Job vive en `k8s/jobs.yaml`'), arbol=['k8s/jobs.yaml', 'README.md'])
+        self.assertIs(c['cumple'], False)
+        self.assertEqual(c['ausencia_en'], 'k8s/jobs.yaml')
+        c = self.reglas(self.rojo('el Job vive en `jobs.yaml`'), arbol=['README.md', 'k8s/jobs.yaml'])   # por nombre base
+        self.assertEqual(c['ausencia_en'], 'k8s/jobs.yaml')
+
+    def test_un_recortado_gana_a_lo_que_solo_esta_en_el_head(self):
+        c = self.reglas(self.rojo('`k8s/jobs.yaml` y `tests/test_app.py`'), recortados=['tests/test_app.py'], arbol=['k8s/jobs.yaml'])
+        self.assertIsNone(c['cumple'])
+        self.assertNotIn('ausencia_en', c)
+
+    def test_un_fichero_nombrado_que_no_existe_en_ningun_sitio_sigue_bloqueando_aunque_el_diff_este_recortado(self):
+        c = self.reglas(self.rojo('el Job vive en `k8s/jobs.yaml`'), recortados=['tests/test_app.py'], arbol=['README.md'])
+        self.assertIs(c['cumple'], False)
+        self.assertNotIn('ausencia_en', c)
+        self.assertNotIn('baja', c)
+
+    def test_un_fichero_nombrado_que_el_diff_muestra_sigue_bloqueando(self):
+        c = self.reglas(self.rojo('el test en `tests/test_app.py`'), recortados=['otro.py'], arbol=['tests/test_app.py'],
+                        textos={'tests/test_app.py': 'x'})
+        self.assertIs(c['cumple'], False)
+        self.assertNotIn('ausencia_en', c)
+
+    def test_sin_arbol_del_head_no_se_concluye_que_no_existe_y_queda_la_regla_de_siempre(self):
+        c = self.reglas(self.rojo('el Job vive en `k8s/jobs.yaml`'), recortados=['tests/test_app.py'], arbol=None)
+        self.assertIsNone(c['cumple'])
+        self.assertIn('no se sabe donde mirar', c['baja'])
+        c = self.reglas(self.rojo('el Job vive en `k8s/jobs.yaml`'), arbol=None)   # sin recorte, bloquea como siempre
+        self.assertIs(c['cumple'], False)
+
+    def test_sin_nombres_en_el_criterio_ni_la_nota_queda_la_regla_de_siempre_y_no_se_pide_el_arbol(self):
+        c = self.reglas(self.rojo('la suma tiene su test'), recortados=['tests/test_app.py'], arbol=[])
+        self.assertIsNone(c['cumple'])
+        self.assertIn('no se sabe donde mirar', c['baja'])
+        self.assertEqual(c['arbol_pedido'], 0)
+        c = self.reglas(self.rojo('la suma tiene su test'), arbol=[])
+        self.assertIs(c['cumple'], False)
+        self.assertEqual(c['arbol_pedido'], 0)
+
+    def test_un_rojo_con_cita_no_cambia_aunque_el_criterio_nombre_un_fichero_recortado(self):
+        textos = {'src/app.py': 'x = 1 return x + y'}
+        con_cita = self.rojo('el test en `tests/test_app.py`', evidencia='src/app.py:12', cita='return x + y')
+        self.reglas(con_cita, recortados=['tests/test_app.py'], arbol=[], textos=textos)
+        self.assertIs(con_cita['cumple'], False)
+        self.assertNotIn('baja', con_cita)
+        sin_casar = self.rojo('el test en `tests/test_app.py`', evidencia='src/app.py:12', cita='otra linea')
+        self.reglas(sin_casar, recortados=['tests/test_app.py'], arbol=['tests/test_app.py'], textos=textos)
+        self.assertIsNone(sin_casar['cumple'])
+        self.assertIn('la cita del modelo no esta en el diff', sin_casar['baja'])
+        self.assertEqual(sin_casar['arbol_pedido'], 0)
+
+    def test_un_rojo_con_fichero_del_modelo_no_deduce_nada(self):
+        c = self.reglas(self.rojo('el test en `tests/test_app.py`', fichero='k8s/jobs.yaml'), recortados=['tests/test_app.py'],
+                        arbol=['tests/test_app.py'])
+        self.assertIs(c['cumple'], False)
+        self.assertEqual(c['ausencia_en'], 'k8s/jobs.yaml')
+        self.assertEqual(c['arbol_pedido'], 0)
+
+    def test_un_criterio_fuera_del_alcance_no_deduce_nada(self):
+        c = self.reglas(self.rojo('el test en `tests/test_app.py`'), recortados=['tests/test_app.py'], arbol=[], alcance={'C1': ''})
+        self.assertIn('fuera del alcance', c['baja'])
+        self.assertEqual(c['arbol_pedido'], 0)
+
+    # --- de punta a punta, por `juez()`
+
+    def responde(self, *respuestas):
+        self.mundo.litellm['local-juez'] = [(200, r, 0) for r in respuestas]
+
+    def rojo_sin_fichero(self):
+        return respuesta([cumple(1), {'n': 'C2', 'cumple': False, 'evidencia': '', 'cita': '', 'nota': 'el diff no incluye el Job'}])
+
+    def test_e2e_el_fichero_nombrado_esta_recortado_es_pasa_con_riesgo_alto(self):
+        self.mundo.adjuntos['1'] = SPEC_FICHEROS.encode()
+        self.responde(self.rojo_sin_fichero())
+        self.assertEqual(self.correr(REVIEW_MAX_DIFF_BYTES='250'), 0, self.salida_texto)
+        self.assertVeredicto('PASA', motivos='diff_recortado', riesgo='alto')
+        self.assertRegex(self.comentario(), r'\*\*C2\*\* ➖ .*evidencia no disponible \(recortado\)')
+
+    def test_e2e_en_el_head_y_no_en_el_diff_se_pide_el_arbol_y_se_comprueba_el_fichero(self):
+        self.mundo.adjuntos['1'] = SPEC_FICHEROS.replace('`tests/test_app.py`', '`tests/otro.py`').encode()
+        self.mundo.arbol = ['k8s/jobs.yaml', 'src/app.py']
+        self.mundo.ficheros['k8s/jobs.yaml'] = 'kind: Job\nmetadata:\n  name: otro\n'
+        self.responde(self.rojo_sin_fichero(), verifica({'confirmado': True, 'nota': 'no hay el Job convert'}))
+        self.assertEqual(self.correr(), 1, self.salida_texto)
+        self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
+        self.assertEqual((self.mundo.arboles, self.mundo.contents), (1, [f'k8s/jobs.yaml?ref={SHA}']))
+        self.assertIn('[ausencia]', self.mundo.llamadas[1][2])
+
+    def test_e2e_nombrado_y_en_ningun_sitio_con_el_diff_recortado_sigue_siendo_no_pasa(self):
+        self.mundo.adjuntos['1'] = SPEC_FICHEROS.replace('`tests/test_app.py`', '`tests/otro.py`').encode()
+        self.mundo.arbol = ['src/app.py']
+        self.responde(self.rojo_sin_fichero())
+        self.assertEqual(self.correr(REVIEW_MAX_DIFF_BYTES='250'), 1, self.salida_texto)
+        self.assertVeredicto('NO_PASA', motivos='criterio_incumplido,diff_recortado', riesgo='alto')
+
+    def test_e2e_la_api_del_arbol_caida_o_truncada_deja_la_regla_de_siempre(self):
+        self.mundo.adjuntos['1'] = SPEC_FICHEROS.replace('`tests/test_app.py`', '`tests/otro.py`').encode()
+        for nombre, caido, truncado in (('caida', True, False), ('truncada', False, True)):
+            with self.subTest(nombre):
+                self.mundo.comentarios.clear()
+                self.mundo.arbol_caido, self.mundo.arbol_truncado = caido, truncado
+                self.responde(self.rojo_sin_fichero())
+                self.assertEqual(self.correr(REVIEW_MAX_DIFF_BYTES='250'), 0, self.salida_texto)
+                self.assertVeredicto('PASA', motivos='diff_recortado', riesgo='alto')
+                self.assertIn('no se sabe donde mirar', self.comentario())
+
+    def test_e2e_un_pasa_no_pide_el_arbol(self):
+        self.assertEqual(self.correr(), 0)
+        self.assertEqual(self.mundo.arboles, 0)
+
+    def test_leer_arbol_da_las_rutas_de_los_ficheros_y_none_si_cae_o_viene_truncado(self):
+        self.mundo.arbol = ['src/app.py', 'k8s/jobs.yaml']
+        self.assertEqual(review.leer_arbol('ghs-fake', 'o/r', SHA), ['src/app.py', 'k8s/jobs.yaml'])   # el `tree` no es un fichero
+        self.mundo.arbol_truncado = True
+        self.assertIsNone(review.leer_arbol('ghs-fake', 'o/r', SHA))
+        self.mundo.arbol_truncado, self.mundo.arbol_caido = False, True
+        self.assertIsNone(review.leer_arbol('ghs-fake', 'o/r', SHA))
+
+    def test_el_arbol_de_un_caso_del_corpus_son_los_ficheros_de_su_head(self):
+        caso = self.tmp / 'caso'
+        self.assertEqual(review._arbol_de_caso(caso)(), [])
+        (caso / 'head' / 'k8s').mkdir(parents=True)
+        (caso / 'head' / 'k8s' / 'jobs.yaml').write_text('x')
+        (caso / 'head' / 'README.md').write_text('x')
+        self.assertEqual(review._arbol_de_caso(caso)(), ['README.md', 'k8s/jobs.yaml'])
 
 
 class TestVerifica(Base):
