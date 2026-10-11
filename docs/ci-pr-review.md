@@ -418,8 +418,12 @@ medido con el modelo real (run 38042710418, 3 pasadas), desbloqueaba defectos re
   esperaba la evidencia. Si el fichero está recortado, el criterio es `➖ evidencia no disponible (recortado)` y el marcador
   ya dice `riesgo=alto diff_recortado`. Si está fuera del diff, se pide `contents/{ruta}?ref={sha}`: con 404 el `❌` sigue
   bloqueando (ausencia comprobada), con 200 lo mira el verificador (que anota, no desbloquea) y con la API caída el veredicto es `SIN_VEREDICTO
-  verificacion_caida`. Sin `fichero`, el `❌` es `➖` solo si el diff tiene algún fichero recortado; si no, bloquea como
-  siempre. Un `✅` cuya evidencia está en un fichero recortado tampoco se puede comprobar y sale `➖` con el mismo riesgo alto.
+  verificacion_caida`. Sin `fichero` (SC-2264), el código deduce los candidatos de las rutas o nombres de fichero (con
+  extensión reconocida) del texto del criterio y de la nota del `❌`, casados por ruta o por nombre base contra el diff, los
+  recortados y el árbol del head (`git/trees/{sha}?recursive=1`, solo si hace falta): alguno recortado es `➖`; alguno en el
+  head y no en el diff va a la comprobación de arriba; alguno que el diff muestra, o ninguno en ningún sitio (el
+  entregable olvidado), sigue bloqueando. Sin nombres, o con el árbol caído o truncado, queda lo de siempre: `➖` solo si el
+  diff tiene algún fichero recortado. Un `❌` con cita no pasa por aquí. Un `✅` cuya evidencia está en un fichero recortado tampoco se puede comprobar y sale `➖` con el mismo riesgo alto.
 - Verificación con el fichero completo. Lo que iba a bloquear tras las reglas (cada `❌` por contradicción con su cita
   casada, cada hallazgo `bloquea` y los `❌` de ausencia con 200) pasa por una llamada por fichero, con el fichero completo
   del head (hasta `VERIFICA_FICHERO_MAX` = 60000 caracteres) y su hunk, al mismo modelo que juzgó. Se verifican como mucho
