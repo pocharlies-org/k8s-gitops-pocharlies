@@ -292,10 +292,14 @@ class TestJuezV3(unittest.TestCase):
         self.assertEqual(env["REVIEW_PR_DRAFT"], "${{ github.event.pull_request.draft }}")
         self.assertEqual(env["REVIEW_GITHUB_TOKEN"], "${{ github.token }}")   # con el mismo token lee la PR y los ficheros
 
-    def test_la_evaluacion_usa_pasadas_y_max_falsos(self):
+    def test_la_evaluacion_mide_la_parte_de_prueba_con_pasadas_y_umbrales_del_split(self):
+        """SC-2264 C7: la parte de prueba del corpus (no el 7/8 de los 8 casos), 3 pasadas, NO_PASA falsos <= 10 % de los
+        casos y falsos PASA <= 1, los que el juez de main tenia en esa parte (no-lista-llm-status-122, 3 de 3 pasadas)."""
         run = paso("evaluar_juez", "Evaluate the judge")["run"]
-        self.assertIn("--pasadas 3 --max-falsos 0.10", run)
+        self.assertIn("scripts/juez_split.py prueba", run)
+        self.assertIn('--evalua "$RUNNER_TEMP/juez-prueba" --pasadas 3 --max-falsos 0.10 --max-falsos-pasa 1', run)
         self.assertNotIn("--umbral", run)
+        self.assertNotIn("tests/fixtures/juez --pasadas", run)   # no el corpus entero
 
     def test_la_plantilla_escucha_ready_for_review(self):
         plantilla = yaml.safe_load((ROOT / "templates/ci/pr-review.yml").read_text(encoding="utf-8"))
