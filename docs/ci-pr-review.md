@@ -439,32 +439,24 @@ del respaldo el job sale verde, y en los tres últimos la primera línea visible
 «PENDIENTE — no es una aprobación», con un `::notice::`. GitHub Free no protege ramas, así que la única puerta es
 `company-aprobar`, que lee el marcador. El botón verde de la interfaz de GitHub en un pendiente es el precio asumido.
 
-## El juez por fases (SC-2264)
+## El juez de una llamada, con esquema y ejemplos (SC-2264, variante B)
 
-Con el modelo local `tooling` (no cambia) una sola llamada con todo (diff, criterios, normas) daba demasiados `NO_PASA` falsos.
-`juzgar` ahora hace tres preguntas, cada una con su propio esquema JSON:
+La ronda de calibración midió el juicio por fases (citas primero, criterios en lotes, fallos aparte) contra la llamada única de
+main con el proxy `alibaba-q38-flash`: las fases daban más `NO_PASA` falsos (la pasada de citas devolvía «ninguna» para criterios que
+sí están en el diff y el juicio los daba ❌). Esta variante vuelve a la llamada única de main (`juzgar`: criterios y hallazgos sobre
+el diff, más el reintento de la cita que no casa y las verificaciones de lo que bloquea, solo con `NO_PASA`) y conserva lo que no
+añade llamadas:
 
-1. Citas. Para cada criterio, hasta `CITAS_POR_CRITERIO` = 5 líneas literales del diff. El código las busca en el diff
-   (`localizar`) y descarta la que no encuentra; las que quedan llevan su `fichero:linea`.
-2. Juicio de criterios, en lotes de `LOTE_CRITERIOS` = 5. Cada lote ve solo sus criterios, sus citas y el título y la descripción
-   de la PR, sin el diff. Un criterio de esta PR sin citas que lo cumplan es `❌` por ausencia.
-3. Fallos del diff (`correccion` y `arquitectura`), sobre el diff entero. Un hallazgo `correccion` que bloquearía debe traer el
-   caso concreto en `entrada`, `salida_esperada` y `salida_codigo`, más su `cita`. Si falta alguno de los tres baja a observación
-   por código (comprobación de forma, no de contenido). Los de `arquitectura` no llevan `entrada`.
-
-Llamadas por PR: `2 + ceil(criterios / 5)`, cada una repetida una vez si la respuesta no sirve, más una para recuperar la cita
-de hallazgos que no casan y hasta `VERIFICA_MAX_LLAMADAS` = 4 verificaciones, solo con `NO_PASA`. Antes era una sola llamada
-(más reintento y verificaciones). Una PR de 6 criterios que pasa gasta 4. `--evalua` imprime `llamadas=` por caso y por pasada y, debajo de cada línea `FALLO`, sus motivos: cada ❌ (criterio y nota) y cada
-hallazgo que bloquea (severidad, tipo, `fichero:línea` y texto, a 200 caracteres).
-
-**Salida constreñida.** Cada pregunta pide `response_format: {type: json_schema}` (`ESQUEMA_CITAS`, `ESQUEMA_LOTE`,
-`ESQUEMA_HALLAZGOS`, estrictos). Si el alias contesta 400 o 422 hablando de `response_format`, se anota en `SIN_ESQUEMA`, se
-repite la misma llamada sin esquema y no se vuelve a pedir a ese alias; no cae al respaldo. El parseo de `extraer_json` y las reglas
-del código siguen igual. `REVIEW_JUEZ_ESQUEMA=no` lo apaga.
-
-**Rúbrica.** Cuatro ejemplos, todos de casos de entrenamiento: un `➖` de otro repositorio, un `❌` por ausencia dentro del alcance,
-un hallazgo `correccion` con su caso concreto y un hallazgo técnico que no se escribe porque la cita lo contradice. La regla
-nueva: no se afirma de memoria la semántica de una herramienta, un lenguaje o una API.
+- **Ejemplos de entrenamiento en la rúbrica** (`EJEMPLOS_RUBRICA`, cuatro: un `➖` de otro repositorio, un `❌` por ausencia dentro
+  del alcance, un hallazgo `correccion` con su caso en `entrada` y un hallazgo técnico que no se escribe porque su cita lo contradice).
+- **Regla de no afirmar de memoria** la semántica de una herramienta, un lenguaje o una API: solo cuenta lo que el diff demuestra con
+  una entrada concreta.
+- **Salida constreñida**: la llamada del juicio pide `response_format: {type: json_schema}` (`ESQUEMA_JUEZ`, estricto, con los
+  hallazgos antes que los criterios). Si el alias contesta 400 o 422 hablando de `response_format`, se anota en `SIN_ESQUEMA`, se
+  repite la misma llamada sin esquema y no se vuelve a pedir a ese alias; no cae al respaldo. El parseo de `extraer_json` y las
+  reglas del código siguen igual. `REVIEW_JUEZ_ESQUEMA=no` lo apaga.
+- **`--evalua` con detalle por caso** (`llamadas=` por caso y por pasada, y debajo de cada línea `FALLO` sus motivos: cada ❌ con su
+  nota y cada hallazgo que bloquea) y el split del corpus.
 
 El contrato del marcador v3 no cambia.
 
