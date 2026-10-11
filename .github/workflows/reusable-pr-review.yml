@@ -879,7 +879,7 @@ jobs:
     name: Evaluacion del juez
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.engine == 'juez' }}
     runs-on: ${{ inputs.runner }}
-    timeout-minutes: 120
+    timeout-minutes: 180
     permissions:
       contents: read
     steps:
@@ -901,10 +901,10 @@ jobs:
           REVIEW_TIMEOUT_SECONDS: '90'
         run: |
           set -euo pipefail
-          python3 .llm-review-framework/scripts/juez_split.py prueba \
-            .llm-review-framework/tests/fixtures/juez "$RUNNER_TEMP/juez-prueba"
+          python3 .llm-review-framework/scripts/juez_split.py validacion \
+            .llm-review-framework/tests/fixtures/juez "$RUNNER_TEMP/juez-validacion"
           python3 .llm-review-framework/.github/actions/llm-review/review.py \
-            --evalua "$RUNNER_TEMP/juez-prueba" --pasadas 3 --max-falsos 0.10 --max-falsos-pasa 1
+            --evalua "$RUNNER_TEMP/juez-validacion" --pasadas 3 --max-falsos 0.10 --max-falsos-pasa 1
 
   # Un motor que no existe es uso invalido y pone el check en rojo: no se adivina el motor
   # (D6 de INFRA-298). Antes lo cazaba `revisar_pr` (engine != 'pr-agent'); ahora que cada
