@@ -1672,8 +1672,18 @@ spec:
     # Las rutas del triángulo CX7 (DGX-819, dgx-infra #1142) ya están instaladas.
     # ROLLBACK de este paso: dfdc0e682f11d641d75a215370887d6ee8821636 (mismo path, sin ARX y KV de 16 GiB), o volver a qwen38 TP=3
     # con 01f9b4da163dcf4626e6d33db0c450fababd7e10 y path overlays/qwen38-tp3-ventana-20261010.
-    targetRevision: 66a75539c673a68ff02a014ae574d3598ee969ce
-    path: overlays/glm53-tp3-ventana-k4-20261010
+    # 11-10-2026 (DGX-817, vuelta a qwen38 TP=3 en la ventana): 01f9b4d otra vez (k8s-ai #159, línea pin/qwen38-tp3-20261010), path
+    # overlays/qwen38-tp3-ventana-20261010, exactamente lo de la #587. GLM ya terminó sus medidas (decode, benchy y batería de calidad) y
+    # qwen38 TP=3 recibe la suya. Es el rollback documentado de GLM, sin cambios.
+    # Efecto de la sync: GLM se retira y el prune quita sus tres rangos (cabeza en dgx3, workers en dgx1 y dgx2). Vuelven head en dgx2,
+    # worker en dgx1 y worker-dgx3 en dgx3 de qwen38 y el PostSync llm-deploy-resume.
+    # El Secret glm53-tp3-mentat (ExternalSecret con deletionPolicy Retain) queda retenido aunque se retire GLM: si GLM no se reactiva,
+    # hay que borrarlo (kubectl delete secret glm53-tp3-mentat -n llm, tras el ExternalSecret), porque es una condición de security.
+    # Arranque de qwen38: unos 33 min, con unos 20 min SIN log tras «GPU KV cache size» (NO es cuelgue). El tráfico va a Alibaba hasta que
+    # el residente responda.
+    # ROLLBACK de esto (volver a GLM): 66a75539c673a68ff02a014ae574d3598ee969ce con path overlays/glm53-tp3-ventana-k4-20261010.
+    targetRevision: 01f9b4da163dcf4626e6d33db0c450fababd7e10
+    path: overlays/qwen38-tp3-ventana-20261010
   destination:
     server: https://kubernetes.default.svc
     namespace: llm
