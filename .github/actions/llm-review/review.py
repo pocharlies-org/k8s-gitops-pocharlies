@@ -22,6 +22,7 @@ ese juez contra un corpus de casos commiteado (`--pasadas N --max-falsos F`, o `
 """
 import argparse
 import base64
+import functools
 import json
 import os
 import re
@@ -983,6 +984,20 @@ def leer_fichero(token, repo, ruta, sha):
         return 'no_existe', None
 
 
+def leer_arbol(token, repo, sha):
+    """Las rutas de los ficheros del head de la PR (`git/trees/{sha}?recursive=1`), o None si la API no contesta o el
+    arbol viene truncado: un arbol a medias no dice que un fichero no exista."""
+    rh = _http()
+    try:
+        dato = rh.request(f'{GITHUB_API}/repos/{repo}/git/trees/{sha}?recursive=1', rh.github_headers(token),
+                          ok404=True, source='GitHub')
+    except (rh.AuthError, rh.Degraded):
+        return None
+    if not isinstance(dato, dict) or dato.get('truncated') or not isinstance(dato.get('tree'), list):
+        return None
+    return [e['path'] for e in dato['tree'] if isinstance(e, dict) and e.get('type') == 'blob' and e.get('path')]
+
+
 # ---- diff y respuesta del modelo -----------------------------------------
 
 def lineas_visibles(diff):
@@ -1144,7 +1159,49 @@ def reintentar_citas(url, key, modelo, fallback, timeout, pendientes, diff):
             pendientes[r['id'] - 1][0]['cita'] = str(r.get('cita') or '')
 
 
-def aplicar_reglas(criterios, hallazgos, alcance, textos, recortados=()):
+NOMBRE_RE = re.compile(r'[\w./-]+\.\w+')
+EXT_NOMBRADOS = EXT_CODIGO | EXT_DOCS | frozenset('.yaml .yml .json .toml .cfg .ini .conf'.split())
+
+
+def ficheros_nombrados(*textos):
+    """Las rutas o nombres de fichero (con una extension reconocida) que nombran los textos, sin repetir y en orden."""
+    nombres = []
+    for texto in textos:
+        for n in NOMBRE_RE.findall(str(texto or '')):
+            n = _ruta_limpia(n)
+            if '.' + n.rsplit('.', 1)[-1].lower() in EXT_NOMBRADOS and n not in nombres:
+                nombres.append(n)
+    return nombres
+
+
+def _casa(nombre, ruta):
+    """¿`nombre` (el que nombra un texto) es `ruta` (un fichero de la PR o del head)? Con directorio, por la ruta entera
+    o por el final de una de las dos; sin el, por el nombre base."""
+    if '/' in nombre:
+        return ruta == nombre or ruta.endswith('/' + nombre) or nombre.endswith('/' + ruta)
+    return ruta.rsplit('/', 1)[-1] == nombre
+
+
+def _ausencia_sin_fichero(c, textos, fuera, arbol):
+    """Un ❌ de ausencia dentro del alcance, sin cita y sin `fichero` (SC-2264, variante D): el fichero lo dicen las rutas
+    que nombran el criterio y la nota. Alguno recortado: ➖ `evidencia no disponible`. Alguno en el head y no en el diff
+    (`arbol()` da sus rutas, o None si no se pudo leer): `juzgar` lo comprueba (`ausencia_en`). Alguno que el diff muestra
+    entero, o ninguno en ningun sitio (el entregable olvidado): sigue bloqueando. Sin nombres, o sin arbol del head y sin
+    haberlo visto en el diff, queda la regla de siempre: ➖ si el diff esta recortado y no se sabe donde mirar."""
+    nombres = ficheros_nombrados(c.get('texto'), c.get('nota'))
+    esta_en = lambda rutas: [r for n in nombres for r in rutas if _casa(n, r)]
+    if esta_en(sorted(fuera)):
+        c['cumple'], c['baja'] = None, 'evidencia no disponible (recortado): el juez no vio ese fichero'
+        return
+    head = arbol() if nombres else None
+    solo_head = [r for r in esta_en(head or ()) if r not in textos and r not in fuera]
+    if solo_head:
+        c['ausencia_en'] = solo_head[0]
+    elif fuera and not (nombres and (esta_en(textos) or head is not None)):
+        c['cumple'], c['baja'] = None, 'evidencia no disponible (recortado): el diff esta recortado y no se sabe donde mirar'
+
+
+def aplicar_reglas(criterios, hallazgos, alcance, textos, recortados=(), arbol=lambda: None):
     """Las reglas del codigo sobre lo que dijo el modelo (SC-2229), en su sitio: lo que no se sostiene deja de
     bloquear y `baja` dice por que (el comentario lo muestra).
     - un ❌ que cita una linea (`evidencia` + `cita`) vale si la cita esta en el diff; si no, baja a ➖;
@@ -1154,7 +1211,8 @@ def aplicar_reglas(criterios, hallazgos, alcance, textos, recortados=()):
     - una ausencia dentro del alcance (SC-2285): si el `fichero` donde el modelo esperaba la evidencia esta recortado,
       o no lo dijo y el diff esta recortado, es ➖ `evidencia no disponible` (el marcador ya lleva riesgo alto por el
       recorte); si el fichero no esta en el diff, `juzgar` lo comprueba en el head (`ausencia_en`); si el diff lo
-      muestra entero, bloquea como siempre;
+      muestra entero, bloquea como siempre. Si el modelo no dijo `fichero`, se deduce de las rutas que nombran el
+      criterio y la nota (`_ausencia_sin_fichero`, SC-2264);
     - un ✅ de un criterio fuera del alcance no pide evidencia;
     - un hallazgo bloqueante vale con su fichero, su linea y su cita en el diff y sin ser de un fichero recortado;
       si el diff toca el fichero sin mostrar ninguna linea (vacio, borrado), vale con el fichero: no hay que citar."""
@@ -1173,8 +1231,8 @@ def aplicar_reglas(criterios, hallazgos, alcance, textos, recortados=()):
                     c['cumple'], c['baja'] = None, 'evidencia no disponible (recortado): el juez no vio ese fichero'
                 elif fichero and fichero not in textos:
                     c['ausencia_en'] = fichero
-                elif not fichero and fuera:
-                    c['cumple'], c['baja'] = None, 'evidencia no disponible (recortado): el diff esta recortado y no se sabe donde mirar'
+                elif not fichero:
+                    _ausencia_sin_fichero(c, textos, fuera, arbol)
         elif c['cumple'] and not dentro and not c['evidencia_ok']:
             c['cumple'], c['baja'] = None, 'fuera del alcance declarado por la PR: no se pide evidencia'
         elif c['cumple'] and not c['evidencia_ok'] and _ruta_limpia(c['evidencia'].rpartition(':')[0]) in fuera:
@@ -1494,10 +1552,12 @@ def _cita_no_lista(dato, pr):
 
 
 def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios, diff, arquitectura, pr='', fuera=(),
-           leer=None):
+           leer=None, arbol=None):
     """Del ticket, el diff y las normas al veredicto. Lo comparten `juez` y `evalua`. `criterios` es [(etiqueta, texto)];
     `fuera` son los ficheros que el recorte dejo fuera del diff; `leer(ruta)` da (estado, texto) de un fichero del head
-    (`ok`, `no_existe`, `caido`): sin el, nada se verifica y nada baja. El alcance sale de la descripcion de la PR (`pr`).
+    (`ok`, `no_existe`, `caido`): sin el, nada se verifica y nada baja; `arbol()` da las rutas del head (o None): solo se
+    pide si un ❌ de ausencia sin `fichero` nombra ficheros y ninguno esta recortado. El alcance sale de la descripcion
+    de la PR (`pr`).
     Devuelve {veredicto, motivos, detalle, modelo, juez, criterios, hallazgos, alcance, verificaciones, ajenos}; `ajenos`
     son los criterios que se quitaron sin pasar por el modelo (otro repositorio) y suben el marcador a `riesgo=alto`."""
     visibles, textos = lineas_visibles(diff), textos_por_fichero(diff)
@@ -1507,6 +1567,8 @@ def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios,
     # el nombre de otro repo solo dice que el criterio lo cita (un golden de dgx-infra), no que no sea de esta PR (SC-2285)
     ajenos = set() if alcance else {e for e, t in criterios if otro_repo(t, repo)}
     a_juzgar = [(e, t) for e, t in criterios if e not in ajenos]
+    enunciados = dict(a_juzgar)
+    arbol_una_vez = functools.lru_cache(maxsize=None)(arbol or (lambda: None))
     res = {'veredicto': 'SIN_VEREDICTO', 'motivos': set(), 'detalle': '', 'modelo': modelo, 'juez': 'primario',
            'alcance': alcance, 'hallazgos': [], 'verificaciones': 0, 'ajenos': sorted(ajenos),
            'criterios': [{'n': e, 'texto': t, 'cumple': None, 'evidencia': '', 'evidencia_ok': False, 'nota': '',
@@ -1536,7 +1598,9 @@ def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios,
         if sin_casar and not citas_pedidas:   # la linea exacta se pide UNA vez por juicio, antes de bajar nada
             citas_pedidas = True
             reintentar_citas(url, key, modelo, fallback, timeout, sin_casar, diff)
-        aplicar_reglas(nuevo[0], nuevo[1], alcance, textos, recortados)
+        for c in nuevo[0]:
+            c['texto'] = enunciados[c['n']]
+        aplicar_reglas(nuevo[0], nuevo[1], alcance, textos, recortados, arbol_una_vez)
         ev, res['modelo'], no_lista = nuevo, usado, _cita_no_lista(respuesta, pr)
         if all(c['evidencia_ok'] for c in ev[0] if c['cumple']):
             break
@@ -1749,7 +1813,8 @@ def juez():
             pass   # sin ARCHITECTURE.md en el commit base: el prompt lo dice
     res = juzgar(url_base, key, modelo, fallback, timeout_juez(env('REVIEW_TIMEOUT_SECONDS')),
                  repo, claves[0], ticket['resumen'], ticket['criterios'], recortado, arquitectura,
-                 f"{titulo_pr}\n\n{cuerpo_pr}", fuera, lambda ruta: leer_fichero(token, repo, ruta, sha))
+                 f"{titulo_pr}\n\n{cuerpo_pr}", fuera, lambda ruta: leer_fichero(token, repo, ruta, sha),
+                 lambda: leer_arbol(token, repo, sha))
     r.update(criterios=res['criterios'], hallazgos=res['hallazgos'], modelo=res['modelo'], juez=res['juez'],
              alcance=res['alcance'], verificaciones=res['verificaciones'], ajenos=res['ajenos'])
     if res['ajenos']:   # un criterio quitado sin el modelo es un juicio a medias: lo firma qa, no la puerta sola
@@ -1794,6 +1859,12 @@ def _leer_head(caso):
     return leer
 
 
+def _arbol_de_caso(caso):
+    """`arbol()` de un caso del corpus: las rutas de los ficheros de `<caso>/head`, que hace de head de su PR."""
+    raiz = caso / 'head'
+    return lambda: sorted(f.relative_to(raiz).as_posix() for f in raiz.rglob('*') if f.is_file())
+
+
 def _un_caso(caso, url_base, key, modelo, fallback, max_bytes):
     """El juicio de un caso del corpus, con las mismas puertas previas que `juez`: borrador y ticket sin criterios no
     llegan al modelo."""
@@ -1812,7 +1883,7 @@ def _un_caso(caso, url_base, key, modelo, fallback, max_bytes):
     tope = int((caso / 'max_bytes').read_text(encoding='utf-8').split()[0]) if (caso / 'max_bytes').is_file() else max_bytes
     recortado, fuera = recortar((caso / 'diff.patch').read_text(encoding='utf-8'), tope)
     return juzgar(url_base, key, modelo, fallback, timeout_juez(env('REVIEW_TIMEOUT_SECONDS')), repo, caso.name,
-                  caso.name, criterios, recortado, arquitectura, pr, fuera, _leer_head(caso))
+                  caso.name, criterios, recortado, arquitectura, pr, fuera, _leer_head(caso), _arbol_de_caso(caso))
 
 
 def evalua(directorio, umbral, pasadas=1, max_falsos=None, max_falsos_pasa=None, min_reales=None):

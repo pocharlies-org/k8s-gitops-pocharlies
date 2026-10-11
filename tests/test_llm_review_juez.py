@@ -2131,7 +2131,7 @@ class TestAusenciaDeducida(Base):
         self.responde(self.rojo_sin_fichero(), verifica({'confirmado': True, 'nota': 'no hay el Job convert'}))
         self.assertEqual(self.correr(), 1, self.salida_texto)
         self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
-        self.assertEqual((self.mundo.arboles, self.mundo.contents), (1, [f'k8s/jobs.yaml?ref={SHA}']))
+        self.assertEqual((self.mundo.arboles, set(self.mundo.contents)), (1, {f'k8s/jobs.yaml?ref={SHA}'}))
         self.assertIn('[ausencia]', self.mundo.llamadas[1][2])
 
     def test_e2e_nombrado_y_en_ningun_sitio_con_el_diff_recortado_sigue_siendo_no_pasa(self):
