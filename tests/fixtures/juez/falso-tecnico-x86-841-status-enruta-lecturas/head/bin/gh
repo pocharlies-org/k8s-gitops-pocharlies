@@ -1,0 +1,28 @@
+#!/bin/bash
+# gh — envoltorio del gh de verdad (30-09-2026, Dani: «siempre que haya código, qa y architect aprueban la PR, y el
+# PR review tiene que pasar»). GitHub Free no protege las ramas de los repos privados, así que la puerta está aquí:
+# ningún merge sigue si `company-aprobar` no dice que la PR está lista (qa + architect + PR review + detector de
+# copia + CI en verde). Lo demás pasa directo al gh de verdad.
+#
+# Dónde manda (01-10-2026): install.sh aparta el binario del paquete con `dpkg-divert` a /usr/bin/gh.real (las
+# actualizaciones de apt también caen allí) y deja /usr/bin/gh enlazado a este fichero. Cualquier forma de nombrar
+# gh — con cualquier PATH, /usr/bin/gh, /bin/gh, /usr/bin/../bin/gh, `ssh x86 '…'`, systemd, runners — llega aquí.
+#
+# Qué es un merge lo decide `company-aprobar envoltorio`: `gh pr merge` con las banderas antes o después
+# (`gh -R o/r pr merge 7`), `gh api -X PUT …/pulls/N/merge`, la mutación GraphQL (también desde fichero) y un alias
+# que lo esconda. Solo paga ese análisis la llamada que menciona «merge» o «graphql». Rutas absolutas y
+# `python3 -I`: ninguna variable de entorno (GH_REAL, HOME, PATH, PYTHONPATH) cambia qué puerta corre ni contra qué gh.
+REAL=/usr/bin/gh.real                          # el binario del paquete, apartado por dpkg-divert (install.sh)
+[ -x "$REAL" ] || REAL=/usr/bin/gh             # antes del primer despliegue con el divert
+if [ "$REAL" -ef "${BASH_SOURCE[0]}" ]; then   # /usr/bin/gh es este envoltorio y falta el .real: no buclear
+  echo "gh: no encuentro el gh de verdad (/usr/bin/gh.real): ¿se deshizo el dpkg-divert? Redespliega x86-host-runtime." >&2
+  exit 127
+fi
+# Ni HOME ni PATH ni PYTHONPATH (architect, #557): con ellos, `HOME=/tmp/x gh pr merge` ejecutaría una puerta falsa.
+APROBAR="$(/usr/bin/getent passwd "$(/usr/bin/id -u)" | /usr/bin/cut -d: -f6)/.local/libexec/x86-host-runtime/company-aprobar"
+case "$*" in
+  # SC-2169: «status» enruta también los endpoints de estados de commit (es prefijo de «statuses»), y
+  # «aprobacion» los que escriban un veredicto por cualquier otra vía; company-aprobar decide en `que_es`.
+  *[Mm]erge*|*[Gg]raph[Qq][Ll]*|*status*|*aprobacion*) exec /usr/bin/python3 -I "$APROBAR" envoltorio "$REAL" "$@" ;;
+esac
+exec "$REAL" "$@"

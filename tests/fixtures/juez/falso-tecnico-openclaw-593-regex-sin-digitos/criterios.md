@@ -1,0 +1,5 @@
+# DGX-788 · criterios del 00-spec.md
+
+- [ ] `helm/hermes/values.yaml`: la ruta `gmail-skirmshop` lleva exactamente `toolsets: brain, workspace, shopify, picqer, skirmshop-plugins` (las listas finas de solo lectura del perfil); las otras rutas `gmail-*` no cambian; ninguna lleva terminal, file, social, cronjob ni compuestos `hermes-*`. Test con igualdad exacta por ruta.
+- [ ] Un bloque SOUL propio de `secretaria-skirmshop` (además de `correo-borrador`) fija el procedimiento ANTES de redactar un `responder`: (a) identificar pedido y cliente con Shopify; (b) dar datos de un pedido SOLO si el email del remitente es el del cliente del pedido; (c) consultar lo que la pregunta necesita; (d) el borrador contesta con datos concretos y UN siguiente paso concreto; (e) prohibido prometer que se comprobará algo sin haberlo comprobado; (f) si la solución exige escribir en la tienda o el almacén, el borrador dice qué se va a hacer y la tarjeta lleva la tarea. Test que comprueba que el bloque está en el SOUL de `secretaria-skirmshop` y dentro del techo de palabras.
+- [ ] Suite del repo en verde.

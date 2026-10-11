@@ -1,0 +1,81 @@
+diff --git a/.company/evidence/DGX-815-nccl-ring.md b/.company/evidence/DGX-815-nccl-ring.md
+index 617d142..a962781 100644
+--- a/.company/evidence/DGX-815-nccl-ring.md
++++ b/.company/evidence/DGX-815-nccl-ring.md
+@@ -56,3 +56,18 @@ El build de verdad (nvcc para sm_121, arm64) lo hace el workflow en el builder d
+ - Imagen: `images/nccl-ring/Dockerfile` (multi-stage, CUDA 13.0.2 devel por digest, `make -j8 src.build NVCC_GENCODE=...sm_121`, solo arm64, final `FROM scratch`) y `build-nccl-ring-image.yml` (a mano, Harbor, digest en el resumen).
+ - Generador en `k8s/nccl-ring/nccl_ring_graph.py`, con la tabla de qa de DGX-810; generador y copia de ring.conf dentro de la imagen.
+ Fuera de esta PR: sonda v3 en la ventana y el build/push real (lo lanza la sesión con dgx3 libre).
++
++## C2 · comprobación de cubin de la imagen: sm_121 y, tolerado, sm_100 (run 38063874568)
++
++El segundo build (run 38063874568) ya compila `libnccl.so.2` y cae en la comprobación de `cuobjdump`, que exigía solo sm_121. El log
++de ese run lista 38 cubin: 28 `sm_121` y 10 `sm_100` (`libnccl.so.N.sm_100.cubin`). Los `sm_100` no vienen de nuestro `NVCC_GENCODE`: NCCL v2.30.7-1
++los fuerza en `src/device/Makefile:48-50` (`NVCC_GENCODE_LDMC_FP8`, kernels LDMC FP8 para compute_100f/100a). En GB10 (sm_121) no se cargan.
++
++`images/nccl-ring/Dockerfile` ahora exige que `sm_121` esté y que cualquier otra arquitectura que no sea `sm_100` haga fallar el build
++(`grep -qvE '^sm_(121|100)$'`). C2 queda: `libnccl.so.2` para sm_121 y arm64, más los cubin sm_100 que NCCL añade solo, sin ninguna otra arquitectura.
++
++`python3 -m unittest tools/test_nccl_ring.py`: Ran 20 tests, OK (skipped=2: los dos que piden `NCCL_SRC`). El test nuevo
++`test_la_comprobacion_de_cubin_acepta_exactamente_sm_121_y_sm_100` extrae la línea `if grep ...` del Dockerfile y la ejecuta con `bash`
++sobre listas de cubin de ejemplo: pasan `{sm_121}` y `{sm_121, sm_100}`; fallan al añadir `sm_90`, `sm_120`, `sm_100f` o `sm_80`.
++Rojo antes de verde: con el Dockerfile anterior el test falla. `docker buildx build --check` sin avisos, ruff 0.12.4 y `check_ci_security` verdes.
++El build real lo repite el workflow en el builder de dgx3 (no lanzado aquí).
+diff --git a/images/nccl-ring/Dockerfile b/images/nccl-ring/Dockerfile
+index 77618ee..173479b 100644
+--- a/images/nccl-ring/Dockerfile
++++ b/images/nccl-ring/Dockerfile
+@@ -41,11 +41,12 @@ RUN set -eux; \
+ 
+ RUN make -j"${MAX_JOBS}" src.build NVCC_GENCODE="-gencode=arch=compute_121,code=sm_121"
+ 
+-# Solo sm_121 (GB10): ningún otro cubin. `cp -L` deja el fichero y no el enlace libnccl.so.2 -> libnccl.so.2.30.7.
++# Solo sm_121 (GB10) más los sm_100 que NCCL fuerza en src/device/Makefile:48 (LDMC FP8, NVCC_GENCODE_LDMC_FP8); cualquier otra arquitectura falla.
++# `cp -L` deja el fichero y no el enlace libnccl.so.2 -> libnccl.so.2.30.7.
+ RUN set -eux; \
+     cuobjdump --list-elf build/lib/libnccl.so.2 | tee /tmp/elf.txt; \
+     grep -q sm_121 /tmp/elf.txt; \
+-    if grep -oE 'sm_[0-9a-z]+' /tmp/elf.txt | grep -qv '^sm_121$'; then exit 1; fi; \
++    if grep -oE 'sm_[0-9a-z]+' /tmp/elf.txt | grep -qvE '^sm_(121|100)$'; then exit 1; fi; \
+     cp -L build/lib/libnccl.so.2 /libnccl.so.2
+ 
+ FROM scratch
+diff --git a/images/nccl-ring/README.md b/images/nccl-ring/README.md
+index 0644396..228d49c 100644
+--- a/images/nccl-ring/README.md
++++ b/images/nccl-ring/README.md
+@@ -1,6 +1,7 @@
+ # nccl-ring
+ 
+ `libnccl.so.2` de NCCL v2.30.7-1 (`73cf1122`) con un parche de una línea, solo sm_121 (GB10) y arm64 (DGX-815, de DGX-778 P3b).
++NCCL fuerza además cubin sm_100 (`src/device/Makefile:48`, kernels LDMC FP8) aunque se pase `NVCC_GENCODE`: el build los acepta y rechaza cualquier otra arquitectura; en GB10 no se cargan.
+ 
+ Con una GPU por nodo el NCCL de serie recibe y envía por la **primera** `<net>` de cada canal del `NCCL_GRAPH_FILE`
+ (`ncclTopoGetNetDev`, `src/graph/search.cc:1408`), y en el triángulo CX7 sin switch un dispositivo no toca los dos cables
+diff --git a/tools/test_nccl_ring.py b/tools/test_nccl_ring.py
+index 77b7b38..0e8691a 100644
+--- a/tools/test_nccl_ring.py
++++ b/tools/test_nccl_ring.py
+@@ -222,6 +222,22 @@ def test_se_compila_solo_para_sm_121_y_solo_arm64(self):
+         self.assertIn("cuobjdump --list-elf", self.docker)
+         self.assertIn("--platform linux/arm64", self.texto)
+ 
++    def test_la_comprobacion_de_cubin_acepta_exactamente_sm_121_y_sm_100(self):
++        # el Makefile de NCCL fuerza sm_100 (LDMC FP8) aunque se pase NVCC_GENCODE: el run 38063874568 llegó a libnccl.so.2 y cayó aquí
++        self.assertIn("src/device/Makefile:48", self.docker)
++        self.assertIn("grep -q sm_121 /tmp/elf.txt;", self.docker)  # sm_121 tiene que estar; sm_100 solo se tolera
++        linea = re.search(r"(?m)^\s*(if grep -oE .*; fi);", self.docker).group(1)
++
++        def con_fichero(archs):
++            with tempfile.TemporaryDirectory() as d:
++                (Path(d) / "elf.txt").write_text("".join(f"ELF file {i}: libnccl.so.{i}.{a}.cubin\n" for i, a in enumerate(archs, 1)))
++                return subprocess.run(["bash", "-c", linea.replace("/tmp/elf.txt", f"{d}/elf.txt")], check=False).returncode == 0
++
++        self.assertTrue(con_fichero(["sm_121"]))
++        self.assertTrue(con_fichero(["sm_121", "sm_100", "sm_121", "sm_100"]))
++        for otra in ("sm_90", "sm_120", "sm_100f", "sm_80"):
++            self.assertFalse(con_fichero(["sm_121", "sm_100", otra]), otra)
++
+     def test_la_imagen_final_es_scratch_con_la_lib_el_generador_y_ring_conf(self):
+         final = self.docker.split("\nFROM ")[-1]
+         self.assertTrue(final.startswith("scratch"))

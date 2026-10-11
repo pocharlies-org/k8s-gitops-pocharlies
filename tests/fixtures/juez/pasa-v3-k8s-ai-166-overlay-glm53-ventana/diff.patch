@@ -1,0 +1,314 @@
+diff --git a/.company/evidence/DGX-820-glm-k64.md b/.company/evidence/DGX-820-glm-k64.md
+new file mode 100644
+index 0000000..e6cbecb
+--- /dev/null
++++ b/.company/evidence/DGX-820-glm-k64.md
+@@ -0,0 +1,48 @@
++# DGX-820 (C2) · overlay glm53-tp3-ventana-k64-20261010: GLM TP=3 de la ventana en el modo k64
++
++Donde: x86, worktree sobre pin/glm53-ventana-20261010 (66a7553). Cluster: no se ha tocado; solo `kubectl kustomize` (v1.36.2+k3s1, kustomize v5.8.1), sin red.
++Comandos: `python3 -m unittest tools/test_glm53_tp3_ventana.py tools/test_sparks_ventana_pin.py`, `ruff check` 0.12.4 (el del CI, de `requirements-ruff.txt`), `python3 tools/check_ci_security.py`.
++
++## Rojo (f661b29 y f26a586: los tests, antes del overlay)
++Resultado: FAIL (esperado).
++```
++ERROR: setUpClass (tools.test_glm53_tp3_ventana.ModoK64Test)
++Ran 29 tests / FAILED (errors=1)   # kubectl kustomize overlays/glm53-tp3-ventana-k64-20261010: no existe
++```
++`K64NoCambianTest` (los renders del k4 y de la ventana no cambian) y los 27 tests de DGX-818 pasan antes y despues: son guardas, no un cambio.
++
++## Verde (esta rama)
++Resultado: PASS.
++```
++$ python3 -m unittest tools/test_glm53_tp3_ventana.py
++Ran 39 tests / OK                      # 27 de DGX-818 + 12 del k64, ninguno omitido
++$ python3 -m unittest tools/test_sparks_ventana_pin.py tools/test_glm53_tp3_ventana.py
++Ran 104 tests / OK (skipped=1)         # el omitido es el de NCCL_RING_DIR de la sonda v3 (necesita el directorio de la imagen), el mismo de siempre
++$ ruff check tools/test_glm53_tp3_ventana.py   # 0.12.4
++All checks passed!
++$ python3 tools/check_ci_security.py   # exit 0: ci.yml no se toca (el fichero de tests ya esta en sus listas Ruff y Unittest)
++```
++Mutaciones (el overlay restaurado despues), todas hacen fallar los tests: KV de 18 GiB (los de main) y `/run/dispram` sin `readOnly`.
++
++## Render (kubectl kustomize)
++`overlays/glm53-tp3-ventana-k64-20261010` frente a `overlays/glm53-tp3-ventana-k4-20261010`: 19385 y 19459 lineas, y la diferencia es solo:
++- el ConfigMap `glm53-tp3-mode` (nombre con otro hash, `t5gtf2t7m5` a `8k6f4g64hh`): `EXPECT_PAGESIZE` 4096 a 65536, `REQUIRE_DISPRAM` 0 a 1, y entran `DRIVER_VERSION=610.57.04` y `PYTHONPATH=/opt/dispram`;
++  `KV_CACHE_MEMORY` sigue en 12884901888 (12 GiB);
++- las referencias a ese ConfigMap (vllm y check-host de cada rango);
++- los volumenes `dispram-dir` (hostPath `/run/dispram`, Directory), `dispram-sock` (hostPath `/run/dispram/dispram.sock`, sin type) y `dispram-python` (hostPath `/opt/kindling/dispram/python`, Directory), y sus montajes:
++  `/run/dispram` en solo lectura y el socket aparte en rw en vllm y check-host, el plugin en `/opt/dispram` en ro solo en vllm (S-1).
++Ni un NCCL_*, MENTAT_*, ARX, el `start.sh`, la pausa de la ventana ni la ausencia de residente y resume cambian (`test_el_render_es_el_del_k4_salvo_el_modo_y_dispram`).
++
++## Un criterio, una prueba
++- C2: `ModoK64Test` (tres rangos con replicas 1; modo k64 con KV de 12 GiB; un solo ConfigMap de modo con hash, el mismo en los tres rangos y `Recreate`; receta NCCL, MENTAT_FABRIC_IP, ARX y arranque iguales a los del k4;
++  render igual al del k4 salvo modo y dispram; S-1: directorio ro, socket rw sin type, plugin ro, lista cerrada de hostPath = la del k4 mas los tres de dispram; S-2: solo los tres rangos montan `/run/dispram` y ningun otro
++  yaml del repo lo menciona) y `K64NoCambianTest` (el render del k4 y el de la ventana son los de 66a7553).
++
++## KV_CACHE_MEMORY: 12 GiB
++El k64 de main lleva 18 GiB = los 16 del k4 de main + 2 GiB que presta dispram (docs/glm-5.3-flash-tp3.md de main). Los 16 son los que dejaron a dgx3 sin memoria disponible en la compilacion JIT de CUDA de la
++primera prueba de prefix cache de la ventana (DGX-818); el k4 de la ventana bajo a 12 y midio sin problemas. Main no justifica ninguna cifra por encima de 12 para estos nodos (los +2 GiB de dispram no estan medidos aqui),
++asi que se queda en 12: sin margen nuevo que gastar y, ademas, el k64 se mide contra el k4 con el mismo KV (cambia solo el kernel). Subirla es cambiar un literal del overlay.
++
++## Lo que este diff no prueba (es de la ventana)
++Que containerd monte el socket suelto con el directorio en ro (si no, S-1 pasa el directorio a rw y se anota como riesgo residual en el 50-entrega.md), que `check-host` pase con `dispramd` vivo y el driver 610.57.04,
++`GPU KV cache size`, `Connected all rings` y las medidas de 64K contra las de 4K.
+diff --git a/overlays/glm53-tp3-ventana-k64-20261010/kustomization.yaml b/overlays/glm53-tp3-ventana-k64-20261010/kustomization.yaml
+new file mode 100644
+index 0000000..1039a51
+--- /dev/null
++++ b/overlays/glm53-tp3-ventana-k64-20261010/kustomization.yaml
+@@ -0,0 +1,31 @@
++# DGX-820 (11-10-2026, Dani): GLM-5.3-Flash NVFP4 en TP=3 en la ventana de los Sparks, modo k64 (kernel de 64K con dispram): la medida de GLM con los tres Sparks en 64K.
++# Es el overlay k4 de la ventana (`../glm53-tp3-ventana-k4-20261010`, DGX-818) tal cual, sin copiar nada de el: la ventana sin residente ni resume, la pausa del arbitro, los tres
++# rangos de `k8s/glm53-tp3/` con replicas 1 y la receta NCCL que funciono (libnccl parcheada, grafo `--order dgx3,dgx1,dgx2`, MENTAT_FABRIC_IP en la LAN, ARX de la receta).
++# Cambia SOLO lo que cambia el modo k64 de main (`overlays/glm-5.3-flash-tp3-k64-20261010`, DGX-787):
++#  - el ConfigMap del modo (abajo): EXPECT_PAGESIZE=65536, REQUIRE_DISPRAM=1, DRIVER_VERSION (lo lee `check-host`) y PYTHONPATH del plugin de dispram;
++#  - el parche de dispram (`patch-dispram.yaml`, S-1 y S-2 de la nota de security de DGX-787).
++# VUELTA y uso: los del k4 (overlays/sparks-ventana-salida-20261010 en el SHA de `ai`, y docs/glm-5.3-flash-tp3.md de main). Antes de activar este overlay, los tres nodos tienen que
++# estar en 64K con `dispramd` vivo (scripts/glm53 de dgx-infra: arm, reinicio, verify); `check-host` no deja arrancar el pod si no.
++apiVersion: kustomize.config.k8s.io/v1beta1
++kind: Kustomization
++resources:
++  - ../glm53-tp3-ventana-k4-20261010
++configMapGenerator:
++  - name: glm53-tp3-mode
++    namespace: llm
++    behavior: replace
++    literals:
++      # 12 GiB, los del k4 de la ventana, no los 18 de main: los 18 son 16 + 2 GiB que presta dispram, y los 16 son los que dejaron a dgx3 sin memoria disponible en la compilacion
++      # JIT de CUDA (DGX-818). Los +2 GiB de dispram no estan medidos en estos nodos y con la misma cifra el k64 se mide contra el k4 cambiando una sola cosa: el kernel.
++      # Si la prueba muestra margen, subirla es cambiar este literal (el hash del ConfigMap reinicia los tres rangos a la vez).
++      - KV_CACHE_MEMORY=12884901888
++      - EXPECT_PAGESIZE=65536
++      - REQUIRE_DISPRAM=1
++      - DRIVER_VERSION=610.57.04
++      # El plugin general de vLLM de dispram (entry point en su dist-info), montado en /opt/dispram. start.sh llama al generador con `python3 -I`: no lo lee.
++      - PYTHONPATH=/opt/dispram
++patches:
++  - path: patch-dispram.yaml
++    target:
++      kind: Deployment
++      labelSelector: app.kubernetes.io/part-of=glm53-tp3
+diff --git a/overlays/glm53-tp3-ventana-k64-20261010/patch-dispram.yaml b/overlays/glm53-tp3-ventana-k64-20261010/patch-dispram.yaml
+new file mode 100644
+index 0000000..9948dd3
+--- /dev/null
++++ b/overlays/glm53-tp3-ventana-k64-20261010/patch-dispram.yaml
+@@ -0,0 +1,30 @@
++# S-1 (nota-security-dictamen.md): dispramd es un daemon de root con el socket en 0666 y la «key» del protocolo es una constante publicada, asi que quien monta
++# `/run/dispram` en rw puede reescribir `lent.json` (doble prestamo = corrupcion silenciosa del KV tras un reinicio del daemon). El plugin solo CONECTA: el directorio va en
++# solo lectura y el socket aparte, en rw (hostPath sin `type`: connect no escribe en el directorio). Si el primer arranque mostrara que containerd no monta el socket,
++# el directorio pasa a rw y se anota en el 50-entrega.md como riesgo residual, no antes. Si dispramd se reinicia con el pod vivo, el socket montado queda viejo: se baja y se sube.
++# S-2: solo estos tres pods montan /run/dispram (tools/test_glm53_tp3_contract.py lo comprueba en todo el repo).
++apiVersion: apps/v1
++kind: Deployment
++metadata:
++  name: glm53-tp3-patch
++spec:
++  template:
++    spec:
++      initContainers:
++        - name: check-host
++          volumeMounts:
++            - { name: dispram-dir, mountPath: /run/dispram, readOnly: true }
++            - { name: dispram-sock, mountPath: /run/dispram/dispram.sock }
++      containers:
++        - name: vllm
++          volumeMounts:
++            - { name: dispram-dir, mountPath: /run/dispram, readOnly: true }
++            - { name: dispram-sock, mountPath: /run/dispram/dispram.sock }
++            - { name: dispram-python, mountPath: /opt/dispram, readOnly: true }
++      volumes:
++        - name: dispram-dir
++          hostPath: { path: /run/dispram, type: Directory }
++        - name: dispram-sock
++          hostPath: { path: /run/dispram/dispram.sock }
++        - name: dispram-python
++          hostPath: { path: /opt/kindling/dispram/python, type: Directory }
+diff --git a/tools/test_glm53_tp3_ventana.py b/tools/test_glm53_tp3_ventana.py
+index e6bad38..b3ecbfc 100644
+--- a/tools/test_glm53_tp3_ventana.py
++++ b/tools/test_glm53_tp3_ventana.py
+@@ -10,6 +10,10 @@
+ (`k8s/nccl-ring/nccl_ring_graph.py`, de main) y un entrypoint falso que vuelca su entorno.
+ Lo que solo se ve arrancando (`Connected all rings`, `via NET/IB`, KV real) es de la ventana, no de este test.
+ 
++DGX-820 (C2): `overlays/glm53-tp3-ventana-k64-20261010` es este overlay k4 (es su base) cambiando SOLO lo que cambia el modo k64 de main
++(`overlays/glm-5.3-flash-tp3-k64-20261010`): el ConfigMap del modo (EXPECT_PAGESIZE=65536, REQUIRE_DISPRAM=1, DRIVER_VERSION, PYTHONPATH) y el montaje de
++dispram de S-1 y S-2 (nota de security de DGX-787). Sus tests son `ModoK64Test` y `K64NoCambianTest`, al final de este fichero: aqui los corre CI sin tocar el workflow.
++
+ Modo k4 con KV de 12 GiB (no los 16 de main): la compilacion JIT de CUDA (`cicc`) de la primera prueba de prefix cache dejo dgx3 sin memoria disponible
+ y la cabeza murio por `RPC call to sample_tokens timed out`; 4 GiB menos de KV por nodo dejan margen a la compilacion. ARX es el de la receta de GLM:
+ el cuelgue del arranque no era de ARX sino de la IP del MessageQueue (nota-sre-glm-cuelgue.md).
+@@ -419,5 +423,171 @@ def test_sin_host_o_con_un_host_que_no_esta_en_el_anillo_no_arranca_nada(self):
+                 self.assertIsNone(entorno, "el entrypoint no debe correr sin el grafo")
+ 
+ 
++# --- DGX-820 (C2): el modo k64 ---
++OVERLAY_K64 = ROOT / "overlays/glm53-tp3-ventana-k64-20261010"
++LINEA_COMMIT = "66a7553"  # el head de pin/glm53-ventana-20261010 del que sale la rama de DGX-820 (DGX-818, #164)
++GIB = 2**30
++# El ConfigMap del modo k64 de main sin el KV: lo que el modo cambia ademas del tamano de pagina (DRIVER_VERSION lo lee check-host con REQUIRE_DISPRAM=1).
++MODO_K64 = {"KV_CACHE_MEMORY": MODO_K4["KV_CACHE_MEMORY"], "EXPECT_PAGESIZE": "65536", "REQUIRE_DISPRAM": "1",
++            "DRIVER_VERSION": "610.57.04", "PYTHONPATH": "/opt/dispram"}
++# S-1: el directorio en solo lectura y el socket aparte en rw; el plugin de python en ro (main: HOSTPATHS_K64).
++DISPRAM_HOSTPATHS = {"/run/dispram": "ro", "/run/dispram/dispram.sock": "rw", "/opt/kindling/dispram/python": "ro"}
++
++
++def sin_modo_ni_dispram(objs):
++    """El render sin lo unico que cambia del k4 al k64: el ConfigMap del modo (y su hash en los nombres) y los volumenes y montajes de dispram."""
++    out = {}
++    for (kind, ns, name), obj in objs.items():
++        if kind == "ConfigMap" and sin_hash(name) == "glm53-tp3-mode":
++            continue
++        obj = copy.deepcopy(obj)
++        if kind == "Deployment":
++            spec = obj["spec"]["template"]["spec"]
++            spec["volumes"] = [v for v in spec["volumes"] if not v["name"].startswith("dispram-")]
++            for c in spec["containers"] + spec["initContainers"]:
++                if "volumeMounts" in c:
++                    c["volumeMounts"] = [m for m in c["volumeMounts"] if not m["name"].startswith("dispram-")]
++        out[(kind, ns, name)] = json.loads(re.sub(r"glm53-tp3-mode-[a-z0-9]{10}", "glm53-tp3-mode", json.dumps(obj)))
++    return out
++
++
++def render_en(commit, path):
++    """El render de `path` tal como estaba en `commit` (git archive de k8s y overlays); None si el commit no esta en el clon."""
++    if subprocess.run(["git", "cat-file", "-e", f"{commit}^{{commit}}"], cwd=ROOT, capture_output=True).returncode:
++        return None
++    with tempfile.TemporaryDirectory() as tmp:
++        tar = subprocess.run(["git", "archive", commit, "k8s", "overlays"], cwd=ROOT, check=True, capture_output=True).stdout
++        subprocess.run(["tar", "-x", "-C", tmp], input=tar, check=True)
++        out = subprocess.run(["kubectl", "kustomize", f"{tmp}/{path.relative_to(ROOT)}"], check=True, capture_output=True, text=True).stdout
++    return [d for d in yaml.safe_load_all(out) if d]
++
++
++def montajes(c):
++    return {m["mountPath"]: m for m in c.get("volumeMounts", [])}
++
++
++def pod(dep):
++    return dep["spec"]["template"]["spec"]
++
++
++class ModoK64Test(unittest.TestCase):
++    @classmethod
++    def setUpClass(cls):
++        cls.objs = ventana.render(OVERLAY_K64)
++        cls.k4 = ventana.render(OVERLAY)
++
++    def test_tres_rangos_de_glm_con_replicas_1(self):
++        deps = {n for (kind, _, n) in self.objs if kind == "Deployment" and n.startswith("glm53-")}
++        self.assertEqual(deps, set(RANGOS))
++        for n, dep in rangos(self.objs).items():
++            with self.subTest(n=n):
++                self.assertEqual(dep["spec"]["replicas"], 1)
++                self.assertEqual(pod(dep)["nodeSelector"]["kubernetes.io/hostname"], RANGOS[n][0])
++
++    def test_modo_k64_con_el_kv_del_k4_de_la_ventana(self):
++        self.assertEqual(cm_data(self.objs, "glm53-tp3-mode"), MODO_K64)
++        for n, dep in rangos(self.objs).items():
++            e = efectivo(self.objs, dep)
++            self.assertEqual({k: e[k] for k in MODO_K64}, MODO_K64, n)
++        # Nunca mas de lo que el k4 de la ventana dejo sin problemas: 12 GiB (los 18 de main solo valen con los +2 de dispram sin medir aqui).
++        self.assertEqual(int(MODO_K64["KV_CACHE_MEMORY"]), 12 * GIB)
++
++    def test_los_tres_rangos_comparten_el_mismo_configmap_del_modo(self):
++        # La receta exige reiniciar los tres rangos juntos: el modo va con hash y los tres lo usan (cambiar el KV cambia la plantilla de los tres).
++        modos = [n for (kind, _, n) in self.objs if kind == "ConfigMap" and sin_hash(n) == "glm53-tp3-mode"]
++        self.assertEqual(len(modos), 1, modos)
++        for n, dep in rangos(self.objs).items():
++            with self.subTest(n=n):
++                self.assertEqual(dep["spec"]["strategy"], {"type": "Recreate"})
++                refs = {r["configMapRef"]["name"] for c in pod(dep)["containers"] + pod(dep)["initContainers"]
++                        for r in c.get("envFrom", []) if sin_hash(r["configMapRef"]["name"]) == "glm53-tp3-mode"}
++                self.assertEqual(refs, set(modos))
++
++    def test_la_receta_nccl_es_la_del_k4_en_los_tres_rangos(self):
++        # Entorno efectivo de vllm: el del k4 mas lo que trae el modo k64 (y el KV, que es el mismo literal): ni un NCCL_*, ni MENTAT_*, ni ARX distinto.
++        for n, dep in rangos(self.objs).items():
++            with self.subTest(n=n):
++                e, e4 = efectivo(self.objs, dep), efectivo(self.k4, self.k4[("Deployment", "llm", n)])
++                self.assertEqual({k: v for k, v in e.items() if k not in MODO_K64}, {k: v for k, v in e4.items() if k not in MODO_K64})
++                self.assertEqual(e["NCCL_RUNTIME_CONNECT"], "1")
++                self.assertEqual(e["LD_PRELOAD"], ventana.sonda().LIB_PARCHEADA)
++                self.assertEqual(e["MENTAT_FABRIC_IP"], LAN[RANGOS[n][1]])
++                self.assertEqual(vllm(dep)["command"], ["bash", "/opt/nccl-ring-start/start.sh"])
++
++    def test_el_arranque_es_el_script_del_k4(self):
++        self.assertEqual(cm_data(self.objs, "glm53-tp3-nccl-ring"), cm_data(self.k4, "glm53-tp3-nccl-ring"))
++
++    def test_el_render_es_el_del_k4_salvo_el_modo_y_dispram(self):
++        self.assertEqual(sin_modo_ni_dispram(self.objs), sin_modo_ni_dispram(self.k4))
++
++    def test_s1_dispram_directorio_ro_y_socket_aparte(self):
++        for n, dep in rangos(self.objs).items():
++            with self.subTest(n=n):
++                spec = pod(dep)
++                vols = {v["name"]: v["hostPath"] for v in spec["volumes"] if "hostPath" in v}
++                por_ruta = {h["path"]: nombre for nombre, h in vols.items()}
++                self.assertTrue(set(DISPRAM_HOSTPATHS) <= set(por_ruta))
++                self.assertNotIn("type", vols[por_ruta["/run/dispram/dispram.sock"]], "el socket va sin type: connect no crea nada en el host")
++                for c in (vllm(dep), next(c for c in spec["initContainers"] if c["name"] == "check-host")):
++                    m = montajes(c)
++                    self.assertEqual(m["/run/dispram"]["name"], por_ruta["/run/dispram"])
++                    self.assertTrue(m["/run/dispram"]["readOnly"], c["name"])
++                    self.assertEqual(m["/run/dispram/dispram.sock"]["name"], por_ruta["/run/dispram/dispram.sock"])
++                    self.assertFalse(m["/run/dispram/dispram.sock"].get("readOnly", False), c["name"])
++                m = montajes(vllm(dep))["/opt/dispram"]
++                self.assertEqual((m["name"], m["readOnly"]), (por_ruta["/opt/kindling/dispram/python"], True))
++                self.assertEqual(efectivo(self.objs, dep)["PYTHONPATH"], "/opt/dispram")
++
++    def test_lista_cerrada_de_hostpath_la_del_k4_mas_dispram(self):
++        for n, dep in rangos(self.objs).items():
++            with self.subTest(n=n):
++                def rutas(d):
++                    vols = {v["name"]: v["hostPath"]["path"] for v in pod(d)["volumes"] if "hostPath" in v}
++                    acceso = {}
++                    for c in pod(d)["containers"] + pod(d)["initContainers"]:
++                        for m in c.get("volumeMounts", []):
++                            if m["name"] in vols:
++                                acceso.setdefault(vols[m["name"]], set()).add("ro" if m.get("readOnly") else "rw")
++                    return acceso
++                antes, ahora = rutas(self.k4[("Deployment", "llm", n)]), rutas(dep)
++                self.assertEqual(ahora, {**antes, **{p: {a} for p, a in DISPRAM_HOSTPATHS.items()}})
++
++    def test_s2_solo_los_tres_rangos_de_glm_montan_dispram(self):
++        for (kind, _, n), obj in self.objs.items():
++            if kind in ("Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob") and n not in RANGOS:
++                self.assertNotIn("/run/dispram", json.dumps(obj), n)
++        # mentatd y check-checkpoints (los otros contenedores del pod) no lo ven: solo vllm y check-host
++        for dep in rangos(self.objs).values():
++            spec = pod(dep)
++            for c in spec["containers"] + spec["initContainers"]:
++                if c["name"] not in ("vllm", "check-host"):
++                    self.assertFalse([m for m in c.get("volumeMounts", []) if m["name"].startswith("dispram-")], c["name"])
++
++    def test_s2_ningun_otro_yaml_del_repo_menciona_run_dispram(self):
++        # tools/test_glm53_tp3_contract.py (main) lo comprueba en todo el repo; esta linea no lo trae.
++        permitidos = {OVERLAY_K64 / "patch-dispram.yaml"}
++        for path in ROOT.glob("**/*.yaml"):
++            if ".git" in path.parts or path in permitidos:
++                continue
++            self.assertNotIn("/run/dispram", path.read_text(encoding="utf-8", errors="replace"), path)
++
++
++class K64NoCambianTest(unittest.TestCase):
++    """Los renders del k4 y de la ventana son los de la linea (66a7553): este overlay solo anade un directorio."""
++
++    def comparar(self, path):
++        antes = render_en(LINEA_COMMIT, path)
++        if antes is None:
++            self.skipTest(f"{LINEA_COMMIT} no esta en este clon (CI hace fetch-depth 0)")
++        ahora = [d for d in yaml.safe_load_all(subprocess.run(["kubectl", "kustomize", str(path)], check=True, capture_output=True, text=True).stdout) if d]
++        self.assertEqual(ahora, antes)
++
++    def test_el_render_del_k4_de_la_ventana_no_cambia(self):
++        self.comparar(OVERLAY)
++
++    def test_el_render_de_la_ventana_no_cambia(self):
++        self.comparar(ventana.VENTANA)
++
++
+ if __name__ == "__main__":
+     unittest.main()

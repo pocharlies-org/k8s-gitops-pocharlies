@@ -1,0 +1,35 @@
+diff --git a/scripts/glm53/prepare_padded.sh b/scripts/glm53/prepare_padded.sh
+index 8657c06ab..e442b152b 100755
+--- a/scripts/glm53/prepare_padded.sh
++++ b/scripts/glm53/prepare_padded.sh
+@@ -40,8 +40,10 @@ curl -fsSL "https://raw.githubusercontent.com/kindlingai/glm-5.3-flash-gx10/$KIN
+ 
+ NAME="glm53-padded-$NODE"
+ kubectl -n llm delete job "$NAME" --ignore-not-found
+-kubectl -n llm create configmap "$NAME" --dry-run=client -o yaml \
+-  --from-file="$W/make_padded.py" --from-file="$DIR/verify_models.py" --from-file="$DIR"/manifest-*.json | kubectl apply -f -
++# el glob va aparte: dentro de `--from-file=…/manifest-*.json` bash no lo expande y kubectl recibe el patrón literal
++FILES=(--from-file="$W/make_padded.py" --from-file="$DIR/verify_models.py")
++for m in "$DIR"/manifest-*.json; do FILES+=(--from-file="$m"); done
++kubectl -n llm create configmap "$NAME" --dry-run=client -o yaml "${FILES[@]}" | kubectl apply -f -
+ sed -e "s/@NODE@/$NODE/g" -e "s/@HOSTNAME@/$HOSTNAME_K8S/g" -e "s#@IMAGE@#$IMAGE#g" "$DIR/make-padded-job.yaml.in" | kubectl apply -f -
+ OUT="${PADDED_OUT:-$PWD/glm53-padded-$NODE.log}"
+ setsid nohup bash "$DIR/prepare_padded.sh" --esperar "$NAME" >"$OUT" 2>&1 </dev/null &
+diff --git a/scripts/glm53/test_host_scripts.py b/scripts/glm53/test_host_scripts.py
+index ffce31775..4ae6ff9ec 100644
+--- a/scripts/glm53/test_host_scripts.py
++++ b/scripts/glm53/test_host_scripts.py
+@@ -422,6 +422,13 @@ def test_launches_the_wait_detached_and_returns_without_waiting_for_the_job(self
+         self.assertEqual(r.returncode, 0, r.all)
+         self.assertEqual([c for c in self.sb.calls if re.match(r"kubectl .*\bwait\b", c)], [], "el script no espera al Job en primer plano")
+         self.assertEqual(len([c for c in self.sb.calls if c.startswith("kubectl -n llm apply") or " apply -f -" in c]), 2)
++        cm = self.sb.called("kubectl -n llm create configmap")
++        self.assertEqual(len(cm), 1)
++        manifests = sorted(HERE.glob("manifest-*.json"))
++        self.assertEqual(len(manifests), 2)
++        for m in manifests:  # un glob dentro de `--from-file=…` llega a kubectl sin expandir
++            self.assertIn(f"--from-file={m}", cm[0])
++        self.assertNotIn("*", cm[0])
+         for _ in range(60):  # el lanzamiento va en segundo plano: su stub anota la llamada un instante después
+             if self.sb.called("setsid nohup bash"):
+                 break
