@@ -267,9 +267,11 @@ def adf(*bloques):
     return {'type': 'doc', 'version': 1, 'content': cont}
 
 
-# El caso concreto que todo hallazgo que no es de arquitectura trae desde SC-2264 (C4); `respuesta` lo pone si el hallazgo
-# no lo trae, para que una prueba lo quite a proposito (con '') y no por olvido.
-CASO = {'entrada': 'f(1)', 'salida_esperada': '2', 'salida_codigo': '3'}
+# El caso concreto que todo hallazgo que no es de arquitectura trae desde SC-2264 (C4) y el criterio del ticket al que se ata (variante
+# A); `respuesta` los pone si el hallazgo no los trae, para que una prueba los quite a proposito (con '') y no por olvido. Uno de
+# arquitectura se ata a la norma de ARCHITECTURE.md que cada prueba escribe en `norma`.
+CASO = {'entrada': 'f(1)', 'salida_esperada': '2', 'salida_codigo': '3', 'criterio': 'C1'}
+NORMA = 'NORMA-X: todo cambio trae test.'   # la linea de ARCHITECTURE.md que `Base` escribe
 
 
 def respuesta(criterios, hallazgos=()):
@@ -405,7 +407,7 @@ class TestDecision(Base):
         # cada pregunta del juicio ve solo los bloques que necesita (SC-2264): el juicio de criterios no ve el diff
         bloques = {'citas': {'ticket', 'criterios', 'recortados', 'diff'},
                    'lote': {'ticket', 'criterios', 'recortados', 'pr', 'alcance', 'citas'},
-                   'hallazgos': {'ticket', 'criterios', 'recortados', 'pr', 'diff', 'arquitectura'}}
+                   'hallazgos': {'ticket', 'criterios', 'recortados', 'pr', 'alcance', 'diff', 'arquitectura'}}
         for fase, esperados in bloques.items():
             with self.subTest(fase):
                 usuario = self.prompt(fase)
@@ -702,7 +704,7 @@ class TestFueraDeEstaPR(Base):
     def test_un_hallazgo_de_criterio_no_bloquea_pero_uno_de_correccion_si(self):
         # un criterio que no se cumple se dice en `criterios` (false), no como hallazgo
         hallazgo = lambda tipo, sev: {'file': 'src/app.py', 'line': 12, 'cita': 'return x + y', 'severity': sev, 'tipo': tipo,
-                                      'summary': 'C2 no esta en el diff'}
+                                      'summary': 'C2 no esta en el diff', 'norma': NORMA}
         self.responde([cumple(1), self.fuera(2)], [hallazgo('criterio', 'alta')])
         self.assertEqual(self.correr(), 0, self.salida_texto)
         self.assertVeredicto('PASA', motivos='')
@@ -725,7 +727,7 @@ class TestFueraDeEstaPR(Base):
     def test_un_hallazgo_que_bloquea_bloquea_con_cualquier_estado_de_los_criterios(self):
         # SC-2197 C3b: ni el ➖ ni el ✅ tapan un hallazgo de correccion o arquitectura alto o medio
         hallazgo = lambda tipo, sev: {'file': 'src/app.py', 'line': 12, 'cita': 'return x + y', 'severity': sev, 'tipo': tipo,
-                                      'summary': 'incumple una norma del ARCHITECTURE.md'}
+                                      'summary': 'incumple una norma del ARCHITECTURE.md', 'norma': NORMA}
         estados = {'todo cubierto': [cumple(1), cumple(2, 'tests/test_app.py:4')],
                    'todo fuera': [self.fuera(1), self.fuera(2)],
                    'cubierto y fuera': [cumple(1), self.fuera(2)],
@@ -768,7 +770,7 @@ class TestFueraDeEstaPR(Base):
         # SC-2264 C4: comprobacion de FORMA. Sin `entrada`, `salida_esperada` y `salida_codigo` llenos no bloquea; con los tres, si;
         # el de arquitectura no los lleva y bloquea igual. Un tipo desconocido (`bug`, vacio) cuenta como correccion.
         base = {'file': 'src/app.py', 'line': 12, 'cita': 'return x + y', 'severity': 'alta', 'tipo': 'correccion',
-                'summary': 'invierte la condicion'}
+                'summary': 'invierte la condicion', 'norma': NORMA}
         completo = {'entrada': 'x=1', 'salida_esperada': 'True', 'salida_codigo': 'False'}
         casos = [('sin ningun campo', {**base, **{k: '' for k in completo}}, False),
                  ('sin entrada', {**base, **completo, 'entrada': ''}, False),
@@ -2204,10 +2206,13 @@ class TestCorpusConVerificador(Base):
     def corre_caso(self, nombre, hallazgos, *verificaciones):
         destino = self.tmp / 'casos'
         shutil.copytree(FIXTURES / nombre, destino / nombre)
-        (destino / 'ARCHITECTURE.md').write_text('# norma\n')
+        (destino / 'ARCHITECTURE.md').write_text(f'# norma\n{NORMA}\n')   # un caso cuyo unico criterio es de otro repo solo se ata a una norma
         etiquetas = [e for e, _ in review.criterios_de_spec((FIXTURES / nombre / 'criterios.md').read_text())]
+        pr = FIXTURES / nombre / 'pr.md'
+        atado = next(iter(review.alcance_de_pr(pr.read_text() if pr.is_file() else '', etiquetas) or etiquetas))   # un criterio de esta PR
         self.mundo.litellm['local-juez'] = [(200, respuesta([{'n': e, 'cumple': 'fuera', 'nota': 'otra PR'} for e in etiquetas],
-                                                            hallazgos), 0)] + [(200, v, 0) for v in verificaciones]
+                                                            [{**h, 'criterio': atado, 'norma': NORMA} for h in hallazgos]), 0)
+                                            ] + [(200, v, 0) for v in verificaciones]
         return self.correr_evalua('1/1')
 
     def hallazgo(self, caso):
@@ -2451,10 +2456,10 @@ class TestFases(Base):
                 self.assertEqual(self.mundo.fases, esperadas)
 
     def test_c3_los_hallazgos_necesitan_su_lista(self):
-        self.assertIsNone(review.evaluar_hallazgos(None))
-        self.assertIsNone(review.evaluar_hallazgos({}))
-        self.assertIsNone(review.evaluar_hallazgos({'hallazgos': 'x'}))
-        self.assertEqual(review.evaluar_hallazgos({'hallazgos': []}), [])
+        self.assertIsNone(review.evaluar_hallazgos(None, {'C1'}, ''))
+        self.assertIsNone(review.evaluar_hallazgos({}, {'C1'}, ''))
+        self.assertIsNone(review.evaluar_hallazgos({'hallazgos': 'x'}, {'C1'}, ''))
+        self.assertEqual(review.evaluar_hallazgos({'hallazgos': []}, {'C1'}, ''), [])
 
     def test_c3_el_no_lista_de_cualquier_lote_cuenta(self):
         self.spec(7)
@@ -2506,7 +2511,8 @@ class TestEsquema(Base):
         lote = review.ESQUEMA_LOTE[1]['properties']['criterios']['items']['properties']
         self.assertEqual(lote['cumple'], {'anyOf': [{'type': 'boolean'}, {'type': 'string', 'enum': ['fuera']}]})
         self.assertEqual(set(review.ESQUEMA_HALLAZGOS[1]['properties']['hallazgos']['items']['properties']),
-                         {'file', 'line', 'severity', 'tipo', 'cita', 'summary', 'entrada', 'salida_esperada', 'salida_codigo'})
+                         {'file', 'line', 'severity', 'tipo', 'cita', 'summary', 'entrada', 'salida_esperada', 'salida_codigo',
+                          'criterio', 'norma'})
 
     def test_c2_un_alias_que_no_acepta_el_esquema_repite_sin_el_y_no_cae_al_respaldo(self):
         self.mundo.sin_esquema.add('local-juez')
@@ -2796,6 +2802,106 @@ class TestEvalua3(Base):
         (self.tmp / 'casos' / 'secreto.txt').write_text('no')
         self.assertEqual(leer('b/src/app.py'), ('ok', 'x = 1\n'))
         self.assertEqual(leer('../../secreto.txt'), ('no_existe', None))
+
+
+class TestHallazgosAtados(Base):
+    """SC-2264, iteracion 2 (variante A): un hallazgo bloquea solo si nombra el criterio de esta PR que incumple o la norma de
+    ARCHITECTURE.md que viola, y su cita casa en el diff o en el fichero del head. Los sueltos de la pasada de fallos del diff
+    van a «Observaciones (no bloquean)». Los ❌ de criterio no cambian."""
+
+    def hallazgo(self, **k):
+        return {'file': 'src/app.py', 'line': 12, 'cita': 'return x + y', 'severity': 'alta', 'tipo': 'correccion',
+                'summary': 'suma mal', **k}
+
+    def responde(self, hallazgo, criterios=None):
+        self.mundo.litellm['local-juez'] = [(200, respuesta(criterios or [cumple(1), cumple(2, 'tests/test_app.py:4')],
+                                                            [hallazgo]), 0)]
+
+    def test_a_un_hallazgo_suelto_con_el_caso_concreto_completo_ya_no_bloquea(self):
+        self.responde(self.hallazgo(criterio='', norma=''))
+        self.assertEqual(self.correr(), 0, self.salida_texto)
+        self.assertVeredicto('PASA', motivos='')
+        cuerpo = self.comentario()
+        self.assertIn('### Observaciones (no bloquean)', cuerpo)
+        self.assertIn('suma mal', cuerpo)
+        self.assertIn('suelto: no nombra el criterio que incumple ni una norma de ARCHITECTURE.md', cuerpo)
+        self.assertNotIn('### Hallazgos', cuerpo)
+
+    def test_a_uno_atado_a_un_criterio_con_su_cita_en_el_diff_bloquea(self):
+        for etiqueta in ('C1', 'c1', '1', ' C1 '):
+            with self.subTest(etiqueta):
+                self.mundo.comentarios.clear()
+                self.responde(self.hallazgo(criterio=etiqueta))
+                self.assertEqual(self.correr(), 1, self.salida_texto)
+                self.assertVeredicto('NO_PASA', motivos='hallazgos')
+                self.assertIn('### Hallazgos', self.comentario())
+
+    def test_a_un_criterio_que_el_ticket_no_tiene_o_que_la_pr_deja_fuera_de_su_alcance_no_ata(self):
+        alcance = 'Primera parte.\n\n## Alcance de esta PR\n\n- C1: la suma\n'
+        for nombre, cambios, criterio, bloquea in (('el ticket no tiene C9', {}, 'C9', False),
+                                                   ('C2 fuera del alcance', {'REVIEW_PR_BODY': alcance}, 'C2', False),
+                                                   ('C1 dentro del alcance', {'REVIEW_PR_BODY': alcance}, 'C1', True)):
+            with self.subTest(nombre):
+                self.mundo.comentarios.clear()
+                self.responde(self.hallazgo(criterio=criterio), [cumple(1), {'n': 2, 'cumple': 'fuera', 'nota': 'otra PR'}])
+                self.assertEqual(self.correr(**cambios), 1 if bloquea else 0, self.salida_texto)
+                self.assertVeredicto('NO_PASA' if bloquea else 'PASA', motivos='hallazgos' if bloquea else '')
+
+    def test_a_la_norma_ata_si_esta_literal_en_architecture_md_y_no_si_se_la_inventa(self):
+        for nombre, norma, bloquea in (('la norma esta', NORMA, True), ('con otros espacios', 'NORMA-X:  todo cambio   trae test.', True),
+                                       ('inventada', 'NORMA-Z: nadie toca la suma', False), ('demasiado corta', 'NORMA', False),
+                                       ('vacia', '', False)):
+            with self.subTest(nombre):
+                self.mundo.comentarios.clear()
+                self.responde(self.hallazgo(tipo='arquitectura', criterio='', norma=norma))
+                self.assertEqual(self.correr(), 1 if bloquea else 0, self.salida_texto)
+                self.assertVeredicto('NO_PASA' if bloquea else 'PASA', motivos='hallazgos' if bloquea else '')
+
+    def test_a_la_cita_puede_estar_en_el_fichero_del_head_aunque_no_en_el_diff(self):
+        # `# linea 3` no esta en el diff de src/app.py pero si a ±3 lineas de la 3 del fichero completo del head
+        self.mundo.ficheros['src/app.py'] = HEAD_APP
+        self.mundo.litellm['local-juez'] = [
+            (200, respuesta([cumple(1), cumple(2, 'tests/test_app.py:4')],
+                            [self.hallazgo(criterio='C1', line=3, cita='# linea 3')]), 0),
+            (200, verifica(confirma(linea=3, cita='# linea 3')), 0)]
+        self.assertEqual(self.correr(), 1, self.salida_texto)
+        self.assertVeredicto('NO_PASA', motivos='hallazgos')
+
+    def test_a_la_cita_que_no_esta_ni_en_el_diff_ni_en_el_head_no_bloquea_aunque_este_atado(self):
+        self.mundo.ficheros['src/app.py'] = HEAD_APP
+        for nombre, extra in (('nada que ver', {'cita': 'return x * y'}), ('lejos de su linea', {'line': 40, 'cita': '# linea 1'})):
+            with self.subTest(nombre):
+                self.mundo.comentarios.clear()
+                self.responde(self.hallazgo(criterio='C1', **extra))
+                self.assertEqual(self.correr(), 0, self.salida_texto)
+                self.assertVeredicto('PASA', motivos='')
+                self.assertIn('su cita no esta en el diff de ese fichero: no bloquea', self.comentario())
+
+    def test_a_un_rojo_de_criterio_sigue_bloqueando_sin_hallazgos_atados(self):
+        self.mundo.litellm['local-juez'] = [(200, respuesta(
+            [{'n': 1, 'cumple': False, 'evidencia': 'src/app.py:12', 'cita': 'return x + y', 'nota': 'mal'},
+             cumple(2, 'tests/test_app.py:4')], []), 0)]
+        self.assertEqual(self.correr(), 1)
+        self.assertVeredicto('NO_PASA', motivos='criterio_incumplido')
+
+    def test_a_la_pregunta_de_fallos_pide_el_criterio_o_la_norma_y_dice_el_alcance(self):
+        self.mundo.litellm['local-juez'] = [(200, respuesta([cumple(1), cumple(2, 'tests/test_app.py:4')]), 0)]
+        self.correr(REVIEW_PR_BODY='Primera parte.\n\n## Alcance de esta PR\n\n- C1: la suma\n')
+        p = self.prompt('hallazgos', plano=True)
+        for frase in ('`criterio`', '`norma`', 'sin una cosa ni la otra', 'tipo=alcance>>> C1: la suma'):
+            self.assertIn(frase, p)
+        self.assertEqual(set(review.ESQUEMA_HALLAZGOS[1]['properties']['hallazgos']['items']['properties']) & {'criterio', 'norma'},
+                         {'criterio', 'norma'})
+
+    def test_a_atado_dice_que_criterio_o_norma_ata_y_acepta_las_etiquetas_del_modelo(self):
+        etiquetas = {'C1', 'C7b'}
+        self.assertTrue(review.atado({'criterio': 'c7B'}, etiquetas, ''))
+        self.assertTrue(review.atado({'criterio': 'C1', 'norma': 'x'}, etiquetas, ''))
+        self.assertFalse(review.atado({'criterio': 'C2'}, etiquetas, ''))
+        self.assertFalse(review.atado({'criterio': 'C1 y C7b'}, etiquetas, ''))
+        self.assertFalse(review.atado({}, etiquetas, 'NORMA-X: todo cambio trae test.'))
+        self.assertTrue(review.atado({'norma': 'todo cambio\ntrae test'}, set(), 'NORMA-X: todo cambio trae test.'))
+        self.assertFalse(review.atado({'norma': 'corta'}, set(), 'corta'), 'una cita corta no ata')
 
 
 if __name__ == '__main__':

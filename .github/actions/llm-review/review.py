@@ -668,7 +668,8 @@ citas de C2 son «ninguna»: el diff solo añade `scripts/pr-size.py`. Un criter
  "summary": "el desvio de cuenta se activa con cualquier destino en 127.0.0.1, sin mirar protocolo ni puerto",
  "entrada": "CLAUDE_ROUTER_ANTHROPIC_URL=http://127.0.0.1:9",
  "salida_esperada": "FAILOVER_HOST_OK es false: el desvio solo es valido contra https://api.anthropic.com",
- "salida_codigo": "FAILOVER_HOST_OK es true y los tokens de las cuentas se envian a ese puerto local"}""",
+ "salida_codigo": "FAILOVER_HOST_OK es true y los tokens de las cuentas se envian a ese puerto local",
+ "criterio": "C1", "norma": ""}""",
     },
     'sin_cita': {
         'caso': 'falso-tecnico-openclaw-593-regex-sin-digitos',
@@ -765,10 +766,14 @@ tipos de hallazgo:
   fusionar asi». `correccion` de severidad `alta`, `cita` la linea del test o la que declara el hueco, `entrada` la propia ejecucion del
   test, `salida_esperada` que pase y `salida_codigo` el fallo. Que haya que fusionar antes o despues OTRA PR no cuenta.
 - `arquitectura`: el diff incumple una norma del bloque `arquitectura`. Recorre las normas que hablan de lo que el diff toca (las que
-  dicen «nunca», «siempre», «solo», «el unico», «no se») y compara cada una con lo que el diff escribe. Nombra la norma en `summary`;
-  incumplirla es de severidad `media` como minimo. No lleva `entrada`.
-Un hallazgo de severidad `alta` o `media` bloquea la PR. Nada de estilo, formato ni preferencias, y no juzgas criterios: eso es de otra
-llamada. Sin nada que señalar, `"hallazgos": []`.
+  dicen «nunca», «siempre», «solo», «el unico», «no se») y compara cada una con lo que el diff escribe. Nombra la norma en `summary` y
+  copiala literal en `norma`; incumplirla es de severidad `media` como minimo. No lleva `entrada`.
+Un hallazgo de severidad `alta` o `media` bloquea la PR solo si ata el fallo a algo que el equipo escribio: `criterio` es la etiqueta
+(`C3`) de un criterio de esta PR que el diff incumple (los del bloque `alcance`; sin alcance declarado, todos los de `criterios`), o
+`norma` es la norma del bloque `arquitectura` que el diff viola, copiada LITERAL. El codigo comprueba que el criterio es de esta PR y que
+la norma esta en ARCHITECTURE.md; sin una cosa ni la otra el hallazgo queda como observacion y no bloquea. Un fallo que no contradice
+ningun criterio ni ninguna norma se escribe con `criterio` y `norma` vacios. Nada de estilo, formato ni preferencias, y
+no juzgas criterios: eso es de otra llamada. Sin nada que señalar, `"hallazgos": []`.
 Todo hallazgo señala su sitio: `file`, `line` y `cita`, copiada LITERAL (sin el `+` ni el `-` del principio). El codigo comprueba que esa
 cita esta en el diff de ese fichero; sin ella, o con una que el diff no tiene, el hallazgo queda como observacion y no bloquea. Los
 ficheros del bloque `recortados` no los has visto: no escribas hallazgos sobre ellos.
@@ -779,7 +784,8 @@ Responde SOLO con este JSON:
 {{"hallazgos": [{{"file": "ruta/fichero.py", "line": 42, "severity": "alta|media|baja", "tipo": "correccion|arquitectura",
                  "cita": "<la linea del diff donde esta el fallo, literal>", "summary": "<que pasa y que hacer>",
                  "entrada": "<solo en correccion>", "salida_esperada": "<solo en correccion>",
-                 "salida_codigo": "<solo en correccion>"}}]}}
+                 "salida_codigo": "<solo en correccion>", "criterio": "<C3, o vacio>",
+                 "norma": "<la norma de ARCHITECTURE.md, literal, o vacio>"}}]}}
 
 {bloques}
 """
@@ -1151,7 +1157,14 @@ def reintentar_citas(url, key, modelo, fallback, timeout, pendientes, diff):
             pendientes[r['id'] - 1][0]['cita'] = str(r.get('cita') or '')
 
 
-def aplicar_reglas(criterios, hallazgos, alcance, textos, recortados=()):
+def cita_en_head(h, leer):
+    """¿La cita del hallazgo esta, a ±`VERIFICA_VENTANA` lineas de su `line`, en el fichero completo del head? `leer(ruta)` da
+    (estado, texto) como el de `verificar`; sin `leer` o con el fichero ausente o caido no casa (variante A, SC-2264)."""
+    estado, texto = leer(_ruta_limpia(h['file'])) if leer else ('no_existe', None)
+    return estado == 'ok' and cita_en_fichero(texto, h['line'], h.get('cita'))
+
+
+def aplicar_reglas(criterios, hallazgos, alcance, textos, recortados=(), leer=None):
     """Las reglas del codigo sobre lo que dijo el modelo (SC-2229), en su sitio: lo que no se sostiene deja de
     bloquear y `baja` dice por que (el comentario lo muestra).
     - un ❌ que cita una linea (`evidencia` + `cita`) vale si la cita esta en el diff; si no, baja a ➖;
@@ -1163,8 +1176,8 @@ def aplicar_reglas(criterios, hallazgos, alcance, textos, recortados=()):
       recorte); si el fichero no esta en el diff, `juzgar` lo comprueba en el head (`ausencia_en`); si el diff lo
       muestra entero, bloquea como siempre;
     - un ✅ de un criterio fuera del alcance no pide evidencia;
-    - un hallazgo bloqueante vale con su fichero, su linea y su cita en el diff y sin ser de un fichero recortado;
-      si el diff toca el fichero sin mostrar ninguna linea (vacio, borrado), vale con el fichero: no hay que citar."""
+    - un hallazgo bloqueante vale con su fichero, su linea y su cita en el diff o en el fichero del head (`leer`) y sin ser de un
+      fichero recortado; si el diff toca el fichero sin mostrar ninguna linea (vacio, borrado), vale con el fichero: no hay que citar."""
     fuera = {_ruta_limpia(r) for r in recortados}
     for c in criterios:
         dentro = alcance is None or c['n'] in alcance
@@ -1193,7 +1206,7 @@ def aplicar_reglas(criterios, hallazgos, alcance, textos, recortados=()):
         if _ruta_limpia(h['file']) in fuera:
             h['bloquea'], h['baja'] = False, 'fichero recortado, el juez no lo vio: no bloquea'
         elif not (sin_lineas(h['file'], textos)
-                  or (re.match(r'\d', h['line']) and cita_en_diff(h['file'], h.get('cita'), textos))):
+                  or (re.match(r'\d', h['line']) and (cita_en_diff(h['file'], h.get('cita'), textos) or cita_en_head(h, leer)))):
             h['bloquea'], h['baja'] = False, 'su cita no esta en el diff de ese fichero: no bloquea'
 
 
@@ -1237,10 +1250,18 @@ def evaluar_criterios(dato, etiquetas, visibles, ultimo=False, alcance=None):
 CASO_CONCRETO = ('entrada', 'salida_esperada', 'salida_codigo')
 
 
-def evaluar_hallazgos(dato):
+def atado(h, etiquetas, arquitectura):
+    """Variante A (SC-2264): ¿el hallazgo nombra un criterio de `etiquetas` (los de esta PR) o una norma que esta literal, con los
+    espacios colapsados y de al menos `CITA_MIN` caracteres, en ARCHITECTURE.md? Lo comprueba el codigo, no el modelo."""
+    norma = _colapsar(h.get('norma'))
+    return _etiqueta(h.get('criterio')) in etiquetas or (len(norma) >= CITA_MIN and norma in _colapsar(arquitectura))
+
+
+def evaluar_hallazgos(dato, etiquetas, arquitectura):
     """Del JSON de la pregunta de fallos a la lista de hallazgos, o None si no sirve (sin lista `hallazgos`).
-    Comprobacion de FORMA, no de contenido (SC-2264 C4): un hallazgo que no es de arquitectura y bloquearia, pero no trae el caso
-    concreto en `entrada`, `salida_esperada` y `salida_codigo`, queda como observacion."""
+    Comprobacion de FORMA, no de contenido: un hallazgo que bloquearia queda como observacion si no esta `atado` a un criterio de
+    esta PR ni a una norma de `arquitectura` (variante A, SC-2264), o si no es de arquitectura y no trae el caso concreto en
+    `entrada`, `salida_esperada` y `salida_codigo` (SC-2264 C4)."""
     if not isinstance(dato, dict) or not isinstance(dato.get('hallazgos'), list):
         return None
     hallazgos = []
@@ -1253,8 +1274,10 @@ def evaluar_hallazgos(dato):
         hallazgo = {'file': str(h.get('file') or ''), 'line': str(h.get('line') or ''),
                     'severity': sev if sev in ORDEN_SEVERIDAD else 'media', 'tipo': tipo,
                     'cita': str(h.get('cita') or ''), 'summary': str(h['summary']).strip(),
-                    **{c: str(h.get(c) or '').strip() for c in CASO_CONCRETO}}
+                    **{c: str(h.get(c) or '').strip() for c in (*CASO_CONCRETO, 'criterio', 'norma')}}
         hallazgo['bloquea'] = tipo not in TIPOS_QUE_NO_CUENTAN and sev in SEVERIDADES_QUE_BLOQUEAN
+        if hallazgo['bloquea'] and not atado(hallazgo, etiquetas, arquitectura):
+            hallazgo['bloquea'], hallazgo['baja'] = False, 'suelto: no nombra el criterio que incumple ni una norma de ARCHITECTURE.md, no bloquea'
         if hallazgo['bloquea'] and tipo != 'arquitectura' and not all(hallazgo[c] for c in CASO_CONCRETO):
             hallazgo['bloquea'], hallazgo['baja'] = False, 'sin el caso concreto (entrada, salida esperada y salida del codigo): no bloquea'
         hallazgos.append(hallazgo)
@@ -1296,23 +1319,28 @@ def bloque_citas(criterios, citas):
     return '\n'.join(lineas)
 
 
+def _declara(alcance):
+    """El bloque `alcance`: lo que la PR declara cubrir, una linea por criterio."""
+    return ('\n'.join(n + (f': {nota}' if nota else '') for n, nota in alcance.items())
+            if alcance else '(la PR no declara alcance: todos los criterios del ticket son de esta PR, salvo '
+                            'lo que las reglas situan fuera)')
+
+
 def prompt_lote(repo, clave, resumen, lote, citas, pr='', alcance=None, fuera=()):
     """Pregunta 2: un lote de criterios (`lote` es [(etiqueta, texto)]) juzgado sobre SUS citas, sin el diff. `alcance` (lo que la
     PR declara cubrir), `fuera` (los ficheros del recorte) y la descripcion son de terceros: entran como DATOS."""
-    declara = ('\n'.join(n + (f': {nota}' if nota else '') for n, nota in alcance.items())
-               if alcance else '(la PR no declara alcance: todos los criterios del ticket son de esta PR, salvo '
-                               'lo que las reglas situan fuera)')
+    declara = _declara(alcance)
     return PLANTILLA_LOTE.format(clave=clave, repo=repo, ejemplos=ejemplos('fuera', 'ausente'), bloques=bloques_datos(
         _datos_comunes(resumen, lote, fuera) + [('pr', (pr or '').strip()[:PR_MAX] or '(la PR no tiene titulo ni descripcion)'),
                                                  ('alcance', declara), ('citas', bloque_citas(lote, citas))]))
 
 
-def prompt_hallazgos(repo, clave, resumen, criterios, diff, arquitectura, pr='', fuera=()):
-    """Pregunta 3: los fallos del diff y las normas de ARCHITECTURE.md que incumple."""
+def prompt_hallazgos(repo, clave, resumen, criterios, diff, arquitectura, pr='', fuera=(), alcance=None):
+    """Pregunta 3: los fallos del diff, cada uno atado a un criterio de esta PR o a una norma de ARCHITECTURE.md."""
     arq = (arquitectura or '').strip()[:ARQUITECTURA_MAX] or '(el repositorio no tiene ARCHITECTURE.md)'
     return PLANTILLA_HALLAZGOS.format(clave=clave, repo=repo, ejemplos=ejemplos('correccion', 'sin_cita'), bloques=bloques_datos(
         _datos_comunes(resumen, criterios, fuera) + [('pr', (pr or '').strip()[:PR_MAX] or '(la PR no tiene titulo ni descripcion)'),
-                                                      ('diff', diff), ('arquitectura', arq)]))
+                                                      ('alcance', _declara(alcance)), ('diff', diff), ('arquitectura', arq)]))
 
 
 def bloques_datos(piezas):
@@ -1340,7 +1368,7 @@ ESQUEMA_LOTE = ('juicio_de_criterios', _obj(criterios={'type': 'array', 'items':
 ESQUEMA_HALLAZGOS = ('hallazgos', _obj(hallazgos={'type': 'array', 'items': _obj(
     file=_S, line={'type': 'integer'}, severity={'type': 'string', 'enum': ['alta', 'media', 'baja']},
     tipo={'type': 'string', 'enum': ['correccion', 'arquitectura']}, cita=_S, summary=_S, entrada=_S,
-    salida_esperada=_S, salida_codigo=_S)}))
+    salida_esperada=_S, salida_codigo=_S, criterio=_S, norma=_S)}))
 
 LLAMADAS = [0]            # llamadas al modelo de este proceso (`juez` y `evalua` dicen cuantas gasta una PR)
 SIN_ESQUEMA = set()       # alias que rechazaron `response_format: json_schema`: no se les vuelve a pedir
@@ -1671,14 +1699,18 @@ def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios,
             return res
         criterios_ev += ev[0]
         no_lista = no_lista or ev[1]
-    hallazgos = fase(prompt_hallazgos(repo, clave, resumen, a_juzgar, diff, arquitectura, pr, fuera), 4000, ESQUEMA_HALLAZGOS,
-                     lambda d, _: _completo(evaluar_hallazgos(d)))
+    de_esta_pr = set(alcance) if alcance else set(etiquetas)   # los criterios a los que un hallazgo puede atarse
+    hallazgos = fase(prompt_hallazgos(repo, clave, resumen, a_juzgar, diff, arquitectura, pr, fuera, alcance), 4000, ESQUEMA_HALLAZGOS,
+                     lambda d, _: _completo(evaluar_hallazgos(d, de_esta_pr, arquitectura)))
     if hallazgos is None:
         return res
+    leer = leer or (lambda ruta: ('no_existe', None))
+    cache = {}
+    leer_una_vez = lambda ruta: cache.setdefault(ruta, leer(ruta))
     sin_casar = citas_sin_casar(criterios_ev, hallazgos, textos, recortados)
     if sin_casar:   # la linea exacta se pide UNA vez por juicio, antes de bajar nada
         reintentar_citas(url, key, a_quien[0], fallback if a_quien[0] == modelo else '', timeout, sin_casar, diff)
-    aplicar_reglas(criterios_ev, hallazgos, alcance, textos, recortados)
+    aplicar_reglas(criterios_ev, hallazgos, alcance, textos, recortados, leer_una_vez)
     por_n = {e['n']: e for e in criterios_ev}
     res['criterios'] = [{**c, **por_n.get(c['n'], {})} for c in res['criterios']]
     res['hallazgos'] = hallazgos
@@ -1693,9 +1725,6 @@ def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios,
         return res
     if res['veredicto'] == 'PASA':
         return res
-    leer = leer or (lambda ruta: ('no_existe', None))
-    cache = {}
-    leer_una_vez = lambda ruta: cache.setdefault(ruta, leer(ruta))
     caida = False
     for c in res['criterios']:   # ausencia en un fichero que el diff no muestra: se mira en el head
         if c.get('ausencia_en'):
@@ -1896,7 +1925,7 @@ def bajas_de(res):
     for letra, elementos in (('C', res['criterios']), ('H', res['hallazgos'])):
         for e in elementos:
             if e.get('baja'):
-                clase = next((k for k in ('alcance', 'cita', 'recortado', 'repositorio', 'no lista', 'no lo evaluo', 'caso concreto')
+                clase = next((k for k in ('alcance', 'cita', 'recortado', 'repositorio', 'no lista', 'no lo evaluo', 'caso concreto', 'suelto')
                               if k in e['baja']), 'otra')
                 clave = f"{letra}.{clase.replace(' ', '_')}"
                 cuenta[clave] = cuenta.get(clave, 0) + 1

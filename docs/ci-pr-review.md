@@ -450,7 +450,12 @@ Con el modelo local `tooling` (no cambia) una sola llamada con todo (diff, crite
    de la PR, sin el diff. Un criterio de esta PR sin citas que lo cumplan es `❌` por ausencia.
 3. Fallos del diff (`correccion` y `arquitectura`), sobre el diff entero. Un hallazgo `correccion` que bloquearía debe traer el
    caso concreto en `entrada`, `salida_esperada` y `salida_codigo`, más su `cita`. Si falta alguno de los tres baja a observación
-   por código (comprobación de forma, no de contenido). Los de `arquitectura` no llevan `entrada`.
+   por código (comprobación de forma, no de contenido). Los de `arquitectura` no llevan `entrada`. Un hallazgo bloquea solo si
+   está `atado` (iteración 2, variante A): `criterio` es la etiqueta de un criterio de esta PR (el alcance declarado; sin
+   alcance, los del ticket) o `norma` es una línea de `ARCHITECTURE.md` copiada literal (`CITA_MIN` caracteres como mínimo, el
+   código la busca en el fichero entero). Sin una cosa ni la otra pasa a «Observaciones (no bloquean)» con `suelto: …`
+   (`H.suelto` en `--evalua`). Su cita casa en el diff o, a ±`VERIFICA_VENTANA` líneas de su `line`, en el fichero completo del
+   head (`cita_en_head`). Los ❌ de criterio no cambian.
 
 Llamadas por PR: `2 + ceil(criterios / 5)`, cada una repetida una vez si la respuesta no sirve, más una para recuperar la cita
 de hallazgos que no casan y hasta `VERIFICA_MAX_LLAMADAS` = 4 verificaciones, solo con `NO_PASA`. Antes era una sola llamada
