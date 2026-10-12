@@ -562,11 +562,11 @@ def main():
 
 # --------------------------------------------------------------------------
 # Motor `juez` (SC-2182). No revisa: JUZGA si la PR cumple los criterios de
-# aceptacion de su ticket. Es el unico juez de una historia (la compañia la
-# fusiona sin qa ni architect si el veredicto es PASA).
+# aceptacion de su ticket. Es CONSULTIVO (SC-2331): comenta y da su veredicto, pero
+# no bloquea el merge (lo abren el CI en verde y, con riesgo alto, qa y security).
 #
-# El modelo NO decide el veredicto: aporta hechos (por criterio, cumple +
-# evidencia; hallazgos) y la regla de abajo los convierte en PASA / NO_PASA.
+# El modelo NO decide el veredicto: aporta hechos por criterio (cumple + evidencia)
+# y la regla de abajo los convierte en PASA / NO_PASA. Sus hallazgos son observaciones.
 # Todo lo que el modelo lee (criterios, diff, ARCHITECTURE.md) es texto de
 # terceros: entra como DATOS delimitados con una marca aleatoria por ejecucion,
 # y todo lo que el modelo escribe entra al comentario saneado (una linea, sin `<`).
@@ -575,7 +575,7 @@ def main():
 # CONTRACT: ci.llm-review-bot.marcador.v3
 # Primera linea del comentario del juez; la lee `company-aprobar` (x86, componente canonico del marcador y de sus
 # hallazgos). Un cambio de forma es un `v4` AL LADO, nunca una edicion de este. `motivos` es un enum cerrado:
-# jamas texto libre. `juez=codigo` es un pre-gate sin LLM (con `modelo=-`) y nunca aprueba. El v2 queda deprecado:
+# jamas texto libre (`hallazgos` sigue en el enum, pero SC-2331 ya no lo emite). `juez=codigo` es un pre-gate sin LLM (con `modelo=-`) y nunca aprueba. El v2 queda deprecado:
 # el lector lo sigue leyendo (los repos fijados por SHA lo emiten aun) y aqui solo se reconoce para adoptar su comentario.
 MARCA_V3 = '<!-- llm-review-bot:v3 '
 MARCA_V2 = '<!-- llm-review-bot:v2 '
@@ -597,6 +597,7 @@ MOTIVOS_V3 = frozenset({
 # El vocabulario que el reusable ya publica (`ok|hallazgos|omitido`) no cambia.
 SALIDA_REUSABLE = {'PASA': 'ok', 'NO_PASA': 'hallazgos', 'EN_ESPERA': 'omitido', 'SIN_VEREDICTO': 'omitido'}
 PENDIENTE = 'PENDIENTE — no es una aprobación'
+CONSULTIVO = 'consultivo: no bloquea el merge'
 
 TIMEOUT_JUEZ = 90                  # s por llamada; un timeout cuenta como un 408
 FALLBACK_JUEZ = 'alibaba-q38-flash'
@@ -615,11 +616,15 @@ SIN_CRITERIOS_DESDE = datetime(2026, 10, 8, tzinfo=timezone.utc)
 # Proyectos de la tabla de la compañia; uno nuevo se añade aqui. Una lista cerrada
 # evita que `SHA-256` o `UTF-8` en un titulo se lean como un ticket.
 PROYECTOS_JIRA = ('SC', 'INFRA', 'DGX', 'SKIRM', 'LE', 'OWU', 'ACC')
-# Falla cerrado: bloquea todo hallazgo de severidad alta o media salvo los tipos que el prompt
-# excluye. Un tipo con tilde (`corrección`), `bug` o vacio es un bug real mal etiquetado.
-# `criterio` no bloquea: un criterio que no se cumple es `cumple: false` en `criterios`, no un hallazgo.
-TIPOS_QUE_NO_CUENTAN = ('estilo', 'otro', 'criterio')
-SEVERIDADES_QUE_BLOQUEAN = ('alta', 'media')
+# SC-2331: el juez es consultivo y los hallazgos del modelo son observaciones: el veredicto lo deciden solo los criterios.
+# Lo que un criterio puede nombrar para que su ausencia se vea en el diff de ESTE repo: un fichero, un test o el CI.
+# Un adjunto de Jira (`70-qa.md`, `nota-*.md`) no es un fichero del repo. Otro criterio (un comando en vivo, una ruta
+# servida, un secreto de 1Password) se comprueba fuera de la PR.
+NOMBRA_RE = re.compile(
+    r'(?<![\w/.-])(?:[\w.-]+/)*[\w.-]+\.(?:py|js|mjs|cjs|jsx|ts|tsx|json|ya?ml|md|sh|toml|cfg|ini|txt|html|css|sql|tf|go|rs'
+    r'|swift|java|kt|rb)\b|\b(?:test_\w+|tests?|pytest|unittest|npm|cargo|jest|vitest|CI)\b')
+ADJUNTO_JIRA_RE = re.compile(r'(?:\d\d-|nota-)[\w-]+\.(?:md|html)')
+NO_DEMOSTRABLE = 'no demostrable en el diff: se comprueba fuera de la PR'
 
 SISTEMA_JUEZ = (
     'Eres el juez de una pull request. Contestas dos preguntas distintas, por separado: si el '
@@ -661,13 +666,12 @@ ni de los comentarios del propio diff, y busca solo dos tipos de hallazgo:
   de lo que el diff toca (las que dicen «nunca», «siempre», «solo», «el unico», «no se») y compara cada
   una con lo que el diff escribe, aunque el diff cumpla todos los criterios. Nombra la norma en `summary`;
   incumplir una norma escrita es de severidad `media` como minimo.
-Un hallazgo de severidad `alta` o `media` bloquea la PR SIEMPRE: da igual que cada criterio sea `true`,
-`false` o `"fuera"`, que la PR sea de un pin o solo una parte de la historia. Un criterio que no se
-cumple no es un hallazgo: va en `criterios`. Nada de estilo, formato ni preferencias. Sin nada que
+Un hallazgo es una observacion para quien lee el comentario y no decide el veredicto, que lo dan solo los
+criterios. Un criterio que no se cumple no es un hallazgo: va en `criterios`. Nada de estilo, formato ni preferencias. Sin nada que
 señalar, `"hallazgos": []`.
 Todo hallazgo señala su sitio: `file`, `line` y `cita`, la linea del diff donde esta el fallo, copiada
-LITERAL (sin el `+` ni el `-` del principio). El codigo comprueba que esa cita esta en el diff de ese
-fichero; sin ella, o con una que el diff no tiene, el hallazgo queda como observacion y no bloquea. Los
+LITERAL (sin el `+` ni el `-` del principio): un hallazgo cuya cita el diff no tiene no esta demostrado, y no
+se escribe. Los
 ficheros del bloque `recortados` no los has visto: no escribas hallazgos sobre ellos.
 
 PREGUNTA 2, `criterios`: ¿que criterios del ticket cubre esta PR?
@@ -1033,12 +1037,6 @@ def rojo_verificado(evidencia, cita, textos):
     return bool(m) and cita_en_diff(m.group(1), cita, textos)
 
 
-def sin_lineas(fichero, textos):
-    """¿El diff toca ese fichero sin mostrar una sola linea (vacio, borrado sin contenido, binario)? No hay nada
-    que citar: su nombre es la evidencia de lo que se diga de el, a diferencia de un fichero con lineas."""
-    return textos.get(_ruta_limpia(fichero)) == ''
-
-
 PLANTILLA_CITAS = """Cada afirmacion del bloque `afirmaciones` cita una linea que NO esta en el diff de su fichero.
 Para cada una, copia LITERAL, sin el `+` ni el `-` del principio, la linea del bloque `diff` donde se ve el
 fallo. Si el diff de ese fichero no tiene ninguna linea que lo muestre (el fallo es algo que falta o es sobre
@@ -1051,21 +1049,16 @@ Responde SOLO con este JSON: {{"citas": [{{"id": 1, "cita": "<la linea del diff,
 CITAS_MAX = 60000   # caracteres del diff de los ficheros citados que entran al reintento
 
 
-def citas_sin_casar(criterios, hallazgos, textos, recortados=()):
-    """[(elemento, fichero, que dijo)]: los ❌ y los hallazgos bloqueantes cuya cita no esta en el diff pero cuyo
-    FICHERO si lo muestra (y el recorte no lo quito): el modelo vio el sitio y copio mal la linea. Sin fichero en
-    el diff no hay linea que pedir: es una sospecha sobre codigo que no se ve."""
-    fuera = {_ruta_limpia(r) for r in recortados}
+def citas_sin_casar(criterios, textos):
+    """[(elemento, fichero, que dijo)]: los ❌ cuya cita no esta en el diff pero cuyo FICHERO si lo muestra: el modelo
+    vio el sitio y copio mal la linea. Sin fichero en el diff no hay linea que pedir: es una sospecha sobre codigo que
+    no se ve."""
     pendientes = []
     for c in criterios:
         m = re.fullmatch(r'([^\s:]+):\d+(?:-\d+)?', c['evidencia'])
         if c['cumple'] is False and m and not rojo_verificado(c['evidencia'], c.get('cita'), textos) \
                 and textos.get(_ruta_limpia(m.group(1))):
             pendientes.append((c, m.group(1), f"{c['n']} ❌ {c['nota']}"))
-    for h in hallazgos:
-        f = _ruta_limpia(h['file'])
-        if h['bloquea'] and f not in fuera and textos.get(f) and not cita_en_diff(f, h.get('cita'), textos):
-            pendientes.append((h, h['file'], f"[{h['severity']}] {h['summary']}"))
     return pendientes
 
 
@@ -1087,20 +1080,25 @@ def reintentar_citas(url, key, modelo, fallback, timeout, pendientes, diff):
             pendientes[r['id'] - 1][0]['cita'] = str(r.get('cita') or '')
 
 
-def aplicar_reglas(criterios, hallazgos, alcance, textos, recortados=()):
+def nombra_algo_del_repo(texto):
+    """¿El criterio nombra algo que el diff de este repo puede mostrar: un fichero, un test o el CI? (SC-2331)"""
+    return any(not ADJUNTO_JIRA_RE.fullmatch(m.group().rpartition('/')[2]) for m in NOMBRA_RE.finditer(texto or ''))
+
+
+def aplicar_reglas(criterios, alcance, textos, recortados=()):
     """Las reglas del codigo sobre lo que dijo el modelo (SC-2229), en su sitio: lo que no se sostiene deja de
     bloquear y `baja` dice por que (el comentario lo muestra).
     - un ❌ que cita una linea (`evidencia` + `cita`) vale si la cita esta en el diff; si no, baja a ➖;
     - un ❌ sin cita es una AUSENCIA y solo bloquea si el criterio es de esta PR (`alcance`; sin alcance
       declarado, todos lo son); un criterio fuera del alcance sigue ➖ salvo que el diff lo contradiga;
+    - una ausencia cuyo criterio no nombra ningun fichero, test ni el CI de este repo (SC-2331: un comando en vivo, un
+      secreto, una ruta servida) no se demuestra en un diff: ➖ `no demostrable en el diff`;
     - un ✅ cuya evidencia esta en un fichero recortado no se puede comprobar: ➖ `evidencia no disponible` (SC-2285);
     - una ausencia dentro del alcance (SC-2285): si el `fichero` donde el modelo esperaba la evidencia esta recortado,
       o no lo dijo y el diff esta recortado, es ➖ `evidencia no disponible` (el marcador ya lleva riesgo alto por el
       recorte); si el fichero no esta en el diff, `juzgar` lo comprueba en el head (`ausencia_en`); si el diff lo
       muestra entero, bloquea como siempre;
-    - un ✅ de un criterio fuera del alcance no pide evidencia;
-    - un hallazgo bloqueante vale con su fichero, su linea y su cita en el diff y sin ser de un fichero recortado;
-      si el diff toca el fichero sin mostrar ninguna linea (vacio, borrado), vale con el fichero: no hay que citar."""
+    - un ✅ de un criterio fuera del alcance no pide evidencia."""
     fuera = {_ruta_limpia(r) for r in recortados}
     for c in criterios:
         dentro = alcance is None or c['n'] in alcance
@@ -1110,6 +1108,8 @@ def aplicar_reglas(criterios, hallazgos, alcance, textos, recortados=()):
                     c['cumple'], c['baja'] = None, 'la cita del modelo no esta en el diff: no bloquea'
             elif not dentro:
                 c['cumple'], c['baja'] = None, 'fuera del alcance declarado por la PR: no bloquea'
+            elif not nombra_algo_del_repo(c.get('texto')):
+                c['cumple'], c['baja'] = None, NO_DEMOSTRABLE
             else:
                 fichero = _ruta_limpia(c.get('fichero'))
                 if fichero in fuera:
@@ -1123,14 +1123,6 @@ def aplicar_reglas(criterios, hallazgos, alcance, textos, recortados=()):
         elif c['cumple'] and not c['evidencia_ok'] and _ruta_limpia(c['evidencia'].rpartition(':')[0]) in fuera:
             # un ✅ cuya evidencia esta en un fichero recortado: valida pero invisible (SC-2285, como la ausencia)
             c['cumple'], c['baja'] = None, 'evidencia no disponible (recortado): el juez no vio ese fichero'
-    for h in hallazgos:
-        if not h['bloquea']:
-            continue
-        if _ruta_limpia(h['file']) in fuera:
-            h['bloquea'], h['baja'] = False, 'fichero recortado, el juez no lo vio: no bloquea'
-        elif not (sin_lineas(h['file'], textos)
-                  or (re.match(r'\d', h['line']) and cita_en_diff(h['file'], h.get('cita'), textos))):
-            h['bloquea'], h['baja'] = False, 'su cita no esta en el diff de ese fichero: no bloquea'
 
 
 def _etiqueta(n):
@@ -1176,20 +1168,18 @@ def evaluar(dato, etiquetas, visibles, ultimo=False, alcance=None):
                        if not unicodedata.combining(c))
         hallazgos.append({'file': str(h.get('file') or ''), 'line': str(h.get('line') or ''),
                           'severity': sev if sev in ORDEN_SEVERIDAD else 'media', 'tipo': tipo,
-                          'cita': str(h.get('cita') or ''), 'summary': str(h['summary']).strip(),
-                          'bloquea': tipo not in TIPOS_QUE_NO_CUENTAN and sev in SEVERIDADES_QUE_BLOQUEAN})
+                          'cita': str(h.get('cita') or ''), 'summary': str(h['summary']).strip()})
     hallazgos.sort(key=lambda h: ORDEN_SEVERIDAD[h['severity']])
     return criterios, hallazgos
 
 
-def decidir(criterios, hallazgos):
+def decidir(criterios):
+    """El veredicto lo deciden solo los criterios (SC-2331): los hallazgos del modelo son observaciones."""
     motivos = set()
     if any(c['cumple'] is False for c in criterios):   # None = fuera de esta PR: no bloquea
         motivos.add('criterio_incumplido')
     if any(c['cumple'] and not c['evidencia_ok'] for c in criterios):
         motivos.add('sin_evidencia')
-    if any(h['bloquea'] for h in hallazgos):
-        motivos.add('hallazgos')
     return ('NO_PASA' if motivos else 'PASA'), motivos
 
 
@@ -1306,10 +1296,10 @@ def cita_en_fichero(texto, linea, cita):
     return len(c) >= CITA_MIN and c in _colapsar(' '.join(lineas[max(n - 1 - VERIFICA_VENTANA, 0):n + VERIFICA_VENTANA]))
 
 
-def a_verificar(criterios, hallazgos, textos):
+def a_verificar(criterios, textos):
     """[(elemento, tipo, ruta, que dijo, severidad)]: lo que iba a bloquear tras las reglas y se puede mirar en un
-    fichero: cada ❌ por contradiccion con su cita casada, cada ❌ por ausencia cuyo fichero existe en el head
-    (`ausencia_ok`) y cada hallazgo que bloquea. Un PASA no tiene nada que verificar."""
+    fichero: cada ❌ por contradiccion con su cita casada y cada ❌ por ausencia cuyo fichero existe en el head
+    (`ausencia_ok`). Un PASA no tiene nada que verificar."""
     items = []
     for c in criterios:
         if c['cumple'] is not False:
@@ -1320,10 +1310,6 @@ def a_verificar(criterios, hallazgos, textos):
         elif m and rojo_verificado(c['evidencia'], c.get('cita'), textos):
             items.append((c, 'contradiccion', _ruta_limpia(m.group(1)),
                           f"{c['n']} ❌ {c['nota']} (linea citada: {limpio(c.get('cita'), 200)})", 0))
-    for h in hallazgos:
-        if h['bloquea'] and h['file']:
-            items.append((h, 'hallazgo', _ruta_limpia(h['file']), f"[{h['severity']}] {h['summary']}"
-                          + (f" (entrada: {h['entrada']})" if h.get('entrada') else ''), ORDEN_SEVERIDAD[h['severity']]))
     return items
 
 
@@ -1439,11 +1425,13 @@ def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios,
             if ev is None:
                 res['modelo'] = usado
             continue
-        sin_casar = citas_sin_casar(nuevo[0], nuevo[1], textos, recortados)
+        for c in nuevo[0]:   # `aplicar_reglas` juzga cada criterio por su texto
+            c['texto'] = dict(a_juzgar)[c['n']]
+        sin_casar = citas_sin_casar(nuevo[0], textos)
         if sin_casar and not citas_pedidas:   # la linea exacta se pide UNA vez por juicio, antes de bajar nada
             citas_pedidas = True
             reintentar_citas(url, key, modelo, fallback, timeout, sin_casar, diff)
-        aplicar_reglas(nuevo[0], nuevo[1], alcance, textos, recortados)
+        aplicar_reglas(nuevo[0], alcance, textos, recortados)
         ev, res['modelo'], no_lista = nuevo, usado, _cita_no_lista(respuesta, pr)
         if all(c['evidencia_ok'] for c in ev[0] if c['cumple']):
             break
@@ -1457,11 +1445,8 @@ def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios,
     por_n = {e['n']: e for e in ev[0]}
     res['criterios'] = [{**c, **por_n.get(c['n'], {})} for c in res['criterios']]
     res['hallazgos'] = ev[1]
-    res['veredicto'], res['motivos'] = decidir(res['criterios'], res['hallazgos'])
+    res['veredicto'], res['motivos'] = decidir(res['criterios'])
     if res['veredicto'] == 'NO_PASA' and no_lista:   # la PR dice de si misma que no esta lista: se espera, no se veta
-        for h in res['hallazgos']:
-            if h['bloquea']:
-                h['bloquea'], h['baja'] = False, 'la PR se declara no lista: no bloquea'
         res.update(veredicto='EN_ESPERA', motivos={'no_lista'},
                    detalle=f'La descripcion de la PR dice que no esta lista («{limpio(no_lista, 200)}»): el juez no la veta. '
                            'Cuando lo este, marcala lista y empuja un head nuevo.')
@@ -1482,7 +1467,7 @@ def juzgar(url, key, modelo, fallback, timeout, repo, clave, resumen, criterios,
                 c['marca'] = 'ausencia comprobada: el fichero no existe en el head'
     if not caida:
         res['verificaciones'], caida = verificar(url, key, res['modelo'], timeout, leer_una_vez,
-                                                  a_verificar(res['criterios'], res['hallazgos'], textos), diff)
+                                                  a_verificar(res['criterios'], textos), diff)
     if caida:
         res.update(veredicto='SIN_VEREDICTO', motivos={'verificacion_caida'},
                    detalle='No se pudo verificar lo que bloqueaba (la API de ficheros o el verificador no contestaron): '
@@ -1499,7 +1484,8 @@ def es_pendiente(r):
 
 
 def hallazgos_a_arreglar(r):
-    """Las lineas de `### Hallazgos`: lo que el maker tiene que arreglar, UNA linea cada una. Solo un NO_PASA las tiene."""
+    """Las lineas de `### Hallazgos`: el ticket y los criterios que no se cumplen, UNA linea cada una. Solo un NO_PASA las
+    tiene; los hallazgos del modelo van a `### Observaciones` (SC-2331)."""
     salida = []
     if r.get('veredicto') != 'NO_PASA':
         return salida
@@ -1511,9 +1497,6 @@ def hallazgos_a_arreglar(r):
         elif c['cumple'] and not c['evidencia_ok']:
             salida.append(f"**[evidencia]** {c['n']} sin evidencia valida en el diff "
                           f"(`{codigo(c['evidencia']) or 'ninguna'}`)")
-    for h in r.get('hallazgos') or []:
-        if h['bloquea']:
-            salida.append(descripcion_hallazgo(h))
     return salida
 
 
@@ -1523,9 +1506,7 @@ def _marca(e):
 
 def descripcion_hallazgo(h):
     donde = codigo(h['file']) + (f":{codigo(h['line'])}" if h['line'] else '')
-    baja = f" ({h['baja']})" if h.get('baja') else ''
-    return (f"**[{h['severity']}]** `{donde or 'general'}` ({codigo(h['tipo'] or 'otro')}) — "
-            f"{limpio(h['summary'], 300)}{baja}{_marca(h)}")
+    return f"**[{h['severity']}]** `{donde or 'general'}` ({codigo(h['tipo'] or 'otro')}) — {limpio(h['summary'], 300)}"
 
 
 def componer_juez(r):
@@ -1534,7 +1515,7 @@ def componer_juez(r):
     lineas = [marcador_v3(r['sha'], r['veredicto'], r['riesgo'], r['juez'], r['modelo'], set(r['motivos']))]
     if es_pendiente(r):
         lineas.append(PENDIENTE)
-    lineas += [f"## Review del juez · {r['veredicto']}", '']
+    lineas += [f"## Review del juez · {r['veredicto']} · {CONSULTIVO}", '']
     if r['veredicto'] == 'NO_PASA' and r['juez'] == 'respaldo':
         lineas += ['El respaldo no veta: falta el veredicto del primario. Los hallazgos son orientativos.', '']
     if r.get('clave'):
@@ -1559,9 +1540,8 @@ def componer_juez(r):
     pendientes = hallazgos_a_arreglar(r)
     if pendientes:
         lineas += ['', '### Hallazgos'] + [f'- {p}' for p in pendientes]
-    otros = [h for h in r.get('hallazgos') or [] if not h['bloquea'] or r['veredicto'] != 'NO_PASA']
-    if otros:
-        lineas += ['', '### Observaciones (no bloquean)'] + [f'- {descripcion_hallazgo(h)}' for h in otros]
+    if r.get('hallazgos'):
+        lineas += ['', '### Observaciones'] + [f'- {descripcion_hallazgo(h)}' for h in r['hallazgos']]
     if r.get('fuera'):
         lineas += ['', f"Diff recortado: {len(r['fuera'])} fichero(s) fuera del tope, riesgo alto:"]
         lineas += [f'- `{codigo(n)}` ({b} B)' for n, b in r['fuera']]
@@ -1609,10 +1589,9 @@ def juez():
         pendientes = hallazgos_a_arreglar(r)
         detalle_corto = ', '.join(r['motivos']) or '%d criterio(s) con evidencia' % len(r['criterios'])
         print(f"verificaciones={r['verificaciones']}")
-        # rojo solo con un veto que vale: NO_PASA del primario o de un pre-gate; lo demas se lee en el marcador
-        rojo = veredicto == 'NO_PASA' and r['juez'] != 'respaldo'
+        # consultivo (SC-2331): rojo solo si el veredicto no se pudo publicar; un veredicto no es un fallo del job
         return terminar(SALIDA_REUSABLE[veredicto], f'{veredicto}: {detalle_corto}', len(pendientes),
-                        f"{cuerpo}\n\nverificaciones={r['verificaciones']}", codigo=1 if rojo or not publicado else 0)
+                        f"{cuerpo}\n\nverificaciones={r['verificaciones']}", codigo=0 if publicado else 1)
 
     # el juez lee la PR de la API en ejecucion (el payload del evento puede traer una descripcion vieja); el entorno, solo si la API falla
     borrador, titulo_pr, cuerpo_pr = leer_pr(token, repo, pr) or (
@@ -1665,16 +1644,15 @@ def juez():
 
 
 def bajas_de(res):
-    """Lo que las reglas del codigo dejaron de bloquear en un juicio, contado por clase (`C.alcance:3,H.cita:1`):
-    el veredicto solo dice QUE se obtuvo; esto dice si una regla (SC-2229, SC-2285) tuvo algo que ver."""
+    """Lo que las reglas del codigo dejaron de bloquear en un juicio, contado por clase (`C.alcance:3,C.cita:1`):
+    el veredicto solo dice QUE se obtuvo; esto dice si una regla (SC-2229, SC-2285, SC-2331) tuvo algo que ver."""
     cuenta = {}
-    for letra, elementos in (('C', res['criterios']), ('H', res['hallazgos'])):
-        for e in elementos:
-            if e.get('baja'):
-                clase = next((k for k in ('alcance', 'cita', 'recortado', 'repositorio', 'no lista', 'no lo evaluo')
-                              if k in e['baja']), 'otra')
-                clave = f"{letra}.{clase.replace(' ', '_')}"
-                cuenta[clave] = cuenta.get(clave, 0) + 1
+    for e in res['criterios']:
+        if e.get('baja'):
+            clase = next((k for k in ('alcance', 'cita', 'recortado', 'repositorio', 'no lista', 'no lo evaluo', 'demostrable')
+                          if k in e['baja']), 'otra')
+            clave = f"C.{clase.replace(' ', '_')}"
+            cuenta[clave] = cuenta.get(clave, 0) + 1
     return ','.join(f'{k}:{v}' for k, v in sorted(cuenta.items())) or '-'
 
 
@@ -1719,7 +1697,7 @@ def evalua(directorio, umbral, pasadas=1, max_falsos=None):
     repositorio de la PR (por omision `evalua`), `borrador` marca la PR como borrador y `head/` trae los ficheros
     completos del head que el verificador lee. Corre `pasadas` veces.
     Sin `max_falsos`: sale 0 si en todas las pasadas aciertos/total >= umbral. Con `max_falsos` F: sale 0 solo si en
-    todas los NO_PASA falsos son < F de los NO_PASA y todos los casos reales estan en NO_PASA."""
+    todas los NO_PASA falsos son < F de los NO_PASA y todos los casos reales estan señalados (un NO_PASA o una observacion, SC-2331)."""
     m = re.fullmatch(r'(\d+)/(\d+)', umbral or '')
     try:
         casos = sorted(d for d in Path(directorio).iterdir() if d.is_dir())
@@ -1736,7 +1714,7 @@ def evalua(directorio, umbral, pasadas=1, max_falsos=None):
     minimo, de = int(m.group(1)), int(m.group(2))
     bien = True
     for pasada in range(1, pasadas + 1):
-        aciertos = falsos_pasa = no_pasa = falsos = reales = bloqueados = verificaciones = 0
+        aciertos = falsos_pasa = no_pasa = falsos = reales = senalados = verificaciones = 0
         for caso in casos:
             esperado = (caso / 'esperado').read_text(encoding='utf-8').split()[0]
             clase = (caso / 'clase').read_text(encoding='utf-8').split()[0] if (caso / 'clase').is_file() \
@@ -1748,17 +1726,17 @@ def evalua(directorio, umbral, pasadas=1, max_falsos=None):
             no_pasa += res['veredicto'] == 'NO_PASA'
             falsos += res['veredicto'] == 'NO_PASA' and clase != 'real'
             reales += clase == 'real'
-            bloqueados += clase == 'real' and res['veredicto'] == 'NO_PASA'
+            senalados += clase == 'real' and (res['veredicto'] == 'NO_PASA' or bool(res['hallazgos']))
             verificaciones += res['verificaciones']
             print(f"{'OK   ' if acierto else 'FALLO'} {caso.name}: esperado={esperado} "
                   f"obtenido={res['veredicto']} motivos={','.join(sorted(res['motivos'])) or '-'} "
                   f"bajas={bajas_de(res)}")
         print(f'pasada {pasada}/{pasadas}: aciertos {aciertos}/{len(casos)} (umbral {umbral}); falsos PASA {falsos_pasa}; '
-              f'NO_PASA {no_pasa}; NO_PASA falsos {falsos}; n reales = {bloqueados}/{reales}; verificaciones={verificaciones}')
+              f'NO_PASA {no_pasa}; NO_PASA falsos {falsos}; n reales = {senalados}/{reales}; verificaciones={verificaciones}')
         if max_falsos is None:
             bien = bien and aciertos * de >= minimo * len(casos)
         else:
-            bien = bien and (falsos / no_pasa if no_pasa else 0.0) < max_falsos and bloqueados == reales
+            bien = bien and (falsos / no_pasa if no_pasa else 0.0) < max_falsos and senalados == reales
     return 0 if bien else 1
 
 
