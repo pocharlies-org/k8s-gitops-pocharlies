@@ -1723,8 +1723,13 @@ spec:
     # contenido que se sirve hoy es el mismo (la rama apunta a 5c0b09e).
     # ROLLBACK de esto (volver a SHA fijo): 5c0b09e95c4a7ad77e3923ff71ccdd9ca91abfcf (head de la rama al abrir la PR, `git ls-remote`
     # k8s-ai pin/sparks-ventana-20261010) con el mismo path overlays/sparks-ventana-20261010.
-    targetRevision: pin/sparks-ventana-20261010
-    path: overlays/sparks-ventana-20261010
+    # 12-10-2026 (DGX-820, C9): `ai` pasa a seguir la rama pin/qwen38-tp3-20261010 con el path overlays/qwen38-tp3-ventana-20261010: qwen38 TP=3
+    # en 64K con `--safetensors-load-strategy=eager` en los tres rangos (k8s-ai #169). Es la prueba de C9: el 64K no carga qwen38 con la carga
+    # por defecto (se atasca copiando los pesos de los expertos) y la carga eager es lo que se quiere medir. TEMPORAL: dura lo que la
+    # investigación del 64K; sigue una rama y no un SHA por la decisión de Dani del 12-10 (arriba). Se fusiona SOLO después de k8s-ai #169.
+    # ROLLBACK de esto (volver a la ventana sin carga): targetRevision pin/sparks-ventana-20261010 con path overlays/sparks-ventana-20261010.
+    targetRevision: pin/qwen38-tp3-20261010
+    path: overlays/qwen38-tp3-ventana-20261010
   destination:
     server: https://kubernetes.default.svc
     namespace: llm
