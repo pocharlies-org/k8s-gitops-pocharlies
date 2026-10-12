@@ -142,7 +142,7 @@ on:
         required: false
       # Motor juez (SC-2182): credenciales PROPIAS, distintas de las de `propio` y PR-Agent, para
       # poder rotarlas o revocarlas sin tocarlas. Por repo (plan `free`, como las de arriba).
-      # Sin alguna, el juez sale en rojo con SIN_VEREDICTO y dice cual falta.
+      # Sin alguna, el juez publica SIN_VEREDICTO y dice cual falta.
       LITELLM_JUEZ_KEY:
         description: Key LiteLLM del juez (modelos `tooling` y `alibaba-q38-flash`).
         required: false
@@ -754,11 +754,11 @@ jobs:
   # v3 (SC-2285). Mismos permisos que `revisar_pr` (un job llamado que pide mas de lo que concede el
   # llamador tumba el run entero al arrancar). Solo `pull_request`: no hay juicio de un commit.
   #
-  # Rojo (exit 1) SOLO con un NO_PASA del juez primario o de un pre-gate sin LLM (y los fallos de
-  # configuracion de siempre, sin marcador). Verde con PASA, EN_ESPERA, SIN_VEREDICTO y el NO_PASA
-  # del respaldo, y en esos tres la primera linea visible del resumen y del comentario es
-  # «PENDIENTE — no es una aprobación»: un verde que no aprueba. La unica puerta es `company-aprobar`,
-  # que lee el marcador (nunca un status pendiente: exigiria `statuses: write` en las plantillas).
+  # CONSULTIVO (SC-2331): ningun veredicto pone el job en rojo, ni NO_PASA. Rojo (exit 1) SOLO por un fallo de
+  # configuracion que impide publicar el marcador. En EN_ESPERA, SIN_VEREDICTO y el NO_PASA del respaldo la
+  # primera linea visible del resumen y del comentario es «PENDIENTE — no es una aprobación»: un verde que no
+  # aprueba. `company-aprobar` lee el marcador, que ya no es una puerta de merge (nunca un status pendiente:
+  # exigiria `statuses: write` en las plantillas).
   # Un PR desde un fork no recibe secretos: sale en verde SIN marcador, y el lector del marcador,
   # sin el, queda en su modo legado (qa + architect).
   revisar_pr_juez:
