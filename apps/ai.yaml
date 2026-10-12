@@ -1717,7 +1717,13 @@ spec:
     # 12-10-2026 (DGX-820, C8): 5c0b09e = 92fb200 + el Job de diagnóstico k64-repro-dgx3 (k8s-ai #167, línea pin/sparks-ventana-20261010),
     # mismo path overlays/sparks-ventana-20261010: reproduce el fallo del 64K en dgx3 con 1 GPU unos minutos. No toca nada más de la ventana.
     # ROLLBACK de esto: 92fb20060dcb84ceb624c95b6a1090a48e824f76 con el mismo path (el prune retira el Job).
-    targetRevision: 5c0b09e95c4a7ad77e3923ff71ccdd9ca91abfcf
+    # 12-10-2026 (DGX-820, C5): `ai` SIGUE LA RAMA pin/sparks-ventana-20261010 en vez de un SHA. Decisión de Dani (12-10): mientras dure la
+    # ventana de investigación del 64K, cada PR fusionada en esa rama de k8s-ai se despliega sola; así cada ronda de diagnóstico no pide dos
+    # PR (una en k8s-ai y otra aquí). Es TEMPORAL: al cerrar la ventana `ai` vuelve a un SHA fijo, con su propia PR. Mismo path, y el
+    # contenido que se sirve hoy es el mismo (la rama apunta a 5c0b09e).
+    # ROLLBACK de esto (volver a SHA fijo): 5c0b09e95c4a7ad77e3923ff71ccdd9ca91abfcf (head de la rama al abrir la PR, `git ls-remote`
+    # k8s-ai pin/sparks-ventana-20261010) con el mismo path overlays/sparks-ventana-20261010.
+    targetRevision: pin/sparks-ventana-20261010
     path: overlays/sparks-ventana-20261010
   destination:
     server: https://kubernetes.default.svc
