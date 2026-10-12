@@ -1728,7 +1728,11 @@ spec:
     # por defecto (se atasca copiando los pesos de los expertos) y la carga eager es lo que se quiere medir. TEMPORAL: dura lo que la
     # investigación del 64K; sigue una rama y no un SHA por la decisión de Dani del 12-10 (arriba). Se fusiona SOLO después de k8s-ai #169.
     # ROLLBACK de esto (volver a la ventana sin carga): targetRevision pin/sparks-ventana-20261010 con path overlays/sparks-ventana-20261010.
-    targetRevision: pin/qwen38-tp3-20261010
+    # 12-10-2026 (DGX-820, cierre): fin de las pruebas de 64K y de GLM por decisión de Dani: los Sparks vuelven a lo del 10-10 (kernel
+    # 6.17.0-1032-nvidia 4K, driver 610.57.04) y `ai` vuelve al SHA fijo 01f9b4d de qwen38 TP=3 en 4K, lo mismo que la #594. Fuera la carga
+    # eager (k8s-ai #169) y el KV de 6 GiB (#171), que solo existen en la rama. GLM y MiaAI se han borrado del cluster y de los discos.
+    # ROLLBACK de esto: targetRevision pin/qwen38-tp3-20261010 con el mismo path (qwen38 TP=3 64K eager).
+    targetRevision: 01f9b4da163dcf4626e6d33db0c450fababd7e10
     path: overlays/qwen38-tp3-ventana-20261010
   destination:
     server: https://kubernetes.default.svc
