@@ -665,7 +665,10 @@ ni de los comentarios del propio diff, y busca solo dos tipos de hallazgo:
 - `arquitectura`: el diff incumple una norma del bloque `arquitectura`. Recorre las normas que hablan
   de lo que el diff toca (las que dicen «nunca», «siempre», «solo», «el unico», «no se») y compara cada
   una con lo que el diff escribe, aunque el diff cumpla todos los criterios. Nombra la norma en `summary`;
-  incumplir una norma escrita es de severidad `media` como minimo.
+  incumplir una norma escrita es de severidad `media` como minimo. Hay una que aplica aunque el repo no
+  la escriba, «borrar gana a anadir» (SC-2336): si el diff sustituye un camino (una rama, un `if`, un
+  helper, una config) y deja el viejo en pie, hallazgo `arquitectura` de severidad `media` con `cita` la
+  linea del codigo muerto. No lo es si el diff ya lo borra o el viejo sigue teniendo otro uso.
 Un hallazgo es una observacion para quien lee el comentario y no decide el veredicto, que lo dan solo los
 criterios. Un criterio que no se cumple no es un hallazgo: va en `criterios`. Nada de estilo, formato ni preferencias. Sin nada que
 señalar, `"hallazgos": []`.
