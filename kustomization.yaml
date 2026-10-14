@@ -295,9 +295,6 @@ patches:
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *compute-replicas, name: omnivoice-tts-nvfp4 }
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value: { <<: *compute-replicas, name: vllm-vision-deep }
       # 18-09: stt-turbo entra en la lista. Era el UNICO consumidor de memoria
       # unificada de los Sparks que seguia con /spec/replicas gobernado por git,
       # asi que selfHeal lo devolvia a 1 a los ~10 s de cualquier intento de

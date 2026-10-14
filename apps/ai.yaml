@@ -1732,8 +1732,14 @@ spec:
     # 6.17.0-1032-nvidia 4K, driver 610.57.04) y `ai` vuelve al SHA fijo 01f9b4d de qwen38 TP=3 en 4K, lo mismo que la #594. Fuera la carga
     # eager (k8s-ai #169) y el KV de 6 GiB (#171), que solo existen en la rama. GLM y MiaAI se han borrado del cluster y de los discos.
     # ROLLBACK de esto: targetRevision pin/qwen38-tp3-20261010 con el mismo path (qwen38 TP=3 64K eager).
-    targetRevision: 01f9b4da163dcf4626e6d33db0c450fababd7e10
-    path: overlays/qwen38-tp3-ventana-20261010
+    # 14-10-2026 (DGX-852): `ai` pasa al SHA 8d1c46b (línea pin/qwen38-ursu-2mas1-20261014, k8s-ai #177) con el path
+    # overlays/qwen38-ursu-2mas1-20261014: el residente llm-tp en el fork de vLLM de ursuciprian en «2 + 1» (TP=2 en dgx2+dgx1, que
+    # sirve los Services de siempre, y TP=1 en dgx3 con su Service `qwen38-flash-next-tp1`), con el mod de refusal (dial por
+    # petición y detector de negativas). Trae la retirada de vllm-vision-deep (DGX-877, k8s-ai #174): sale de la lista de
+    # ignoreDifferences de la raíz.
+    # ROLLBACK de esto: targetRevision 01f9b4da163dcf4626e6d33db0c450fababd7e10 con path overlays/qwen38-tp3-ventana-20261010.
+    targetRevision: 8d1c46b549c1881391e9389e4383364ff4e8a43a
+    path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
     namespace: llm
