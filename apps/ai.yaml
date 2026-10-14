@@ -1742,7 +1742,12 @@ spec:
     # estén Ready antes de subir la voz (con stt-turbo arriba el head se queda sin memoria en dgx2 al reservar el KV). No toca
     # head ni worker: esta sync solo baja la voz unos minutos y la vuelve a subir.
     # ROLLBACK de esto: 8d1c46b549c1881391e9389e4383364ff4e8a43a con el mismo path.
-    targetRevision: 4a422b81d931440e0c8d9e38e94c4f63eac2e187
+    # 15-10-2026 (DGX-898): 72417e5 (k8s-ai #179 y #180, misma línea y path): el worker del TP=2 espera a una sesión NUEVA del
+    # head antes de unirse (no se engancha a la vieja si las dos mitades se reinician a la vez) y su livenessProbe lo reinicia
+    # si el head cambia de sesión. La launch-revision sube en head y worker: reinicia el TP=2 entero (~30 min; sirven el TP=1 y
+    # Alibaba, y la voz baja y sube con los hooks de la sync).
+    # ROLLBACK de esto: 4a422b81d931440e0c8d9e38e94c4f63eac2e187 con el mismo path.
+    targetRevision: 72417e52588482ed41a9f76d109adad4196117e9
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
