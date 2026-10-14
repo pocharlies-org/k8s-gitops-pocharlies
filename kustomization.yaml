@@ -242,15 +242,6 @@ patches:
           namespace: llm
           jsonPointers:
             - /spec/replicas
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value:
-          group: apps
-          kind: Deployment
-          name: vllm-vision-deep-dgx2
-          namespace: llm
-          jsonPointers:
-            - /spec/replicas
       # Global compute-mode controller owns ONLY replica counts for this closed
       # profile set. Images, commands, resources and model identities stay GitOps-owned.
       - op: add

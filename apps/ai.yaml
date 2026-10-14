@@ -1738,7 +1738,11 @@ spec:
     # petición y detector de negativas). Trae la retirada de vllm-vision-deep (DGX-877, k8s-ai #174): sale de la lista de
     # ignoreDifferences de la raíz.
     # ROLLBACK de esto: targetRevision 01f9b4da163dcf4626e6d33db0c450fababd7e10 con path overlays/qwen38-tp3-ventana-20261010.
-    targetRevision: 8d1c46b549c1881391e9389e4383364ff4e8a43a
+    # 14-10-2026 (DGX-852): 4a422b8 (k8s-ai #178, misma línea y path): el PostSync levanta el TP=2 y espera a que head y worker
+    # estén Ready antes de subir la voz (con stt-turbo arriba el head se queda sin memoria en dgx2 al reservar el KV). No toca
+    # head ni worker: esta sync solo baja la voz unos minutos y la vuelve a subir.
+    # ROLLBACK de esto: 8d1c46b549c1881391e9389e4383364ff4e8a43a con el mismo path.
+    targetRevision: 4a422b81d931440e0c8d9e38e94c4f63eac2e187
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
