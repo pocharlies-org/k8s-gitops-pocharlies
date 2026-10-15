@@ -68,6 +68,7 @@ resources:
   - apps/teslamate.yaml
   - apps/tomorrowland.yaml
   - apps/company-crm.yaml
+  - apps/correo.yaml
   - apps/cv.yaml
   - apps/blog.yaml
   - apps/web.yaml

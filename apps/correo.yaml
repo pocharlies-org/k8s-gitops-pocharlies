@@ -1,0 +1,52 @@
+# DGX-880 (épica DGX-870) · P9: «correo», el núcleo de tarjetas de correo, instancia de Skirmshop.
+#
+# Multi-source, como apps/langfuse.yaml:
+#   fuente 1 = el chart `correo` de pocharlies-org/correo-chart, publicado por OCI en Harbor por su release.yml (tag v0.1.0).
+#              Sin `oci://`: ArgoCD lo antepone (igual que el chart de ARC en infra/arc.yaml). Sus values son los de la fuente 2.
+#   fuente 2 = pocharlies-org/k8s-correo-pocharlies: aporta `$values` (k8s/values-skirmshop.yaml, FUERA de `path` a propósito:
+#              bajo `path` se aplicaría como un manifiesto) y aplica k8s/platform (ExternalSecrets, HMAC generados y backup del PVC,
+#              en subcarpetas: de ahí `directory.recurse`).
+#
+# Sync MANUAL hasta el primer sync (sin `automated`, como apps/company-crm.yaml): el repo-server no resuelve el chart hasta que
+# ArgoCD tenga la credencial OCI de Harbor (DGX-916), y un sync sin P8 en deploy/prod dejaría el pod sin sus Secrets. Con el primer
+# sync hecho y `kubectl get app correo -n argocd` en Synced/Healthy, otra PR pasa a automated{selfHeal, prune: false} como el resto.
+#
+# El ns `correo` lo crea esta Application con Pod Security `restricted` (S19): el pod del chart ya va endurecido (S14).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: correo
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-correo-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  sources:
+    - repoURL: harbor.lan.e-dani.com/homelab/charts
+      chart: correo
+      targetRevision: 0.1.0
+      helm:
+        releaseName: correo
+        valueFiles:
+          - $values/k8s/values-skirmshop.yaml
+    - repoURL: https://github.com/pocharlies-org/k8s-correo-pocharlies
+      targetRevision: deploy/prod
+      ref: values
+      path: k8s/platform
+      directory:
+        recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: correo
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: restricted
+        pod-security.kubernetes.io/audit: restricted
+        pod-security.kubernetes.io/warn: restricted
