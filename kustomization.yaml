@@ -88,6 +88,7 @@ resources:
   - argocd/repositories.yaml
   - argocd/notifications-externalsecret.yaml
   - argocd/repo-creds-dashboard-ro-externalsecret.yaml
+  - argocd/repo-helm-harbor-homelab-charts-externalsecret.yaml
 patches:
   - target:
       group: argoproj.io
