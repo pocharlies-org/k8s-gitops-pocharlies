@@ -1,7 +1,7 @@
 # DGX-880 (épica DGX-870) · P9: «correo», el núcleo de tarjetas de correo, instancia de Skirmshop.
 #
 # Multi-source, como apps/langfuse.yaml:
-#   fuente 1 = el chart `correo` de pocharlies-org/correo-chart, publicado por OCI en Harbor por su release.yml (tag v0.2.0, con el bloque `web`: DGX-882 P4).
+#   fuente 1 = el chart `correo` de pocharlies-org/correo-chart, publicado por OCI en Harbor por su release.yml (tag v0.3.0, con los bloques `web`, DGX-882 P4, y `telegram`, DGX-884 P11).
 #              Sin `oci://`: ArgoCD lo antepone (igual que el chart de ARC en infra/arc.yaml). Sus values son los de la fuente 2.
 #   fuente 2 = pocharlies-org/k8s-correo-pocharlies: aporta `$values` (k8s/values-skirmshop.yaml, FUERA de `path` a propósito:
 #              bajo `path` se aplicaría como un manifiesto) y aplica k8s/platform (ExternalSecrets, HMAC generados y backup del PVC,
@@ -27,7 +27,7 @@ spec:
   sources:
     - repoURL: harbor.lan.e-dani.com/homelab/charts
       chart: correo
-      targetRevision: 0.2.0
+      targetRevision: 0.3.0
       helm:
         releaseName: correo
         valueFiles:
