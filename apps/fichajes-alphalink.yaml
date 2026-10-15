@@ -1,0 +1,31 @@
+# AlphaLink: detector diario de olvidos de fichaje (SesameTime vs planning de
+# Dom). SC-2465. Codigo e imagen no: CronJob python:3.12-slim con el codigo
+# en ConfigMap generado por kustomize desde src/ del repo del producto.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: fichajes-alphalink
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/fichajes-alphalink
+  labels:
+    e-dani.com/tier: app
+    app.kubernetes.io/part-of: fichajes-alphalink
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/fichajes-alphalink
+    targetRevision: main
+    path: .
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: alphalink
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
