@@ -59,6 +59,12 @@ defaultSettings:
   replicaAutoBalance: best-effort
   replicaSoftAntiAffinity: true
   replicaZoneSoftAntiAffinity: true
+  # INFRA-787 (goteo de disco en ubuntu, 07-10): el techo de snapshots por volumen
+  # estaba en el default (100). Con trabajos de escritura pesada (postgres-shared-3)
+  # cada snapshot retenido engorda por CoW con cada escritura: 100 retenidos es un
+  # goteo garantizado. 14 = dos semanas de diario, alineado con el retain del job
+  # daily-backup. Los jobs que piden su propio `retain` siguen mandando hasta este tope.
+  recurringJobMaxRetention: 14
   storageMinimalAvailablePercentage: 15
   storageOverProvisioningPercentage: 112
   systemManagedComponentsNodeSelector: storage-longhorn:true
