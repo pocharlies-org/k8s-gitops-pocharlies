@@ -49,13 +49,21 @@ La Application renderizada lleva, por el parche del raíz, los ignoreDifferences
 
 ## 5. Los campos existen en el CRD vivo de ArgoCD v3.4.2
 
-El CRD poda en silencio un campo que no conoce, y `managedNamespaceMetadata` mal escrito dejaría el ns sin sus etiquetas. Comando: un script que recorre `metadata` y `spec` de la Application contra `applications.argoproj.io` (`kubectl get crd`). Resultado: PASS.
+El CRD poda en silencio un campo que no conoce, y `managedNamespaceMetadata` mal escrito dejaría el ns sin sus etiquetas. Comando: un script (no va en el repo, necesita el clúster) que recorre `metadata` y `spec` de la Application contra `applications.argoproj.io` (`kubectl get crd`). Resultado: PASS.
 
 ```
 PASS                       <- apps/correo.yaml
 FAIL                       <- la misma Application con `managedNamespaceMetadataX` y `recurses`
   spec.sources[1].directory.recurses: campo desconocido (el CRD lo podaría)
   spec.syncPolicy.managedNamespaceMetadataX: campo desconocido (el CRD lo podaría)
+```
+
+Para repetirlo a mano, los tres campos que importan:
+
+```
+kubectl explain application.spec.syncPolicy.managedNamespaceMetadata --api-version=argoproj.io/v1alpha1   # "metadata in the given namespace (if CreateNamespace=true)"
+kubectl explain application.spec.sources.directory.recurse --api-version=argoproj.io/v1alpha1             # <boolean>
+kubectl explain application.spec.sources.ref --api-version=argoproj.io/v1alpha1                           # <string>
 ```
 
 ## 6. Duplicados
