@@ -1755,7 +1755,11 @@ spec:
     # rango; con 4,2 M el head arrancaba en ~12 min por falta de memoria libre en dgx2). Reinicia head y worker; el TP=1 de dgx3
     # no se toca. La voz baja y sube con los hooks.
     # ROLLBACK de esto: d8399156fb51152214e074f6fe130a0dcc654f03 con el mismo path.
-    targetRevision: fc564d73fca5748fd17b0ad663d05e51006f3d27
+    # 15-10-2026 (DGX-940): 48f499c (k8s-ai #184, misma línea y path): KV fija del TP=2 a ~3,45 M tokens (28,5e9 bytes por
+    # rango; con 3,7 M el head caía por OOM global de dgx2 cada ~50 min con carga). Reinicia head y worker; el TP=1 de dgx3
+    # no se toca. La voz baja y sube con los hooks.
+    # ROLLBACK de esto: fc564d73fca5748fd17b0ad663d05e51006f3d27 con el mismo path.
+    targetRevision: 48f499c637777189d54b4cf3b7e8d1b7df988f3a
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
