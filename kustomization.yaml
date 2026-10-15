@@ -38,6 +38,7 @@ resources:
   - apps/ai-lab.yaml
   - apps/bge.yaml
   - apps/voice.yaml
+  - apps/fichajes-alphalink.yaml
   - apps/firecrawl.yaml
   - apps/hermes.yaml
   - apps/jarvis.yaml
