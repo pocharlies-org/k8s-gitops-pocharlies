@@ -8,6 +8,7 @@ resources:
   - infra/backup-hub.yaml
   - apps/adguard.yaml
   - apps/ai.yaml
+  - apps/fichajes-alphalink.yaml
   - apps/firecrawl.yaml
   - apps/jarvis.yaml
   - apps/libreplay.yaml
