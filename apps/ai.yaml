@@ -1751,7 +1751,11 @@ spec:
     # antes GMU 0.75 = 3,12 M) y TP=1 a 20 GiB (antes 14). Reinicia head, worker y TP=1 a la vez (~5 min sin LLM local: el
     # fallback de LiteLLM manda a Alibaba); la voz baja y sube con los hooks.
     # ROLLBACK de esto: 72417e52588482ed41a9f76d109adad4196117e9 con el mismo path.
-    targetRevision: d8399156fb51152214e074f6fe130a0dcc654f03
+    # 15-10-2026 (DGX-915): fc564d7 (k8s-ai #183, misma línea y path): KV fija del TP=2 a 3,7 M tokens (30,535e9 bytes por
+    # rango; con 4,2 M el head arrancaba en ~12 min por falta de memoria libre en dgx2). Reinicia head y worker; el TP=1 de dgx3
+    # no se toca. La voz baja y sube con los hooks.
+    # ROLLBACK de esto: d8399156fb51152214e074f6fe130a0dcc654f03 con el mismo path.
+    targetRevision: fc564d73fca5748fd17b0ad663d05e51006f3d27
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
