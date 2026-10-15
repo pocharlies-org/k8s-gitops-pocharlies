@@ -48,6 +48,8 @@ pocharlies-org/cofounderlab	activo	default	main	secretos
 pocharlies-org/company-config-pocharlies	activo	default	main	secretos
 pocharlies-org/company-crm	activo	default	main	secretos
 pocharlies-org/company-vscode	activo	default	main	secretos
+pocharlies-org/correo-chart	activo	default	main	secretos
+pocharlies-org/correo-core	activo	default	main	secretos
 pocharlies-org/cursor-agents	activo	default	main	secretos
 pocharlies-org/deepseek-v4-flash-rank1-refusal-projection	activo	default	main	secretos
 pocharlies-org/desktop-mcp	activo	default	main	secretos
@@ -71,6 +73,7 @@ pocharlies-org/k8s-auto-reply-worker-pocharlies	activo	default	main	secretos
 pocharlies-org/k8s-blog-pocharlies	activo	default	main	secretos
 pocharlies-org/k8s-brain-mcp-pocharlies	activo	default	main	secretos
 pocharlies-org/k8s-company-crm-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-correo-pocharlies	activo	default	main	secretos
 pocharlies-org/k8s-cv-pocharlies	activo	default	main	secretos
 pocharlies-org/k8s-dgx-synapse-mcp-pocharlies	activo	default	main	secretos
 pocharlies-org/k8s-document-intake-pocharlies	activo	default	main	secretos

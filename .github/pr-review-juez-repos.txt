@@ -16,6 +16,8 @@
 #
 # Todo repo de esta lista debe quedar en `juez` (nunca `engine: propio`): por eso su cobertura en
 # pr-review-llamadores.txt solo puede ser `secretos` o `pr-agent`/`archivado` con la nota que lo explique.
+pocharlies-org/correo-chart	llama	DGX	
+pocharlies-org/correo-core	llama	DGX	
 pocharlies-org/deepseek-v4-flash-rank1-refusal-projection	llama	DGX	
 pocharlies-org/dgx-infra	llama	DGX,OWU	
 pocharlies-org/k8s-adguard-pocharlies	llama	INFRA	
@@ -23,6 +25,7 @@ pocharlies-org/k8s-agentgateway-pocharlies	llama	OWU,SC
 pocharlies-org/k8s-ai-pocharlies	llama	DGX	
 pocharlies-org/k8s-auto-reply-worker-pocharlies	llama	SKIRM	
 pocharlies-org/k8s-brain-mcp-pocharlies	llama	SC	
+pocharlies-org/k8s-correo-pocharlies	llama	DGX	
 pocharlies-org/k8s-cv-pocharlies	llama	INFRA	
 pocharlies-org/k8s-dgx-synapse-mcp-pocharlies	llama	DGX	
 pocharlies-org/k8s-document-intake-pocharlies	llama	SKIRM	
