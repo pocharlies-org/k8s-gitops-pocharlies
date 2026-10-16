@@ -77,6 +77,7 @@ resources:
   - apps/blog.yaml
   - apps/web.yaml
   - apps/videovigilancia.yaml
+  - apps/inmobiliarias-proposal.yaml
   - apps/frigate.yaml
   - apps/agentjake-browser-mcp.yaml
   - apps/stt-mcp.yaml
