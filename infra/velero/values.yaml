@@ -87,9 +87,12 @@ nodeAgent:
 nodeSelector:
   node-pool: ks5-nvme
 resources:
+  # INFRA-851: the server was OOMKilled (512Mi) while processing a Restore and
+  # marked it Failed on restart. Restores need headroom to hold the item
+  # collection; 2Gi limit, 512Mi request.
   limits:
-    memory: 512Mi
+    memory: 2Gi
   requests:
     cpu: 100m
-    memory: 256Mi
+    memory: 512Mi
 snapshotsEnabled: true
