@@ -1767,7 +1767,10 @@ spec:
     # (~3,57 M tokens; Dani pide subirla y dgx2 tenía 7,8 GB libres con carga). Reinicia head y worker; el TP=1 no se toca.
     # La voz baja y sube con los hooks. Si vuelve el OOM del head de DGX-940, este ROLLBACK.
     # ROLLBACK de esto: 0cdea006c8d021f9af837c1c04b2b837055b31ae con el mismo path.
-    targetRevision: 0b2abc019f45c9dd55f2bb7612df30e38d54052c
+    # 16-10-2026 (DGX-951): cc53b0a (k8s-ai #188): cada chunk de uso continuo del vLLM lleva cached_tokens
+    # (el panel dice cuánto de la entrada entró en caché). Reinicia solo el TP=1 de dgx3; el TP=2 sigue sirviendo.
+    # ROLLBACK de esto: 0b2abc019f45c9dd55f2bb7612df30e38d54052c con el mismo path.
+    targetRevision: cc53b0a7cd4f025950913f4a3908e07dd855d0e2
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
