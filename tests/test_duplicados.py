@@ -162,6 +162,18 @@ class DuplicadosTest(unittest.TestCase):
         self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
         self.assertIn("también nuevo", r.stdout)
 
+    def test_diff_que_no_es_utf8_no_rompe_el_detector(self) -> None:
+        base = self.commit({"origen.py": BLOQUE}, "base: original")
+        # Latin-1 sin NUL: git lo diffea como texto y su salida no es UTF-8.
+        (self.repo / "docs").mkdir()
+        (self.repo / "docs" / "borrador.pdf").write_bytes(b"%PDF-1.4\nDeclaraci\xf3n \xf6\n")
+        head = self.commit({"copia/nuevo.py": BLOQUE}, "head: fichero latin-1 y copia")
+        r = self.run_script(base, head)
+        self.assertNotIn("Traceback", r.stderr)
+        # La copia de la misma PR se sigue viendo.
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn("`copia/nuevo.py:1-13`", r.stdout)
+
     def test_sin_lineas_anadidas_pasa_sin_escanear(self) -> None:
         base = self.commit({"a.py": BLOQUE}, "base")
         # Borrar no anade lineas: no puede introducir copia.

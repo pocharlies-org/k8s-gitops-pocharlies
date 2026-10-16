@@ -79,7 +79,8 @@ def fracaso(mensaje: str) -> "None":
 
 
 def git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess:
-    r = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True)
+    # errors="replace": un fichero que git diffea como texto sin ser UTF-8 (un PDF sin NUL) no tumba el check.
+    r = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, errors="replace")
     if check and r.returncode != 0:
         fracaso(f"git {' '.join(args)}: {r.stderr.strip()[:400]}")
     return r
