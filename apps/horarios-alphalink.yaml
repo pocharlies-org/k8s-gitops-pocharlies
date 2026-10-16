@@ -1,0 +1,31 @@
+# AlphaLink: web donde Dom crea y edita los horarios de la semana (sustituye al
+# Numbers). SC-2495. El manifiesto vive en el repo del producto (patrón
+# fichajes-alphalink); el SSO y la ruta pública están en k8s-infra.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: horarios-alphalink
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/horarios-alphalink
+  labels:
+    e-dani.com/tier: app
+    app.kubernetes.io/part-of: horarios-alphalink
+  finalizers:
+    - resources-finalizer.argocd.argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/horarios-alphalink
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: alphalink
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
