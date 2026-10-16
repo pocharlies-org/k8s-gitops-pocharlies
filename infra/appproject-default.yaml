@@ -1,0 +1,63 @@
+# AppProject `default` bajo GitOps (DGX-825). Antes no estaba en ningún repo:
+# era el `default` que crea ArgoCD, con sourceRepos ["*"] y destinations */*.
+#
+# Por qué importa: la SA del panel (control-nexus/dgx-dashboard) puede `patch`
+# Applications en ns argocd (k8s/control-nexus/dashboard-argocd-rbac.yaml de
+# dgx-infra). Con sourceRepos abierto, un fallo de código del panel (o una RCE
+# en su pod) bastaba para apuntar una Application a un repo arbitrario y que
+# ArgoCD desplegara lo que hubiera allí con sus permisos: cluster-admin de facto.
+# RBAC no puede acotar campos de un recurso, así que la pieza que acota el
+# alcance es este proyecto: una Application del proyecto `default` solo puede
+# leer de la lista de abajo.
+#
+# La lista es lo que está en uso medido el 16-10 (`kubectl get applications -n
+# argocd`, 53 repos de pocharlies-org + 26 externos). Un repo nuevo (p. ej. un
+# chart externo nuevo) exige añadir su URL aquí ANTES de crear la Application;
+# si no, ArgoCD la marca `failed to load source: repository not allowed`. Es la
+# fricción buscada: la entrada de un repo es un commit revisado, no un patch.
+#
+# destinations y clusterResourceWhitelist se quedan abiertos: lo que se despliega
+# sale de repos ya de confianza (org propia + charts oficiales enumerados); el
+# vector que se cierra es el repo arbitrario.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: default
+  namespace: argocd
+spec:
+  description: Proyecto único del clúster (app-of-apps root). sourceRepos cerrado por DGX-825.
+  sourceRepos:
+    - https://github.com/pocharlies-org/*
+    # Charts externos en uso (medido 16-10; el orden no importa, pero agrupa por proveedor).
+    - ghcr.io/actions/actions-runner-controller-charts
+    - ghcr.io/emberstack/helm-charts
+    - harbor.lan.e-dani.com/homelab/charts
+    - https://argoproj.github.io/argo-helm
+    - https://charts.external-secrets.io
+    - https://charts.jetstack.io
+    - https://charts.k8sgpt.ai/
+    - https://charts.longhorn.io
+    - https://cloudnative-pg.github.io/charts
+    - https://github.com/Arvo-AI/aurora
+    - https://grafana.github.io/helm-charts
+    - https://helm.goharbor.io
+    - https://helm.ngc.nvidia.com/nvidia
+    - https://kedacore.github.io/charts
+    - https://keephq.github.io/helm-charts
+    - https://kubernetes-sigs.github.io/descheduler
+    - https://kubernetes-sigs.github.io/external-dns
+    - https://kubernetes-sigs.github.io/nfs-subdir-external-provisioner
+    - https://kyverno.github.io/kyverno
+    - https://langfuse.github.io/langfuse-k8s
+    - https://metallb.github.io/metallb
+    - https://prometheus-community.github.io/helm-charts
+    - https://raw.githubusercontent.com/Arvo-AI/aurora/gh-pages
+    - https://traefik.github.io/charts
+    - https://victoriametrics.github.io/helm-charts
+    - https://vmware-tanzu.github.io/helm-charts
+  destinations:
+    - namespace: "*"
+      server: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
