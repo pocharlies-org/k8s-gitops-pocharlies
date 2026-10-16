@@ -1770,7 +1770,10 @@ spec:
     # 16-10-2026 (DGX-951): cc53b0a (k8s-ai #188): cada chunk de uso continuo del vLLM lleva cached_tokens
     # (el panel dice cuánto de la entrada entró en caché). Reinicia solo el TP=1 de dgx3; el TP=2 sigue sirviendo.
     # ROLLBACK de esto: 0b2abc019f45c9dd55f2bb7612df30e38d54052c con el mismo path.
-    targetRevision: cc53b0a7cd4f025950913f4a3908e07dd855d0e2
+    # 16-10-2026 (DGX-951): 803b8a3 (k8s-ai #189): el TP=2 arranca con el parche del uso con caché de #188.
+    # Reinicia head y worker; el TP=1 (ya parcheado) sirve mientras. La voz baja y sube con los hooks.
+    # ROLLBACK de esto: cc53b0a7cd4f025950913f4a3908e07dd855d0e2 con el mismo path.
+    targetRevision: 803b8a3979d62e9dcd04f13e0a1ea462d02d6db2
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
