@@ -1763,7 +1763,11 @@ spec:
     # vLLM (la KV se reservaba en 20-40 min con la memoria fragmentada; compactada, 2-4 min). Solo cambia el ConfigMap
     # de la receta: no reinicia nada, vale desde el siguiente arranque. La voz baja y sube con los hooks.
     # ROLLBACK de esto: 48f499c637777189d54b4cf3b7e8d1b7df988f3a con el mismo path.
-    targetRevision: 0cdea006c8d021f9af837c1c04b2b837055b31ae
+    # 16-10-2026 (DGX-948): 0b2abc0 (k8s-ai #187, misma línea y path): KV fija del TP=2 1 GB más alta, 29,5e9 bytes por rango
+    # (~3,57 M tokens; Dani pide subirla y dgx2 tenía 7,8 GB libres con carga). Reinicia head y worker; el TP=1 no se toca.
+    # La voz baja y sube con los hooks. Si vuelve el OOM del head de DGX-940, este ROLLBACK.
+    # ROLLBACK de esto: 0cdea006c8d021f9af837c1c04b2b837055b31ae con el mismo path.
+    targetRevision: 0b2abc019f45c9dd55f2bb7612df30e38d54052c
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
