@@ -38,3 +38,6 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      # Sin esto ignoreDifferences solo oculta el diff: un sync por otro motivo reaplicaría replicas: 1
+      # y pisaría el park a mitad del entreno (igual que ai y comfyui).
+      - RespectIgnoreDifferences=true
