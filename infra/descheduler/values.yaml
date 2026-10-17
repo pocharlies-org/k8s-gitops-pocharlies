@@ -9,9 +9,8 @@
 # preferencia.
 #
 # Opt-in por etiqueta: SOLO toca pods con `e-dani.com/vuelve-a-x86: "true"`.
-# Nada mas del cluster se reequilibra (sin LowNodeUtilization, sin
-# RemoveDuplicates, sin topologia): quien quiera volver al x86 se pone la
-# etiqueta.
+# Desde INFRA-934 hay un segundo perfil, `cps-a-sauvage`, que sí reequilibra
+# carga de trabajo desde los cps hacia sauvage (ver abajo).
 #
 # - nodeFit: true -> solo desaloja si el pod cabe en otro nodo (taints,
 #   afinidad, requests). Con el x86 NotReady lleva el taint
@@ -53,3 +52,51 @@ deschedulerPolicy:
         deschedule:
           enabled:
             - RemovePodsViolatingNodeAffinity
+
+    # INFRA-934 (18-10): los cps llevan 106-113 pods de workload con requests
+    # al 90-94 % de 8 CPU mientras sauvage tiene ~38 núcleos libres. Sin taints
+    # (decisión de Dani): LowNodeUtilization expulsa de los cps (node-pool
+    # ks5-nvme) hacia cualquier nodo por debajo del umbral hasta dejarlos bajo
+    # el 60 % de requests — auto-limitante, deja de expulsar solo. nodeFit
+    # impide mover lo que no cabe en otro sitio; el DefaultEvictor respeta PDB
+    # y no toca pods con almacenamiento local. Máximo 5 pods por nodo y pasada
+    # (cada 2 min): migración suave, sin reiniciar el namespace de golpe.
+    - name: cps-a-sauvage
+      pluginConfig:
+        - name: DefaultEvictor
+          args:
+            nodeFit: true
+            maxNoOfPodsToEvictPerNode: 5
+        - name: LowNodeUtilization
+          args:
+            nodeSelector:
+              matchLabels:
+                node-pool: ks5-nvme
+            thresholds:
+              cpu: "60"
+              memory: "60"
+            thresholdPriority: Requests
+            namespaces:
+              exclude:
+                - kube-system
+                - longhorn-system
+                - argocd
+                - cert-manager
+                - external-secrets-operator
+                - metallb-system
+                - keda
+                - kyverno
+                - velero
+                - cnpg-system
+                - databases
+                - keycloak
+                - harbor
+                - arc-runners
+                - arc-systems
+                - onepassword-connect
+                - minio
+                - backup-hub
+      plugins:
+        deschedule:
+          enabled:
+            - LowNodeUtilization
