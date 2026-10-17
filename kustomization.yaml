@@ -42,6 +42,7 @@ resources:
   - apps/bge.yaml
   - apps/voice.yaml
   - apps/fichajes-alphalink.yaml
+  - apps/hindsight.yaml
   - apps/horarios-alphalink.yaml
   - apps/wordpress-alphalink.yaml
   - apps/firecrawl.yaml

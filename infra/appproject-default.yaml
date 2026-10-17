@@ -31,6 +31,7 @@ spec:
     # Charts externos en uso (medido 16-10; el orden no importa, pero agrupa por proveedor).
     - ghcr.io/actions/actions-runner-controller-charts
     - ghcr.io/emberstack/helm-charts
+    - ghcr.io/vectorize-io/charts   # Hindsight, INFRA-940
     - harbor.lan.e-dani.com/homelab/charts
     - https://argoproj.github.io/argo-helm
     - https://charts.external-secrets.io
