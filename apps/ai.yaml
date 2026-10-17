@@ -1777,7 +1777,9 @@ spec:
     # dio NV_ERR_NO_MEMORY en dgx1 al capturar los graphs de prefill y la imagen vieja ya tumbó el head en dgx2 (19:14).
     # Reinicia head y worker; la voz baja y sube con los hooks.
     # ROLLBACK de esto: 9a68a70bba2f1086a2772c8facdbd5a2db202b54 con el mismo path.
-    targetRevision: 989407ac722dbf59f1b4a2661e0177fb0c775f20
+    # 17-10-2026 (k8s-ai #195, 419ced8): dgx3 (TP=1) con caché de imágenes a 1 GiB (shm) y KV a 21,5 GiB.
+    # ROLLBACK de esto: 989407ac722dbf59f1b4a2661e0177fb0c775f20 con el mismo path.
+    targetRevision: 419ced846061795b4edb0631cd50198dccfeda98
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
