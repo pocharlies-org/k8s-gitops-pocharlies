@@ -68,6 +68,23 @@ class _Redirect(_Handler):
         self.wfile.write(b"ZIPBYTES")
 
 
+class _RedirectTo(_Handler):
+    """GET a /zip responde 302 a /blob, y /blob contesta `srv.blob_code` (SC-2569: el
+    destino de la redirección puede fallar y ese fallo debe clasificarse igual)."""
+
+    def do_GET(self):
+        if self.path.endswith("/zip"):
+            self.server.calls.append(("GET", self.path, self.headers.get("Authorization"), b""))
+            self.send_response(302)
+            self.send_header("Location", f"http://127.0.0.1:{self.server.server_port}/blob")
+            self.end_headers()
+            return
+        self.server.calls.append(("GET", self.path, self.headers.get("Authorization"), b""))
+        self.send_response(self.server.blob_code)
+        self.end_headers()
+        self.wfile.write(b"{}")
+
+
 class ReviewHttp(unittest.TestCase):
     def server(self, handler=_Handler, code=200):
         srv = http.server.HTTPServer(("127.0.0.1", 0), handler)
@@ -143,6 +160,30 @@ class ReviewHttp(unittest.TestCase):
         assert data == b"ZIPBYTES"
         assert srv.calls[0][:2] == ("GET", "/zip")
         assert srv.calls[1][2] is None  # /blob no ve el Authorization de GitHub
+
+    def test_raw_redirect_target_404_respects_ok404(self):
+        # SC-2569: contents/<ruta>?ref=<sha> contesta 302 y el destino da 404. Con ok404
+        # debe salir None (no_existe), sin él Degraded con el código del destino.
+        srv, url = self.server(_RedirectTo)
+        srv.blob_code = 404
+        assert rh.request(f"{url}/zip", {}, raw=True, ok404=True, source="GitHub") is None
+        with self.assertRaises(rh.Degraded) as cm:
+            rh.request(f"{url}/zip", {}, raw=True, source="GitHub")
+        assert cm.exception.code == 404
+
+    def test_raw_redirect_target_403_is_auth_error(self):
+        srv, url = self.server(_RedirectTo)
+        srv.blob_code = 403
+        with self.assertRaises(rh.AuthError) as cm:
+            rh.request(f"{url}/zip", {}, raw=True, source="GitHub")
+        assert cm.exception.code == 403
+
+    def test_raw_redirect_target_500_is_degraded(self):
+        srv, url = self.server(_RedirectTo)
+        srv.blob_code = 500
+        with self.assertRaises(rh.Degraded) as cm:
+            rh.request(f"{url}/zip", {}, raw=True, source="GitHub")
+        assert cm.exception.code == 500
 
     def test_github_headers_shape(self):
         h = rh.github_headers("t")

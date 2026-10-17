@@ -16,6 +16,9 @@ Semántica fija (la misma que regía en cada script):
                          autorización: el zip de un artefacto vive en blob
                          storage externo y el token de GitHub no debe salir de
                          la casa. Sin raw, urlopen sigue los redirects solo.
+                         El fallo del DESTINO de ese redirect se clasifica con
+                         las mismas reglas de arriba (SC-2569: un 404 del blob
+                         con ok404 es None, no un traceback que tumba al juez).
 
 Los tokens entran por parámetro y nunca se imprimen. Sin dependencias.
 """
@@ -81,9 +84,22 @@ def request(url: str, headers: dict[str, str], *, method: str | None = None,
             return json.loads(data)
     except urllib.error.HTTPError as exc:
         if exc.code in (301, 302, 303, 307) and raw:
-            # el zip del artefacto vive en blob storage: se sigue SIN el token
-            with urllib.request.urlopen(exc.headers["Location"], timeout=timeout) as resp:  # noqa: S310
-                return resp.read()
+            # el zip del artefacto vive en blob storage: se sigue SIN el token.
+            # El destino puede fallar (SC-2569: un contents/...?ref= redirige a un
+            # blob que ya no está y da 404): dentro del except, un HTTPError sube
+            # sin clasificar y tumba al llamante, así que se clasifica aquí con
+            # las mismas reglas que la respuesta directa.
+            try:
+                with urllib.request.urlopen(exc.headers["Location"], timeout=timeout) as resp:  # noqa: S310
+                    return resp.read()
+            except urllib.error.HTTPError as red:
+                if red.code in (401, 403):
+                    raise AuthError(source, red.code) from None
+                if red.code == 404 and ok404:
+                    return None
+                raise Degraded(f"{source}: HTTP {red.code} tras redirect", red.code) from None
+            except (urllib.error.URLError, TimeoutError, OSError) as red:
+                raise Degraded(f"{source}: {type(red).__name__} tras redirect") from None
         if exc.code in (401, 403):
             raise AuthError(source, exc.code) from None
         if exc.code == 404 and ok404:
