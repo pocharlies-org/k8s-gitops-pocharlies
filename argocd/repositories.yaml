@@ -412,3 +412,18 @@ stringData:
   name: emberstack
   url: ghcr.io/emberstack/helm-charts
   enableOCI: "true"
+---
+# INFRA-940: chart OCI público de Hindsight (apps/hindsight.yaml).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repo-helm-vectorize-io
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+type: Opaque
+stringData:
+  type: helm
+  name: vectorize-io
+  url: ghcr.io/vectorize-io/charts
+  enableOCI: "true"
