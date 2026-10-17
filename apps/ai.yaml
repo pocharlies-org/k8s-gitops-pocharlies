@@ -1779,7 +1779,11 @@ spec:
     # ROLLBACK de esto: 9a68a70bba2f1086a2772c8facdbd5a2db202b54 con el mismo path.
     # 17-10-2026 (k8s-ai #195, 419ced8): dgx3 (TP=1) con caché de imágenes a 1 GiB (shm) y KV a 21,5 GiB.
     # ROLLBACK de esto: 989407ac722dbf59f1b4a2661e0177fb0c775f20 con el mismo path.
-    targetRevision: 419ced846061795b4edb0631cd50198dccfeda98
+    # 18-10-2026 (DGX-955, Dani): ROLLBACK de todo DGX-955 a 803b8a3 (imagen ursu anterior en TP=2 y dgx3, caché de imágenes
+    # por defecto, KV TP=2 29,5e9 y dgx3 20 GiB). La imagen views no mejoró en producción y la caché shm tumbaba el motor.
+    # Ojo: con 29,5e9 el head de dgx2 se quedó sin memoria a las ~40 h (17-10 19:14) al llenarse la caché de imágenes.
+    # ROLLBACK de esto: 419ced846061795b4edb0631cd50198dccfeda98 con el mismo path.
+    targetRevision: 803b8a3979d62e9dcd04f13e0a1ea462d02d6db2
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
