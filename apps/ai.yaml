@@ -1773,7 +1773,7 @@ spec:
     # 16-10-2026 (DGX-951): 803b8a3 (k8s-ai #189): el TP=2 arranca con el parche del uso con caché de #188.
     # Reinicia head y worker; el TP=1 (ya parcheado) sirve mientras. La voz baja y sube con los hooks.
     # ROLLBACK de esto: cc53b0a7cd4f025950913f4a3908e07dd855d0e2 con el mismo path.
-    targetRevision: 803b8a3979d62e9dcd04f13e0a1ea462d02d6db2
+    targetRevision: 0170fac55615815c280d5edfebee5a7f5b2afde4
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
