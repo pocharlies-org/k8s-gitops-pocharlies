@@ -1773,7 +1773,11 @@ spec:
     # 16-10-2026 (DGX-951): 803b8a3 (k8s-ai #189): el TP=2 arranca con el parche del uso con caché de #188.
     # Reinicia head y worker; el TP=1 (ya parcheado) sirve mientras. La voz baja y sube con los hooks.
     # ROLLBACK de esto: cc53b0a7cd4f025950913f4a3908e07dd855d0e2 con el mismo path.
-    targetRevision: 9a68a70bba2f1086a2772c8facdbd5a2db202b54
+    # 17-10-2026 (DGX-955d): 989407a (k8s-ai #193): KV fija del TP=2 a 20 GiB por rango. Con 29,5e9 el par v2.2.0 views
+    # dio NV_ERR_NO_MEMORY en dgx1 al capturar los graphs de prefill y la imagen vieja ya tumbó el head en dgx2 (19:14).
+    # Reinicia head y worker; la voz baja y sube con los hooks.
+    # ROLLBACK de esto: 9a68a70bba2f1086a2772c8facdbd5a2db202b54 con el mismo path.
+    targetRevision: 989407ac722dbf59f1b4a2661e0177fb0c775f20
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
