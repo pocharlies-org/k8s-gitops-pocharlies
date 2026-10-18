@@ -1785,7 +1785,7 @@ spec:
     # ROLLBACK de esto: 419ced846061795b4edb0631cd50198dccfeda98 con el mismo path.
     # 17-10-2026 (k8s-ai #196, ae1c975): dgx3 (TP=1) con caché de imágenes a 1 GiB (lru) y KV a 18 GiB.
     # ROLLBACK de esto: 803b8a3979d62e9dcd04f13e0a1ea462d02d6db2 con el mismo path.
-    targetRevision: de7167aadcfab052083d52e053e113a6b37f3e9d
+    targetRevision: c10512abd4b7a886bb7de8b147241b2f5a5ce008
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
