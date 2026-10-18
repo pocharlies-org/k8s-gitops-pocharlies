@@ -179,7 +179,9 @@ for label, mutated_release, mutated_manifest in [
 # por registry (`<image>:buildcache`, la escribe solo el release) y la extraccion de la
 # instalacion verificada de Buildx a `.github/actions/setup-buildx` (digest pinneado en
 # check-release-supply-chain.py). El enlace digest de imagen -> manifest no cambia.
-expected_release_sha256 = "a481d7c848d384e17c10f43b770d047be8a3103e51dec162c6c2e0ab2372325c"
+# SC-2749 bis: la referencia a la accion pasa a ruta absoluta @main (el './' dentro de
+# un reusable apunta al repo que llama).
+expected_release_sha256 = "368511c955da8b35748bcd4a6baad9e0d682b892e70a48438a2ecd08737222b8"
 expected_manifest_sha256 = "daafcd9d938a6accdcb14de3659dfd9dd983f0a6b8505d5764076565cdfbe405"
 release_sha256 = hashlib.sha256(release.encode()).hexdigest()
 manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()

@@ -145,7 +145,10 @@ jobs:
 
       # SC-2749: la instalación verificada de Buildx vive en una acción local
       # compartida con reusable-ci (antes estaba copiada en los dos sitios).
-      - uses: ./.github/actions/setup-buildx
+      # Ruta ABSOLUTA con @main, no `./`: dentro de un reusable, `./` se resuelve
+      # contra el repo que LLAMA (medido 18-10-2026 en k8s-teslamate-mcp#9: el job
+      # murió con "Can't find action.yml under .../k8s-teslamate-mcp.../setup-buildx").
+      - uses: pocharlies-org/k8s-gitops-pocharlies/.github/actions/setup-buildx@main
         with:
           builder_prefix: rho-release
 
