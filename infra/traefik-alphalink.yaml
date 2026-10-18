@@ -1,0 +1,39 @@
+# traefik-alphalink (SC-2659): la entrada pública por la IP del droplet de
+# AlphaLink (nodo `alphalink`). Chart upstream + values de k8s-infra
+# (networking/traefik-alphalink/), mismo patrón multi-source que traefik-edge.
+# Cada app elige su entrada con `ingressClassName` (traefik-alphalink / traefik-edge).
+#
+# MANUAL-SYNC A PROPÓSITO, como traefik-edge: es un ingress público. Además el
+# primer sync es el corte del WordPress: el DaemonSet usa hostNetwork en 80/443
+# y no arranca hasta que el nginx del docker del droplet suelta esos puertos.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: traefik-alphalink
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-infra-pocharlies
+  labels:
+    e-dani.com/tier: infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  sources:
+    - repoURL: https://traefik.github.io/charts
+      chart: traefik
+      targetRevision: 40.2.0
+      helm:
+        releaseName: traefik-alphalink
+        valueFiles:
+          - $values/networking/traefik-alphalink/values.yaml
+    - repoURL: https://github.com/pocharlies-org/k8s-infra-pocharlies
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: traefik-alphalink
+  syncPolicy:
+    # Sin 'automated': sync manual.
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
