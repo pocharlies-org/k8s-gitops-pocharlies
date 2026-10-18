@@ -470,10 +470,17 @@ jobs:
           username: ${{ secrets.HARBOR_USER }}
           password: ${{ secrets.HARBOR_PASSWORD }}
 
+      # SC-2749: buildx con caché de registry (la escribe solo el release; aquí
+      # se importa, y un ref inexistente es un aviso, no un fallo).
+      - uses: ./.github/actions/setup-buildx
+        with:
+          builder_prefix: rho-ci
+
       - name: Build images without pushing
         env:
           IMAGES: ${{ inputs.images }}
           DOCKER_BUILD_TIMEOUT: ${{ inputs.docker_build_timeout }}
+          REGISTRY: ${{ inputs.registry }}
         run: |
           set -euo pipefail
           if ! echo "$DOCKER_BUILD_TIMEOUT" | grep -Eq '^[1-9][0-9]*[smh]$'; then
@@ -509,12 +516,17 @@ jobs:
 
           while IFS=$'\t' read -r name context dockerfile; do
             [ -n "$name" ] || continue
-            timeout "$DOCKER_BUILD_TIMEOUT" docker build \
+            timeout "$DOCKER_BUILD_TIMEOUT" docker buildx build \
               --progress=plain \
               --file "$dockerfile" \
+              --cache-from "type=registry,ref=${REGISTRY}/homelab/${name}:buildcache" \
               --tag "ci-local/${name}:${GITHUB_SHA}" \
               "$context"
           done < "$RUNNER_TEMP/images.tsv"
+
+      - name: Remove ephemeral Buildx builder
+        if: ${{ always() }}
+        run: docker buildx rm "$BUILDX_BUILDER" || true
 
   contracts:
     name: Contract surface
