@@ -163,7 +163,12 @@ require("refs/(heads|tags)" not in workflow, "mutable certificate reference acce
 # la MISMA verificacion Sigstore de identidad exacta y revision del llamante
 # que un build nuevo antes de promocionarse. Firma, SBOM, SLSA, Trivy y la
 # creacion atomica de tags no cambian para el camino de build.
-expected_workflow_digest = "31388886a1012009d41738986ab54176b6bb87b428970a6050fc833205a62cc8"
+# Revisado el 18-10-2026 (SC-2685). Lo unico que cambia: se declaran en
+# `on.workflow_call.secrets` los tres secretos que el notificador ya usaba
+# (`TELEGRAM_CI_BOT_TOKEN|CHAT_ID|THREAD_ID`), no declarados y por tanto vacios
+# en el workflow llamado: el aviso de release se perdia sin error. Preflight,
+# firma cosign, SBOM/SLSA, gate Trivy y promocion atomica de tags quedan intactos.
+expected_workflow_digest = "40a0eca9be31775d1787fa57799513e86be175dff5ca37b3e6cd220223b0c9c7"
 workflow_digest = hashlib.sha256(workflow.encode()).hexdigest()
 require(
     workflow_digest == expected_workflow_digest,

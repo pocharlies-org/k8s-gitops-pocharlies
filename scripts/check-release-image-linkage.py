@@ -172,8 +172,11 @@ for label, mutated_release, mutated_manifest in [
         continue
     raise SystemExit(f"linkage mutation self-test unexpectedly passed: {label}")
 
-expected_release_sha256 = "31388886a1012009d41738986ab54176b6bb87b428970a6050fc833205a62cc8"
-expected_manifest_sha256 = "1fafa1bf555d04971e1019b59fcb1e33dfead54f7591f239c07fd115a789de28"
+# Revisado el 18-10-2026 (SC-2685): en los dos workflows solo entran los tres secretos
+# del notificador en `on.workflow_call.secrets` (ya se usaban, no estaban declarados y
+# se resolvian vacios). El enlace digest de imagen -> manifest no cambia.
+expected_release_sha256 = "40a0eca9be31775d1787fa57799513e86be175dff5ca37b3e6cd220223b0c9c7"
+expected_manifest_sha256 = "daafcd9d938a6accdcb14de3659dfd9dd983f0a6b8505d5764076565cdfbe405"
 release_sha256 = hashlib.sha256(release.encode()).hexdigest()
 manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()
 require(release_sha256 == expected_release_sha256, f"release linkage workflow changed: {release_sha256}")
