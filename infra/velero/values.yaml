@@ -70,6 +70,7 @@ nodeAgent:
             values:
             - lan
             - ovh
+            - cloud  # SC-2659: nodo alphalink (droplet); sus pods llegan a MinIO por el overlay
   extraArgs:
   - --node-agent-configmap=velero-node-agent-config
   resources:
@@ -84,6 +85,10 @@ nodeAgent:
     key: dedicated
     operator: Equal
     value: llm
+  - effect: NoSchedule
+    key: dedicated
+    operator: Equal
+    value: alpha
 nodeSelector:
   node-pool: ks5-nvme
 resources:
