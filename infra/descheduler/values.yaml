@@ -53,30 +53,45 @@ deschedulerPolicy:
           enabled:
             - RemovePodsViolatingNodeAffinity
 
-    # INFRA-934 (18-10): los cps llevan 106-113 pods de workload con requests
-    # al 90-94 % de 8 CPU mientras sauvage tiene ~38 núcleos libres. Sin taints
-    # (decisión de Dani): LowNodeUtilization expulsa de los cps (node-pool
-    # ks5-nvme) hacia cualquier nodo por debajo del umbral hasta dejarlos bajo
-    # el 60 % de requests — auto-limitante, deja de expulsar solo. nodeFit
-    # impide mover lo que no cabe en otro sitio; el DefaultEvictor respeta PDB
-    # y no toca pods con almacenamiento local. Máximo 5 pods por nodo y pasada
-    # (cada 2 min): migración suave, sin reiniciar el namespace de golpe.
+    # INFRA-934 (18-10): los cps llevan ~100 pods de workload con requests de
+    # CPU al 98-100 % mientras sauvage tiene ~38 núcleos libres. Sin taints
+    # (decisión de Dani): LowNodeUtilization expulsa de los nodos por encima de
+    # targetThresholds hacia los que están por debajo de thresholds, hasta
+    # dejarlos bajo el target — auto-limitante. Corregida contra la API
+    # v1alpha2 real de v0.36.0 y verificada con el binario real y el informer
+    # de verdad (el 70-qa.md de qa cayó en dos artefactos: campos de v1alpha1,
+    # y `--dry-run` en v0.36.0 clasifica con el caché sandbox sin sincronizar,
+    # uso 0). Reglas del plugin: sobre el target basta con SUPERARLO en UN
+    # recurso; para ser destino hay que estar por debajo en TODOS.
+    # Umbrales medidos (usage de requests, no dry-run): cps cpu 93-100 /
+    # mem 34-42; ubuntu cpu 88-97 segun la hora / mem ~90; sauvage cpu 18 /
+    # mem 26; Sparks cpu 3-21 / mem 15-19. Con target {cpu: 90, memory: 90}
+    # los cps son fuente (basta superar en UN recurso). ubuntu puede entrar en
+    # la fuente en sus picos (>90): desalojarle a él también es correcto — está
+    # saturado de verdad; si eso provocara churn con vuelve-a-x86, opt-in por
+    # etiqueta con DefaultEvictor.labelSelector. Destino: sauvage — los Sparks
+    # y alphalink llevan taint dedicated y nodeFit ya los excluye para pods sin
+    # toleración. nodeFit además deja quietos los pods que no caben en sauvage
+    # (taint role=edge): solo se mueve lo que puede.
+    # evictionLimits.node = 5 por nodo y pasada (cada 2 min): migración suave.
+    # `evictableNamespaces` SOLO filtra qué se desaloja; el uso del nodo se
+    # cuenta con todos los pods, así que los cps sí se ven saturados.
     - name: cps-a-sauvage
       pluginConfig:
         - name: DefaultEvictor
           args:
             nodeFit: true
-            maxNoOfPodsToEvictPerNode: 5
         - name: LowNodeUtilization
           args:
-            nodeSelector:
-              matchLabels:
-                node-pool: ks5-nvme
             thresholds:
-              cpu: "60"
-              memory: "60"
-            thresholdPriority: Requests
-            namespaces:
+              cpu: 60
+              memory: 60
+            targetThresholds:
+              cpu: 90
+              memory: 90
+            evictionLimits:
+              node: 5
+            evictableNamespaces:
               exclude:
                 - kube-system
                 - longhorn-system
@@ -97,6 +112,6 @@ deschedulerPolicy:
                 - minio
                 - backup-hub
       plugins:
-        deschedule:
+        balance:
           enabled:
             - LowNodeUtilization
