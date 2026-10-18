@@ -9,19 +9,17 @@ inputs:
     description: "Prefijo del nombre del builder (el nombre queda único por run)."
     required: false
     default: rho
-  buildkit_image:
-    description: "Imagen BuildKit fijada por digest."
-    required: false
-    default: moby/buildkit@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec
 
 runs:
   using: composite
   steps:
+    # La version y la imagen fijadas por digest van en claro aqui (no como
+    # input): el literal exacto es un guard del checker de supply-chain.
     - name: Install verified Docker Buildx and BuildKit
       shell: bash
       env:
         BUILDX_VERSION: v0.36.0
-        BUILDKIT_IMAGE: ${{ inputs.buildkit_image }}
+        BUILDKIT_IMAGE: moby/buildkit@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec
         BUILDER_PREFIX: ${{ inputs.builder_prefix }}
       run: |
         set -euo pipefail

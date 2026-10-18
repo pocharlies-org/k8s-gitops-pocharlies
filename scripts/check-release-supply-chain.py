@@ -7,6 +7,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 workflow = (ROOT / ".github/workflows/reusable-release.yml").read_text(encoding="utf-8")
+# SC-2749: la instalacion verificada de Buildx (version, imagen por digest y
+# checksums) vive en la accion local compartida con reusable-ci; los guardes de
+# esos literales se comprueban contra el texto conjunto.
+buildx_action = (ROOT / ".github/actions/setup-buildx/action.yml").read_text(encoding="utf-8")
 
 
 def require(condition: bool, message: str) -> None:
@@ -97,7 +101,8 @@ required = [
     "reusedFrom: reused ? process.env.REUSED_FROM : null,",
 ]
 for marker in required:
-    require(marker in workflow, f"missing release supply-chain guard: {marker}")
+    require(marker in workflow or marker in buildx_action,
+            f"missing release supply-chain guard: {marker}")
 
 loop = workflow.split("while IFS=$'\\t' read -r name context dockerfile; do", 1)[1]
 scan = loop.index("trivy image")
@@ -168,11 +173,31 @@ require("refs/(heads|tags)" not in workflow, "mutable certificate reference acce
 # (`TELEGRAM_CI_BOT_TOKEN|CHAT_ID|THREAD_ID`), no declarados y por tanto vacios
 # en el workflow llamado: el aviso de release se perdia sin error. Preflight,
 # firma cosign, SBOM/SLSA, gate Trivy y promocion atomica de tags quedan intactos.
-expected_workflow_digest = "40a0eca9be31775d1787fa57799513e86be175dff5ca37b3e6cd220223b0c9c7"
+# Revisado el 18-10-2026 (SC-2749). Lo unico que cambia: el build del release
+# importa/exporta caché por registry (`<image>:buildcache`, mode=max,
+# ignore-error; la escribe solo el release, jamas un PR) y la instalacion
+# verificada de Buildx se extrae a la accion local `.github/actions/setup-buildx`
+# (misma logica de checksums, compartida con reusable-ci). Su digest queda
+# pinneado abajo: la garantia de instalacion content-verified sigue cubierta.
+# Preflight, firma cosign, SBOM/SLSA, gate Trivy y promocion atomica intactos.
+expected_workflow_digest = "a481d7c848d384e17c10f43b770d047be8a3103e51dec162c6c2e0ab2372325c"
+# La instalacion de Buildx (checksums + imagen por digest) vive ahora en la
+# accion local: se pinnea igual que el workflow, o el contrato pierde cobertura.
+expected_buildx_action_digest = "e39317a5be5b63d9d01959164ac5c0e6f809eed870c8a5e28be2999043eb9353"
 workflow_digest = hashlib.sha256(workflow.encode()).hexdigest()
 require(
     workflow_digest == expected_workflow_digest,
     f"release workflow changed without review: {workflow_digest}",
+)
+require(
+    hashlib.sha256(buildx_action.encode()).hexdigest() == expected_buildx_action_digest,
+    "setup-buildx action changed without review (la instalacion verificada de Buildx vive ahi)",
+)
+require(
+    hashlib.sha256(buildx_action.replace("07823fdfcd82a41be90155a8b16876c1a780a6462de805a9f3f63b3119ccfb99",
+                                         "0" * 64).encode()).hexdigest()
+    != expected_buildx_action_digest,
+    "setup-buildx action mutation self-test failed",
 )
 require(
     hashlib.sha256((workflow + "\nenv:\n  MALICIOUS: true\n").encode()).hexdigest()
