@@ -44,6 +44,14 @@ on:
         type: string
         default: "1.2.3"
     secrets:
+      # SC-2685: declarados. En un workflow llamado, un secreto no declarado se resuelve
+      # vacio, y el notificador de CI perdía el aviso de release sin error.
+      TELEGRAM_CI_BOT_TOKEN:
+        required: false
+      TELEGRAM_CI_CHAT_ID:
+        required: false
+      TELEGRAM_CI_THREAD_ID:
+        required: false
       HARBOR_USER:
         required: true
       HARBOR_PASSWORD:
