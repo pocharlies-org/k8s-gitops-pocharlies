@@ -600,3 +600,22 @@ patches:
             - .spec.volumeClaimTemplates[].metadata.creationTimestamp
             - .spec.volumeClaimTemplates[].spec.volumeMode
             - .spec.volumeClaimTemplates[].status
+  # SC-2571: el arbiter aparca frigate (scale 0) mientras la RTX entrena una LoRA y lo restaura al soltar
+  # el lease (acquire(park=)). Sin esta entrada selfHeal devuelve /spec/replicas a 1 a mitad del entreno y
+  # frigate disputa la VRAM al trainer. Va aqui y no en apps/frigate.yaml por lo que dice el patch de
+  # opencode: el patch general (op: add sin `/-`) reemplaza la lista entera.
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+      name: frigate
+    patch: |-
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: frigate
+          namespace: frigate
+          jsonPointers:
+            - /spec/replicas

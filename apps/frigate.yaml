@@ -21,16 +21,6 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: frigate
-  # SC-2571: el arbiter aparca frigate (scale 0) mientras entrena el LoRA en la RTX y lo restaura al
-  # soltar el lease. Sin esto selfHeal devuelve /spec/replicas a 1 a mitad del entreno y frigate
-  # disputa VRAM al trainer. Mismo patron que las apps ai y comfyui.
-  ignoreDifferences:
-    - group: apps
-      kind: Deployment
-      name: frigate
-      namespace: frigate
-      jsonPointers:
-        - /spec/replicas
   syncPolicy:
     automated:
       selfHeal: true
@@ -38,6 +28,7 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
-      # Sin esto ignoreDifferences solo oculta el diff: un sync por otro motivo reaplicaría replicas: 1
-      # y pisaría el park a mitad del entreno (igual que ai y comfyui).
+      # Con el patch de frigate en kustomization.yaml (ignoreDifferences /spec/replicas, el park del arbiter
+      # durante un entreno): sin esta opción solo se oculta el diff y un sync por otro motivo reaplicaría
+      # replicas: 1 y pisaría el park (igual que ai y comfyui).
       - RespectIgnoreDifferences=true
