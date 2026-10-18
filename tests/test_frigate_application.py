@@ -42,6 +42,33 @@ class FrigateApplicationTest(unittest.TestCase):
         root = yaml.safe_load((ROOT / "kustomization.yaml").read_text(encoding="utf-8"))
         self.assertIn("apps/frigate.yaml", root["resources"])
 
+    def test_park_replicas_ignore_comes_from_the_root_patch(self) -> None:
+        # SC-2571: el patch general de kustomization.yaml reemplaza spec.ignoreDifferences de cada app, así que
+        # lo declarado en apps/frigate.yaml nunca llega vivo: la entrada va en un patch por app.
+        self.assertNotIn("ignoreDifferences", self.application["spec"])
+        root = yaml.safe_load((ROOT / "kustomization.yaml").read_text(encoding="utf-8"))
+        patches = [
+            yaml.safe_load(p["patch"])
+            for p in root["patches"]
+            if p["target"].get("name") == "frigate"
+        ]
+        self.assertEqual(len(patches), 1)
+        self.assertEqual(
+            [op["value"] for op in patches[0] if op["path"] == "/spec/ignoreDifferences/-"],
+            [
+                {
+                    "group": "apps",
+                    "kind": "Deployment",
+                    "name": "frigate",
+                    "namespace": "frigate",
+                    "jsonPointers": ["/spec/replicas"],
+                }
+            ],
+        )
+        self.assertIn(
+            "RespectIgnoreDifferences=true", self.application["spec"]["syncPolicy"]["syncOptions"]
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
