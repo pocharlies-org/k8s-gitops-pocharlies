@@ -100,17 +100,25 @@ persistence:
     disableredirect: true
     s3:
       bucket: harbor-blobs
-      existingSecret: harbor-s3-credentials
+      existingSecret: harbor-s3-ovh-credentials
       multipartcopychunksize: '33554432'
-      # Al cerrar cada subida el registry copia la capa dentro de MinIO a su
-      # ruta final (copia multiparte de 32 MiB). Con 1 iba trozo a trozo: p90
-      # 42 s, p99 190 s, máx 298 s por cierre (01-10-2026), y el cliente de la
-      # CI cortaba con «timeout awaiting response headers». 8 en paralelo
-      # (el defecto de distribution es 16; MinIO es de un solo nodo).
+      # Cerrar una subida hace una copia multiparte dentro del almacén; con 1 era
+      # trozo a trozo (p99 190 s en la MinIO de sauvage, INFRA-931). 8 en paralelo;
+      # el defecto de distribution es 16.
       multipartcopymaxconcurrency: '8'
-      region: us-east-1
-      regionendpoint: http://minio-s3.minio.svc.cluster.local:9000
-      secure: false
+      # Object Storage de OVH, región Estrasburgo (INFRA-482). El almacén estaba en
+      # la MinIO de sauvage —HDD RAID1 al 100 % de io_time— y la CI cortaba al cerrar
+      # una capa. La registry corre en ks5 (OVH Roubaix), así que la escritura ya no
+      # sale de la red de OVH. Dos trampas medidas con la credencial real:
+      # `region` va en minúsculas (`SBG` rechaza la firma v4), y el bucket tiene que
+      # estar en el endpoint `.io` —el clásico `s3.sbg.cloud.ovh.net` es la fachada
+      # Swift, donde el ciclo de vida (purgado de subidas multiparte truncadas) NO
+      # existe: toda `PutBucketLifecycleConfiguration` rebota con `MalformedXML`.
+      # Los buckets de OVH compiten por nombre con todo el proveedor: `harbor-blobs`
+      # está libre, otros (`velero-backups`, `loki-chunks`) ya los tiene otra cuenta.
+      region: sbg
+      regionendpoint: https://s3.sbg.io.cloud.ovh.net
+      secure: true
       v4auth: true
     type: s3
   persistentVolumeClaim:
