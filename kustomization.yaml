@@ -20,6 +20,7 @@ resources:
   - infra/galan-proposal.yaml
   - infra/traefik-lan.yaml
   - infra/traefik-edge.yaml
+  - infra/traefik-alphalink.yaml
   - infra/arc.yaml
   - infra/ci-queue-exporter.yaml
   - infra/velero.yaml
