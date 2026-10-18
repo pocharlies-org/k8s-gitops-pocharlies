@@ -17,8 +17,8 @@
 #   node.kubernetes.io/unreachable:NoSchedule, asi que no desaloja nada
 #   hasta que vuelve.
 # - Respeta los PDB: con maxUnavailable 1 mueve una replica por pasada.
-# - PodsWithLocalStorage desactivada: litellm usa emptyDir (tracking, token
-#   de xAI) que es efimero por diseno.
+# - Desde DGX-1090 (18-10) litellm y su Valkey ya no participan: viven solo en
+#   `ubuntu`. Queda plan-gateway.
 kind: CronJob
 schedule: "*/2 * * * *"
 successfulJobsHistoryLimit: 1
@@ -38,9 +38,6 @@ deschedulerPolicy:
         - name: DefaultEvictor
           args:
             nodeFit: true
-            podProtections:
-              defaultDisabled:
-                - PodsWithLocalStorage
         - name: RemovePodsViolatingNodeAffinity
           args:
             nodeAffinityType:
