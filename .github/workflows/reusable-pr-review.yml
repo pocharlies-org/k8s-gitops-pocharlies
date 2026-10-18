@@ -118,6 +118,10 @@ on:
         required: false
       TELEGRAM_CI_CHAT_ID:
         required: false
+      # SC-2722: se usaba en `NOTIFY_THREAD_ID` sin declarar, asi que en un workflow
+      # llamado se resolvia vacio y el aviso caia siempre en el fallback '63'.
+      TELEGRAM_CI_THREAD_ID:
+        required: false
       FRAMEWORK_REPO_TOKEN:
         description: Solo si este repo dejara de ser publico.
         required: false
