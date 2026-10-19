@@ -416,7 +416,10 @@ patches:
         value: { <<: *bge-replicas, name: bge-reranker-creative }
   # DGX-366 (24-09-2026): la app `voice` (servicio de voz fuera de `ai`). Igual que `bge`:
   # el blanket patch REEMPLAZA /spec/ignoreDifferences, asi que se re-anaden las replicas
-  # que posee compute_mode.py (nvfp4, stt-turbo) y la de omnivoice-tts-cpu (apagado).
+  # que posee compute_mode.py (nvfp4, stt-turbo), la de omnivoice-tts-cpu (apagado) y la de
+  # omnivoice-tts-trained (SC-2651: en 0 fuera de la ventana creative de dgx3 — en modo llm
+  # no deja hueco y el worker del residente paginaba, incidente 19-10 —; se sube a mano
+  # dentro de la ventana hasta que el arbitro COMPONENTS la gobierne).
   - target:
       group: argoproj.io
       version: v1alpha1
@@ -437,6 +440,9 @@ patches:
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *voice-replicas, name: omnivoice-tts-cpu }
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *voice-replicas, name: omnivoice-tts-trained }
   # The blanket Application patch above REPLACES /spec/ignoreDifferences, so it drops the two
   # target.template paths agentgateway-mcp declares in its own file. ESO defaults both on the
   # backend-tokens ExternalSecret, so without them the app is perpetually OutOfSync. Append
