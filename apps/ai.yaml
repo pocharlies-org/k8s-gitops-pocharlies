@@ -1785,10 +1785,9 @@ spec:
     # ROLLBACK de esto: 419ced846061795b4edb0631cd50198dccfeda98 con el mismo path.
     # 17-10-2026 (k8s-ai #196, ae1c975): dgx3 (TP=1) con caché de imágenes a 1 GiB (lru) y KV a 18 GiB.
     # ROLLBACK de esto: 803b8a3979d62e9dcd04f13e0a1ea462d02d6db2 con el mismo path.
-    # 20-10-2026 (DGX-1146, Dani): 0874d51 (k8s-ai #204): KV fija del TP=2 de 29,5e9 a 28,5e9 por rango. Dos OOM
-    # globales de dgx2 (00:16 y 00:37) tumbaron el head. Reinicia head y worker; la voz baja y sube con los hooks.
-    # ROLLBACK de esto: c10512abd4b7a886bb7de8b147241b2f5a5ce008 con el mismo path.
-    targetRevision: 0874d51cb8a20fa64d5786ab83aae0f3b80df9fc
+    # 20-10-2026 (DGX-1146, Dani): vuelta a c10512a (KV fija del TP=2 a 29,5e9). La bajada a 28,5e9 (0874d51,
+    # k8s-ai #204) no hacia falta: el OOM de dgx2 lo paga la voz que compartia el nodo, no el KV.
+    targetRevision: c10512abd4b7a886bb7de8b147241b2f5a5ce008
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
