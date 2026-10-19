@@ -1,11 +1,11 @@
 # ofimatica — servidor MCP de ofimatica (dgx-infra k8s/apps/ofimatica, OWU-65, epica OWU-64).
 #
-# Mismo patron que voicelab / opencode: los manifiestos viven en dgx-infra
+# Mismo patron que voicelab: los manifiestos viven en dgx-infra
 # (k8s/apps/ofimatica/) y aqui solo se declara la Application.
 #
 # CreateNamespace=true: `ofimatica` es un namespace de nueva creacion (el
 # manifiesto k8s/apps/ofimatica/namespace.yaml lo declara tambien; el syncOption
-# es el respaldo, como en opencode).
+# es el respaldo).
 #
 # prune:false: el servicio publica artefactos via S3+URL (patron /tts); no hay
 # estado en el namespace que un prune deba barrer, pero se mantiene el patron

@@ -96,7 +96,7 @@ Nº de tests: 58 (medido con `unittest discover` el 2026-10-08; 23 en `tests/tes
 ## 8. Decisiones y trampas
 
 - README desfasado (k3s v1.32.5, apunta a la org `pocharlies`): el cluster real es k3s v1.36.
-- `infra/observability.yaml`, `infra/infra.yaml`, `traefik-*`, `arc*`, `keda`, `renovate`, `opencode`… tienen su
+- `infra/observability.yaml`, `infra/infra.yaml`, `traefik-*`, `arc*`, `keda`, `renovate`… tienen su
   Application **aquí** pero su código en otros repos (`k8s-observability`, `k8s-infra`, `dgx-infra`).
 - `2026-08-14` · postmortem «renombrado y guerras del controlador» (`docs/postmortem-20260814-…md`): dos controladores
   peleando por el mismo recurso; leer antes de renombrar Applications.
