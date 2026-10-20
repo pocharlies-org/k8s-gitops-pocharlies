@@ -26,7 +26,7 @@ class CorreoApplicationTest(unittest.TestCase):
                 # Sin `oci://`: ArgoCD lo añade (como el chart de ARC en infra/arc.yaml).
                 "repoURL": "harbor.lan.e-dani.com/homelab/charts",
                 "chart": "correo",
-                "targetRevision": "0.3.0",
+                "targetRevision": "0.4.0",
                 "helm": {
                     "releaseName": "correo",
                     "valueFiles": ["$values/k8s/values-skirmshop.yaml"],
