@@ -1,0 +1,36 @@
+# keycloak-sso (SC-2822): un realm de Keycloak por web, siempre separado
+# (k8s-infra-pocharlies/docs/sso-por-app.md). Chart platform/keycloak-sso con las
+# webs de realms.yaml: por cada una, su realm (keycloak-config-cli, hook Sync
+# wave -1), su oauth2-proxy y su cadena sso-<realm>-chain en ns keycloak.
+# App propia (no dentro de k8s-infra): sus hooks no esperan a los PostSync de
+# keycloak-next ni los bloquean.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak-sso
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-infra-pocharlies
+  labels:
+    e-dani.com/tier: infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-infra-pocharlies
+    targetRevision: main
+    path: platform/keycloak-sso
+    helm:
+      releaseName: keycloak-sso
+      valueFiles:
+        - realms.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keycloak
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
