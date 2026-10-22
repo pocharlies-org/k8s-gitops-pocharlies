@@ -109,7 +109,11 @@ longhornUI:
   replicas: 1
 persistence:
   defaultClass: true
-  defaultClassReplicaCount: 3
+  # INFRA-969: 3 copias de 676 GiB no caben en los discos de los masters (2,03 TB
+  # frente a 1,85 TB útiles con el 30 % reservado); cp-3 llegó al 99 % y cp-1 se
+  # quedó sin sitio para arrancar k3s. Una copia: el dato se restaura desde backup
+  # y hasta que vuelva el nodo el volumen queda parado.
+  defaultClassReplicaCount: 1
   reclaimPolicy: Retain
 provisionerReplicaCount: 2
 resizerReplicaCount: 2
