@@ -27,7 +27,7 @@ spec:
   sources:
     - repoURL: harbor.lan.e-dani.com/homelab/charts
       chart: correo
-      targetRevision: 0.5.0
+      targetRevision: 0.6.0
       helm:
         releaseName: correo
         valueFiles:
