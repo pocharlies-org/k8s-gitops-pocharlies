@@ -248,9 +248,11 @@ assert shared_runner["image"] == runner_image
 assert shared_runner["imagePullPolicy"] == "IfNotPresent"
 runner_env = {item["name"]: item.get("value") for item in shared_runner["env"]}
 assert runner_env["DOCKER_HOST"] == "unix:///var/run/docker.sock"
+# INFRA-972: ephemeral-storage acota lo que un build escribe en md3 (el disco
+# raiz que comparte con Harbor); sin limite, kubelet no puede expulsarlo.
 assert shared_runner["resources"] == {
-    "requests": {"cpu": "100m", "memory": "1Gi"},
-    "limits": {"cpu": "2", "memory": "4Gi"},
+    "requests": {"cpu": "100m", "memory": "1Gi", "ephemeral-storage": "2Gi"},
+    "limits": {"cpu": "2", "memory": "4Gi", "ephemeral-storage": "10Gi"},
 }
 
 dind = shared_spec["initContainers"][1]
@@ -269,8 +271,12 @@ assert dind["args"] == [
 assert dind["restartPolicy"] == "Always"
 assert dind["securityContext"]["privileged"] is True
 assert dind["resources"] == {
-    "requests": {"cpu": "50m", "memory": "512Mi"},
-    "limits": {"cpu": "2", "memory": "4Gi"},
+    "requests": {
+        "cpu": "50m",
+        "memory": "512Mi",
+        "ephemeral-storage": "10Gi",
+    },
+    "limits": {"cpu": "2", "memory": "4Gi", "ephemeral-storage": "40Gi"},
 }
 assert {volume["name"] for volume in shared_spec["volumes"]} == {
     "work",

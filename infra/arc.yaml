@@ -270,9 +270,18 @@ spec:
                     # steady-state footprint and retain the 2-core burst limit.
                     cpu: "50m"
                     memory: "512Mi"
+                    # INFRA-972: the build cache and the image layers of DinD
+                    # land in its writable layer, on the node's root disk --
+                    # the same md3 (878 G) Harbor shares on ks5-cp-1/2/3.
+                    # Unbounded, one release build took ks5-cp-3 from 77 % to
+                    # 98.6 % in 7 h (22-10) and Harbor pushes timed out. With
+                    # a limit kubelet evicts the runner that overflows (the
+                    # job fails and retries) instead of leaving the node full.
+                    ephemeral-storage: "10Gi"
                   limits:
                     cpu: "2"
                     memory: "4Gi"
+                    ephemeral-storage: "40Gi"
                 securityContext:
                   privileged: true
                 startupProbe:
@@ -305,9 +314,14 @@ spec:
                     # the unchanged 2-core limit protects build throughput.
                     cpu: "100m"
                     memory: "1Gi"
+                    # INFRA-972: checkout and build context live in the `work`
+                    # emptyDir, on the node's root disk. Bounded so one job
+                    # cannot wedge md3.
+                    ephemeral-storage: "2Gi"
                   limits:
                     cpu: "2"
                     memory: "4Gi"
+                    ephemeral-storage: "10Gi"
                 volumeMounts:
                   - name: work
                     mountPath: /home/runner/_work
