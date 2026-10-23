@@ -57,6 +57,30 @@ server:
 
 repoServer:
   replicas: 1
+  # INFRA-927 (23-10-2026): la liveness `healthz?full=true` con timeout 1s y
+  # failureThreshold 3 mataba el pod en ráfagas de GenerateManifest sobre un
+  # cp saturado (ks5-cp-2 al 122% de CPU): 78 reinicios en 7 días, exit 0
+  # «clean shutdown» tras el kill del kubelet, y con él caían las manifest
+  # generations de TODAS las Applications (ComparisonError). El proceso estaba
+  # sano (logs normales, cache hits). Uso real medido 7 d en VictoriaMetrics:
+  # p95 ~0.09 cores, máximo ~200 Mi — no es capacidad, es tolerancia de la
+  # probe y falta de requests. Por eso: timeout 8s / failureThreshold 6 en
+  # liveness (~60 s de tolerancia) y 5s / 6 en readiness; requests para que
+  # el scheduler vea su peso (misma lección que el controller, 2026-08-15) y
+  # límite de memoria, que además pide Kyverno (require-memory-limit).
+  # Sin réplicas extra ni --parallelismlimit: la capacidad no es la causa.
+  livenessProbe:
+    timeoutSeconds: 8
+    failureThreshold: 6
+  readinessProbe:
+    timeoutSeconds: 5
+    failureThreshold: 6
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
 
 applicationSet:
   replicas: 1
