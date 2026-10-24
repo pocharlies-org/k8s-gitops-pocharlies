@@ -34,6 +34,8 @@ Un solo «cliente»: ArgoCD.
 - **Tronco**: **`deploy/prod`**. Además **registra** (sin ser dueño de su código) las Applications de ~40 apps de
   otros repos en `apps/*.yaml` y ~30 en `infra/*.yaml` (observability, traefik, arc, keda, kyverno…). `apps-disabled/`
   guarda las desactivadas (`shopify-back-in-stock`, `shopify-sync`, `skirmshop-competitor-crawler`).
+  Desde INFRA-987 registra también `jev-cdm` (`apps/jev-cdm.yaml`): `k8s-jev-cdm/` de `k8s-ai-pocharlies`
+  en `main`, ns `llm`, `prune: false` (el PVC `ollaya-models` guarda los pesos descargados).
 
 ## 3. Stack
 
