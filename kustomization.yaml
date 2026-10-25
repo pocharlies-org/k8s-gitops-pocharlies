@@ -97,6 +97,8 @@ resources:
   - argocd/ingressroute.yaml
   - argocd/repositories.yaml
   - argocd/notifications-externalsecret.yaml
+  # SC-2958·D7: token del notificador synapse (forma Connect, Merge sobre el mismo Secret).
+  - argocd/notifications-synapse-externalsecret.yaml
   - argocd/repo-creds-dashboard-ro-externalsecret.yaml
   - argocd/repo-helm-harbor-homelab-charts-externalsecret.yaml
 patches:
