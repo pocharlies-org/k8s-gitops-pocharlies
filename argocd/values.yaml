@@ -145,7 +145,7 @@ notifications:
         - name: X-Synapse-ArgoCD-Token
           value: $synapse-argocd-token
   templates:
-    # SC-2958·D7: el adaptador lee `revisions` (multi-source; `revision` sale vacía) y `finishedAt` para su entrega.
+    # SC-2958·D7: el adaptador lee `repo`/`repos` (fuente única o multi-source) y `revisions`; `revision` sale vacía en multi-source.
     template.synapse-deployed: |
       webhook:
         synapse:
@@ -153,6 +153,7 @@ notifications:
           body: |
             {"app": {{ .app.metadata.name | toJson }},
              "repo": {{ with .app.spec.source }}{{ .repoURL | toJson }}{{ else }}""{{ end }},
+             "repos": [{{ range $i, $s := .app.spec.sources }}{{ if $i }}, {{ end }}{{ $s.repoURL | toJson }}{{ end }}],
              "revision": {{ .app.status.sync.revision | toJson }},
              "revisions": {{ .app.status.sync.revisions | toJson }},
              "finishedAt": {{ .app.status.operationState.finishedAt | toJson }}}
@@ -193,11 +194,12 @@ notifications:
       - description: La app está Degraded
         when: app.status.health.status == 'Degraded'
         send: [keep-health-degraded]
-    # SC-2958·D7: sync correcto con salud Healthy. La entrega que calcula el adaptador es única por (app, revisión, finishedAt).
+    # SC-2958·D7: sync correcto con salud Healthy. `oncePer` cubre `revision` y `revisions`: en multi-source `revision` sale vacía
+    # y el dedup de notifications-engine (state.go:27) usaría una clave vacía. `?? ""` evita el "<nil>" de fmt (service.go:99).
     trigger.on-deployed: |
       - description: Sincronización correcta y app Healthy
         when: app.status.operationState != nil and app.status.operationState.phase == 'Succeeded' and app.status.health.status == 'Healthy'
-        oncePer: app.status.sync.revision
+        oncePer: (app.status.sync.revision ?? "") + join(app.status.sync.revisions ?? [], ",")
         send: [synapse-deployed]
   subscriptions:
     - recipients: [keep]
