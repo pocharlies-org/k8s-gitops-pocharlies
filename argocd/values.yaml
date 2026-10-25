@@ -135,7 +135,27 @@ notifications:
           value: application/json
         - name: X-API-KEY
           value: $keep-api-key
+    # SC-2958·D7: sincronizaciones correctas hacia el gateway de Synapse (Service interno, no la URL pública).
+    # La cabecera es la que lee el proveedor `argocd` del gateway (X-Synapse-ArgoCD-Token).
+    service.webhook.synapse: |
+      url: http://synapse-gateway.synapse.svc.cluster.local:18790/webhooks/argocd
+      headers:
+        - name: Content-Type
+          value: application/json
+        - name: X-Synapse-ArgoCD-Token
+          value: $synapse-argocd-token
   templates:
+    # SC-2958·D7: el adaptador lee `revisions` (multi-source; `revision` sale vacía) y `finishedAt` para su entrega.
+    template.synapse-deployed: |
+      webhook:
+        synapse:
+          method: POST
+          body: |
+            {"app": {{ .app.metadata.name | toJson }},
+             "repo": {{ with .app.spec.source }}{{ .repoURL | toJson }}{{ else }}""{{ end }},
+             "revision": {{ .app.status.sync.revision | toJson }},
+             "revisions": {{ .app.status.sync.revisions | toJson }},
+             "finishedAt": {{ .app.status.operationState.finishedAt | toJson }}}
     template.keep-sync-failed: |
       webhook:
         keep:
@@ -173,6 +193,13 @@ notifications:
       - description: La app está Degraded
         when: app.status.health.status == 'Degraded'
         send: [keep-health-degraded]
+    # SC-2958·D7: sync correcto con salud Healthy. La entrega que calcula el adaptador es única por (app, revisión, finishedAt).
+    trigger.on-deployed: |
+      - description: Sincronización correcta y app Healthy
+        when: app.status.operationState != nil and app.status.operationState.phase == 'Succeeded' and app.status.health.status == 'Healthy'
+        send: [synapse-deployed]
   subscriptions:
     - recipients: [keep]
       triggers: [on-sync-failed, on-health-degraded]
+    - recipients: [synapse]
+      triggers: [on-deployed]
