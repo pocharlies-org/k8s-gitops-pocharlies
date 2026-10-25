@@ -36,6 +36,8 @@ Un solo «cliente»: ArgoCD.
   guarda las desactivadas (`shopify-back-in-stock`, `shopify-sync`, `skirmshop-competitor-crawler`).
   Desde INFRA-987 registra también `jev-cdm` (`apps/jev-cdm.yaml`): `k8s-jev-cdm/` de `k8s-ai-pocharlies`
   en `main`, ns `llm`, `prune: false` (el PVC `ollaya-models` guarda los pesos descargados).
+  Desde SC-2956 registra `analisis` (`apps/analisis.yaml`): `k8s/` de `k8s-analisis-pocharlies` en `deploy/prod`
+  (el pin de imagen lo escribe `reusable-manifest-release`), ns `analisis`, `prune: false`.
 
 ## 3. Stack
 
