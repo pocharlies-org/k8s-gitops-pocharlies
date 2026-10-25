@@ -1787,7 +1787,10 @@ spec:
     # ROLLBACK de esto: 803b8a3979d62e9dcd04f13e0a1ea462d02d6db2 con el mismo path.
     # 20-10-2026 (DGX-1146, Dani): vuelta a c10512a (KV fija del TP=2 a 29,5e9). La bajada a 28,5e9 (0874d51,
     # k8s-ai #204) no hacia falta: el OOM de dgx2 lo paga la voz que compartia el nodo, no el KV.
-    targetRevision: c10512abd4b7a886bb7de8b147241b2f5a5ce008
+    # 25-10-2026 (DGX-1291, Dani): TP=2 a 10 secuencias a prueba con auditoria a 24 h (k8s-ai #217). Rama pin nueva
+    # abierta en c10512a para que la prueba sea de una sola variable: no arrastra el KV 28,5e9 de DGX-1146.
+    # ROLLBACK de esto: c10512abd4b7a886bb7de8b147241b2f5a5ce008 con el mismo path.
+    targetRevision: 0bb7db40ed80abf0545a11f0806c71ecf49c8c40
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
