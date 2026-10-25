@@ -197,6 +197,7 @@ notifications:
     trigger.on-deployed: |
       - description: Sincronización correcta y app Healthy
         when: app.status.operationState != nil and app.status.operationState.phase == 'Succeeded' and app.status.health.status == 'Healthy'
+        oncePer: app.status.sync.revision
         send: [synapse-deployed]
   subscriptions:
     - recipients: [keep]
