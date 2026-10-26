@@ -49,11 +49,13 @@ class CorreoApplicationTest(unittest.TestCase):
         self.assertFalse(value_file.startswith(values["path"] + "/"))
         self.assertEqual(self.spec["destination"]["namespace"], "correo")
 
-    def test_sync_is_manual_until_the_first_sync(self) -> None:
-        # Sin `automated` hasta el primer sync (como apps/company-crm.yaml): el chart sale de
-        # Harbor y necesita la credencial OCI de ArgoCD (DGX-916) antes de resolverse.
+    def test_sync_is_automated(self) -> None:
+        # `automated{selfHeal, prune: false}` como el resto de apps. El sync manual solo estaba
+        # justificado hasta el primer sync (el repo-server no resolvía el chart sin la credencial
+        # OCI de Harbor, DGX-916, y sin P8 el pod habría quedado sin sus Secrets). Sin esto, un
+        # merge en k8s-correo-pocharlies/deploy/prod no despliega nada hasta que alguien sincroniza.
         policy = self.spec["syncPolicy"]
-        self.assertNotIn("automated", policy)
+        self.assertEqual(policy["automated"], {"selfHeal": True, "prune": False})
         self.assertIn("CreateNamespace=true", policy["syncOptions"])
         self.assertIn("ServerSideApply=true", policy["syncOptions"])
 
