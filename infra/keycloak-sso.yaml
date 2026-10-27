@@ -1,0 +1,38 @@
+# SC-2822 — un realm de Keycloak por web (norma: docs/sso-por-app.md en
+# k8s-infra). El chart vive en k8s-infra/platform/keycloak-sso y se declara solo:
+# por cada web de realms.yaml crea su realm (Job keycloak-config-cli, hook Sync
+# wave -1), su client oauth2-proxy, su oauth2-proxy con cookie pegada al host y
+# su cadena sso-<realm>-chain. realms.yaml es el valueFile: las webs se añaden
+# ahí, no aquí.
+#
+# prune: false como en infra: los realms y los clients de Keycloak son datos, y
+# una entrada mal quitada de realms.yaml cerraría el acceso de alguien.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak-sso
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-infra-pocharlies
+  labels:
+    e-dani.com/tier: infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-infra-pocharlies
+    targetRevision: main
+    chart: platform/keycloak-sso
+    helm:
+      releaseName: keycloak-sso
+      valueFiles:
+        - realms.yaml
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
