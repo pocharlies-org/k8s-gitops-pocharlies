@@ -1790,7 +1790,10 @@ spec:
     # 25-10-2026 (DGX-1291, Dani): TP=2 a 10 secuencias a prueba con auditoria a 24 h (k8s-ai #217). Rama pin nueva
     # abierta en c10512a para que la prueba sea de una sola variable: no arrastra el KV 28,5e9 de DGX-1146.
     # ROLLBACK de esto: c10512abd4b7a886bb7de8b147241b2f5a5ce008 con el mismo path.
-    targetRevision: 0bb7db40ed80abf0545a11f0806c71ecf49c8c40
+    # 27-10-2026 (DGX-1303, Dani): dgx3 (TP=1) a la imagen 1x-v2.4.0 de ursu (HC down en BF16 en prefill, k8s-ai #218).
+    # Solo cambian el ConfigMap env-1x y el Deployment de dgx3; el TP=2 no se reinicia.
+    # ROLLBACK de esto: 0bb7db40ed80abf0545a11f0806c71ecf49c8c40 con el mismo path.
+    targetRevision: 542f8dc467e2c964389d0c1423664904e26c011f
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
