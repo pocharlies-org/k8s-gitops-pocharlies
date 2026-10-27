@@ -15,6 +15,9 @@ configs:
     server.insecure: "true"   # TLS termination at Traefik
   cm:
     application.instanceLabelKey: argocd.argoproj.io/instance
+    # SC-2822: los kustomize del repo pueden traer helmCharts (platform/keycloak-sso).
+    # Sin esto ArgoCD falla con "must specify --enable-helm".
+    kustomize.buildOptions: --enable-helm
     # INFRA-511: Kyverno (externalsecret-onepassword-to-connect, in
     # k8s-infra-pocharlies platform/kyverno/policies.yaml) admits every
     # ExternalSecret of the `onepassword` store (key: <item>/<field>) as one of
