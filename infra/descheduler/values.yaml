@@ -78,6 +78,14 @@ deschedulerPolicy:
         - name: DefaultEvictor
           args:
             nodeFit: true
+            # SC-2844 (28-10): los CronJobs cortos (reembed-truncated ~10 s,
+            # brain-windows, ...) caían bajo el desalojo: evicted a los
+            # segundos de arrancar -> Job Failed (backoffLimit 0) -> alerta
+            # K8sCronJobFailed (30 reaperturas de SC-2608). Un pod de batch
+            # no es carga que reequilibrar: se va sola. Con minPodAge los
+            # pods de menos de 30 min no son candidatos; los deployments
+            # asentados —el objetivo real del perfil— no se enteran.
+            minPodAge: 30m
         - name: LowNodeUtilization
           args:
             thresholds:
