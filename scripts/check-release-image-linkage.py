@@ -181,8 +181,11 @@ for label, mutated_release, mutated_manifest in [
 # check-release-supply-chain.py). El enlace digest de imagen -> manifest no cambia.
 # SC-2749 bis: la referencia a la accion pasa a ruta absoluta @main (el './' dentro de
 # un reusable apunta al repo que llama).
-expected_release_sha256 = "368511c955da8b35748bcd4a6baad9e0d682b892e70a48438a2ecd08737222b8"
-expected_manifest_sha256 = "daafcd9d938a6accdcb14de3659dfd9dd983f0a6b8505d5764076565cdfbe405"
+# Revisado el 28-10-2026 (INFRA-995): en ambos workflows sale `actions: read` del job
+# `notify` (sobrante: el notify solo llama a la Bot API de Telegram; pedirlo tumbaba en
+# startup_failure a los callers que no lo conceden). El enlace digest -> manifest no cambia.
+expected_release_sha256 = "5fb261be5e367800beddafadb5a3d4e8a5a693b3eceb2862671ef0cb01786f99"
+expected_manifest_sha256 = "4e48cd19b2bb6da68e674687e68a4f2027daec6d449a882e03bef604af180fef"
 release_sha256 = hashlib.sha256(release.encode()).hexdigest()
 manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()
 require(release_sha256 == expected_release_sha256, f"release linkage workflow changed: {release_sha256}")

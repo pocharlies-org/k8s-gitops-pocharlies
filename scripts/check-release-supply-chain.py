@@ -183,7 +183,10 @@ require("refs/(heads|tags)" not in workflow, "mutable certificate reference acce
 # Revisado el 18-10-2026 (SC-2749 bis): la referencia a la accion setup-buildx pasa a
 # ruta absoluta @main (dentro de un reusable, './' se resuelve contra el repo que llama;
 # medido en k8s-teslamate-mcp#9). Ninguna otra linea del workflow cambia.
-expected_workflow_digest = "368511c955da8b35748bcd4a6baad9e0d682b892e70a48438a2ecd08737222b8"
+# Revisado el 28-10-2026 (INFRA-995): fuera `actions: read` del job `notify` (sobrante:
+# el notify solo llama a la Bot API de Telegram; pedirlo tumbaba en startup_failure a
+# los callers que no lo conceden). Cadena de suministro del release intacta.
+expected_workflow_digest = "5fb261be5e367800beddafadb5a3d4e8a5a693b3eceb2862671ef0cb01786f99"
 # La instalacion de Buildx (checksums + imagen por digest) vive ahora en la
 # accion local: se pinnea igual que el workflow, o el contrato pierde cobertura.
 expected_buildx_action_digest = "e39317a5be5b63d9d01959164ac5c0e6f809eed870c8a5e28be2999043eb9353"
