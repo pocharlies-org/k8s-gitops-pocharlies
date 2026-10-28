@@ -108,6 +108,15 @@ deschedulerPolicy:
                 - onepassword-connect
                 - minio
                 - backup-hub
+                # SC-2852 (28-10): `monitoring` faltaba y LowNodeUtilization
+                # desalojaba kube-state-metrics de ks5-cp-1; el scheduler lo
+                # devolvía al cp (tolera el taint) y el ciclo se repetía cada
+                # pasada de 2 min. Cada reinicio de KSM deja la serie
+                # kube_cronjob_status_last_successful_time sin scrape, y las
+                # alertas Sii*CronStale (cláusula absent()) disparaban incidentes
+                # critical de fiscal con los cron sanos (29 IPs de pod en 46 h).
+                # Singleton de observabilidad: no se desaloja, como el resto.
+                - monitoring
       plugins:
         balance:
           enabled:
