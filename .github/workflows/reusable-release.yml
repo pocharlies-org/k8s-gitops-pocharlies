@@ -497,8 +497,11 @@ jobs:
               "$context"
 
             # Fail before publication when a fixable HIGH/CRITICAL
-            # vulnerability or an embedded secret is detected.
-            trivy image \
+            # vulnerability or an embedded secret is detected. The findings go
+            # to a file, so a failed gate would exit 1 with no message in the
+            # log (SC-2856: a release died silently on three fixable HIGHs and
+            # cost a full investigation to diagnose): print them first.
+            if ! trivy image \
               --scanners vuln,secret \
               --severity HIGH,CRITICAL \
               --ignore-unfixed \
@@ -508,7 +511,26 @@ jobs:
               --output "$trivy_report" \
               --exit-code 1 \
               --timeout 15m \
-              "$candidate_ref"
+              "$candidate_ref"; then
+              echo "::error::Trivy gate failed for ${name}; blocking findings:"
+              FAILED_REPORT="$trivy_report" node <<'NODE'
+          const fs = require("fs");
+          const report = JSON.parse(fs.readFileSync(process.env.FAILED_REPORT, "utf8"));
+          let shown = 0;
+          for (const result of report.Results || []) {
+            for (const f of result.Vulnerabilities || []) {
+              console.log(`  [vuln] ${f.Severity} ${f.VulnerabilityID} ${f.PkgName} ${f.InstalledVersion} (fixed in ${f.FixedVersion || "no release"})`);
+              shown += 1;
+            }
+            for (const f of result.Secrets || []) {
+              console.log(`  [secret] ${f.RuleID} in ${f.FilePath || result.Target}`);
+              shown += 1;
+            }
+          }
+          if (!shown) console.log("  (no findings in the report; see the Trivy output above)");
+          NODE
+              exit 1
+            fi
             trivy image \
               --scanners vuln \
               --ignorefile "$policy_file" \
