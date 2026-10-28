@@ -18,7 +18,9 @@ class HorariosAlphalinkApplicationTest(unittest.TestCase):
         self.assertEqual(self.app["metadata"]["name"], "horarios-alphalink")
         self.assertEqual(self.spec["source"]["repoURL"],
                          "https://github.com/pocharlies-org/horarios-alphalink")
-        self.assertEqual(self.spec["source"]["path"], "k8s")
+        # SC-3505: kustomization a la raíz del repo de producto (configMapGenerator
+        # necesita leer src/; patrón fichajes).
+        self.assertEqual(self.spec["source"]["path"], ".")
         self.assertEqual(self.spec["source"]["targetRevision"], "main")
 
     def test_vive_en_el_namespace_de_alphalink(self):

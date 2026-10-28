@@ -18,7 +18,7 @@ spec:
   source:
     repoURL: https://github.com/pocharlies-org/horarios-alphalink
     targetRevision: main
-    path: k8s
+    path: .
   destination:
     server: https://kubernetes.default.svc
     namespace: alphalink
