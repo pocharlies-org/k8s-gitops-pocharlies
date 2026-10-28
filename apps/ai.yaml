@@ -1793,7 +1793,10 @@ spec:
     # 27-10-2026 (DGX-1303, Dani): dgx3 (TP=1) a la imagen 1x-v2.4.0 de ursu (HC down en BF16 en prefill, k8s-ai #218).
     # Solo cambian el ConfigMap env-1x y el Deployment de dgx3; el TP=2 no se reinicia.
     # ROLLBACK de esto: 0bb7db40ed80abf0545a11f0806c71ecf49c8c40 con el mismo path.
-    targetRevision: 542f8dc467e2c964389d0c1423664904e26c011f
+    # 28-10-2026 (DGX-1322, Dani): TP=2 con la ruta BF16 del HC en prefill como parche al arrancar (k8s-ai #220).
+    # Reinicia head y worker del TP=2; dgx3 no se toca.
+    # ROLLBACK de esto: 542f8dc467e2c964389d0c1423664904e26c011f con el mismo path.
+    targetRevision: 18370dc8ca190122354af4bd83c03d0ad6c751f7
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
