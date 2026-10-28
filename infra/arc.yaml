@@ -194,12 +194,29 @@ spec:
         # sigue abierto: mientras no se cierre, maxRunners no sube. Se deja
         # el tope en 16 y documentado; con remedicion de cifra firme y
         # rafaga limpia, se sube en otra PR con su propio comentario.
+        #
+        # 2026-10-28 it · INFRA-960. atlantic entro el 2026-10-24 (OVH, 16 CPU /
+        # 128 GiB, workload=cpu, sin taint): el pool CPU dedicado que faltaba en
+        # septiembre. El pool sale de los control planes: nodeSelector
+        # workload=cpu deja ks5-cp-1/2/3 fuera (atlantic + x86 como unicos
+        # amd64 sin taint con esa etiqueta; sauvage sigue fuera por no tolerar
+        # role=edge). Los jobs de skirmshop-labels se pasaban del timeout de
+        # 15 min con los cp al 115-120 % de CPU (PR #161, tres veces el 20-10).
+        # maxRunners NO sube: sigue vigente la condicion de INFRA-549.
         maxRunners: 16
         minRunners: 0
         runnerScaleSetName: arc-k8s
         template:
           spec:
             affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    # Doble candado con el nodeSelector: los ks5-cp-* no llevan
+                    # taint, el selector es la unica barrera (INFRA-960).
+                    - matchExpressions:
+                        - key: node-role.kubernetes.io/control-plane
+                          operator: DoesNotExist
               podAntiAffinity:
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
@@ -211,6 +228,7 @@ spec:
                       topologyKey: kubernetes.io/hostname
             nodeSelector:
               kubernetes.io/arch: amd64
+              workload: cpu
             tolerations:
               - effect: PreferNoSchedule
                 key: pool
