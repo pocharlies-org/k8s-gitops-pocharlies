@@ -307,16 +307,21 @@ def _iter_source_files(repo: Path):
         yield path
 
 
-def _marker_map(repo: Path, rev: str | None = None) -> dict[str, str]:
+def _excluded(path: str, excluir: tuple[str, ...]) -> bool:
+    return any(path == p or path.startswith(p + "/") for p in excluir)
+
+
+def _marker_map(repo: Path, rev: str | None = None, excluir: tuple[str, ...] = ()) -> dict[str, str]:
     """cid -> the first file that marks it, without a line number.
 
     Over the working tree the files are read directly; over a commit the markers
-    come from `git grep` so the base tree never has to be materialised.
+    come from `git grep` so the base tree never has to be materialised. Paths under
+    `excluir` (the registry's `scan_exclude`) are not scanned.
     """
     found: dict[str, str] = {}
     if rev is None:
         for path in _iter_source_files(repo):
-            if path.name == REGISTRY_FILENAME:
+            if path.name == REGISTRY_FILENAME or _excluded(str(path.relative_to(repo)), excluir):
                 continue
             for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
                 for cid in MARKER_RE.findall(line):
@@ -333,7 +338,7 @@ def _marker_map(repo: Path, rev: str | None = None) -> dict[str, str]:
             line = line[len(prefix):]
         path, _, rest = line.partition(":")
         _, _, content = rest.partition(":")
-        if path == REGISTRY_FILENAME or path.endswith("/" + REGISTRY_FILENAME):
+        if path == REGISTRY_FILENAME or path.endswith("/" + REGISTRY_FILENAME) or _excluded(path, excluir):
             continue
         for cid in MARKER_RE.findall(content):
             found.setdefault(cid, path)
@@ -341,11 +346,12 @@ def _marker_map(repo: Path, rev: str | None = None) -> dict[str, str]:
 
 
 def validate_markers(
-    report: Report, repo: Path, entries: list[dict[str, Any]], rev: str | None = None
+    report: Report, repo: Path, entries: list[dict[str, Any]], rev: str | None = None,
+    excluir: tuple[str, ...] = (),
 ) -> None:
     """`# CONTRACT: <id>` markers and registry entries must agree both ways."""
     known = {spec["id"] for spec in entries if spec.get("id")}
-    found = _marker_map(repo, rev)
+    found = _marker_map(repo, rev, excluir)
     for cid, where in sorted(found.items()):
         if cid not in known:
             report.failures.append(
@@ -385,7 +391,10 @@ def collect_tree_findings(
     report = Report()
     validate_schema(report, entries)
     validate_values_present(report, repo, entries, rev)
-    validate_markers(report, repo, entries, rev)
+    # `scan_exclude`: paths whose text is not this repo's code (a catalogue quoting other repos' markers,
+    # k8s-skills-catalog-pocharlies skills/); a marker there is someone else's, not an unregistered contract here.
+    excluir = tuple(str(p).strip("/") for p in (data.get("scan_exclude") or []) if str(p).strip("/"))
+    validate_markers(report, repo, entries, rev, excluir)
     return report, entries
 
 
