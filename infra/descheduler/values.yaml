@@ -108,6 +108,13 @@ deschedulerPolicy:
                 - onepassword-connect
                 - minio
                 - backup-hub
+                # SC-2848 (28-10): desalojar `vm-kube-state-metrics` borra sus
+                # series y la rama `absent()` de LlmPoolCapabilityUnavailable
+                # cae en ==0: el pool bge no estaba caído, era KSM saltando de
+                # ks5-cp-1 a cada pasada (23-incidentes en 6 días). Los cps
+                # siguen por encima del target y el scheduler lo devuelve
+                # siempre al mismo nodo: bucle de desalojo cada 2 min.
+                - monitoring
       plugins:
         balance:
           enabled:
