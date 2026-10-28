@@ -1,0 +1,29 @@
+# SC-3508 (épica SC-1779): MCP del catálogo único de skills para Claude y Hermes, servido por
+# AgentGateway en /skills. Manifiestos en k8s-skills-catalog-pocharlies/deploy, pin de imagen escrito
+# por reusable-manifest-release en deploy/prod. prune: false: ningún borrado automático.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: skills-catalog
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-skills-catalog-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-skills-catalog-pocharlies
+    targetRevision: deploy/prod
+    path: deploy
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: skills-catalog
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

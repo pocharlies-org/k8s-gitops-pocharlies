@@ -38,6 +38,8 @@ Un solo «cliente»: ArgoCD.
   en `main`, ns `llm`, `prune: false` (el PVC `ollaya-models` guarda los pesos descargados).
   Desde SC-2956 registra `analisis` (`apps/analisis.yaml`): `k8s/` de `k8s-analisis-pocharlies` en `deploy/prod`
   (el pin de imagen lo escribe `reusable-manifest-release`), ns `analisis`, `prune: false`.
+  Desde SC-3508 registra `skills-catalog` (`apps/skills-catalog.yaml`): `deploy/` de `k8s-skills-catalog-pocharlies`
+  en `deploy/prod` (pin por `reusable-manifest-release`), ns `skills-catalog`, `prune: false`: el MCP `/skills`.
 
 ## 3. Stack
 
