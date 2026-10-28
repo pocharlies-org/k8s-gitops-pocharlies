@@ -68,6 +68,9 @@ root = Path(sys.argv[1])
 runner_image = "ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4"
 dind_image = "docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c"
 expected_selector = {"kubernetes.io/arch": "amd64"}
+# arc-k8s (INFRA-960, 2026-10-28): pool CPU dedicado (workload=cpu: atlantic +
+# ubuntu). Los ks5-cp-* pierden el puesto de destino por defecto.
+expected_selector_shared = {"kubernetes.io/arch": "amd64", "workload": "cpu"}
 expected_antiaffinity_labels = {
     "app.kubernetes.io/component": "runner",
     "app.kubernetes.io/part-of": "gha-runner-scale-set",
@@ -88,12 +91,12 @@ def rendered_runner_set(release: str) -> dict:
 
 
 def validate_common(
-    release: str, expected_max: int, *, edge_fallback: bool
+    release: str, expected_max: int, *, edge_fallback: bool, selector: dict
 ) -> tuple[dict, dict]:
     runner_set = rendered_runner_set(release)
     assert runner_set["spec"]["maxRunners"] == expected_max
     pod_spec = runner_set["spec"]["template"]["spec"]
-    assert pod_spec["nodeSelector"] == expected_selector
+    assert pod_spec["nodeSelector"] == selector
     assert "kubernetes.io/hostname" not in pod_spec["nodeSelector"]
 
     ks5_term = {
@@ -118,12 +121,27 @@ def validate_common(
             "value": "edge",
         } not in pod_spec["tolerations"]
     else:
-        # arc-k8s (2026-09-22, Dani): sigue sin nodeAffinity — no se fijan
-        # hostnames —, pero YA NO tolera role=edge, y por eso no aterriza en
-        # sauvage: es el unico nodo con ese taint y su md3 esta al 100 %
-        # (medido: arrancar un pod alli no termino en 120 s, contra 0,34 s en
-        # ks5-cp-1). Deroga el "scheduling libre" del 16-09.
-        assert "nodeAffinity" not in pod_spec["affinity"]
+        # arc-k8s (INFRA-960, 2026-10-28): pool CPU dedicado — nodeSelector
+        # workload=cpu (atlantic + ubuntu; sauvage sigue fuera por no tolerar
+        # role=edge, md3 al 100 %) y nodeAffinity required que excluye los
+        # control planes: ks5-cp-* no llevan taint y los 16 runners los
+        # saturaban (115-120 % CPU), dejando los jobs de skirmshop-labels
+        # fuera de su timeout. Deroga el anclaje a ks5-cp-1/2/3 + x86 del
+        # 2026-09-22, que no tenia otro amd64 sano donde ir.
+        assert pod_spec["affinity"]["nodeAffinity"] == {
+            "requiredDuringSchedulingIgnoredDuringExecution": {
+                "nodeSelectorTerms": [
+                    {
+                        "matchExpressions": [
+                            {
+                                "key": "node-role.kubernetes.io/control-plane",
+                                "operator": "DoesNotExist",
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
         assert {
             "effect": "NoSchedule",
             "key": "role",
@@ -155,8 +173,6 @@ def scheduler_eligible(pod_spec: dict, labels: dict[str, str]) -> bool:
         return False
     node_affinity = pod_spec["affinity"].get("nodeAffinity")
     if node_affinity is None:
-        # Sin nodeAffinity (arc-k8s): acotan el nodeSelector (arch) y el taint
-        # de arriba. No se fija hostname a proposito.
         return True
     required = node_affinity.get("requiredDuringSchedulingIgnoredDuringExecution")
     if required is None:
@@ -165,15 +181,23 @@ def scheduler_eligible(pod_spec: dict, labels: dict[str, str]) -> bool:
     terms = required["nodeSelectorTerms"]
     return any(
         all(
-            expression["operator"] == "In"
-            and labels.get(expression["key"]) in expression["values"]
+            (
+                expression["operator"] == "In"
+                and labels.get(expression["key"]) in expression["values"]
+            )
+            or (
+                expression["operator"] == "DoesNotExist"
+                and expression["key"] not in labels
+            )
             for expression in term["matchExpressions"]
         )
         for term in terms
     )
 
 
-_, openclaw_spec = validate_common("arc-openclaw", 2, edge_fallback=True)
+_, openclaw_spec = validate_common(
+    "arc-openclaw", 2, edge_fallback=True, selector=expected_selector
+)
 assert [container["name"] for container in openclaw_spec["containers"]] == ["runner"]
 assert openclaw_spec.get("initContainers", []) == []
 assert openclaw_spec.get("volumes", []) == []
@@ -183,14 +207,26 @@ assert openclaw_runner["imagePullPolicy"] == "IfNotPresent"
 assert not openclaw_runner.get("securityContext", {}).get("privileged", False)
 assert "DOCKER_HOST" not in {item["name"] for item in openclaw_runner.get("env", [])}
 
-_, shared_spec = validate_common("arc-k8s", 16, edge_fallback=False)
+_, shared_spec = validate_common(
+    "arc-k8s", 16, edge_fallback=False, selector=expected_selector_shared
+)
 
 eligibility_matrix = {
-    "ks5": {"kubernetes.io/arch": "amd64", "node-pool": "ks5-nvme"},
-    "sauvage": {"kubernetes.io/arch": "amd64", "role": "edge"},
+    # ks5-cp: sin taint y sin workload=cpu — arc-k8s no debe entrar (INFRA-960).
+    "ks5-cp": {
+        "kubernetes.io/arch": "amd64",
+        "node-role.kubernetes.io/control-plane": "true",
+    },
+    "atlantic": {"kubernetes.io/arch": "amd64", "workload": "cpu"},
+    "sauvage": {
+        "kubernetes.io/arch": "amd64",
+        "role": "edge",
+        "workload": "cpu",
+    },
     "ubuntu-gpu": {
         "kubernetes.io/arch": "amd64",
         "pool": "dev",
+        "workload": "cpu",
         "nvidia.com/gpu.present": "true",
     },
     "arm-gpu": {
@@ -199,17 +235,21 @@ eligibility_matrix = {
         "nvidia.com/gpu.present": "true",
     },
 }
-# arc-k8s: elegible en los amd64 SANOS. sauvage queda fuera desde 2026-09-22 por
-# no tolerar su taint role=edge (ver validate_common).
+# arc-k8s (INFRA-960): solo el pool cpu (atlantic + ubuntu). sauvage tiene
+# workload=cpu pero sigue fuera por no tolerar role=edge (md3 al 100 %).
+# arc-openclaw: anclado a ks5 como preferred, sin required — cualquier amd64
+# sin taint le vale.
 expected_eligibility = {
     "arc-openclaw": {
-        "ks5": True,
+        "ks5-cp": True,
+        "atlantic": True,
         "sauvage": False,
         "ubuntu-gpu": True,
         "arm-gpu": False,
     },
     "arc-k8s": {
-        "ks5": True,
+        "ks5-cp": False,
+        "atlantic": True,
         "sauvage": False,
         "ubuntu-gpu": True,
         "arm-gpu": False,

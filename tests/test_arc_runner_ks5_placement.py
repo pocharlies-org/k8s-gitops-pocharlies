@@ -13,24 +13,28 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.openclaw_values = self.manifest.split("name: arc-openclaw", 1)[1].split("---", 1)[0]
         self.shared_values = self.manifest.split("name: arc-k8s", 1)[1]
 
-    def test_shared_runner_has_free_amd64_scheduling(self) -> None:
-        """arc-k8s se coloca en cualquier nodo amd64 SANO — sin nodeAffinity.
+    def test_shared_runner_is_pinned_to_the_cpu_pool(self) -> None:
+        """arc-k8s va al pool CPU dedicado (INFRA-960, 2026-10-28).
 
-        Sigue sin haber nodeAffinity (no se fijan hostnames): a sauvage se le
-        deja fuera no tolerando su taint, que es lo que comprueba
-        test_shared_pool_does_not_tolerate_edge. Este test defiende lo otro —
-        que nadie vuelva a meter un pinning duro a un nodo concreto.
+        nodeSelector workload=cpu (atlantic + x86) y nodeAffinity required que
+        excluye los control planes: ks5-cp-* no llevan taint y los 16 runners
+        los saturaban (115-120 % de CPU), dejando los jobs de skirmshop-labels
+        fuera de su timeout de 15 min. A sauvage se le sigue dejando fuera no
+        tolerando su taint (test_shared_pool_does_not_tolerate_edge). No se fija
+        ningun hostname concreto: el pool se elige por etiqueta.
         """
         runner_values = self.shared_values.split("runnerScaleSetName: arc-k8s", 1)[1]
         runner_values = runner_values.split("tolerations:", 1)[0]
 
         self.assertIn("kubernetes.io/arch: amd64", runner_values)
+        self.assertIn("workload: cpu", runner_values)
         self.assertIn("preferredDuringSchedulingIgnoredDuringExecution:", runner_values)
+        self.assertIn("requiredDuringSchedulingIgnoredDuringExecution:", runner_values)
+        self.assertIn("node-role.kubernetes.io/control-plane", runner_values)
+        self.assertIn("operator: DoesNotExist", runner_values)
         self.assertNotIn("key: node-pool", runner_values)
-        self.assertNotIn("requiredDuringSchedulingIgnoredDuringExecution:", runner_values)
         self.assertNotIn("values: [ks5-nvme]", runner_values)
         self.assertNotIn("kubernetes.io/hostname:", runner_values)
-        self.assertNotIn("workload: cpu", runner_values)
 
     def test_openclaw_prefers_ks5_without_hard_pinning_or_edge(self) -> None:
         """arc-openclaw (SC-2019): KS5 preferido, sin required (desborda a ubuntu
@@ -60,7 +64,7 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertIn("key: pool", runner_tolerations)
 
     def test_runner_pool_caps_backlog_drain_at_sixteen(self) -> None:
-        """16 plazas sobre los 4 amd64 sanos; ver el comentario en infra/arc.yaml."""
+        """16 plazas sobre el pool cpu (INFRA-549); ver el comentario en infra/arc.yaml."""
         self.assertIn("maxRunners: 16", self.shared_values)
         self.assertNotIn("maxRunners: 8", self.shared_values)
         self.assertNotIn("maxRunners: 6", self.shared_values)
