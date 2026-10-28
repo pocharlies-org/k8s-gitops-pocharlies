@@ -183,7 +183,13 @@ require("refs/(heads|tags)" not in workflow, "mutable certificate reference acce
 # Revisado el 18-10-2026 (SC-2749 bis): la referencia a la accion setup-buildx pasa a
 # ruta absoluta @main (dentro de un reusable, './' se resuelve contra el repo que llama;
 # medido en k8s-teslamate-mcp#9). Ninguna otra linea del workflow cambia.
-expected_workflow_digest = "368511c955da8b35748bcd4a6baad9e0d682b892e70a48438a2ecd08737222b8"
+# Revisado el 28-10-2026 (SC-2856): el gate Trivy de publicacion, cuando falla,
+# imprime sus hallazgos bloqueantes (paquete/version/fijacion, regla/fichero de
+# secreto) antes de salir con 1. El informe va a fichero (--format json --output),
+# asi que hasta ahora el step moria con exit 1 sin nombrar nada (tres releases de
+# k8s-socialmedia). El comando trivy, sus flags y el exit code no cambian: solo la
+# visibilidad del fallo. Preflight, firma cosign, SBOM/SLSA y promocion atomica intactos.
+expected_workflow_digest = "5a1dbed467e33ae336d9b4e83f7b39efa49cee414dbc6f1e1a78b7d79257db37"
 # La instalacion de Buildx (checksums + imagen por digest) vive ahora en la
 # accion local: se pinnea igual que el workflow, o el contrato pierde cobertura.
 expected_buildx_action_digest = "e39317a5be5b63d9d01959164ac5c0e6f809eed870c8a5e28be2999043eb9353"

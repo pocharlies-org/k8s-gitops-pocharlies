@@ -14,28 +14,16 @@ someone edits the emitter back into an unparseable shape.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
-import re
-import subprocess
 import tempfile
 import unittest
 
-ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = ROOT / ".github/workflows/reusable-release.yml"
-EMITTER = re.compile(
-    r"POLICY_SOURCE=\"\$policy_source\" POLICY_OUTPUT=\"[^\"]+\" node <<'NODE'\n(.*?)\n          NODE",
-    re.S,
+from _release_snippets import run_node, workflow_snippet
+
+EMITTER_MARKER = (
+    'POLICY_SOURCE="$policy_source" '
+    'POLICY_OUTPUT="$evidence_dir/trivy-policy.trivyignore.yaml"'
 )
-
-
-def emitter_source() -> str:
-    match = EMITTER.search(WORKFLOW.read_text())
-    if match is None:  # pragma: no cover - the workflow lost the emitter entirely
-        raise AssertionError("could not find the Trivy policy emitter in the workflow")
-    return "\n".join(
-        line[10:] if line.startswith(" " * 10) else line for line in match.group(1).split("\n")
-    )
 
 
 def run_emitter(policy: dict) -> dict:
@@ -43,12 +31,9 @@ def run_emitter(policy: dict) -> dict:
         source = Path(tmp) / "in.trivyignore.yaml"
         output = Path(tmp) / "out.trivyignore.yaml"
         source.write_text(json.dumps(policy))
-        result = subprocess.run(  # noqa: S603 - node, fixed args
-            ["node", "-e", emitter_source()],
-            env={**os.environ, "POLICY_SOURCE": str(source), "POLICY_OUTPUT": str(output)},
-            capture_output=True,
-            text=True,
-            check=False,
+        result = run_node(
+            workflow_snippet(EMITTER_MARKER),
+            {"POLICY_SOURCE": str(source), "POLICY_OUTPUT": str(output)},
         )
         if result.returncode != 0:
             raise AssertionError(f"emitter rejected the policy: {result.stderr.strip()}")
