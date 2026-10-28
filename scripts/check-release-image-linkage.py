@@ -181,7 +181,10 @@ for label, mutated_release, mutated_manifest in [
 # check-release-supply-chain.py). El enlace digest de imagen -> manifest no cambia.
 # SC-2749 bis: la referencia a la accion pasa a ruta absoluta @main (el './' dentro de
 # un reusable apunta al repo que llama).
-expected_release_sha256 = "368511c955da8b35748bcd4a6baad9e0d682b892e70a48438a2ecd08737222b8"
+# Revisado el 28-10-2026 (SC-2856): el gate Trivy del release, cuando falla, imprime sus
+# hallazgos bloqueantes antes de salir con 1 (el informe va a fichero y el step moria con
+# exit 1 sin nombrar nada). El enlace digest de imagen -> manifest no cambia.
+expected_release_sha256 = "5a1dbed467e33ae336d9b4e83f7b39efa49cee414dbc6f1e1a78b7d79257db37"
 expected_manifest_sha256 = "daafcd9d938a6accdcb14de3659dfd9dd983f0a6b8505d5764076565cdfbe405"
 release_sha256 = hashlib.sha256(release.encode()).hexdigest()
 manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()
