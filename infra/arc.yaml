@@ -362,3 +362,166 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+---
+# arc-skills-eval: scale set propio de la evaluacion de skills externas
+# (SC-3635, security 2026-10-29; decided por security, redactado sobre el
+# patron DinD de arc-k8s). Corre la evaluacion de SC-1823/SC-3602: codigo de
+# terceros dentro de DinD, con el sandbox `docker run --network none`.
+#
+# FIJADO A ATLANTIC (node-pool=ovh-heavy) a proposito: si atlantic cae, los
+# jobs hacen cola (Pending) en vez de desbordar a otro nodo — que el codigo no
+# confiable solo toque este nodo es parte del aislamiento. Su egress lo acota la
+# NetworkPolicy `arc-skills-eval-egress` (k8s-infra, networking/arc-skills-eval/):
+# DNS + LiteLLM:4000 + internet publico (GitHub); ks5-cp-*, LAN y el resto del
+# cluster, fuera. El namespace es propio (no arc-runners) porque las policies
+# de egreso se unen y en arc-runners toda pod hereda ya la baseline del pool
+# compartido; no se puede restar.
+#
+# El githubConfigSecret (arc-github-app) lo materializa aqui un ExternalSecret
+# del mismo item de 1Password (networking/arc-skills-eval/ en k8s-infra).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-skills-eval
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-skills-eval
+      values: |
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-app
+        githubConfigUrl: https://github.com/pocharlies-org/k8s-skills-catalog-pocharlies
+        # 2026-10-29 security · SC-3635. Dos plazas: evaluar-skill.yml corre dos
+        # jobs en serie (sandbox y juez) y pueden coincidir dos PRs del catalogo
+        # a la vez; con mas, hacen cola, no fallan. atlantic (16 CPU / 128 GiB)
+        # sobra: el sandbox de evaluacion es ligero.
+        maxRunners: 2
+        minRunners: 0
+        runnerScaleSetName: arc-skills-eval
+        template:
+          spec:
+            affinity:
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
+            # Fijado duro al pool de atlantic (SC-3635): unico amd64 con esta
+            # etiqueta hoy. Sin tolerations: atlantic no lleva taint.
+            nodeSelector:
+              kubernetes.io/arch: amd64
+              node-pool: ovh-heavy
+            # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
+            # container. containerMode must stay unset when that sidecar is
+            # customized, otherwise Helm silently discards its resources.
+            initContainers:
+              - name: init-dind-externals
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["cp"]
+                args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+                resources:
+                  requests:
+                    cpu: "5m"
+                    memory: "32Mi"
+                  limits:
+                    cpu: "100m"
+                    memory: "128Mi"
+                volumeMounts:
+                  - name: dind-externals
+                    mountPath: /home/runner/tmpDir
+              - name: dind
+                image: docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c
+                imagePullPolicy: IfNotPresent
+                args:
+                  - dockerd
+                  - --host=unix:///var/run/docker.sock
+                  - --group=$(DOCKER_GROUP_GID)
+                  # Mismo motivo que en arc-k8s: el bridge de dockerd queda en
+                  # 1500 y la red de pods va a 1230 (flannel vxlan sobre
+                  # tailscale0). Medido en atlantic el 2026-10-29: eth0=1230.
+                  - --mtu=1230
+                env:
+                  - name: DOCKER_GROUP_GID
+                    value: "123"
+                restartPolicy: Always
+                resources:
+                  requests:
+                    cpu: "50m"
+                    memory: "512Mi"
+                    ephemeral-storage: "10Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                    ephemeral-storage: "40Gi"
+                securityContext:
+                  privileged: true
+                startupProbe:
+                  exec:
+                    command: ["docker", "info"]
+                  initialDelaySeconds: 0
+                  failureThreshold: 24
+                  periodSeconds: 5
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+                  - name: dind-externals
+                    mountPath: /home/runner/externals
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["/home/runner/run.sh"]
+                env:
+                  - name: DOCKER_HOST
+                    value: unix:///var/run/docker.sock
+                  - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+                    value: "120"
+                resources:
+                  requests:
+                    cpu: "100m"
+                    memory: "1Gi"
+                    ephemeral-storage: "2Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                    ephemeral-storage: "10Gi"
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+            volumes:
+              - name: work
+                emptyDir: {}
+              - name: dind-sock
+                emptyDir: {}
+              - name: dind-externals
+                emptyDir: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-skills-eval
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

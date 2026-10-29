@@ -85,9 +85,11 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertIn("imagePullPolicy: IfNotPresent", self.openclaw_values)
 
     def test_all_runner_and_dind_images_are_digest_pinned(self) -> None:
-        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 3)
-        self.assertEqual(self.manifest.count(f"image: {DIND_IMAGE}"), 1)
-        self.assertEqual(self.manifest.count("imagePullPolicy: IfNotPresent"), 4)
+        # 2026-10-29 security · SC-3635: anade arc-skills-eval (runner +
+        # init-dind-externals comparten imagen de runner, dind la suya).
+        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 5)
+        self.assertEqual(self.manifest.count(f"image: {DIND_IMAGE}"), 2)
+        self.assertEqual(self.manifest.count("imagePullPolicy: IfNotPresent"), 7)
         self.assertNotIn("image: docker:dind", self.manifest)
         self.assertNotIn("image: ghcr.io/actions/actions-runner:2.335.1\n", self.manifest)
 
@@ -165,6 +167,64 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         verifier = ROOT / "scripts/verify_arc_runner_render.sh"
         self.assertTrue(verifier.is_file())
         self.assertIn("scripts/verify_arc_runner_render.sh", workflow)
+
+
+class ArcSkillsEvalPlacementTest(unittest.TestCase):
+    """SC-3635 (security, 2026-10-29): el pool de evaluacion de skills externas.
+
+    Codigo de terceros en DinD: fijado a atlantic (node-pool=ovh-heavy) y con
+    su egress acotado por la NetworkPolicy arc-skills-eval-egress (k8s-infra).
+    Que el job haga cola si atlantic cae es el comportamiento querido, no un
+    fallo: el codigo no confiable no debe aterrizar en otro nodo.
+    """
+
+    def setUp(self) -> None:
+        import yaml
+
+        documents = yaml.safe_load_all((ROOT / "infra/arc.yaml").read_text())
+        self.application = next(
+            d
+            for d in documents
+            if isinstance(d, dict)
+            and d.get("kind") == "Application"
+            and d["metadata"]["name"] == "arc-skills-eval"
+        )
+        self.values = yaml.safe_load(self.application["spec"]["source"]["helm"]["values"])
+
+    def test_repo_scoped_to_the_skills_catalog(self) -> None:
+        self.assertEqual(
+            self.values["githubConfigUrl"],
+            "https://github.com/pocharlies-org/k8s-skills-catalog-pocharlies",
+        )
+        self.assertEqual(self.values["runnerScaleSetName"], "arc-skills-eval")
+
+    def test_pinned_hard_to_the_ovh_heavy_pool(self) -> None:
+        spec = self.values["template"]["spec"]
+        self.assertEqual(
+            spec["nodeSelector"],
+            {"kubernetes.io/arch": "amd64", "node-pool": "ovh-heavy"},
+        )
+        # Sin required nodeAffinity: el nodeSelector ya es el candado duro
+        # (atlantic es el unico nodo con la etiqueta). Y sin tolerar edge.
+        self.assertNotIn(
+            "requiredDuringSchedulingIgnoredDuringExecution",
+            str(spec.get("affinity", {})),
+        )
+        self.assertNotIn("value: edge", str(spec.get("tolerations", [])))
+
+    def test_two_slots_serial_jobs(self) -> None:
+        self.assertEqual(self.values["maxRunners"], 2)
+        self.assertEqual(self.values["minRunners"], 0)
+
+    def test_dind_pattern_like_shared_pool(self) -> None:
+        # containerMode sigue sin usarse (el chart descartaria los resources
+        # del sidecar customizado); dind con --mtu=1230 e imagenes pineadas.
+        self.assertNotIn("containerMode", self.values)
+        text = self.application["spec"]["source"]["helm"]["values"]
+        self.assertIn("--mtu=1230", text)
+        self.assertIn(f"image: {RUNNER_IMAGE}", text)
+        self.assertIn(f"image: {DIND_IMAGE}", text)
+        self.assertIn("privileged: true", text)
 
 
 if __name__ == "__main__":

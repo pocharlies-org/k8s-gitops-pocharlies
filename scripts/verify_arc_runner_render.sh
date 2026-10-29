@@ -35,7 +35,7 @@ applications = {
     if isinstance(document, dict) and document.get("kind") == "Application"
 }
 
-for name in ("arc-openclaw", "arc-k8s"):
+for name in ("arc-openclaw", "arc-k8s", "arc-skills-eval"):
     application = applications[name]
     source = application["spec"]["source"]
     assert source["targetRevision"] == "0.14.1"
@@ -47,7 +47,7 @@ for name in ("arc-openclaw", "arc-k8s"):
     (output / f"{name}.values.yaml").write_text(values_text, encoding="utf-8")
 PY
 
-for release in arc-openclaw arc-k8s; do
+for release in arc-openclaw arc-k8s arc-skills-eval; do
   helm template "${release}" "${CHART}" \
     --version "${CHART_VERSION}" \
     --namespace arc-runners \
@@ -91,7 +91,12 @@ def rendered_runner_set(release: str) -> dict:
 
 
 def validate_common(
-    release: str, expected_max: int, *, edge_fallback: bool, selector: dict
+    release: str,
+    expected_max: int,
+    *,
+    edge_fallback: bool,
+    selector: dict,
+    hard_pinned_by_selector: bool = False,
 ) -> tuple[dict, dict]:
     runner_set = rendered_runner_set(release)
     assert runner_set["spec"]["maxRunners"] == expected_max
@@ -104,7 +109,14 @@ def validate_common(
             {"key": "node-pool", "operator": "In", "values": ["ks5-nvme"]}
         ]
     }
-    if edge_fallback:
+    if hard_pinned_by_selector:
+        # arc-skills-eval (SC-3635, security 2026-10-29): el nodeSelector
+        # node-pool=ovh-heavy es el candado duro (atlantic es el unico nodo con
+        # la etiqueta y no lleva taint): sin nodeAffinity y sin tolerations.
+        # Que el job haga cola si atlantic cae es el comportamiento querido.
+        assert "nodeAffinity" not in pod_spec.get("affinity", {})
+        assert not pod_spec.get("tolerations")
+    elif edge_fallback:
         # arc-openclaw (SC-2019): KS5 solo PREFERIDO (sin required: si no cabe,
         # desborda a ubuntu en vez de quedar Pending) y sin tolerar role=edge
         # (sauvage, md3 saturado).
@@ -211,6 +223,34 @@ _, shared_spec = validate_common(
     "arc-k8s", 16, edge_fallback=False, selector=expected_selector_shared
 )
 
+# arc-skills-eval (SC-3635, security 2026-10-29): evaluacion de skills externas
+# (codigo de terceros en DinD). Fijado duro a atlantic; el egress lo acota la
+# NetworkPolicy arc-skills-eval-egress (k8s-infra), no este render.
+expected_selector_skills_eval = {
+    "kubernetes.io/arch": "amd64",
+    "node-pool": "ovh-heavy",
+}
+_, skills_eval_spec = validate_common(
+    "arc-skills-eval",
+    2,
+    edge_fallback=False,
+    selector=expected_selector_skills_eval,
+    hard_pinned_by_selector=True,
+)
+assert [container["name"] for container in skills_eval_spec["containers"]] == ["runner"]
+assert [container["name"] for container in skills_eval_spec["initContainers"]] == [
+    "init-dind-externals",
+    "dind",
+]
+skills_eval_runner = skills_eval_spec["containers"][0]
+assert skills_eval_runner["image"] == runner_image
+skills_eval_env = {item["name"] for item in skills_eval_runner.get("env", [])}
+assert "DOCKER_HOST" in skills_eval_env
+skills_eval_dind = skills_eval_spec["initContainers"][1]
+assert skills_eval_dind["image"] == dind_image
+assert "--mtu=1230" in skills_eval_dind["args"]
+assert skills_eval_dind["securityContext"]["privileged"] is True
+
 eligibility_matrix = {
     # ks5-cp: sin taint y sin workload=cpu — arc-k8s no debe entrar (INFRA-960).
     "ks5-cp": {
@@ -218,6 +258,12 @@ eligibility_matrix = {
         "node-role.kubernetes.io/control-plane": "true",
     },
     "atlantic": {"kubernetes.io/arch": "amd64", "workload": "cpu"},
+    # atlantic real (SC-3635): lleva la etiqueta del pool ovh-heavy.
+    "atlantic-ovh-heavy": {
+        "kubernetes.io/arch": "amd64",
+        "workload": "cpu",
+        "node-pool": "ovh-heavy",
+    },
     "sauvage": {
         "kubernetes.io/arch": "amd64",
         "role": "edge",
@@ -239,10 +285,13 @@ eligibility_matrix = {
 # workload=cpu pero sigue fuera por no tolerar role=edge (md3 al 100 %).
 # arc-openclaw: anclado a ks5 como preferred, sin required — cualquier amd64
 # sin taint le vale.
+# arc-skills-eval (SC-3635): SOLO atlantic (node-pool=ovh-heavy); en cualquier
+# otro nodo hace cola. Es el aislamiento pedido, no un defecto.
 expected_eligibility = {
     "arc-openclaw": {
         "ks5-cp": True,
         "atlantic": True,
+        "atlantic-ovh-heavy": True,
         "sauvage": False,
         "ubuntu-gpu": True,
         "arm-gpu": False,
@@ -250,14 +299,24 @@ expected_eligibility = {
     "arc-k8s": {
         "ks5-cp": False,
         "atlantic": True,
+        "atlantic-ovh-heavy": True,
         "sauvage": False,
         "ubuntu-gpu": True,
+        "arm-gpu": False,
+    },
+    "arc-skills-eval": {
+        "ks5-cp": False,
+        "atlantic": False,
+        "atlantic-ovh-heavy": True,
+        "sauvage": False,
+        "ubuntu-gpu": False,
         "arm-gpu": False,
     },
 }
 for release, runner_spec in (
     ("arc-openclaw", openclaw_spec),
     ("arc-k8s", shared_spec),
+    ("arc-skills-eval", skills_eval_spec),
 ):
     for case, labels in eligibility_matrix.items():
         assert scheduler_eligible(runner_spec, labels) is expected_eligibility[
