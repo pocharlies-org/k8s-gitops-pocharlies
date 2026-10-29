@@ -183,7 +183,10 @@ require("refs/(heads|tags)" not in workflow, "mutable certificate reference acce
 # Revisado el 18-10-2026 (SC-2749 bis): la referencia a la accion setup-buildx pasa a
 # ruta absoluta @main (dentro de un reusable, './' se resuelve contra el repo que llama;
 # medido en k8s-teslamate-mcp#9). Ninguna otra linea del workflow cambia.
-# Revisado el 29-10-2026 (SC-2888): lo unico que cambia es el env del job
+# Revisado el 28-10-2026 (INFRA-995): fuera `actions: read` del job `notify` (sobrante:
+# el notify solo llama a la Bot API de Telegram; pedirlo tumbaba en startup_failure a
+# los callers que no lo conceden).
+# Revisado el 29-10-2026 (SC-2888): lo unico que cambia ademas es el env del job
 # `TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2`. Motivo medido: el
 # espejo por defecto (mirror.gcr.io/aquasec/trivy-db) da BLOB_UNKNOWN al blob actual
 # desde el egreso de los pods ARC, deterministico en dos intentos del tag
@@ -191,7 +194,7 @@ require("refs/(heads|tags)" not in workflow, "mutable certificate reference acce
 # La puerta Trivy no se relaja: mismo binario verificado por sha256, mismos
 # escaneos, misma severidad y politica, mismo --exit-code 1. Preflight, firma
 # cosign, SBOM/SLSA y promocion atomica intactos.
-expected_workflow_digest = "0644197e062d6b77179500aa260de82fc9003b75b8eb3813f89c3578e78626a8"
+expected_workflow_digest = "e9d7c6f9a91c0f61a10844202bc6edebc0ae1933fa8321d33e4b5d4fb0002772"
 # La instalacion de Buildx (checksums + imagen por digest) vive ahora en la
 # accion local: se pinnea igual que el workflow, o el contrato pierde cobertura.
 expected_buildx_action_digest = "e39317a5be5b63d9d01959164ac5c0e6f809eed870c8a5e28be2999043eb9353"
