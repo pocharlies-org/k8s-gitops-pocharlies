@@ -181,7 +181,11 @@ for label, mutated_release, mutated_manifest in [
 # check-release-supply-chain.py). El enlace digest de imagen -> manifest no cambia.
 # SC-2749 bis: la referencia a la accion pasa a ruta absoluta @main (el './' dentro de
 # un reusable apunta al repo que llama).
-expected_release_sha256 = "368511c955da8b35748bcd4a6baad9e0d682b892e70a48438a2ecd08737222b8"
+# Revisado el 29-10-2026 (SC-2888): lo unico que cambia en el workflow es el env del job
+# TRIVY_DB_REPOSITORY (mirror.gcr.io da BLOB_UNKNOWN al blob actual de trivy-db desde el
+# egreso ARC; se punta al espejo oficial de ECR). El enlace digest de imagen -> manifest
+# no cambia.
+expected_release_sha256 = "0644197e062d6b77179500aa260de82fc9003b75b8eb3813f89c3578e78626a8"
 expected_manifest_sha256 = "daafcd9d938a6accdcb14de3659dfd9dd983f0a6b8505d5764076565cdfbe405"
 release_sha256 = hashlib.sha256(release.encode()).hexdigest()
 manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()
