@@ -108,6 +108,13 @@ deschedulerPolicy:
                 - onepassword-connect
                 - minio
                 - backup-hub
+                # SC-2936: monitoring fuera de la expulsión. En un pico de CPU de
+                # ks5-cp-1 el descheduler desalojaba kube-state-metrics cada 2 min
+                # (120 pods en 2 días) y cada hueco de serie puede reabrir alertas
+                # críticas por absent() (incidente SII-16937: las dos CronStale de
+                # sii-cronjobs saltaron por el hueco, no por el SII). vmsingle y
+                # loki además traen PVC: no deben saltar de nodo.
+                - monitoring
       plugins:
         balance:
           enabled:
