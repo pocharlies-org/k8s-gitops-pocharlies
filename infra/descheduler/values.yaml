@@ -125,6 +125,15 @@ deschedulerPolicy:
                 # critical de fiscal con los cron sanos (29 IPs de pod en 46 h).
                 # Singleton de observabilidad: no se desaloja, como el resto.
                 - monitoring
+                # SC-2776 (28-10): ping-pong de desalojos. Los pods de control-nexus
+                # (worker de Image Studio, ui, spark-bot) al desalojarlos vuelven a un
+                # nodo fuente (ubuntu por su afinidad preferida lan, o los propios cps),
+                # y la pasada de cada 2 min los vuelve a desalojar: el worker del worker
+                # loop no llega a consolidar tick y dispara ImageStudioWorkerDown /
+                # Krea2TrainerWorkerDown (incidentos IMG de Keep del 19/10 y del 27/10).
+                # Además son servicios de latencia LAN (afinidad a ubuntu por diseño):
+                # moverlos a sauvage (OVH) es contraproducente para ellos.
+                - control-nexus
       plugins:
         balance:
           enabled:
