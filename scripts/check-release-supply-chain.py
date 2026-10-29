@@ -189,7 +189,10 @@ require("refs/(heads|tags)" not in workflow, "mutable certificate reference acce
 # asi que hasta ahora el step moria con exit 1 sin nombrar nada (tres releases de
 # k8s-socialmedia). El comando trivy, sus flags y el exit code no cambian: solo la
 # visibilidad del fallo. Preflight, firma cosign, SBOM/SLSA y promocion atomica intactos.
-# Revisado el 29-10-2026 (SC-2888): lo unico que cambia es el env del job
+# Revisado el 28-10-2026 (INFRA-995): fuera `actions: read` del job `notify` (sobrante:
+# el notify solo llama a la Bot API de Telegram; pedirlo tumbaba en startup_failure a
+# los callers que no lo conceden).
+# Revisado el 29-10-2026 (SC-2888): lo unico que cambia ademas es el env del job
 # `TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2`. Motivo medido: el
 # espejo por defecto (mirror.gcr.io/aquasec/trivy-db) da BLOB_UNKNOWN al blob actual
 # desde el egreso de los pods ARC, deterministico en dos intentos del tag
@@ -197,7 +200,7 @@ require("refs/(heads|tags)" not in workflow, "mutable certificate reference acce
 # La puerta Trivy no se relaja: mismo binario verificado por sha256, mismos
 # escaneos, misma severidad y politica, mismo --exit-code 1. Preflight, firma
 # cosign, SBOM/SLSA y promocion atomica intactos.
-expected_workflow_digest = "52986835bf7baf565224971f8d1641e811efb49d72111bd751d33decdcc3b1e2"
+expected_workflow_digest = "cfcd31007d5071ebd523f1ff5f1e964f52fe1a3c3214a1f1f70a980fcae1cdd1"
 # La instalacion de Buildx (checksums + imagen por digest) vive ahora en la
 # accion local: se pinnea igual que el workflow, o el contrato pierde cobertura.
 expected_buildx_action_digest = "e39317a5be5b63d9d01959164ac5c0e6f809eed870c8a5e28be2999043eb9353"

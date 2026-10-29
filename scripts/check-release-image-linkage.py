@@ -184,12 +184,15 @@ for label, mutated_release, mutated_manifest in [
 # Revisado el 28-10-2026 (SC-2856): el gate Trivy del release, cuando falla, imprime sus
 # hallazgos bloqueantes antes de salir con 1 (el informe va a fichero y el step moria con
 # exit 1 sin nombrar nada). El enlace digest de imagen -> manifest no cambia.
-# Revisado el 29-10-2026 (SC-2888): lo unico que cambia en el workflow es el env del job
+# Revisado el 28-10-2026 (INFRA-995): en ambos workflows sale `actions: read` del job
+# `notify` (sobrante: el notify solo llama a la Bot API de Telegram; pedirlo tumbaba en
+# startup_failure a los callers que no lo conceden).
+# Revisado el 29-10-2026 (SC-2888): en el release ademas cambia el env
 # TRIVY_DB_REPOSITORY (mirror.gcr.io da BLOB_UNKNOWN al blob actual de trivy-db desde el
 # egreso ARC; se punta al espejo oficial de ECR). El enlace digest de imagen -> manifest
 # no cambia.
-expected_release_sha256 = "52986835bf7baf565224971f8d1641e811efb49d72111bd751d33decdcc3b1e2"
-expected_manifest_sha256 = "daafcd9d938a6accdcb14de3659dfd9dd983f0a6b8505d5764076565cdfbe405"
+expected_release_sha256 = "cfcd31007d5071ebd523f1ff5f1e964f52fe1a3c3214a1f1f70a980fcae1cdd1"
+expected_manifest_sha256 = "4e48cd19b2bb6da68e674687e68a4f2027daec6d449a882e03bef604af180fef"
 release_sha256 = hashlib.sha256(release.encode()).hexdigest()
 manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()
 require(release_sha256 == expected_release_sha256, f"release linkage workflow changed: {release_sha256}")

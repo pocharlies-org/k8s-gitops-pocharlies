@@ -163,11 +163,12 @@ validate_overlay = deploy_workflow.index("      - name: Validate staging overlay
 stamp_overlay = deploy_workflow.index("      - name: Stamp staging overlay")
 commit_overlay = deploy_workflow.index("      - name: Commit staging image stamp")
 require(validate_overlay < stamp_overlay < commit_overlay, "deploy overlay validation occurs after path use")
-# Revisado el 18-10-2026 (SC-2685): se anaden los tres secretos del notificador
-# (`TELEGRAM_CI_*`) a `on.workflow_call.secrets`, que es lo unico que cambia aqui.
+# Revisado el 28-10-2026 (INFRA-995): fuera `actions: read` del job `notify`, que
+# es lo unico que cambia aqui (era sobrante: el notify solo llama a la Bot API de
+# Telegram, y pedirlo tumbaba en startup_failure a los callers que no lo conceden).
 # Fronteras de entrada intactas —ningun `inputs.` interpolado en shell— y el orden
 # validar -> estampar -> commitear se mantiene, que es lo que esta guarda protege.
-expected_deploy_digest = "456638a77eed11fd411d45efd26098b09698a3720f655afb864b55c58633d826"
+expected_deploy_digest = "15492bd3f81572174ae068d48f8bf3774519eca6ffc3f9a90fefe77d095b6d99"
 require(
     hashlib.sha256(deploy_workflow.encode()).hexdigest() == expected_deploy_digest,
     "deploy workflow changed without reviewing input boundaries",
