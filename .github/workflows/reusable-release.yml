@@ -69,6 +69,15 @@ jobs:
       id-token: write
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 90
+    env:
+      # El espejo por donde Trivy baja su base de vulnerabilidades
+      # (mirror.gcr.io/aquasec/trivy-db) responde BLOB_UNKNOWN al blob actual
+      # desde el egreso de los pods ARC, de forma determinística en dos
+      # intentos del mismo tag (SC-2888, run 40804794312 y su rerun; desde x86
+      # el mismo pull funciona, así que es la ruta del runner, no el espejo
+      # global). Se fija el espejo oficial de AWS ECR, mismo contenido y
+      # política de escaneo: no relaja ninguna puerta.
+      TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
