@@ -492,3 +492,17 @@ def test_ignores_the_checked_out_checker_when_hunting_markers(repo, capsys):
     )
     assert check(repo) == 0
     assert "marker-unregistered" not in capsys.readouterr().out
+
+
+def test_scan_exclude_skips_quoted_markers(repo, capsys):
+    """A catalogue of skills quotes other repos' markers in its text (k8s-skills-catalog-pocharlies, SC-3602):
+    `scan_exclude` keeps them out of marker-unregistered; outside the excluded path the rule still bites."""
+    quoted = repo / "skills" / "x"
+    quoted.mkdir(parents=True)
+    (quoted / "SKILL.md").write_text("# CONTRACT: someone.elses.v1\n", encoding="utf-8")
+    assert check(repo) == 1
+    reg = yaml.safe_load((repo / "CONTRACTS.yaml").read_text(encoding="utf-8"))
+    write_registry(repo, reg["contracts"], scan_exclude=["skills/"])
+    assert check(repo) == 0
+    (repo / "otro.md").write_text("# CONTRACT: someone.elses.v1\n", encoding="utf-8")
+    assert check(repo) == 1
