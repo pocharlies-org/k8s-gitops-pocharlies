@@ -78,6 +78,14 @@ deschedulerPolicy:
         - name: DefaultEvictor
           args:
             nodeFit: true
+            # SC-2844 (28-10): los CronJobs cortos (reembed-truncated ~10 s,
+            # brain-windows, ...) caían bajo el desalojo: evicted a los
+            # segundos de arrancar -> Job Failed (backoffLimit 0) -> alerta
+            # K8sCronJobFailed (30 reaperturas de SC-2608). Un pod de batch
+            # no es carga que reequilibrar: se va sola. Con minPodAge los
+            # pods de menos de 30 min no son candidatos; los deployments
+            # asentados —el objetivo real del perfil— no se enteran.
+            minPodAge: 30m
         - name: LowNodeUtilization
           args:
             thresholds:
@@ -108,13 +116,24 @@ deschedulerPolicy:
                 - onepassword-connect
                 - minio
                 - backup-hub
-                # SC-2936: monitoring fuera de la expulsión. En un pico de CPU de
-                # ks5-cp-1 el descheduler desalojaba kube-state-metrics cada 2 min
-                # (120 pods en 2 días) y cada hueco de serie puede reabrir alertas
-                # críticas por absent() (incidente SII-16937: las dos CronStale de
-                # sii-cronjobs saltaron por el hueco, no por el SII). vmsingle y
-                # loki además traen PVC: no deben saltar de nodo.
+                # SC-2852 (28-10): `monitoring` faltaba y LowNodeUtilization
+                # desalojaba kube-state-metrics de ks5-cp-1; el scheduler lo
+                # devolvía al cp (tolera el taint) y el ciclo se repetía cada
+                # pasada de 2 min. Cada reinicio de KSM deja la serie
+                # kube_cronjob_status_last_successful_time sin scrape, y las
+                # alertas Sii*CronStale (cláusula absent()) disparaban incidentes
+                # critical de fiscal con los cron sanos (29 IPs de pod en 46 h).
+                # Singleton de observabilidad: no se desaloja, como el resto.
                 - monitoring
+                # SC-2776 (28-10): ping-pong de desalojos. Los pods de control-nexus
+                # (worker de Image Studio, ui, spark-bot) al desalojarlos vuelven a un
+                # nodo fuente (ubuntu por su afinidad preferida lan, o los propios cps),
+                # y la pasada de cada 2 min los vuelve a desalojar: el worker del worker
+                # loop no llega a consolidar tick y dispara ImageStudioWorkerDown /
+                # Krea2TrainerWorkerDown (incidentos IMG de Keep del 19/10 y del 27/10).
+                # Además son servicios de latencia LAN (afinidad a ubuntu por diseño):
+                # moverlos a sauvage (OVH) es contraproducente para ellos.
+                - control-nexus
       plugins:
         balance:
           enabled:

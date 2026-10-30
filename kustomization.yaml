@@ -157,6 +157,24 @@ patches:
       group: argoproj.io
       version: v1alpha1
       kind: Application
+      name: k8s-infra
+    patch: |-
+      # 2026-10-29 (INFRA-1026): el CRD ingressroutes.traefik.io declara
+      # `default: minimal` en spec.routes[].observability.traceVerbosity y el
+      # apiserver lo rellena en cada escritura; git no lo declara y ArgoCD lo ve
+      # como drift -> OutOfSync perpetuo (IngressRoute traefik-lan/lan-correo,
+      # medido 29-10). Mismo patrón que los defaults de ESO del patch general.
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: traefik.io
+          kind: IngressRoute
+          jqPathExpressions:
+            - .spec.routes[].observability.traceVerbosity
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
       name: postgres-shared
     patch: |-
       # 2026-07-31: retirada la entrada que ignoraba el /spec ENTERO de

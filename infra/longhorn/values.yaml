@@ -56,6 +56,17 @@ defaultSettings:
   defaultDataPath: /var/lib/longhorn
   defaultReplicaCount: '{"v1":"3","v2":"3"}'
   guaranteedInstanceManagerCPU: '{"v1":"5","v2":"12"}'
+  # SC-3063 (purga de réplicas huérfanas, keep-causa deployment-degraded:47658437cd):
+  # los directorios de réplica sin Replica CR se detectaban como Orphan CR pero nadie
+  # los purgaba: ~298 GiB en ubuntu (SC-2611), 139 GiB en ks5-cp-3 (SC-1615), y el
+  # disco de Longhorn salía del umbral de scheduling (Schedulable=False) → salvage sin
+  # candidatos → volúmenes FAULTED. Con `replica-data` Longhorn borra el dato huérfano
+  # tras el periodo de gracia, vía su propio finalizer (solo con nodo arriba y disco
+  # válido; en nodos failed/unknown NO borra nada). 3600 s de gracia (el default son
+  # 300) para no tocar datos de una reconstrucción en vuelo. El aviso por métrica está
+  # en k8s-infra storage/longhorn/ (orphan-watch).
+  orphanResourceAutoDeletion: replica-data
+  orphanResourceAutoDeletionGracePeriod: 3600
   replicaAutoBalance: best-effort
   replicaSoftAntiAffinity: true
   replicaZoneSoftAntiAffinity: true
