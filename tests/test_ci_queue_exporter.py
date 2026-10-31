@@ -106,6 +106,49 @@ class QueuedJobsTest(unittest.TestCase):
         self.assertFalse(any("repo-viejo" in c or "repo-arch" in c for c in calls))
 
 
+class AlwaysReposTest(unittest.TestCase):
+    """`CI_QUEUE_ALWAYS_REPOS` (INFRA-550): la sonda de la propia alerta vive en
+    un repo sin pushes entre pruebas; sin fijarlo cae de la ventana de 7 días y
+    el canary se queda ciego (criterio 5, sonda del 31-10: 0 series)."""
+
+    PAGES = {
+        "/orgs/pocharlies-org/repos": (200, repos("repo-x")
+                                       + repos("repo-sonda", pushed="2026-01-01T00:00:00Z"), {}),
+        "repo-x/actions/runs?": (200, {"workflow_runs": []}, {}),
+        # repo-sonda está fuera de la ventana: solo se pide si va en `always`
+        "repo-sonda/actions/runs?": (200, {"workflow_runs": [{"id": 7}]}, {}),
+        "runs/7/jobs": (200, {"jobs": [job("queued", "2026-10-05T11:00:00Z",
+                                           labels=("ci-queue-probe-sin-pool",))]}, {}),
+    }
+
+    def test_sin_always_el_repo_sonda_no_se_pide(self):
+        calls = []
+        exporter.scrape(client_with(dict_transport(self.PAGES, calls)), POOLS, {}, NOW)
+        self.assertFalse(any("repo-sonda" in c for c in calls))
+
+    def test_always_se_consulta_aunque_no_haya_push(self):
+        calls = []
+        result = exporter.scrape(client_with(dict_transport(self.PAGES, calls)),
+                                 POOLS, {}, NOW, always=("repo-sonda",))
+        self.assertTrue(any("repo-sonda/actions/runs?" in c for c in calls))
+        self.assertEqual(result["queued"], {("ci-queue-probe-sin-pool", "sin-pool"): 1})
+        self.assertEqual(result["errors"], 0)
+
+    def test_always_no_duplica_un_repo_ya_en_ventana(self):
+        calls = []
+        exporter.scrape(client_with(dict_transport(self.PAGES, calls)),
+                        POOLS, {}, NOW, always=("repo-x", "repo-sonda"))
+        self.assertEqual(len([c for c in calls if "repo-x/actions/runs?" in c]), 1)
+
+    def test_always_inexistente_suma_error_y_no_mata_el_ciclo(self):
+        pages = dict(self.PAGES)
+        pages["repo-fantasma/actions/runs?"] = (404, {}, {})
+        result = exporter.scrape(client_with(dict_transport(pages, [])),
+                                 POOLS, {}, NOW, always=("repo-sonda", "repo-fantasma"))
+        self.assertEqual(result["queued"], {("ci-queue-probe-sin-pool", "sin-pool"): 1})
+        self.assertEqual(result["errors"], 1)  # visible en CIQueueExporterBlind
+
+
 class RenderEscapeTest(unittest.TestCase):
     """`label` es entrada externa (el `runs-on` de cualquier PR)."""
 

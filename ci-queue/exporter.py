@@ -10,8 +10,14 @@ cliente ni lista de pools propia. Emite solo agregados:
   ci_queue_api_rate_remaining                            cuota GitHub restante
   ci_queue_errors_total                                  scrapes parciales con fallo
 
-Un scrape cada 5 min: repos de la org con actividad en 7 días → runs con
-`status=queued` por repo (ETag: los 304 no gastan cuota) → jobs de esos runs.
+Un scrape cada 5 min: repos de la org con actividad en 7 días, más los fijados
+en `CI_QUEUE_ALWAYS_REPOS` (comas), → runs con `status=queued` por repo (ETag:
+los 304 no gastan cuota) → jobs de esos runs. La ventana de 7 días deja fuera
+repos que no reciben push: el canary de la propia alerta (`sc-pilot-sandbox`,
+INFRA-550) vive en uno y sin fijarlo cayó de la ventana el 15-10 y la sonda del
+31-10 fue invisible (criterio 5 NO PASA). Un nombre de `CI_QUEUE_ALWAYS_REPOS`
+inexistente o archivado falla su request y suma a `ci_queue_errors_total` por
+ciclo: se ve en `CIQueueExporterBlind`, no se traga en silencio.
 Los jobs con label sin pool nunca llegan al listener ARC, por eso la fuente es
 la API de GitHub (decisión del architect, nota-architect-plan.md §1B).
 
@@ -49,6 +55,11 @@ POOLS_FILE = os.environ.get("CI_QUEUE_POOLS_FILE",
                             os.path.join(os.path.dirname(os.path.abspath(__file__)), "pools.txt"))
 INTERVAL = float(os.environ.get("CI_QUEUE_INTERVAL", "300"))
 ACTIVE_DAYS = 7
+# Repos que se consultan SIEMPRE, aunque no tengan push en la ventana (ver
+# docstring). Fijados por despliegue, no en el código: el deployment pone
+# sc-pilot-sandbox, el repo de la sonda de INFRA-550.
+ALWAYS_REPOS = tuple(sorted({r.strip() for r in
+                             os.environ.get("CI_QUEUE_ALWAYS_REPOS", "").split(",") if r.strip()}))
 PORT = int(os.environ.get("CI_QUEUE_PORT", "8080"))
 
 
@@ -81,25 +92,31 @@ def make_transport(token_path: str = TOKEN_FILE, stats: dict | None = None, http
 
 
 def active_repos(client, org: str, now: dt.datetime,
-                 days: int = ACTIVE_DAYS) -> list[str]:
+                 days: int = ACTIVE_DAYS, always=None) -> list[str]:
     """Repos no archivados con push en los últimos `days` días (1 página: la
-    org tiene ~60; si pasara de 100, paginate lo cubre igual)."""
-    return sorted(
+    org tiene ~60; si pasara de 100, paginate lo cubre igual), unidos a
+    `always` (por defecto `ALWAYS_REPOS`: se consultan aunque no tengan push,
+    INFRA-550). `always` no pasa por el filtro de archived: un nombre fijado a
+    mano se pide tal cual y su 404/403 se ve como error de scrape."""
+    if always is None:
+        always = ALWAYS_REPOS
+    windowed = {
         r["name"] for r in client.paginate(f"/orgs/{org}/repos", "repositories")
         if r.get("name") and not r.get("archived")
         and (pushed := ci_queue.parse_iso(r.get("pushed_at"))) is not None
-        and pushed >= now - dt.timedelta(days=days))
+        and pushed >= now - dt.timedelta(days=days)}
+    return sorted(windowed | set(always))
 
 
 def scrape(client, pools, cache: dict, now: dt.datetime,
-           org: str = ORG) -> dict:
+           org: str = ORG, always=None) -> dict:
     """Un ciclo: devuelve {queued: {(label,pool): n}, oldest: {(label,pool,repo): s},
     errors: n}. `cache` guarda (etag, runs) por repo: un 304 reutiliza la lista
     anterior sin gastar cuota. Los fallos por repo se anotan y siguen."""
     errors = 0
     queued: dict[tuple[str, str], int] = {}
     oldest: dict[tuple[str, str, str], float] = {}
-    for repo in active_repos(client, org, now):
+    for repo in active_repos(client, org, now, always=always):
         try:
             etag, runs = cache.get(repo, (None, []))
             data, _hdrs, etag = client.get(f"/repos/{org}/{repo}/actions/runs",
