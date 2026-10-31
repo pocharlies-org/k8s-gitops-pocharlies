@@ -586,6 +586,13 @@ jobs:
           # .pr_agent.toml en el tronco del repo revierte restricted_mode, auto_describe,
           # el modelo y los DESTINOS de las credenciales (openai.api_base,
           # github.base_url, jira.jira_site); con estas variables, ninguno.
+          # CONFIG__USE_REPO_SETTINGS_FILE=false (veredicto de security SC-1400,
+          # INFRA-1055, ampliacion P6b): PR-Agent ni siquiera pide el .pr_agent.toml
+          # del repo revisado por la API del provider (config.use_repo_settings_file,
+          # default true en 0.46.0): la unica configuracion leida es la montada de
+          # este repo. AUTO_DESCRIBE=true: F3 (D5) enciende /describe; el titulo NO
+          # se reescribe porque pr_description.generate_ai_title=false (default de
+          # 0.46.0, declarado en .pr_agent.toml): la clave Jira del titulo se preserva.
           # WorkingDir /app y solo `.review/` montado: el codigo del PR (su
           # pyproject.toml incluido) no entra en el contenedor.
           timeout 420 docker run --rm --name "pr-agent-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
@@ -600,7 +607,8 @@ jobs:
             -e GITHUB_TOKEN -e OPENAI_KEY -e OPENAI__API_BASE \
             -e JIRA__JIRA_API_EMAIL -e JIRA__JIRA_API_TOKEN \
             -e CONFIG__RESTRICTED_MODE=true \
-            -e GITHUB_ACTION_CONFIG__AUTO_DESCRIBE=false \
+            -e CONFIG__USE_REPO_SETTINGS_FILE=false \
+            -e GITHUB_ACTION_CONFIG__AUTO_DESCRIBE=true \
             -e CONFIG__MODEL=openai/alibaba-q38-flash \
             -e 'CONFIG__FALLBACK_MODELS=[]' \
             -e GITHUB__BASE_URL=https://api.github.com \
