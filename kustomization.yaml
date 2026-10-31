@@ -41,6 +41,7 @@ resources:
   - apps/adguard.yaml
   - apps/ai.yaml
   - apps/ai-lab.yaml
+  - apps/bambulab.yaml
   - apps/bge.yaml
   - apps/jev-cdm.yaml
   - apps/analisis.yaml
