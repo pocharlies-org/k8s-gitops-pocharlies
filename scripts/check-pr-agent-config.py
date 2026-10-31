@@ -8,8 +8,9 @@ encendido, restricted_mode apagado y el modelo gpt-5.6. Este script falla antes,
 
 Comprueba, solo con la biblioteca estándar:
   1. que el fichero parsea (tomllib);
-  2. las decisiones de la épica que no pueden derivar (D4 modelo, D5 auto_describe apagado,
-     decisión 5 auto_review y auto_improve encendidos, restricted_mode, allowlist de proyectos
+  2. las decisiones de la épica que no pueden derivar (D4 modelo, D5 auto_describe encendido
+     desde F3 con generate_ai_title=false — el título conserva la clave Jira —, decisión 5
+     auto_review y auto_improve encendidos, restricted_mode, allowlist de proyectos
      de Jira, sin fallback);
   3. que no lleva credenciales ni endpoints (llegan por entorno desde el workflow);
   4. con --upstream: que cada [sección] y clave existe en el configuration.toml de la versión
@@ -39,7 +40,11 @@ REQUIRED = {
     ("config", "model"): MODEL,
     ("config", "fallback_models"): [],
     ("config", "restricted_mode"): True,
-    ("github_action_config", "auto_describe"): False,
+    # D5 (F3, INFRA-334): auto_describe encendido en el rollout; el título se preserva
+    # (clave Jira) porque generate_ai_title=false — REQUIRED abajo junto a él: si alguien
+    # lo pone a true, /describe reescribe el título en los 108 repos y pierde el [EPIC-KEY].
+    ("github_action_config", "auto_describe"): True,
+    ("pr_description", "generate_ai_title"): False,
     # Decisión 5 del CTO: /improve está encendido y no toca título ni cuerpo. El inline de
     # la review en GitHub lo pone /improve (publish_inline_comments); el de /review,
     # pr_reviewer.inline_key_issues, fue REQUIRED hasta INFRA-334: en 0.46.0 es inerte en
