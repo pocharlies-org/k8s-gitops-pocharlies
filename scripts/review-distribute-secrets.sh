@@ -77,9 +77,10 @@ TMPD=$(mktemp -d); chmod 700 "$TMPD"; trap 'rm -rf "$TMPD"' EXIT INT TERM
 http_status() { grep -oE 'HTTP [0-9]{3}' "$1" | tail -1 | cut -d' ' -f2 || true; }
 
 # ---- valores: se cargan una vez en ficheros 0600 del directorio temporal ------------------
-# 1Password Connect (patrón DGX-1085): GET /v1/vaults → id por nombre; GET /v1/vaults/<id>/items?q=
-# → item por título; el campo cuyo id o etiqueta (sin distinguir mayúsculas) es el secreto. Nunca
-# se imprime un valor: jq lo escribe directo en el fichero 0600 y de ahí viaja por stdin a gh.
+# 1Password Connect (patrón DGX-1085): GET /v1/vaults → id por nombre; GET /v1/vaults/<id>/items
+# → id del item por título; GET /v1/vaults/<id>/items/<item> → campos (la lista no los da); el
+# campo cuyo id o etiqueta (sin distinguir mayúsculas) es el secreto. Nunca se imprime un valor:
+# jq lo escribe directo en el fichero 0600 y de ahí viaja por stdin a gh.
 OP_JSON="$TMPD/op.json"
 if [ -n "$OP_ITEM" ]; then
   op_vault="${OP_ITEM%%/*}"; op_item="${OP_ITEM#*/}"
@@ -102,11 +103,16 @@ if [ -n "$OP_ITEM" ]; then
     rm -f "$OP_HDR"; die "Connect devolvió un JSON ilegible en /v1/vaults" 1
   fi
   [ -n "$OP_VAULT_ID" ] || die "no existe el vault $op_vault en Connect (¿token sin alcance?)" 2
-  op_get "/v1/vaults/$OP_VAULT_ID/items?q=$op_item" "$OP_JSON" "GET items de $op_vault"
-  rm -f "$OP_HDR"
-  if ! jq -e --arg t "$op_item" '[.[] | select(.title == $t)] | length > 0' "$OP_JSON" >/dev/null 2>&1; then
-    die "no existe el item $op_item en el vault $op_vault" 2
+  # [GOTCHA medido 2026-10-31] el endpoint de lista NO devuelve los campos de los items (y `q`
+  # no filtra: devuelve el vault entero). El valor de un campo CONCEALED solo lo da el GET del
+  # item: se busca el id por título en la lista y se pide el item completo.
+  op_get "/v1/vaults/$OP_VAULT_ID/items" "$TMPD/items.json" "GET items de $op_vault"
+  if ! OP_ITEM_ID=$(jq -r --arg t "$op_item" '[.[] | select(.title == $t)][0].id // empty' "$TMPD/items.json"); then
+    rm -f "$OP_HDR"; die "Connect devolvió un JSON ilegible en los items de $op_vault" 1
   fi
+  [ -n "$OP_ITEM_ID" ] || die "no existe el item $op_item en el vault $op_vault" 2
+  op_get "/v1/vaults/$OP_VAULT_ID/items/$OP_ITEM_ID" "$OP_JSON" "GET item $op_item"
+  rm -f "$OP_HDR"
 fi
 declare -A SOURCE=()
 for name in "${SECRETS[@]}"; do
@@ -114,12 +120,12 @@ for name in "${SECRETS[@]}"; do
   lname=$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')
   if [ -n "${!name:-}" ]; then
     printf '%s' "${!name}" > "$f"; SOURCE[$name]=env
-  elif [ -n "$OP_ITEM" ] && jq -e --arg k "$lname" --arg t "$op_item" \
-      '[.[] | select(.title == $t) | .fields[]?
+  elif [ -n "$OP_ITEM" ] && jq -e --arg k "$lname" \
+      '[.fields[]?
         | select(((.id // "") | ascii_downcase) == $k or ((.label // "") | ascii_downcase) == $k)
         | select((.value // "") != "")] | length > 0' "$OP_JSON" >/dev/null 2>&1; then
-    jq -j --arg k "$lname" --arg t "$op_item" \
-      '[.[] | select(.title == $t) | .fields[]?
+    jq -j --arg k "$lname" \
+      '[.fields[]?
         | select(((.id // "") | ascii_downcase) == $k or ((.label // "") | ascii_downcase) == $k)
         | select((.value // "") != "")][0].value' "$OP_JSON" > "$f"; SOURCE[$name]=op
   else

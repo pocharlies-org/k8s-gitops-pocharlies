@@ -212,7 +212,8 @@ class ConfigTest(unittest.TestCase):
 
 
 class _Connect(http.server.BaseHTTPRequestHandler):
-    """1Password Connect falso: /v1/vaults (por nombre) y /v1/vaults/<id>/items?q=<título>."""
+    """1Password Connect falso, con la forma REAL medida (2026-10-31): la lista de items no
+    devuelve campos (solo id y título) y el valor de un CONCEALED solo lo da el GET del item."""
     status = 200
     data: dict = {}
     seen_token = None
@@ -226,11 +227,15 @@ class _Connect(http.server.BaseHTTPRequestHandler):
         elif self.path.startswith("/v1/vaults?") or self.path == "/v1/vaults":
             code = 200
             body = json.dumps([{"id": "vault-1", "name": "k8s-pocharlies"}]).encode()
-        elif "/items" in self.path:
+        elif "/items/" in self.path:  # GET del item completo: aquí sí vienen los valores
             code = 200
             fields = [{"id": k, "label": k, "value": v, "type": "CONCEALED"}
                       for k, v in self.data.items()]
-            body = json.dumps([{"id": "item-1", "title": "pr-review-ci", "fields": fields}]).encode()
+            body = json.dumps({"id": "item-1", "title": "pr-review-ci", "fields": fields}).encode()
+        elif "/items" in self.path:  # lista: sin fields (como el Connect real)
+            code = 200
+            body = json.dumps([{"id": "item-1", "title": "pr-review-ci"},
+                               {"id": "item-2", "title": "otro-item"}]).encode()
         else:
             code, body = 200, b"[]"
         self.send_response(code)
@@ -322,7 +327,7 @@ class DistributeTest(unittest.TestCase):
             # argv de curl ni en la salida; el fichero de la cabecera es 0600 y no sobrevive.
             self.assertEqual(_Connect.seen_token, f"Bearer {CONNECT_TOKEN}")
             calls = [json.loads(x) for x in self.curl_log.read_text().splitlines()]
-            self.assertEqual(len(calls), 2)  # /v1/vaults y /v1/vaults/<id>/items?q=
+            self.assertEqual(len(calls), 3)  # /v1/vaults, la lista de items y el GET del item
             self.assertNotIn(CONNECT_TOKEN, " ".join(" ".join(c["argv"]) for c in calls))
             self.assertNotIn(CONNECT_TOKEN, r.stdout + r.stderr)
             self.assertEqual(list(calls[0]["header_files"].values()), ["0o600"])
