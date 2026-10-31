@@ -5,7 +5,7 @@
 #
 # Uso:
 #   scripts/review-distribute-secrets.sh --repos r1,r2 [--dry-run] [--rotate]
-#                                        [--from-vault RUTA] [--org pocharlies-org]
+#                                        [--from-op VAULT/ITEM] [--org pocharlies-org]
 #                                        [--secrets A,B]
 #
 #   --repos       lista separada por comas; `repo` (usa --org) u `owner/repo`. Obligatorio.
@@ -13,30 +13,37 @@
 #   --rotate      sobrescribe también los que ya existen (rotación). Sin él, un secreto
 #                 presente no se toca: reejecutar es idempotente.
 #   --secrets     qué repartir, separado por comas, de PR_AGENT_LITELLM_KEY, JIRA_EMAIL, JIRA_API_TOKEN
-#                 (PR-Agent, el juego por defecto) y LITELLM_JUEZ_KEY, JIRA_JUEZ_EMAIL, JIRA_JUEZ_TOKEN,
-#                 JIRA_JUEZ_URL (el juez, SC-2182): --secrets LITELLM_JUEZ_KEY,JIRA_JUEZ_EMAIL,JIRA_JUEZ_TOKEN,JIRA_JUEZ_URL.
-#   --from-vault  ruta KV v2 bajo el montaje `secret/` (p. ej. pr-review-ci); las claves se
-#                 llaman igual que el secreto. Necesita VAULT_ADDR y VAULT_TOKEN en el entorno.
+#                 y BRAIN_CI_KEY (PR-Agent, el juego por defecto) y LITELLM_JUEZ_KEY, JIRA_JUEZ_EMAIL,
+#                 JIRA_JUEZ_TOKEN, JIRA_JUEZ_URL (el juez, SC-2182):
+#                 --secrets LITELLM_JUEZ_KEY,JIRA_JUEZ_EMAIL,JIRA_JUEZ_TOKEN,JIRA_JUEZ_URL.
+#   --from-op     item de 1Password por Connect, como `k8s-pocharlies/pr-review-ci`; los campos del
+#                 item se llaman igual que el secreto (vale id o etiqueta, sin distinguir mayúsculas).
+#                 Necesita OP_CONNECT_HOST y OP_CONNECT_TOKEN en el entorno (el token viaja a curl
+#                 por `-H @fichero` 0600, nunca en su argv). [GOTCHA: el viejo `--from-vault` apuntaba
+#                 a Vault, retirado en SC-699; los valores viven en el item 1Password
+#                 k8s-pocharlies/pr-review-ci desde el veredicto de security de SC-1400 (INFRA-1055).]
 #
 # Valor de cada secreto: la variable de entorno del mismo nombre si está puesta; si no,
-# Vault (--from-vault). Nunca por argumento, nunca impreso: viaja por stdin a `gh secret set`.
+# el item de 1Password (--from-op). Nunca por argumento, nunca impreso: viaja por stdin a `gh secret set`.
 #
 # Salida: una línea `clave=valor` por repo y secreto, y una línea RESUMEN al final.
 # Códigos: 0 hecho (o plan en --dry-run) · 2 uso inválido, repo inexistente o valor ausente
-# (en ese caso no se escribe nada) · 4 la API de GitHub o Vault respondió 401/403 ·
-# 1 cualquier otro fallo de la API.
+# (en ese caso no se escribe nada) · 4 la API de GitHub o Connect respondió 401/403, o el token
+# no es admin ni tiene `secrets: write` en el repo · 1 cualquier otro fallo de la API.
 #
-# BRAIN_CI_KEY no está en la lista a propósito: pendiente de security (Request SC-1400, B1).
+# Permisos del token: basta `.permissions.secrets == "write"` (PAT fine-grained `Secrets: write` +
+# `Metadata: read`, exigido por security antes de la oleada, SC-1400); `admin` del repo también vale.
+# BRAIN_CI_KEY: autorizada por security SOLO en los 2 pilotos (INFRA-1055); la oleada a los 108
+# repos espera INFRA-1059 (clave de instancia del brain) e INFRA-1058 (cuenta Jira + PAT).
 set -Eeuo pipefail
 set +x 2>/dev/null || true
 
-SECRETS=(PR_AGENT_LITELLM_KEY JIRA_EMAIL JIRA_API_TOKEN)
-KNOWN=" PR_AGENT_LITELLM_KEY JIRA_EMAIL JIRA_API_TOKEN LITELLM_JUEZ_KEY JIRA_JUEZ_EMAIL JIRA_JUEZ_TOKEN JIRA_JUEZ_URL "
-KV_MOUNT="${KV_MOUNT:-secret}"
+SECRETS=(PR_AGENT_LITELLM_KEY JIRA_EMAIL JIRA_API_TOKEN BRAIN_CI_KEY)
+KNOWN=" PR_AGENT_LITELLM_KEY JIRA_EMAIL JIRA_API_TOKEN BRAIN_CI_KEY LITELLM_JUEZ_KEY JIRA_JUEZ_EMAIL JIRA_JUEZ_TOKEN JIRA_JUEZ_URL "
 
-ORG="pocharlies-org"; REPOS=""; DRY=0; ROTATE=0; VAULT_PATH=""
+ORG="pocharlies-org"; REPOS=""; DRY=0; ROTATE=0; OP_ITEM=""
 
-usage() { sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { awk 'NR>1 && /^#/{sub(/^# ?/,""); print; next} NR>1{exit}' "$0" >&2; exit 2; }
 die() { echo "ERROR: $1" >&2; exit "${2:-2}"; }
 
 while [ $# -gt 0 ]; do
@@ -46,7 +53,7 @@ while [ $# -gt 0 ]; do
     --dry-run) DRY=1; shift ;;
     --rotate) ROTATE=1; shift ;;
     --secrets) IFS=',' read -r -a SECRETS <<< "${2:-}"; shift 2 ;;
-    --from-vault) VAULT_PATH="${2:-}"; shift 2 ;;
+    --from-op) OP_ITEM="${2:-}"; shift 2 ;;
     -h|--help) usage ;;
     *) echo "argumento desconocido: $1" >&2; usage ;;
   esac
@@ -55,9 +62,13 @@ done
 [ "${#SECRETS[@]}" -gt 0 ] || die "--secrets vacío"
 for name in "${SECRETS[@]}"; do [[ "$KNOWN" == *" $name "* ]] || die "secreto desconocido: $name"; done
 [[ "$ORG" =~ ^[A-Za-z0-9._-]+$ ]] || die "org inválida: $ORG"
-if [ -n "$VAULT_PATH" ]; then
-  [[ "$VAULT_PATH" =~ ^[A-Za-z0-9._/-]+$ ]] || die "ruta de Vault inválida: $VAULT_PATH"
-  [ -n "${VAULT_ADDR:-}" ] && [ -n "${VAULT_TOKEN:-}" ] || die "--from-vault necesita VAULT_ADDR y VAULT_TOKEN"
+if [ -n "$OP_ITEM" ]; then
+  [[ "$OP_ITEM" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || die "--from-op necesita VAULT/ITEM (p. ej. k8s-pocharlies/pr-review-ci)"
+  { [ -n "${OP_CONNECT_HOST:-}" ] && [ -n "${OP_CONNECT_TOKEN:-}" ]; } || die "--from-op necesita OP_CONNECT_HOST y OP_CONNECT_TOKEN"
+  case "$OP_CONNECT_HOST" in
+    https://*|http://localhost*|http://127.0.0.1*) : ;;
+    *) die "OP_CONNECT_HOST debe ser https:// (o http://localhost|127.0.0.1 para port-forward): $OP_CONNECT_HOST" ;;
+  esac
 fi
 
 TMPD=$(mktemp -d); chmod 700 "$TMPD"; trap 'rm -rf "$TMPD"' EXIT INT TERM
@@ -66,30 +77,51 @@ TMPD=$(mktemp -d); chmod 700 "$TMPD"; trap 'rm -rf "$TMPD"' EXIT INT TERM
 http_status() { grep -oE 'HTTP [0-9]{3}' "$1" | tail -1 | cut -d' ' -f2 || true; }
 
 # ---- valores: se cargan una vez en ficheros 0600 del directorio temporal ------------------
-VAULT_JSON="$TMPD/vault.json"
-if [ -n "$VAULT_PATH" ]; then
+# 1Password Connect (patrón DGX-1085): GET /v1/vaults → id por nombre; GET /v1/vaults/<id>/items?q=
+# → item por título; el campo cuyo id o etiqueta (sin distinguir mayúsculas) es el secreto. Nunca
+# se imprime un valor: jq lo escribe directo en el fichero 0600 y de ahí viaja por stdin a gh.
+OP_JSON="$TMPD/op.json"
+if [ -n "$OP_ITEM" ]; then
+  op_vault="${OP_ITEM%%/*}"; op_item="${OP_ITEM#*/}"
   # El token nunca va en el argv de curl (lo vería cualquiera con `ps`): lo escribe printf, que
   # es builtin, en un fichero 0600 de $TMPD (0700) y curl lo lee con -H @fichero.
-  case "$VAULT_TOKEN" in *$'\n'*|*$'\r'*) die "VAULT_TOKEN inválido: lleva saltos de línea" ;; esac
-  VAULT_HDR="$TMPD/vault.hdr"
-  (umask 077; printf 'X-Vault-Token: %s\n' "$VAULT_TOKEN" > "$VAULT_HDR")
-  code=$(curl -sS -o "$VAULT_JSON" -w '%{http_code}' -H "@$VAULT_HDR" \
-    "$VAULT_ADDR/v1/$KV_MOUNT/data/$VAULT_PATH" 2>"$TMPD/curl.err" || echo 000)
-  rm -f "$VAULT_HDR"
-  case "$code" in
-    200) ;;
-    404) echo '{}' > "$VAULT_JSON" ;;
-    401|403) die "Vault respondió $code en $KV_MOUNT/$VAULT_PATH" 4 ;;
-    *) die "Vault no respondió bien (http=$code) en $KV_MOUNT/$VAULT_PATH" 1 ;;
-  esac
+  case "$OP_CONNECT_TOKEN" in *$'\n'*|*$'\r'*) die "OP_CONNECT_TOKEN inválido: lleva saltos de línea" ;; esac
+  OP_HDR="$TMPD/op.hdr"
+  (umask 077; printf 'Authorization: Bearer %s\n' "$OP_CONNECT_TOKEN" > "$OP_HDR")
+  op_get() { # op_get <ruta> <fichero-salida> <etiqueta-de-error>
+    local code
+    code=$(curl -sS -o "$2" -w '%{http_code}' -H "@$OP_HDR" "$OP_CONNECT_HOST$1" 2>"$TMPD/curl.err" || echo 000)
+    case "$code" in
+      200) ;;
+      401|403) rm -f "$OP_HDR"; die "Connect respondió $code en $3" 4 ;;
+      *) rm -f "$OP_HDR"; die "Connect no respondió bien (http=$code) en $3" 1 ;;
+    esac
+  }
+  op_get "/v1/vaults" "$TMPD/vaults.json" "GET /v1/vaults"
+  if ! OP_VAULT_ID=$(jq -r --arg v "$op_vault" '[.[] | select(.name == $v)][0].id // empty' "$TMPD/vaults.json"); then
+    rm -f "$OP_HDR"; die "Connect devolvió un JSON ilegible en /v1/vaults" 1
+  fi
+  [ -n "$OP_VAULT_ID" ] || die "no existe el vault $op_vault en Connect (¿token sin alcance?)" 2
+  op_get "/v1/vaults/$OP_VAULT_ID/items?q=$op_item" "$OP_JSON" "GET items de $op_vault"
+  rm -f "$OP_HDR"
+  if ! jq -e --arg t "$op_item" '[.[] | select(.title == $t)] | length > 0' "$OP_JSON" >/dev/null 2>&1; then
+    die "no existe el item $op_item en el vault $op_vault" 2
+  fi
 fi
 declare -A SOURCE=()
 for name in "${SECRETS[@]}"; do
   f="$TMPD/val.$name"; : > "$f"; chmod 600 "$f"
+  lname=$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')
   if [ -n "${!name:-}" ]; then
     printf '%s' "${!name}" > "$f"; SOURCE[$name]=env
-  elif [ -n "$VAULT_PATH" ] && jq -e --arg k "$name" '(.data.data // {})[$k] // "" | length > 0' "$VAULT_JSON" >/dev/null 2>&1; then
-    jq -j --arg k "$name" '.data.data[$k]' "$VAULT_JSON" > "$f"; SOURCE[$name]=vault
+  elif [ -n "$OP_ITEM" ] && jq -e --arg k "$lname" --arg t "$op_item" \
+      '[.[] | select(.title == $t) | .fields[]?
+        | select(((.id // "") | ascii_downcase) == $k or ((.label // "") | ascii_downcase) == $k)
+        | select((.value // "") != "")] | length > 0' "$OP_JSON" >/dev/null 2>&1; then
+    jq -j --arg k "$lname" --arg t "$op_item" \
+      '[.[] | select(.title == $t) | .fields[]?
+        | select(((.id // "") | ascii_downcase) == $k or ((.label // "") | ascii_downcase) == $k)
+        | select((.value // "") != "")][0].value' "$OP_JSON" > "$f"; SOURCE[$name]=op
   else
     SOURCE[$name]=ausente
   fi
@@ -103,7 +135,9 @@ for raw in "${LIST[@]}"; do
   r="${raw//[[:space:]]/}"; [ -n "$r" ] || continue
   [[ "$r" == */* ]] || r="$ORG/$r"
   [[ "$r" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || die "repo inválido: $raw"
-  if ! admin=$(gh api "repos/$r" --jq '.permissions.admin' 2>"$TMPD/err"); then
+  # El PAT de reparto es fine-grained `Secrets: write` + `Metadata: read` (SC-1400): basta
+  # `.permissions.secrets == "write"`; `admin` del repo también vale (token personal).
+  if ! perms=$(gh api "repos/$r" --jq '[.permissions.admin, .permissions.secrets] | @tsv' 2>"$TMPD/err"); then
     st=$(http_status "$TMPD/err")
     case "$st" in
       401|403) die "GitHub respondió $st al leer $r" 4 ;;
@@ -111,7 +145,9 @@ for raw in "${LIST[@]}"; do
       *) die "fallo leyendo $r: $(head -c 200 "$TMPD/err")" 1 ;;
     esac
   fi
-  [ "$admin" = "true" ] || die "el token no es admin de $r: no puede escribir sus secretos" 4
+  IFS=$'\t' read -r admin secrets_perm <<< "$perms"
+  { [ "$admin" = "true" ] || [ "$secrets_perm" = "write" ]; } || \
+    die "el token no es admin de $r ni tiene secrets: write (tiene: admin=$admin secrets=${secrets_perm:-ninguno}): no puede escribir sus secretos" 4
   if ! gh api --paginate "repos/$r/actions/secrets" --jq '.secrets[].name' > "$TMPD/names" 2>"$TMPD/err"; then
     st=$(http_status "$TMPD/err")
     case "$st" in 401|403) die "GitHub respondió $st al listar secretos de $r" 4 ;; *) die "fallo listando secretos de $r" 1 ;; esac
@@ -137,7 +173,7 @@ if [ "$DRY" = 0 ] && [ "$missing" -gt 0 ]; then
       echo "repo=$r secreto=$name estado=$estado accion=$accion fuente=ausente resultado=bloqueado"
   done
   echo "RESUMEN modo=$modo repos=$n_repos faltan-valores=$missing escritos=0"
-  die "faltan $missing valores (variable de entorno o --from-vault): no se ha escrito nada" 2
+  die "faltan $missing valores (variable de entorno o --from-op): no se ha escrito nada" 2
 fi
 
 # ---- ejecución ---------------------------------------------------------------------------
