@@ -39,6 +39,12 @@ spec:
               value: pocharlies-org
             - name: CI_QUEUE_TOKEN_FILE
               value: /etc/ci-queue-token/token
+            # La sonda de la propia alerta (criterio 5 de INFRA-550) corre en
+            # sc-pilot-sandbox, que no recibe pushes entre pruebas: con solo la
+            # ventana de 7 días cayó de ella el 15-10 y la sonda del 31-10 fue
+            # invisible (0 series, criterio NO PASA). Fijado: se consulta siempre.
+            - name: CI_QUEUE_ALWAYS_REPOS
+              value: sc-pilot-sandbox
           ports:
             - name: metrics
               containerPort: 8080
