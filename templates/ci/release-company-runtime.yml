@@ -1,0 +1,86 @@
+# Install in x86-host-runtime only after SC-4004 review and pinning the merged reusable SHA.
+name: Release company-runtime
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release-company-runtime
+  cancel-in-progress: false
+jobs:
+  context:
+    if: github.ref == 'refs/heads/main'
+    runs-on: arc-k8s
+    timeout-minutes: 15
+    outputs:
+      artifact: ${{ steps.context.outputs.artifact }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/python
+      - name: Require existing source read identity
+        env:
+          SOURCE_READ_TOKEN: ${{ secrets.FRAMEWORK_REPO_TOKEN }}
+        run: |
+          test -n "$SOURCE_READ_TOKEN" || { printf '%s\n' 'Missing approved source-read identity: see SC-4004. No personal-token fallback.'; exit 1; }
+      - name: Read immutable source pins
+        id: pins
+        run: |
+          python3 -I - <<'PY'
+          import json, os, re
+          pins = json.load(open('container/pins.json'))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              for key in ('roles_commit', 'harness_commit'):
+                  assert re.fullmatch('[0-9a-f]{40}', pins[key])
+                  print(key + '=' + pins[key], file=output)
+          PY
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: pocharlies-org/company-roles
+          ref: ${{ steps.pins.outputs.roles_commit }}
+          path: release-sources/roles
+          token: ${{ secrets.FRAMEWORK_REPO_TOKEN }}
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: pocharlies-org/claude-harness
+          ref: ${{ steps.pins.outputs.harness_commit }}
+          path: release-sources/harness
+          token: ${{ secrets.FRAMEWORK_REPO_TOKEN }}
+          persist-credentials: false
+      - name: Prepare committed context without registry credentials
+        id: context
+        env:
+          GH_TOKEN: ${{ secrets.FRAMEWORK_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          export HOME="$(mktemp -d "$RUNNER_TEMP/company-context-home.XXXXXXXX")"
+          python3 -I container/prepare.py company-release-context \
+            --roles release-sources/roles --harness release-sources/harness
+          mkdir company-release-transfer
+          tar -czf company-release-transfer/context.tar.gz -C company-release-context .
+          printf 'artifact=company-runtime-context-%s\n' "$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ${{ steps.context.outputs.artifact }}
+          path: company-release-transfer/context.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+  release:
+    needs: context
+    permissions:
+      contents: read
+      id-token: write
+    # Fail-closed proposal: replace with the reviewed merged extension commit, never @main.
+    uses: pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-release.yml@0000000000000000000000000000000000000000
+    with:
+      runner: arc-k8s
+      registry: harbor.lan.e-dani.com
+      registry_project: homelab
+      images: '[{"name":"company-runtime","context":"company-release-context","dockerfile":"company-release-context/Dockerfile"}]'
+      version: company-${{ github.sha }}
+      company_context_artifact: ${{ needs.context.outputs.artifact }}
+    secrets:
+      HARBOR_USER: ${{ secrets.HARBOR_USER }}
+      HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
