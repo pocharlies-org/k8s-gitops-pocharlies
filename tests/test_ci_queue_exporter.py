@@ -121,6 +121,10 @@ class QueuedJobsTest(unittest.TestCase):
         self.assertTrue(any("repo-x/actions/runs" in c for c in calls))
         self.assertTrue(any("repo-viejo/actions/runs?" in c for c in calls))
         self.assertFalse(any("repo-arch" in c for c in calls))
+        # ciego de verdad: ninguna petición lleva filtro `pushed:` (la ventana
+        # que dejó ciega la sonda del 31-10 no vuelve, dictamen del architect)
+        self.assertFalse(any("pushed:" in c for c in calls),
+                         "algún request filtra por pushed_at")
 
 
 class RenderEscapeTest(unittest.TestCase):
