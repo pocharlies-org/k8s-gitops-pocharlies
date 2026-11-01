@@ -37,14 +37,21 @@ PR-Agent **no revienta** con un TOML roto: lo salta y sigue con sus valores por 
 
     python3 scripts/check-pr-agent-config.py [--upstream <configuration.toml de v0.46.0>]
 
-Falla (exit 1) si el TOML no parsea, si deriva una decisión (modelo D4, `auto_describe=false` D5,
-`auto_review=true` y `auto_improve=true`, `restricted_mode`, `fallback_models`, `jira.project_keys`), si lleva
-una credencial o un endpoint, o, con `--upstream`, si una clave no existe en esa versión. El CI lo corre
+Falla (exit 1) si el TOML no parsea, si deriva una decisión (modelo D4, `auto_describe=true` con
+`generate_ai_title=false` D5, `auto_review=true` y `auto_improve=true`, `restricted_mode`,
+`fallback_models`, `jira.project_keys`), si lleva una credencial o un endpoint, o, con `--upstream`,
+si una clave no existe en esa versión. El CI lo corre
 contra el fichero upstream fijado por commit y sha256. El workflow que monte el fichero debe correrlo antes
 de lanzar PR-Agent.
 
-`auto_improve` va encendido (decisión 5 del CTO): e improve no toca título ni cuerpo de la PR.
-`auto_describe` sigue apagado hasta F3.
+`auto_improve` va encendido (decisión 5 del CTO): /improve no toca título ni cuerpo de la PR.
+`auto_describe` se encendió en F3 (INFRA-334, D5): /describe reescribe el CUERPO; el título se
+preserva (la clave Jira `[EPIC-KEY]` la parsean nuestros agentes) porque
+`pr_description.generate_ai_title=false` está declarado explícito — con false, `pr_description.py`
+publica `title=None` y el provider no toca el título. El workflow lo fija además por entorno
+(`GITHUB_ACTION_CONFIG__AUTO_DESCRIBE=true`) y bloquea la config del repo revisado
+(`CONFIG__USE_REPO_SETTINGS_FILE=false`, veredicto de security SC-1400/INFRA-1055: PR-Agent ni
+siquiera pide el `.pr_agent.toml` del repo por la API del provider).
 
 El inline del hallazgo de contrato NO pasa por PR-Agent: lo publica el CI por la API de GitHub
 (`review-context.py` → `review-distribute.py`, marcador `<!--contrato:…-->`, anclado a la línea del
@@ -64,18 +71,27 @@ Equivalencias con los nombres del encargo: «output_language» es `config.respon
 **Secretos por repo** (plan `free`: un secreto de org no llega a los privados):
 
     scripts/review-distribute-secrets.sh --dry-run --repos k8s-litellm-pocharlies,skirmshop-labels
-    scripts/review-distribute-secrets.sh --repos <r1,r2> [--from-vault pr-review-ci] [--rotate]
+    scripts/review-distribute-secrets.sh --repos <r1,r2> --from-op k8s-pocharlies/pr-review-ci [--rotate]
 
-Reparte `PR_AGENT_LITELLM_KEY`, `JIRA_EMAIL` y `JIRA_API_TOKEN` (`BRAIN_CI_KEY` no, hasta que security
-responda SC-1400). `--secrets A,B` elige el juego (los de PR-Agent de arriba o los del juez); el del juez (SC-2182) es
+Reparte `PR_AGENT_LITELLM_KEY`, `JIRA_EMAIL`, `JIRA_API_TOKEN` y `BRAIN_CI_KEY` (esta última
+autorizada por security solo en los 2 pilotos hasta INFRA-1059; ver «Rollout P6b» abajo).
+`--secrets A,B` elige el juego (los de PR-Agent de arriba o los del juez); el del juez (SC-2182) es
 `--secrets LITELLM_JUEZ_KEY,JIRA_JUEZ_EMAIL,JIRA_JUEZ_TOKEN,JIRA_JUEZ_URL`, con nombres propios para no tocar ni rotar
-`LITELLM_CI_KEY`, `JIRA_EMAIL` y `JIRA_API_TOKEN`. Valor: variable de entorno del mismo nombre o, con `--from-vault`, Vault KV v2
-`secret/<ruta>` (necesita `VAULT_ADDR` y `VAULT_TOKEN`; el token va a curl por `-H @fichero` 0600, nunca en
-su argv). Viaja por stdin a `gh secret set`; nunca se imprime.
+`LITELLM_CI_KEY`, `JIRA_EMAIL` y `JIRA_API_TOKEN`. Valor: variable de entorno del mismo nombre o, con
+`--from-op`, el item de 1Password `VAULT/ITEM` leído por Connect (necesita `OP_CONNECT_HOST` y
+`OP_CONNECT_TOKEN`; el token va a curl por `-H @fichero` 0600, nunca en su argv). [GOTCHA: el viejo
+`--from-vault` apuntaba a Vault, retirado en SC-699; los valores viven en el item
+`k8s-pocharlies/pr-review-ci` desde el veredicto de security de SC-1400 (INFRA-1055). Y el endpoint de
+lista de Connect no devuelve los campos de los items —el valor de un CONCEALED solo lo da el GET del
+item—: el script hace lista → id por título → GET del item (medido 2026-10-31).] Viaja por stdin a
+`gh secret set`; nunca se imprime.
 Un secreto ya presente no se toca sin `--rotate`, así que reejecutar no cambia nada. Salida: una línea
 `repo=… secreto=… estado=… accion=… fuente=…` por par y un `RESUMEN`. Códigos: 0 · 2 uso, repo
-inexistente o valor ausente (sin escribir nada) · 4 401/403 · 1 otro fallo. El token de `gh` necesita
-admin del repo. Tests: `python3 -m unittest tests/test_pr_agent_config.py`.
+inexistente o valor ausente (sin escribir nada) · 4 401/403, o el token no es admin del repo ni tiene
+`secrets: write` · 1 otro fallo. Permisos del token de `gh`: `admin` del repo o PAT fine-grained
+`Secrets: write` + `Metadata: read` (el exigido por security antes de la oleada, SC-1400; la
+comprobación acepta `.permissions.secrets == "write"`, no solo admin).
+Tests: `python3 -m unittest tests/test_pr_agent_config.py`.
 
 Key de LiteLLM: alias `pr-agent-ci`, solo `alibaba-q38-flash`, 6 rpm / 240 000 tpm (dos PR a la vez),
 separada de `ci-review-bot` (equipo `ci-review`, 3 rpm / 120 000 tpm).
@@ -165,14 +181,58 @@ la PR queda para el siguiente ciclo y quien la relanza es el consumidor al despe
 Nunca fusiona por defecto: `merge`/`needs_human`/`unknown` del artefacto no autorizan, solo
 dejan aplicar las demás puertas.
 
-## Dependencia externa: SC-1400
+## Rollout P6b (INFRA-334): estado, oleadas y [GOTCHA] de la migración
 
-El ticket Jira y la memoria del brain van **degradados** hasta que SC-1400 dé la cuenta de
-solo lectura (`JIRA_EMAIL`/`JIRA_API_TOKEN`) y `BRAIN_CI_KEY` por repo: sin ellas el
-push-ingest sale `sin_clave` (la señal nocturna lo informa aparte, no cuenta como omitido)
-y la sección «Tickets Jira citados» del contexto va a Degradaciones. El reparto de esas
-claves y las oleadas de `engine: pr-agent` a los 108 repos son el resto de INFRA-334
-(criterios 0–2 y 7), tras el visto bueno de security y el sign-off de INFRA-333.
+SC-1400/INFRA-1055 (security, 31-10-2026) cerró la dependencia: `PR_AGENT_LITELLM_KEY` regenerada y
+repartida a los 2 pilotos; `BRAIN_CI_KEY` compartida autorizada **solo en los 2 pilotos** (ya
+repartida por `review-distribute-secrets.sh --from-op`, medido `resultado=ok` en ambos); los valores
+viven en el item 1Password `k8s-pocharlies/pr-review-ci`. El ticket Jira y la memoria del brain siguen
+degradados donde falten las claves: sin `BRAIN_CI_KEY` el push-ingest sale `sin_clave` (la señal
+nocturna lo informa aparte) y sin `JIRA_*` la sección «Tickets Jira citados» va a Degradaciones.
+
+**[GOTCHA] de la migración** (lo que rompió el camino viejo, medido):
+
+1. **Vault muerto → 1Password Connect.** Vault fue retirado en SC-699: `--from-vault` y
+   `VAULT_ADDR/VAULT_TOKEN` ya no existen. Los valores están en el item `k8s-pocharlies/pr-review-ci`
+   y se leen por Connect con `--from-op` (patrón DGX-1085). La lista de Connect no devuelve los
+   campos: hay que pedir el item completo por id (el script ya lo hace).
+2. **Service account de Jira da 401 → usuario normal.** El token de service account no entra por
+   `e-dani.atlassian.net` (401 medido) y PR-Agent 0.46.0 solo habla con `{site}.atlassian.net`: la
+   cuenta de solo lectura para `JIRA_EMAIL`/`JIRA_API_TOKEN` es un **usuario normal** (INFRA-1058),
+   no una cuenta de servicio.
+3. **PAT de reparto `secrets: write`.** El reparto masivo usa un PAT fine-grained
+   `Secrets: write` + `Metadata: read` (INFRA-1058); `admin` del repo ya no hace falta y la
+   comprobación del script acepta `.permissions.secrets == "write"` además de admin. La App
+   `pocharlies-ci` no vale (sin permiso Secrets, medido).
+
+**Repos objetivo (medido 2026-10-31 con `gh api` sobre `pocharlies-org`):** `repos-objetivo.txt` —
+186 repos activos con la plantilla `.github/workflows/pr-review.yml`, todos ellos llamando a
+`reusable-pr-review.yml` (comprobado fichero a fichero). No son los 108 de la épica: esa cifra se midió
+en septiembre y la org tiene hoy 215 repos (21 archivados). Excepciones: 21 archivados (sin PR
+posible), 8 activos sin plantilla (`crosslink`, `homebrew-tap`, `litellm`, `loki`, `paseo-sync`,
+`paseo-tokps`, `qwen38-dgx-spark-audit`, `qwen38-recipe-handover`) y los 3 de la cuenta personal
+`pocharlies` (`skirmshop-picqer`, `skirmshop-theme`, `claude-archive-close-tab`: `ubuntu-latest`, no
+alcanzan el LiteLLM del cluster — precedente SC-2182). Los 9 repos que llaman al reusable desde otro
+fichero tampoco reciben oleada: la plantilla es el criterio.
+
+**Plan de oleadas (10 → 30 → resto), bloqueado hasta INFRA-1058 e INFRA-1059:**
+
+1. **Oleada 1 (10 repos):** `scripts/review-distribute-secrets.sh --repos <10> --from-op
+   k8s-pocharlies/pr-review-ci` (secrets: `PR_AGENT_LITELLM_KEY`, `JIRA_EMAIL`, `JIRA_API_TOKEN`;
+   `BRAIN_CI_KEY` solo cuando INFRA-1059 dé la clave de instancia), PR por repo fijando
+   `engine: pr-agent` en su `pr-review.yml`, y los 10 añadidos a `.github/pr-agent-repos.txt` en el
+   mismo PR (la señal nocturna es la puerta). Comprobación: `gh run list -R pocharlies-org/<repo>
+   -w "PR review" -L 5 --json conclusion` sin `failure` por opinión (D3).
+2. **Oleada 2 (30):** idéntico, solo si la 1 no pintó `failure`.
+3. **Resto (146):** idéntico, solo si la 2 está limpia. Una ola nunca se lanza si la anterior tiene
+   `failure` (se para y se informa).
+
+El cambio de `templates/ci/pr-review.yml` al motor nuevo y la retirada de `review.py` (criterio 5) van
+DESPUÉS del reparto verificado sobre la lista completa, en PR aparte.
+
+**Qué falta para lanzar la oleada 1:** INFRA-1058 (cuenta Jira `pr-agent-ro` + PAT `secrets: write`,
+Request IT) e INFRA-1059 (clave de instancia del brain para `BRAIN_CI_KEY` por repo; el mecanismo
+fusionado, la clave restringida la emite security después).
 
 ## Señal de salud nocturna (`review-health.yml`, INFRA-333)
 

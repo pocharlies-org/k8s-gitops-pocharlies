@@ -40,8 +40,12 @@ restricted_mode = true
 [github_action_config]
 # PR-Agent enciende estas tres si no se declaran (None = sí): van todas explícitas.
 auto_review = true
-# D5: apagado hasta F3 (reescribe título y cuerpo de la PR).
-auto_describe = false
+# D5 (F3, INFRA-334): encendido en el rollout. /describe reescribe el CUERPO de la PR;
+# el título se preserva (clave Jira [EPIC-KEY]) porque pr_description.generate_ai_title=false
+# (default de 0.46.0, declarado abajo: con false, pr_description.py publica title=None y el
+# provider no toca el título). El workflow lo fija además por entorno
+# (GITHUB_ACTION_CONFIG__AUTO_DESCRIBE=true).
+auto_describe = true
 # Decisión 5 del CTO: /improve no toca título ni cuerpo: pr_code_suggestions.py del commit
 # 1d01f24 solo publica comentarios y sugerencias (veredicto del arquitecto, INFRA-298
 # comentario 17487). El inline de la review en GitHub lo pone /improve por
@@ -52,6 +56,14 @@ auto_improve = true
 # a un PR abierto (github_action_runner.py: por defecto solo opened/reopened/ready_for_review/
 # review_requested, y handle_push_trigger=false). INFRA-332.
 pr_actions = ["opened", "reopened", "ready_for_review", "review_requested", "synchronize"]
+
+[pr_description]
+# D5 (F3): con auto_describe encendido, la clave Jira del título ([EPIC-KEY], la parsean
+# nuestros agentes) debe sobrevivir. generate_ai_title=false es el default de 0.46.0 y es
+# lo que lo garantiza (pr_description.py: con false publica title=None → el provider no
+# reescribe el título). Se declara explícito: la política del fichero es declarar hasta los
+# defaults, y true derivaría en que /describe cambie el título en los 108 repos.
+generate_ai_title = false
 
 [pr_reviewer]
 # Un único comentario de review que se edita en cada run, en vez de uno nuevo.
