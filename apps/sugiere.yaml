@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sugiere
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-sugiere-pocharlies
+  labels:
+    e-dani.com/tier: app
+    app.kubernetes.io/part-of: company
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-sugiere-pocharlies
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: llm
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    automated:
+      prune: true
+      selfHeal: true

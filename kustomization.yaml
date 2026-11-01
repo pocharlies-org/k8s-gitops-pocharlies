@@ -78,6 +78,7 @@ resources:
   - apps/skirmbooks.yaml
   - apps/synapse.yaml
   - apps/socialmedia.yaml
+  - apps/sugiere.yaml
   - apps/synapse-migrations.yaml
   - apps/synapse-sre-foundation.yaml
   - apps/teslamate.yaml
