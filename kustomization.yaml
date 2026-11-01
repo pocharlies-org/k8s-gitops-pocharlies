@@ -162,6 +162,35 @@ patches:
       group: argoproj.io
       version: v1alpha1
       kind: Application
+      name: shopify-label
+    patch: |-
+      # 01-11-2026: el patch general de arriba hace `op: add /spec/ignoreDifferences`,
+      # que en JSON6902 sobre una ruta existente es REPLACE y se lleva por delante las
+      # entradas de ConfigMap que declara apps/shopify-label.yaml. Sin reaplicarlas
+      # aquí, selfHeal revierte los datos que escribe labels-vat-sync en runtime y el
+      # retune manual de labels-shipping-margin (margen de envíos).
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: ""
+          kind: ConfigMap
+          name: labels-vat-rates
+          jsonPointers:
+            - /data
+            - /metadata/annotations/skirmshop.labels~1synced-at
+            - /metadata/annotations/skirmshop.labels~1source
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: ""
+          kind: ConfigMap
+          name: labels-shipping-margin
+          jsonPointers:
+            - /data
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
       name: k8s-infra
     patch: |-
       # 2026-10-29 (INFRA-1026): el CRD ingressroutes.traefik.io declara
