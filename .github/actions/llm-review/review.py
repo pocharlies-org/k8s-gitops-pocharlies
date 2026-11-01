@@ -11,14 +11,12 @@ diff son texto de TERCEROS: una interpolacion `${{ }}` dentro de un `run` seria
 inyeccion de shell directa. Por lo mismo el workflow que llama se dispara con
 `pull_request` y NUNCA con `pull_request_target`.
 
-Dos modos, segun REVIEW_PR_NUMBER:
-  - con numero de PR  -> comentario en el PR (se ACTUALIZA el anterior del bot).
-  - sin numero        -> comentario de commit sobre REVIEW_SHA (modo validacion).
-
-Y un tercer motor, `--juez` (SC-2182): no revisa, JUZGA. Contrasta la PR con los
+Un solo motor, `--juez` (SC-2182): no revisa, JUZGA. Contrasta la PR con los
 criterios de aceptacion de su ticket de Jira y publica un veredicto (PASA | NO_PASA |
 EN_ESPERA | SIN_VEREDICTO) en un marcador v3 que lee `company-aprobar`. `--evalua DIR` mide
 ese juez contra un corpus de casos commiteado (`--pasadas N --max-falsos F`, o `--umbral N/M`).
+Sin argumentos es error de uso: la rama que revisaba el diff sin juicio se retiro en
+F4a de INFRA-334 (01-11-2026, veredicto del arquitecto de INFRA-298).
 """
 import argparse
 import base64
@@ -56,26 +54,6 @@ SISTEMA = (
     'devuelves SOLO un objeto JSON valido, sin texto alrededor y sin vallas '
     'de codigo.'
 )
-
-PLANTILLA = """Revisa el siguiente diff y señala problemas CONCRETOS y ACCIONABLES:
-bugs, condiciones de carrera, inyección, secretos filtrados, errores sin manejar,
-rupturas de contrato o de API, y riesgos de seguridad. No comentes estilo,
-formato ni preferencias personales.
-
-Responde en español y SOLO con este JSON:
-{{"resumen": "<una o dos frases>",
-  "hallazgos": [{{"file": "ruta/al/fichero", "line": 42,
-                 "severity": "alta|media|baja",
-                 "summary": "<qué pasa y qué hacer>"}}]}}
-
-Si no hay nada reseñable, devuelve "hallazgos": [].
-
-Repositorio: {repo}
-
-Diff:
-{diff}
-"""
-
 
 def env(nombre, defecto=''):
     return (os.environ.get(nombre) or defecto).strip()
@@ -253,19 +231,6 @@ def pedir(url, key, modelo, prompt, timeout, sistema=SISTEMA, max_tokens=1500):
         return 'degradado', sin_token(str(e), key), None
 
 
-def consultar(url, key, modelo, prompt, timeout):
-    """SIN reintentos, y 429 y 5xx tratados IGUAL. Medido en el cluster: el
-    alias no tiene `fallbacks` en `router_settings`, asi que sin endpoints
-    LiteLLM da 500 y despues un 429 que se INVENTA el cooldown del router
-    durante 120 s. Reintentar dentro de esa ventana solo quema runner para
-    acabar igual de degradado, y el scale set `arc-k8s` tiene maxRunners=3
-    para toda la organizacion."""
-    estado, dato, _ = pedir(url, key, modelo, prompt, timeout)
-    if estado == 'degradado':
-        print(f'::warning::LiteLLM no disponible ({dato}); review omitida')
-    return estado, dato
-
-
 def contenido(respuesta):
     """Saca el texto de la respuesta estilo OpenAI y distingue el caso en que
     el modelo razona hasta agotar `max_tokens` y devuelve `content` VACIO:
@@ -311,68 +276,6 @@ def extraer_json(texto):
     return None
 
 
-def normalizar(dato):
-    hallazgos = []
-    bruto = dato.get('hallazgos')
-    if isinstance(bruto, list):
-        for h in bruto:
-            if not isinstance(h, dict):
-                # Una lista de cadenas tambien es una respuesta razonable.
-                hallazgos.append({'file': '', 'line': '', 'severity': 'media',
-                                  'summary': str(h)})
-                continue
-            sev = str(h.get('severity') or 'media').strip().lower()
-            hallazgos.append({
-                'file': str(h.get('file') or h.get('fichero') or ''),
-                'line': str(h.get('line') or h.get('linea') or ''),
-                'severity': sev if sev in ORDEN_SEVERIDAD else 'media',
-                'summary': str(h.get('summary') or h.get('resumen') or '').strip(),
-            })
-    hallazgos = [h for h in hallazgos if h['summary']]
-    hallazgos.sort(key=lambda h: ORDEN_SEVERIDAD[h['severity']])
-    return hallazgos, str(dato.get('resumen') or '').strip()
-
-
-# --------------------------------------------------------------------------
-# Comentario
-# --------------------------------------------------------------------------
-
-def componer(estado, hallazgos, resumen, crudo, fuera, modelo, ficheros):
-    lineas = [MARCA, '## Review automatica']
-    if estado == 'omitido':
-        lineas += ['', f'⏭️ Modelo no disponible, review omitida. {resumen}', '',
-                   '_El perfil de computo de los Sparks se conmuta entre '
-                   '`llm-tp` y `creative`; en `creative` el modelo no tiene '
-                   'endpoints. El check queda en verde a proposito._']
-    elif crudo is not None:
-        lineas += ['', 'El modelo no devolvio JSON valido. Texto tal cual:', '',
-                   '```', crudo[:8000], '```']
-    elif not hallazgos:
-        lineas += ['', f'✅ Sin hallazgos sobre {ficheros} fichero(s).']
-        if resumen:
-            lineas += ['', resumen]
-    else:
-        lineas += ['', f'Se revisaron {ficheros} fichero(s). '
-                       f'{len(hallazgos)} hallazgo(s):', '']
-        if resumen:
-            lineas += [resumen, '']
-        for h in hallazgos:
-            donde = h['file'] + (f":{h['line']}" if h['line'] else '')
-            lineas.append(f"- **[{h['severity']}]** `{donde or 'general'}` — "
-                          f"{h['summary']}")
-    if fuera:
-        lineas += ['', '<details><summary>Diff recortado: '
-                       f'{len(fuera)} fichero(s) fuera del tope</summary>', '']
-        lineas += [f'- `{n}` ({b} B)' for n, b in fuera]
-        lineas += ['', '</details>']
-    lineas += ['', f'<sub>modelo `{modelo}` · revision no bloqueante</sub>']
-    cuerpo = '\n'.join(lineas)
-    if len(cuerpo) > LIMITE_COMENTARIO:
-        cuerpo = cuerpo[:LIMITE_COMENTARIO] + '\n\n… (comentario truncado)'
-    return cuerpo
-
-
-# --------------------------------------------------------------------------
 # GitHub REST (sin `gh`: la imagen de arc-k8s no lo trae y falla mudo)
 # --------------------------------------------------------------------------
 
@@ -460,107 +363,6 @@ def leer_diff():
         return None, f'no se pudo leer el diff en {fichero}: {e}'
 
 
-def main():
-    url_base = env('REVIEW_LITELLM_URL')
-    key = env('REVIEW_LITELLM_KEY')
-    modelo = env('REVIEW_MODEL')
-    token = env('REVIEW_GITHUB_TOKEN')
-    repo = env('REVIEW_REPO')
-    pr = env('REVIEW_PR_NUMBER')
-    sha = env('REVIEW_SHA')
-    max_bytes = entero('REVIEW_MAX_DIFF_BYTES', 120000)
-    # 120 s, muy por debajo de los 600 que hereda el proxy: un job
-    # colgado ocupa un tercio del CI de la organizacion (maxRunners=3)
-    # hasta las 6 h de timeout por defecto de GitHub.
-    timeout = entero('REVIEW_TIMEOUT_SECONDS', 120)
-
-    diff, fallo = leer_diff()
-    if fallo:
-        print(f'::error::{fallo}')
-        return terminar('omitido', 'no se pudo leer el diff', 0, codigo=1)
-
-    if not url_base or not modelo or not repo:
-        print('::error::faltan litellm_url, model o repo')
-        return terminar('omitido', 'configuracion incompleta', 0, codigo=1)
-    if not pr and not sha:
-        print('::error::hace falta pr_number o sha')
-        return terminar('omitido', 'configuracion incompleta', 0, codigo=1)
-
-    if not diff.strip():
-        cuerpo = componer('ok', [], 'El diff esta vacio.', None, [], modelo, 0)
-        if token:
-            publicar(token, repo, pr, sha, cuerpo)
-        return terminar('ok', 'sin cambios que revisar', 0, cuerpo)
-
-    if not key:
-        # SC-1916: sin credencial la review NO ocurre, y eso es un fallo de
-        # config del repo, no «no aplicaba». El verde con warning hacia
-        # invisible la caida (medido: opencode-company llevava asi desde su
-        # creacion y el skipping pasaba por check en verde). El despliegue
-        # que justificaba el verde (INFRA-334) termino: rojo y aviso.
-        print('::error::sin LITELLM_CI_KEY: la review con modelo no puede '
-              'ejecutarse en este repo (secreto de repo ausente)')
-        cuerpo = componer('omitido', [],
-                          'Falta el secreto LITELLM_CI_KEY: la revision con '
-                          'modelo no esta activa en este repo. Reparalo con '
-                          '`gh secret set LITELLM_CI_KEY --repo <repo>` (SC-1916).',
-                          None, [], modelo, 0)
-        if token:
-            publicar(token, repo, pr, sha, cuerpo)
-        return terminar('omitido', 'falta LITELLM_CI_KEY', 0, cuerpo, codigo=1)
-
-    recortado, fuera = recortar(diff, max_bytes)
-    ficheros = len(trocear_por_ficheros(recortado))
-    if fuera:
-        print(f'::warning::diff recortado: {len(fuera)} fichero(s) fuera del '
-              f'tope de {max_bytes} B')
-
-    estado, dato = consultar(url_chat(url_base), key, modelo,
-                             PLANTILLA.format(repo=repo, diff=recortado),
-                             timeout)
-    if estado == 'config':
-        # Rojo a proposito: key invalida o alias fuera del allowlist del equipo.
-        print(f'::error::LiteLLM rechazo la peticion: {dato}')
-        return terminar('omitido', f'LiteLLM rechazo la peticion: {dato}', 0,
-                        codigo=1)
-    if estado == 'degradado':
-        cuerpo = componer('omitido', [], str(dato), None, fuera, modelo,
-                          ficheros)
-        if token:
-            publicar(token, repo, pr, sha, cuerpo)
-        return terminar('omitido', f'modelo no disponible: {dato}', 0, cuerpo)
-
-    texto, fallo = contenido(dato)
-    if texto is None:
-        print(f'::warning::respuesta inutil del modelo: {fallo}')
-        cuerpo = componer('omitido', [], str(fallo), None, fuera, modelo,
-                          ficheros)
-        if token:
-            publicar(token, repo, pr, sha, cuerpo)
-        return terminar('omitido', f'respuesta inutil: {fallo}', 0, cuerpo)
-
-    dato_json = extraer_json(texto)
-    if dato_json is None or not isinstance(dato_json, dict):
-        cuerpo = componer('hallazgos', [], '', texto, fuera, modelo, ficheros)
-        if token:
-            publicar(token, repo, pr, sha, cuerpo)
-        return terminar('hallazgos', 'el modelo no devolvio JSON valido', 0,
-                        cuerpo)
-
-    hallazgos, resumen = normalizar(dato_json)
-    veredicto = 'hallazgos' if hallazgos else 'ok'
-    cuerpo = componer(veredicto, hallazgos, resumen, None, fuera, modelo,
-                      ficheros)
-    if token:
-        publicar(token, repo, pr, sha, cuerpo)
-    else:
-        print('::warning::sin github_token; el review solo va al resumen')
-    corto = resumen or (f'{len(hallazgos)} hallazgo(s)' if hallazgos
-                        else 'sin hallazgos')
-    return terminar(veredicto, corto, len(hallazgos), cuerpo)
-
-
-# --------------------------------------------------------------------------
 # Motor `juez` (SC-2182). No revisa: JUZGA si la PR cumple los criterios de
 # aceptacion de su ticket. Es CONSULTIVO (SC-2331): comenta y da su veredicto, pero
 # no bloquea el merge (lo abren el CI en verde y, con riesgo alto, qa y security).
@@ -1744,7 +1546,7 @@ def evalua(directorio, umbral, pasadas=1, max_falsos=None):
 
 
 def cli(argv):
-    ap = argparse.ArgumentParser(description='Review con LLM: sin argumentos, el motor `propio`.')
+    ap = argparse.ArgumentParser(description='Juez de PR (SC-2182): --juez juzga la PR contra los criterios de su ticket; --evalua mide el juez contra un corpus.')
     ap.add_argument('--juez', action='store_true', help='juzga la PR contra los criterios de su ticket')
     ap.add_argument('--evalua', metavar='DIR', help='mide el juez contra el corpus de DIR')
     ap.add_argument('--umbral', default='7/8', help='con --evalua: aciertos minimos, N/M')
@@ -1754,7 +1556,9 @@ def cli(argv):
     a = ap.parse_args(argv)
     if a.evalua:
         return evalua(a.evalua, a.umbral, a.pasadas, a.max_falsos)
-    return juez() if a.juez else main()
+    if a.juez:
+        return juez()
+    ap.error('hace falta --juez o --evalua')
 
 
 if __name__ == '__main__':
