@@ -73,6 +73,11 @@ class CompanyReleaseTests(unittest.TestCase):
         self.assertIn('company-release-transfer/context.tar.gz', context)
         self.assertIn('retention-days: 1', context)
         self.assertNotIn('kubectl', CALLER)
+        import re
+        reference = re.search(r'reusable-release\.yml@([0-9a-f]{40})', release)
+        self.assertIsNotNone(reference)
+        self.assertNotEqual(reference.group(1), '0' * 40)
+        self.assertIn('NOT approved', release)
 
 
 if __name__ == '__main__':

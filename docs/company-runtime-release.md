@@ -7,11 +7,13 @@ as a release yet. No secrets, robot permissions or GitOps state change in this P
 
 `templates/ci/release-company-runtime.yml` is a caller for installation in
 `x86-host-runtime-pocharlies/.github/workflows/` AFTER reviewing and merging the
-optional extension to `reusable-release.yml`. Its all-zero reusable SHA is an
-intentional non-executable placeholder; replace it with the reviewed merged commit,
-never a mutable branch. The runtime owner must install it through a separate reviewed
-PR. Runtime edits are currently blocked by another session's harness turn; this PR
-does not bypass that guard or install the caller in another execution repository.
+optional extension to `reusable-release.yml`. The template now references the existing
+proposal commit `5ef9168b5af1af59348164569aedbf45b33a92ea`, not an invalid zero pin.
+That is NOT an approved release reference: replace it with the approved merged commit
+in the separate runtime installation PR, never a mutable branch. The runtime turn
+was expired at the latest check, but no owner approval or Security verdict exists,
+so there is no approved merged SHA to install. This PR does not install the caller
+in any execution repository.
 
 Only manual dispatch from runtime `main` is supported, with no user inputs. The image
 set is exactly `homelab/company-runtime`; no alternate registry/context/destination

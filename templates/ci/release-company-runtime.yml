@@ -72,8 +72,9 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    # Fail-closed proposal: replace with the reviewed merged extension commit, never @main.
-    uses: pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-release.yml@0000000000000000000000000000000000000000
+    # Existing proposal commit, NOT approved for installation or execution (SC-4004).
+    # Re-pin to the approved merged reusable SHA in the runtime installation PR.
+    uses: pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-release.yml@5ef9168b5af1af59348164569aedbf45b33a92ea
     with:
       runner: arc-k8s
       registry: harbor.lan.e-dani.com
