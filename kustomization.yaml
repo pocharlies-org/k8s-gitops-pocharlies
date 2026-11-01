@@ -35,7 +35,9 @@ resources:
   - infra/reflector.yaml
   - infra/descheduler.yaml
   - infra/longhorn.yaml
-  - infra/longhorn-zombie-test/application.yaml
+  # INFRA-168: el fixture longhorn-zombie-test se activaba aquí (PR #507) y se
+  # retira tras medir el criterio 3 (01-11). Los manifiestos siguen en
+  # infra/longhorn-zombie-test/: bajo demanda, ver runbook zombie en k8s-infra.
   - infra/argocd.yaml
   - infra/harbor.yaml
   - apps/adguard.yaml
