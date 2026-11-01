@@ -200,7 +200,10 @@ require("refs/(heads|tags)" not in workflow, "mutable certificate reference acce
 # La puerta Trivy no se relaja: mismo binario verificado por sha256, mismos
 # escaneos, misma severidad y politica, mismo --exit-code 1. Preflight, firma
 # cosign, SBOM/SLSA y promocion atomica intactos.
-expected_workflow_digest = "cfcd31007d5071ebd523f1ff5f1e964f52fe1a3c3214a1f1f70a980fcae1cdd1"
+# SC-3961 proposal (Security approval pending): optional same-run context for the
+# exact company-runtime/main dispatch, source binding before registry login, and
+# fixed credential-free smoke before candidate push. Default callers unchanged.
+expected_workflow_digest = "9cdf4a067aaa42488df1f77c0e92350187bcf5eca1065181026284e0a48530de"
 # La instalacion de Buildx (checksums + imagen por digest) vive ahora en la
 # accion local: se pinnea igual que el workflow, o el contrato pierde cobertura.
 expected_buildx_action_digest = "e39317a5be5b63d9d01959164ac5c0e6f809eed870c8a5e28be2999043eb9353"

@@ -191,7 +191,9 @@ for label, mutated_release, mutated_manifest in [
 # TRIVY_DB_REPOSITORY (mirror.gcr.io da BLOB_UNKNOWN al blob actual de trivy-db desde el
 # egreso ARC; se punta al espejo oficial de ECR). El enlace digest de imagen -> manifest
 # no cambia.
-expected_release_sha256 = "cfcd31007d5071ebd523f1ff5f1e964f52fe1a3c3214a1f1f70a980fcae1cdd1"
+# SC-3961 proposal: prepared company context and prepush smoke only; output
+# linkage/signature/promotion remain unchanged. Security review still required.
+expected_release_sha256 = "9cdf4a067aaa42488df1f77c0e92350187bcf5eca1065181026284e0a48530de"
 expected_manifest_sha256 = "4e48cd19b2bb6da68e674687e68a4f2027daec6d449a882e03bef604af180fef"
 release_sha256 = hashlib.sha256(release.encode()).hexdigest()
 manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()
