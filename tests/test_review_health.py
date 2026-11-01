@@ -179,22 +179,22 @@ class WorkflowShape(unittest.TestCase):
 
 class Selection(unittest.TestCase):
     PA = [{"name": "review / Review del PR (PR-Agent)", "conclusion": "success"}]
-    PROPIO = [{"name": "review / Review del PR", "conclusion": "success"},
+    JUEZ = [{"name": "review / Review del PR (juez)", "conclusion": "success"},
               {"name": "review / Review del PR (PR-Agent)", "conclusion": "skipped"}]
 
     def runs(self, n, age_days=1):
         return [{"id": i, "conclusion": "success",
                  "created_at": (NOW - timedelta(days=age_days, minutes=i)).isoformat()} for i in range(n)]
 
-    def test_engine_propio_runs_are_foreign(self):
+    def test_engine_juez_runs_are_foreign(self):
         runs = self.runs(6)
-        jobs = {r["id"]: (self.PA if r["id"] < 2 else self.PROPIO) for r in runs}
+        jobs = {r["id"]: (self.PA if r["id"] < 2 else self.JUEZ) for r in runs}
         picked, foreign = rh.select_runs(runs, jobs, None)
         assert [r["id"] for r in picked] == [0, 1] and foreign == 4
 
     def test_window_is_cut_after_filtering(self):
         runs = self.runs(120)
-        jobs = {r["id"]: (self.PROPIO if r["id"] < 30 else self.PA) for r in runs}
+        jobs = {r["id"]: (self.JUEZ if r["id"] < 30 else self.PA) for r in runs}
         picked, foreign = rh.select_runs(runs, jobs, None)
         assert len(picked) == 50 and picked[0]["id"] == 30 and foreign == 30
 

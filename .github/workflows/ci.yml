@@ -92,8 +92,8 @@ jobs:
       - run: python3 -m unittest tests/test_review_context.py
       - run: python3 -m unittest tests/test_review_distribute.py
       - run: python3 -m unittest tests/test_review_health.py
-      - run: python3 -m unittest tests/test_review_missing_key.py
       # SC-2182: el motor `juez` (marcador v2) y la regla de un solo motor por evento.
+      # (F4a, INFRA-334: test_review_missing_key.py se fue con el modo propio.)
       - run: python3 -m unittest tests/test_llm_review_juez.py
       - run: python3 -m unittest tests/test_reusable_pr_review.py
       - run: python3 -m unittest tests/test_duplicados.py
