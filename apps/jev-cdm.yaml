@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jev-cdm
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-ai-pocharlies
+  labels:
+    e-dani.com/tier: app
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-ai-pocharlies
+    # Rama, no SHA: como `bge` (SC-315). Ollaya (Jev en casa, INFRA-987).
+    targetRevision: main
+    path: k8s-jev-cdm
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: llm
+  syncPolicy:
+    automated:
+      # prune: false a propósito: el PVC ollaya-models guarda los pesos descargados.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true

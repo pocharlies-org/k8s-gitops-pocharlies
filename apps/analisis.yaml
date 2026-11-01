@@ -1,0 +1,29 @@
+# SC-2956: servicio analisis (empleados de análisis, solo proponen). Manifiestos en k8s-analisis-pocharlies/k8s,
+# pin de imagen escrito por reusable-manifest-release en deploy/prod. La base `analisis` vive en
+# k8s-infra-pocharlies (databases/postgres-shared). prune: false: ningún borrado automático.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: analisis
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-analisis-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-analisis-pocharlies
+    targetRevision: deploy/prod
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: analisis
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

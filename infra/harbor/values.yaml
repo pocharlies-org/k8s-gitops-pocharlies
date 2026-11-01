@@ -94,6 +94,12 @@ nodeSelector:
   node-pool: ks5-nvme
 notary:
   enabled: false
+# INFRA-972: con type=s3 el chart monta /storage como emptyDir (las capas NO
+# se guardan en el nodo: 334 GiB en el bucket harbor-blobs de MinIO, 22-10).
+# Los bloques persistentVolumeClaim de mas abajo siguen ahi pero con s3 solo
+# se materializan los de database/redis/trivy/jobservice: registry no. Cuando
+# "el disco de Harbor" se llena, el que escribe es el runner de CI de al lado
+# (infra/arc.yaml), no el registry.
 persistence:
   enabled: true
   imageChartStorage:

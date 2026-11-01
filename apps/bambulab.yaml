@@ -1,0 +1,32 @@
+# INFRA-814 (P2 de INFRA-489): el panel bambulab-openclaw pasa de desplegado a
+# mano (manifiestos en dgx-infra/services/bambulab-openclaw-k8s/) a GitOps.
+# Copia de apps/libreplay.yaml con dos diferencias: sin CreateNamespace (el ns
+# `bambulab` ya existe) y path k8s/overlays/prod (el repo lleva base+overlays).
+# El pin de imagen lo escribe reusable-manifest-pr-release con una PR
+# «chore(prod): promote …» contra main del repo bambulab-openclaw.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bambulab
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/bambulab-openclaw
+  labels:
+    e-dani.com/tier: app
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/bambulab-openclaw
+    targetRevision: main
+    path: k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: bambulab
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - ServerSideApply=true

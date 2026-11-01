@@ -15,6 +15,9 @@ configs:
     server.insecure: "true"   # TLS termination at Traefik
   cm:
     application.instanceLabelKey: argocd.argoproj.io/instance
+    # SC-2822: los kustomize del repo pueden traer helmCharts (platform/keycloak-sso).
+    # Sin esto ArgoCD falla con "must specify --enable-helm".
+    kustomize.buildOptions: --enable-helm
     # INFRA-511: Kyverno (externalsecret-onepassword-to-connect, in
     # k8s-infra-pocharlies platform/kyverno/policies.yaml) admits every
     # ExternalSecret of the `onepassword` store (key: <item>/<field>) as one of
@@ -57,6 +60,30 @@ server:
 
 repoServer:
   replicas: 1
+  # INFRA-927 (23-10-2026): la liveness `healthz?full=true` con timeout 1s y
+  # failureThreshold 3 mataba el pod en ráfagas de GenerateManifest sobre un
+  # cp saturado (ks5-cp-2 al 122% de CPU): 78 reinicios en 7 días, exit 0
+  # «clean shutdown» tras el kill del kubelet, y con él caían las manifest
+  # generations de TODAS las Applications (ComparisonError). El proceso estaba
+  # sano (logs normales, cache hits). Uso real medido 7 d en VictoriaMetrics:
+  # p95 ~0.09 cores, máximo ~200 Mi — no es capacidad, es tolerancia de la
+  # probe y falta de requests. Por eso: timeout 8s / failureThreshold 6 en
+  # liveness (~60 s de tolerancia) y 5s / 6 en readiness; requests para que
+  # el scheduler vea su peso (misma lección que el controller, 2026-08-15) y
+  # límite de memoria, que además pide Kyverno (require-memory-limit).
+  # Sin réplicas extra ni --parallelismlimit: la capacidad no es la causa.
+  livenessProbe:
+    timeoutSeconds: 8
+    failureThreshold: 6
+  readinessProbe:
+    timeoutSeconds: 5
+    failureThreshold: 6
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
 
 applicationSet:
   replicas: 1
@@ -111,7 +138,28 @@ notifications:
           value: application/json
         - name: X-API-KEY
           value: $keep-api-key
+    # SC-2958·D7: sincronizaciones correctas hacia el gateway de Synapse (Service interno, no la URL pública).
+    # La cabecera es la que lee el proveedor `argocd` del gateway (X-Synapse-ArgoCD-Token).
+    service.webhook.synapse: |
+      url: http://synapse-gateway.synapse.svc.cluster.local:18790/webhooks/argocd
+      headers:
+        - name: Content-Type
+          value: application/json
+        - name: X-Synapse-ArgoCD-Token
+          value: $synapse-argocd-token
   templates:
+    # SC-2958·D7: el adaptador lee `repo`/`repos` (fuente única o multi-source) y `revisions`; `revision` sale vacía en multi-source.
+    template.synapse-deployed: |
+      webhook:
+        synapse:
+          method: POST
+          body: |
+            {"app": {{ .app.metadata.name | toJson }},
+             "repo": {{ with .app.spec.source }}{{ .repoURL | toJson }}{{ else }}""{{ end }},
+             "repos": [{{ range $i, $s := .app.spec.sources }}{{ if $i }}, {{ end }}{{ $s.repoURL | toJson }}{{ end }}],
+             "revision": {{ .app.status.sync.revision | toJson }},
+             "revisions": {{ .app.status.sync.revisions | toJson }},
+             "finishedAt": {{ .app.status.operationState.finishedAt | toJson }}}
     template.keep-sync-failed: |
       webhook:
         keep:
@@ -149,6 +197,15 @@ notifications:
       - description: La app está Degraded
         when: app.status.health.status == 'Degraded'
         send: [keep-health-degraded]
+    # SC-2958·D7: sync correcto con salud Healthy. `oncePer` cubre `revision` y `revisions`: en multi-source `revision` sale vacía
+    # y el dedup de notifications-engine (state.go:27) usaría una clave vacía. `?? ""` evita el "<nil>" de fmt (service.go:99).
+    trigger.on-deployed: |
+      - description: Sincronización correcta y app Healthy
+        when: app.status.operationState != nil and app.status.operationState.phase == 'Succeeded' and app.status.health.status == 'Healthy'
+        oncePer: (app.status.sync.revision ?? "") + join(app.status.sync.revisions ?? [], ",")
+        send: [synapse-deployed]
   subscriptions:
     - recipients: [keep]
       triggers: [on-sync-failed, on-health-degraded]
+    - recipients: [synapse]
+      triggers: [on-deployed]

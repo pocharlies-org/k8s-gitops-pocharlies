@@ -1,6 +1,6 @@
 # galan-proposal — propuesta GALAN + chat/voz (dgx-infra k8s/apps/galan-proposal, DGX-634, épica DGX-619).
 #
-# Mismo patron que voicelab / ofimatica / opencode: los manifiestos viven en dgx-infra
+# Mismo patron que voicelab / ofimatica: los manifiestos viven en dgx-infra
 # (k8s/apps/galan-proposal/k8s.yaml) y aqui solo se declara la Application. El path
 # trae tambien codigo fuente (backend/, site/, mockups/), pero ArgoCD lee el directorio
 # SIN recursion: solo `k8s.yaml` es manifiesto.

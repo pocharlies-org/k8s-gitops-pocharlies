@@ -10,8 +10,18 @@ cliente ni lista de pools propia. Emite solo agregados:
   ci_queue_api_rate_remaining                            cuota GitHub restante
   ci_queue_errors_total                                  scrapes parciales con fallo
 
-Un scrape cada 5 min: repos de la org con actividad en 7 días → runs con
+Un scrape cada 5 min: TODOS los repos no archivados de la org → runs con
 `status=queued` por repo (ETag: los 304 no gastan cuota) → jobs de esos runs.
+Sin ventana de `pushed_at`: un run nace también por `schedule`,
+`workflow_dispatch` o re-run sin ningún push, así que el push reciente no
+predice cola. La ventana de 7 días que había dejó ciega la sonda del 31-10
+(`sc-pilot-sandbox`, push del 08-10, sonda en cola: criterio NO PASA); dictamen
+del architect en `nota-architect-ventana-activo.md`. El coste es una request de
+runs por repo y ciclo, ya con ETag: en estado estable todo responde 304
+(cuota ≈ 0) y la petición cara (jobs por run) solo ocurre cuando hay runs en
+cola, que es cuando hay que mirar. `ci_queue.py` (el informe, no este exporter)
+conserva su ventana de 7 días: es otro camino, con llamadas por run del
+histórico.
 Los jobs con label sin pool nunca llegan al listener ARC, por eso la fuente es
 la API de GitHub (decisión del architect, nota-architect-plan.md §1B).
 
@@ -48,7 +58,6 @@ TOKEN_FILE = os.environ.get("CI_QUEUE_TOKEN_FILE", "/etc/ci-queue-token/token")
 POOLS_FILE = os.environ.get("CI_QUEUE_POOLS_FILE",
                             os.path.join(os.path.dirname(os.path.abspath(__file__)), "pools.txt"))
 INTERVAL = float(os.environ.get("CI_QUEUE_INTERVAL", "300"))
-ACTIVE_DAYS = 7
 PORT = int(os.environ.get("CI_QUEUE_PORT", "8080"))
 
 
@@ -80,15 +89,16 @@ def make_transport(token_path: str = TOKEN_FILE, stats: dict | None = None, http
     return transport
 
 
-def active_repos(client, org: str, now: dt.datetime,
-                 days: int = ACTIVE_DAYS) -> list[str]:
-    """Repos no archivados con push en los últimos `days` días (1 página: la
-    org tiene ~60; si pasara de 100, paginate lo cubre igual)."""
+def active_repos(client, org: str) -> list[str]:
+    """Todos los repos no archivados de la org (1 página: la org tiene ~60; si
+    pasara de 100, paginate lo cubre igual). Sin filtro de `pushed_at`: un run
+    en cola no implica push reciente (`schedule`, `workflow_dispatch`, re-run),
+    y la ventana de 7 días ocultó la sonda del 31-10 (INFRA-550, dictamen del
+    architect). El coste es una request de runs por repo y ciclo, con ETag: los
+    304 no gastan cuota."""
     return sorted(
         r["name"] for r in client.paginate(f"/orgs/{org}/repos", "repositories")
-        if r.get("name") and not r.get("archived")
-        and (pushed := ci_queue.parse_iso(r.get("pushed_at"))) is not None
-        and pushed >= now - dt.timedelta(days=days))
+        if r.get("name") and not r.get("archived"))
 
 
 def scrape(client, pools, cache: dict, now: dt.datetime,
@@ -99,7 +109,7 @@ def scrape(client, pools, cache: dict, now: dt.datetime,
     errors = 0
     queued: dict[tuple[str, str], int] = {}
     oldest: dict[tuple[str, str, str], float] = {}
-    for repo in active_repos(client, org, now):
+    for repo in active_repos(client, org):
         try:
             etag, runs = cache.get(repo, (None, []))
             data, _hdrs, etag = client.get(f"/repos/{org}/{repo}/actions/runs",

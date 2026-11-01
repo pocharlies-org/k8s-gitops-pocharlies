@@ -7,12 +7,12 @@ resources:
   - legacy/cnpg-operator.yaml
   - legacy/postgres-shared.yaml
   - infra/infra.yaml
+  - infra/keycloak-sso.yaml
   - infra/keda.yaml
   - infra/observability.yaml
   - infra/backup-hub.yaml
   - infra/backup-logical-dumps.yaml
   - infra/restore-drill.yaml
-  - infra/opencode.yaml
   - infra/update-watch.yaml
   - infra/renovate.yaml
   - infra/voicelab.yaml
@@ -35,12 +35,19 @@ resources:
   - infra/reflector.yaml
   - infra/descheduler.yaml
   - infra/longhorn.yaml
+  # INFRA-168: el fixture longhorn-zombie-test se activaba aquí (PR #507) y se
+  # retira tras medir el criterio 3 (01-11). Los manifiestos siguen en
+  # infra/longhorn-zombie-test/: bajo demanda, ver runbook zombie en k8s-infra.
   - infra/argocd.yaml
   - infra/harbor.yaml
   - apps/adguard.yaml
   - apps/ai.yaml
   - apps/ai-lab.yaml
+  - apps/bambulab.yaml
   - apps/bge.yaml
+  - apps/jev-cdm.yaml
+  - apps/analisis.yaml
+  - apps/skills-catalog.yaml
   - apps/voice.yaml
   - apps/fichajes-alphalink.yaml
   - apps/hindsight.yaml
@@ -93,9 +100,12 @@ resources:
   - apps/picqer-mcp.yaml
   - apps/shopify-admin-mcp.yaml
   - apps/playwright-mcp.yaml
+  - apps/paseo.yaml
   - argocd/ingressroute.yaml
   - argocd/repositories.yaml
   - argocd/notifications-externalsecret.yaml
+  # SC-2958·D7: token del notificador synapse (forma Connect, Merge sobre el mismo Secret).
+  - argocd/notifications-synapse-externalsecret.yaml
   - argocd/repo-creds-dashboard-ro-externalsecret.yaml
   - argocd/repo-helm-harbor-homelab-charts-externalsecret.yaml
 patches:
@@ -148,6 +158,53 @@ patches:
             kind: Cluster
             managedFieldsManagers:
               - manager
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+      name: shopify-label
+    patch: |-
+      # 01-11-2026: el patch general de arriba hace `op: add /spec/ignoreDifferences`,
+      # que en JSON6902 sobre una ruta existente es REPLACE y se lleva por delante las
+      # entradas de ConfigMap que declara apps/shopify-label.yaml. Sin reaplicarlas
+      # aquí, selfHeal revierte los datos que escribe labels-vat-sync en runtime y el
+      # retune manual de labels-shipping-margin (margen de envíos).
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: ""
+          kind: ConfigMap
+          name: labels-vat-rates
+          jsonPointers:
+            - /data
+            - /metadata/annotations/skirmshop.labels~1synced-at
+            - /metadata/annotations/skirmshop.labels~1source
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: ""
+          kind: ConfigMap
+          name: labels-shipping-margin
+          jsonPointers:
+            - /data
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+      name: k8s-infra
+    patch: |-
+      # 2026-10-29 (INFRA-1026): el CRD ingressroutes.traefik.io declara
+      # `default: minimal` en spec.routes[].observability.traceVerbosity y el
+      # apiserver lo rellena en cada escritura; git no lo declara y ArgoCD lo ve
+      # como drift -> OutOfSync perpetuo (IngressRoute traefik-lan/lan-correo,
+      # medido 29-10). Mismo patrón que los defaults de ESO del patch general.
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: traefik.io
+          kind: IngressRoute
+          jqPathExpressions:
+            - .spec.routes[].observability.traceVerbosity
   - target:
       group: argoproj.io
       version: v1alpha1
@@ -416,7 +473,10 @@ patches:
         value: { <<: *bge-replicas, name: bge-reranker-creative }
   # DGX-366 (24-09-2026): la app `voice` (servicio de voz fuera de `ai`). Igual que `bge`:
   # el blanket patch REEMPLAZA /spec/ignoreDifferences, asi que se re-anaden las replicas
-  # que posee compute_mode.py (nvfp4, stt-turbo) y la de omnivoice-tts-cpu (apagado).
+  # que posee compute_mode.py (nvfp4, stt-turbo), la de omnivoice-tts-cpu (apagado) y la de
+  # omnivoice-tts-trained (SC-2651: en 0 fuera de la ventana creative de dgx3 — en modo llm
+  # no deja hueco y el worker del residente paginaba, incidente 19-10 —; se sube a mano
+  # dentro de la ventana hasta que el arbitro COMPONENTS la gobierne).
   - target:
       group: argoproj.io
       version: v1alpha1
@@ -437,6 +497,9 @@ patches:
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *voice-replicas, name: omnivoice-tts-cpu }
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value: { <<: *voice-replicas, name: omnivoice-tts-trained }
   # The blanket Application patch above REPLACES /spec/ignoreDifferences, so it drops the two
   # target.template paths agentgateway-mcp declares in its own file. ESO defaults both on the
   # backend-tokens ExternalSecret, so without them the app is perpetually OutOfSync. Append
@@ -574,36 +637,10 @@ patches:
           namespace: synapse
           jsonPointers:
             - /spec/replicas
-  # opencode (SC-104, 15-09): el API server rellena apiVersion/kind/volumeMode/
-  # status dentro del volumeClaimTemplates del StatefulSet vivo y ArgoCD v3.4.2
-  # no los normaliza: la app nace OutOfSync permanente con diff vacio
-  # (argocd app diff no muestra nada) — argo-cd #11143. Probado en vivo:
-  # ServerSideDiff=true como syncOption NO lo evita. Se ignoran solo los campos
-  # que escribe el servidor; un cambio real de storage size o storageClass en
-  # el vct sigue saliendo en el diff. Va aqui y no en infra/opencode.yaml
-  # porque el patch general de arriba (op: add sin `/-`) reemplaza la lista
-  # entera: lo declarado en el fichero de la app nunca llega vivo.
-  - target:
-      group: argoproj.io
-      version: v1alpha1
-      kind: Application
-      name: opencode
-    patch: |-
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value:
-          group: apps
-          kind: StatefulSet
-          jqPathExpressions:
-            - .spec.volumeClaimTemplates[].apiVersion
-            - .spec.volumeClaimTemplates[].kind
-            - .spec.volumeClaimTemplates[].metadata.creationTimestamp
-            - .spec.volumeClaimTemplates[].spec.volumeMode
-            - .spec.volumeClaimTemplates[].status
   # SC-2571: el arbiter aparca frigate (scale 0) mientras la RTX entrena una LoRA y lo restaura al soltar
   # el lease (acquire(park=)). Sin esta entrada selfHeal devuelve /spec/replicas a 1 a mitad del entreno y
-  # frigate disputa la VRAM al trainer. Va aqui y no en apps/frigate.yaml por lo que dice el patch de
-  # opencode: el patch general (op: add sin `/-`) reemplaza la lista entera.
+  # frigate disputa la VRAM al trainer. Va aqui y no en apps/frigate.yaml porque el patch general de
+  # arriba (op: add sin `/-`) reemplaza la lista entera: lo declarado en el fichero de la app nunca llega vivo.
   - target:
       group: argoproj.io
       version: v1alpha1

@@ -1,6 +1,6 @@
 # Voice Lab — la API de clonado de voz (dgx-infra services/voicelab, #588).
 #
-# Mismo patron que opencode / restore-drill: los manifiestos viven en dgx-infra
+# Mismo patron que restore-drill: los manifiestos viven en dgx-infra
 # (k8s/apps/voicelab/) y aqui solo se declara la Application.
 #
 # Destino `llm`: monta el catalogo de voces de OmniVoice (PVC omnivoice-voices-nfs)

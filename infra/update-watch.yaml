@@ -1,7 +1,7 @@
 # update-watch: ns + PV/PVC del contrato de intentos de auto-update (DGX-358,
 # epica DGX-309 criterio 3).
 #
-# Mismo patron que opencode/backup-logical-dumps/restore-drill: los manifiestos
+# Mismo patron que backup-logical-dumps/restore-drill: los manifiestos
 # viven en dgx-infra (k8s/infrastructure/update-watch/) y AQUI solo se declara la
 # Application. NO en dgx-infra/k8s/argocd/apps/: ese directorio no lo sincroniza
 # nada.

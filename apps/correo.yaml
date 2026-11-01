@@ -7,9 +7,9 @@
 #              bajo `path` se aplicaría como un manifiesto) y aplica k8s/platform (ExternalSecrets, HMAC generados y backup del PVC,
 #              en subcarpetas: de ahí `directory.recurse`).
 #
-# Sync MANUAL hasta el primer sync (sin `automated`, como apps/company-crm.yaml): el repo-server no resuelve el chart hasta que
-# ArgoCD tenga la credencial OCI de Harbor (DGX-916), y un sync sin P8 en deploy/prod dejaría el pod sin sus Secrets. Con el primer
-# sync hecho y `kubectl get app correo -n argocd` en Synced/Healthy, otra PR pasa a automated{selfHeal, prune: false} como el resto.
+# `automated{selfHeal, prune: false}` como el resto de apps: el motivo del sync manual (el repo-server sin credencial OCI de Harbor,
+# DGX-916, y el pod sin sus Secrets antes de P8) desapareció — el primer sync se hizo, la app está en Synced/Healthy y P8 está en
+# deploy/prod. Sin esto, cada merge en `k8s-correo-pocharlies/deploy/prod` se quedaba esperando un sync a mano que nadie daba.
 #
 # El ns `correo` lo crea esta Application con Pod Security `restricted` (S19): el pod del chart ya va endurecido (S14).
 apiVersion: argoproj.io/v1alpha1
@@ -27,7 +27,7 @@ spec:
   sources:
     - repoURL: harbor.lan.e-dani.com/homelab/charts
       chart: correo
-      targetRevision: 0.3.0
+      targetRevision: 0.9.0
       helm:
         releaseName: correo
         valueFiles:
@@ -42,6 +42,9 @@ spec:
     server: https://kubernetes.default.svc
     namespace: correo
   syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true

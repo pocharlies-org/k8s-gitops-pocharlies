@@ -1,0 +1,31 @@
+# Paseo en atlantic (daemon + sesiones de Claude CLI en el pod paseo-0). El StatefulSet se aplicó a mano
+# el 25-10 y hasta ahora no tenía Application; se registra para que el sidecar auth-proxy de los MCP y
+# los bumps de imagen vayan por GitOps.
+# `prune: false` (apps normales, ARCHITECTURE.md §5): el PVC paseo-home es estado largo y vive fuera
+# del manifiesto a propósito; el namespace lo crea CreateNamespace=true.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: paseo
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-paseo-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-paseo-pocharlies
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: paseo
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

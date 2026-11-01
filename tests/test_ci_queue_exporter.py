@@ -71,7 +71,16 @@ class EmptyQueueTest(unittest.TestCase):
 
 
 class QueuedJobsTest(unittest.TestCase):
-    """Cola viva. El discriminador es `status == queued`, no `started_at`."""
+    """Cola viva. El discriminador es `status == queued`, no `started_at`.
+
+    `repo-viejo` no recibe push desde 2026-01-01 y aun así tiene un run en
+    cola: un run nace también por `schedule`, `workflow_dispatch` o re-run, sin
+    ningún push. Es el caso de la sonda del 31-10 (`sc-pilot-sandbox`, push del
+    08-10, sonda en cola): la ventana de 7 días del filtro `pushed_at` la dejó
+    invisible (criterio NO PASA). Dictamen del architect
+    (`nota-architect-ventana-activo.md`): se pregunta a TODOS los repos no
+    archivados; aquí se aserta que a `repo-viejo` se le pide la lista de runs y
+    su job se cuenta."""
 
     PAGES = {
         "/orgs/pocharlies-org/repos": (200, repos("repo-x") + repos("repo-viejo", pushed="2026-01-01T00:00:00Z")
@@ -89,6 +98,10 @@ class QueuedJobsTest(unittest.TestCase):
             job("completed", "2026-10-05T10:00:00Z", started="2026-10-05T10:01:00Z"),
             job("waiting", "2026-10-05T10:00:00Z"),  # esperando aprobación de un environment
         ]}, {}),
+        # repo-viejo: sin push reciente y con la sonda en cola (el caso del 31-10)
+        "repo-viejo/actions/runs?": (200, {"workflow_runs": [{"id": 9, "status": "queued"}]}, {}),
+        "runs/9/jobs": (200, {"jobs": [job("queued", "2026-10-05T11:00:00Z",
+                                           labels=("ci-queue-probe-sin-pool",))]}, {}),
     }
 
     def test_scrape(self):
@@ -96,14 +109,22 @@ class QueuedJobsTest(unittest.TestCase):
         result = exporter.scrape(client_with(dict_transport(self.PAGES, calls)), POOLS, {}, NOW)
         self.assertEqual(result["queued"], {("ubuntu-latest-32-core", "sin-pool"): 1,
                                             ("arc-k8s", "pool"): 1,
-                                            ("arc-openclaw", "pool"): 1})
+                                            ("arc-openclaw", "pool"): 1,
+                                            ("ci-queue-probe-sin-pool", "sin-pool"): 1})
         self.assertEqual(result["oldest"], {("ubuntu-latest-32-core", "sin-pool", "repo-x"): 1800.0,
                                             ("arc-k8s", "pool", "repo-x"): 600.0,
-                                            ("arc-openclaw", "pool", "repo-x"): 1200.0})
+                                            ("arc-openclaw", "pool", "repo-x"): 1200.0,
+                                            ("ci-queue-probe-sin-pool", "sin-pool", "repo-viejo"): 3600.0})
         self.assertEqual(result["errors"], 0)
-        # repo-viejo (sin push en 7 días) y repo-arch (archivado) no se preguntan
+        # repo-viejo se pregunta AUNQUE no tenga push reciente; repo-arch
+        # (archivado) sigue sin preguntarse
         self.assertTrue(any("repo-x/actions/runs" in c for c in calls))
-        self.assertFalse(any("repo-viejo" in c or "repo-arch" in c for c in calls))
+        self.assertTrue(any("repo-viejo/actions/runs?" in c for c in calls))
+        self.assertFalse(any("repo-arch" in c for c in calls))
+        # ciego de verdad: ninguna petición lleva filtro `pushed:` (la ventana
+        # que dejó ciega la sonda del 31-10 no vuelve, dictamen del architect)
+        self.assertFalse(any("pushed:" in c for c in calls),
+                         "algún request filtra por pushed_at")
 
 
 class RenderEscapeTest(unittest.TestCase):
