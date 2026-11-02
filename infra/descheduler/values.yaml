@@ -134,6 +134,12 @@ deschedulerPolicy:
                 # Además son servicios de latencia LAN (afinidad a ubuntu por diseño):
                 # moverlos a sauvage (OVH) es contraproducente para ellos.
                 - control-nexus
+                # INFRA-1103 (02-11): ping-pong de NATS (whatsapp-mcp-nats). Su nodeSelector
+                # node-pool=ks5-nvme lo devuelve a ks5-cp-1 y al cumplir minPodAge se desaloja
+                # otra vez: un reinicio cada 30 min desde la caída del x86 del 01-11 (22 en un
+                # día). Es NATS core: lo que se publica durante cada reinicio no llega a
+                # correo-bridge ni a los demás suscriptores.
+                - whatsapp-mcp
       plugins:
         balance:
           enabled:
