@@ -220,7 +220,7 @@ assert not openclaw_runner.get("securityContext", {}).get("privileged", False)
 assert "DOCKER_HOST" not in {item["name"] for item in openclaw_runner.get("env", [])}
 
 _, shared_spec = validate_common(
-    "arc-k8s", 16, edge_fallback=False, selector=expected_selector_shared
+    "arc-k8s", 32, edge_fallback=False, selector=expected_selector_shared
 )
 
 # arc-skills-eval (SC-3635, security 2026-10-29): evaluacion de skills externas

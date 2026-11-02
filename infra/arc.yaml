@@ -187,13 +187,10 @@ spec:
         # falta de capacidad: no cuentan para dimensionar. El informe sugiere
         # >=42 plazas; NO se sube con esa cifra: es aproximacion a nivel de
         # run (el atajo run_started_at sesga el p95 a la baja) y esta en
-        # recuento exacto. El techo lo pone la rafaga de prueba sobre ks5
-        # (control-plane + etcd): <=70 % de CPU real, readyz passed y etcd
-        # sin slow fdatasync durante la rafaga; la lanza qa tras el
-        # despliegue. Ademas INFRA-123 (ks5-cp al 99 % de CPU solicitada)
-        # sigue abierto: mientras no se cierre, maxRunners no sube. Se deja
-        # el tope en 16 y documentado; con remedicion de cifra firme y
-        # rafaga limpia, se sube en otra PR con su propio comentario.
+        # recuento exacto. El techo de aquella epoca (rafaga de prueba sobre
+        # ks5 con INFRA-123 abierto) quedo sin efecto el 28-10 con INFRA-960:
+        # el nodeSelector ya no deja caer runners en ks5. Se dejo el tope en
+        # 16 hasta la remedicion exacta (bloque 02-11, INFRA-1093).
         #
         # 2026-10-28 it · INFRA-960. atlantic entro el 2026-10-24 (OVH, 16 CPU /
         # 128 GiB, workload=cpu, sin taint): el pool CPU dedicado que faltaba en
@@ -202,8 +199,25 @@ spec:
         # amd64 sin taint con esa etiqueta; sauvage sigue fuera por no tolerar
         # role=edge). Los jobs de skirmshop-labels se pasaban del timeout de
         # 15 min con los cp al 115-120 % de CPU (PR #161, tres veces el 20-10).
-        # maxRunners NO sube: sigue vigente la condicion de INFRA-549.
-        maxRunners: 16
+        # Desde aqui ks5 ya no dimensiona el pool: la rafaga de INFRA-549 no
+        # puede estresarlo y la condicion de techo quedo obsoleta.
+        #
+        # 2026-11-02 it · INFRA-1093 (remedicion exacta, criterio C3 de
+        # INFRA-549). Ventana 25-10 23:26 -> 01-11 23:26 UTC medida con la API
+        # de jobs por run (sin el atajo run_started_at, que sesga el p95 a la
+        # baja): 13253 jobs; pool ARC p95 212 s, espera maxima 3887 s, pico de
+        # concurrencia en ejecucion 31 (suma arc-k8s + arc-openclaw +
+        # arc-skills-eval + x86-hermes; los otros tres topados a 2+2+1, luego
+        # arc-k8s solo >=26). Con 16 el pool quedo clavado desired==max durante
+        # >3 h el 01-11 (SC-4032) con atlantic al 35 % y x86 al 43 % de CPU
+        # real: habia holgura. Techo vigente: la capacidad de atlantic + x86
+        # (workload=cpu, 32 cores), no ks5. 16 -> 32: cubre el pico medido con
+        # margen y cabe en los nodos (a pool lleno, ~0,8 cores reales por
+        # runner => ~80 % de 32 cores). El >=47 que sugiere el informe
+        # (1,5 x pico) no se usa: excede la capacidad de los dos nodos CPU.
+        # Si la espera vuelve con los nodos por encima del 85 %, la respuesta
+        # es otro nodo, no mas runners.
+        maxRunners: 32
         minRunners: 0
         runnerScaleSetName: arc-k8s
         template:

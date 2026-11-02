@@ -63,13 +63,15 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         # la del x86 (pool=dev, PreferNoSchedule) SI se conserva: ese nodo va bien
         self.assertIn("key: pool", runner_tolerations)
 
-    def test_runner_pool_caps_backlog_drain_at_sixteen(self) -> None:
-        """16 plazas sobre el pool cpu (INFRA-549); ver el comentario en infra/arc.yaml."""
-        self.assertIn("maxRunners: 16", self.shared_values)
-        self.assertNotIn("maxRunners: 8", self.shared_values)
-        self.assertNotIn("maxRunners: 6", self.shared_values)
-        self.assertNotIn("maxRunners: 3", self.shared_values)
-        self.assertNotIn("maxRunners: 4", self.manifest)
+    def test_runner_pool_caps_backlog_drain_at_thirty_two(self) -> None:
+        """32 plazas sobre el pool cpu (remedicion exacta INFRA-1093, 02-11);
+        ver el comentario en infra/arc.yaml."""
+        # Anclados al fin de linea: "maxRunners: 32" contiene "maxRunners: 3",
+        # y un assert de subcadena a secas se auto-contradice con dos digitos.
+        self.assertIn("maxRunners: 32\n", self.shared_values)
+        for stale in ("maxRunners: 16", "maxRunners: 8", "maxRunners: 6", "maxRunners: 3"):
+            self.assertNotIn(f"{stale}\n", self.shared_values)
+        self.assertNotIn("maxRunners: 4\n", self.manifest)
 
     def test_openclaw_has_dedicated_runner_pool(self) -> None:
         self.assertIn("https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies", self.openclaw_values)
