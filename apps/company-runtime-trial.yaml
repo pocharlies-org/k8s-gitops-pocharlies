@@ -1,0 +1,30 @@
+# SC-3961: ensayo AISLADO del ejecutor de compañía (namespace company-runtime-trial). No consume la
+# cola real, no escribe Jira, no publica observado productivo; el ejecutor del x86 sigue mandando.
+# targetRevision fijado al commit exacto verificado (eb932ff3 = PR #2: digest d682f09b en la CEL de
+# admisión, CI verde). Sin finalizer a propósito (runbook del repo, "no automatic cleanup"): borrar la
+# Application no debe cascada-destruir el namespace del ensayo ni su estado.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: company-runtime-trial
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-company-runtime-pocharlies
+  labels:
+    e-dani.com/tier: app
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-company-runtime-pocharlies
+    targetRevision: eb932ff3ecbd7ea98238dfb6323702a3e29a3c20
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: company-runtime-trial
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
