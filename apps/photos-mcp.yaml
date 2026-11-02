@@ -1,0 +1,31 @@
+# photos-mcp — gestor de fotos con IA (INFRA-402, épica INFRA-379). Copia de
+# apps/stt-mcp.yaml (patrón stt-mcp, corrección C1 del architect: kustomize, no
+# Helm). targetRevision main medido en la app viva stt-mcp (el clon local de
+# k8s-stt-mcp muestra deploy/prod: está desfasado, no copiar de ahí).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: photos-mcp
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-photos-mcp-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-photos-mcp-pocharlies
+    targetRevision: main
+    path: k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: photos-mcp
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
