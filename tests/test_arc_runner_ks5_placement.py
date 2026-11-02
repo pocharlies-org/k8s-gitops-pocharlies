@@ -89,9 +89,12 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
     def test_all_runner_and_dind_images_are_digest_pinned(self) -> None:
         # 2026-10-29 security · SC-3635: anade arc-skills-eval (runner +
         # init-dind-externals comparten imagen de runner, dind la suya).
-        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 5)
+        # 2026-11-03 devops · INFRA-334: +1 runner image y +1 IfNotPresent — el
+        # sidecar warm-pr-agent de arc-k8s reutiliza la imagen de runner (trae
+        # el CLI de docker); sigue sin anadir imagen de dind nueva.
+        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 6)
         self.assertEqual(self.manifest.count(f"image: {DIND_IMAGE}"), 2)
-        self.assertEqual(self.manifest.count("imagePullPolicy: IfNotPresent"), 7)
+        self.assertEqual(self.manifest.count("imagePullPolicy: IfNotPresent"), 8)
         self.assertNotIn("image: docker:dind", self.manifest)
         self.assertNotIn("image: ghcr.io/actions/actions-runner:2.335.1\n", self.manifest)
 
