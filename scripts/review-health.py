@@ -11,7 +11,7 @@ from the artifact `pr-review-<pr>-<attempt>` each one uploads, decides per run:
              4xx/5xx or was down) or `rechazado` (401/403)
   ok       anything else. `push_ingest: sin_clave` (BRAIN_CI_KEY not distributed yet,
            SC-1400) is NOT an omission: it is reported apart as a dependency.
-  ajeno    the run did not execute the PR-Agent engine (`engine: propio`, a fork, a skipped
+  ajeno    the run did not execute the PR-Agent engine (`engine: juez`, a fork, a skipped
            job), predates --since, or is a deliberate contract test (marker `PRUEBA` in the
            run title, SC-1592): it says nothing about this review. Left out of the ratio.
   expirado the run is older than the artifact retention (14 d): no data, left out of

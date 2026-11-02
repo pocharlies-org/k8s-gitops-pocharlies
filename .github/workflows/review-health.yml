@@ -54,7 +54,7 @@ jobs:
           EXTRA: ${{ inputs.extra_repos }}
         run: |
           set -uo pipefail
-          # La lista de los repos con `engine: pr-agent` (los unicos medibles: con `propio`
+          # La lista de los repos con `engine: pr-agent` (los unicos medibles: con `juez`
           # no hay artefacto y saldrian en rojo sin motivo) vive en
           # .github/pr-agent-repos.txt; aqui solo se lee. Cada oleada de INFRA-334 la
           # amplifica en ese fichero.

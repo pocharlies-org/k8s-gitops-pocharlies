@@ -98,8 +98,10 @@ separada de `ci-review-bot` (equipo `ci-review`, 3 rpm / 120 000 tpm).
 
 # PR review: el workflow reusable v2 y `inputs.engine` (INFRA-332)
 
-`.github/workflows/reusable-pr-review.yml` tiene tres motores: `juez` (el de por defecto desde SC-2182, en la sección siguiente), `propio` y `pr-agent`.
-`engine: propio` es `review.py`, sin cambios: lo fija en su `pr-review.yml` el repo que no recibe los secretos del juez.
+`.github/workflows/reusable-pr-review.yml` tiene dos motores: `juez` (el de por defecto desde SC-2182, en la sección siguiente) y `pr-agent`.
+El tercer modo que había (la review del diff con `review.py` sin juicio) se retiró en F4a de INFRA-334 (01-11-2026,
+veredicto del arquitecto de INFRA-298): 0 repos lo usaban, medido. `review.py` sobrevive como único emisor del
+marcador v3 del juez (`CONTRACT: ci.llm-review-bot.marcador.v3`).
 `engine: pr-agent` lo encienden
 solo los pilotos, en su `.github/workflows/pr-review.yml`; la lista operativa de esos repos es
 `.github/pr-agent-repos.txt` (única: la mide la señal nocturna y la siguen las oleadas de INFRA-334):
@@ -247,7 +249,7 @@ dispatch puntual). Lee los runs de `PR review` de las últimas 24 h —la ventan
   (el brain o GitHub dieron 4xx/5xx) o `rechazado` (401/403). Cuenta una vez por run.
 - **Rojo** (job en rojo + aviso al topic `ci`) si omitidos > 20 % de los runs medibles (10 de 50 es verde, 11 es rojo; con
   menos de 50 runs, sobre los que haya) o si el último run terminó en `failure` (credencial rota).
-- **No cuentan**: runs sin el motor PR-Agent (`engine: propio`, forks), anteriores a `--since`, sin datos por retención, y
+- **No cuentan**: runs sin el motor PR-Agent (`engine: juez`, forks), anteriores a `--since`, sin datos por retención, y
   `push_ingest: sin_clave` (falta `BRAIN_CI_KEY`, SC-1400): se informa aparte como dependencia.
 - Si no se puede medir (GitHub caído) sale 3, no verde. Es la puerta de cada oleada de INFRA-334.
 
@@ -258,17 +260,17 @@ ticket de Jira (no que él solo complete el ticket: SC-2208). Es el
 motor que sustituye a qa + architect en las historias de la compañía. Nació opt-in y es el **motor por defecto** desde
 la etapa (c) de SC-2182 (`tests/test_reusable_pr_review.py -k default_juez`): un llamador que no fija `engine:` lo recibe.
 El cambio solo es seguro con la lista medida de repos cubierta (cada repo con los secretos del juez o con
-`engine: propio` fijado, `-k cobertura`); `propio` y `pr-agent` siguen seleccionables. Para pedirlo explícito:
+`engine:` fijado, `-k cobertura`); `pr-agent` sigue seleccionable. Para pedirlo explícito:
 
     uses: pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-pr-review.yml@main
     with:
       engine: juez
 
 Job `Review del PR (juez)` (`revisar_pr_juez`), solo en `pull_request`; el check se llama `<job del llamador> / Review del
-PR (juez)`. Un solo motor por evento (`tests/test_reusable_pr_review.py -k un_solo_motor`): `revisar_pr` y
-`revisar_commit` corren solo con `engine: propio`, `revisar_pr_agent` con `pr-agent`; un motor que no existe pone
+PR (juez)`. Un solo motor por evento (`tests/test_reusable_pr_review.py -k un_solo_motor`): `revisar_pr_agent` corre
+con `pr-agent`; un motor que no existe pone
 rojo el job `Motor de review no valido`. Con `engine: juez` (el de por defecto), `workflow_dispatch` corre la evaluación
-(abajo) y ya no comenta el último commit como hacía `propio`: quien quiera ese modo fija `engine: propio`.
+(abajo); el `workflow_dispatch` del modo retirado (comentaba el último commit) se fue con él en F4a de INFRA-334.
 
 **Qué lee.** Todo entra por entorno y como datos delimitados con una marca aleatoria por ejecución (el modelo no
 obedece nada de lo que haya dentro): los criterios del ticket, el título y la descripción de la PR (hasta 8000
@@ -278,7 +280,7 @@ si no del cuerpo (proyectos `SC INFRA DGX SKIRM LE OWU ACC`; la primera clave de
 criterios son las líneas `- [ ]` del adjunto `00-spec.md` más reciente de la historia o, si no hay, los elementos de la
 sección «Criterios de aceptación» de su descripción. Jira, de solo lectura y con la cuenta de servicio del juez (abajo).
 
-**Credenciales propias (SC-2182).** El juez no usa las de `propio` ni las de PR-Agent (`LITELLM_CI_KEY`, `JIRA_EMAIL`,
+**Credenciales propias (SC-2182).** El juez no usa las de PR-Agent (`LITELLM_CI_KEY`, `JIRA_EMAIL`,
 `JIRA_API_TOKEN`, que no se tocan): tiene cuatro secretos suyos, opcionales en el reusable y por repo (el plan de la org
 es `free`, un secreto de organización no llega a los repos privados), así se rotan o se revocan sin afectar a nadie más.
 
@@ -378,7 +380,8 @@ respuesta inservible.
 **Fallback.** Cada llamada corta a 90 s como máximo; un timeout cuenta como un 408. Ante timeout, 408, 429, 5xx o
 400/401/403/404 del modelo primario (`juez_model`, por defecto `tooling`, el residente local: mientras conteste, nada sale
 del cluster) se juzga con `fallback_model` (por defecto `alibaba-q38-flash`); otro 4xx no cae al respaldo, y el respaldo no
-tiene respaldo. `model` (`alibaba-q38-flash`) es solo el de `propio` y el juez no lo lee. Con `juez_model == fallback_model` no hay segundo intento. Con el
+tiene respaldo. `model` (`alibaba-q38-flash`) ya no lo lee ningún motor (era el del modo retirado en F4a; se conserva
+como superficie de los llamadores) y el juez usa `juez_model`. Con `juez_model == fallback_model` no hay segundo intento. Con el
 respaldo, la descripción del ticket, el `00-spec.md` y el `ARCHITECTURE.md` salen también al plan Team de Alibaba, no solo
 el diff (revisión de `security` de SC-2181, punto v).
 
@@ -497,10 +500,11 @@ privados) dicen a quién:
 
 - `.github/pr-review-llamadores.txt`: TODOS los repos que llaman a `reusable-pr-review.yml` (176 entre `pocharlies-org`
   y la cuenta `pocharlies`) con su estado, el `engine` que fijan, a qué versión apuntan y su **cobertura**: `secretos`
-  (los cuatro del juez como secretos del repo), `propio` (el repo fija `engine: propio`), `pr-agent`, `archivado` (sin
-  PR posible), `excluido` (con su motivo en un sexto campo) o `pendiente`.
+  (los cuatro del juez como secretos del repo), `pr-agent`, `archivado` (sin
+  PR posible), `excluido` (con su motivo en un sexto campo) o `pendiente`. (La cobertura del modo retirado ya no existe:
+  F4a de INFRA-334 la quitó del vocabulario; 0 filas la usaban, medido.)
 - `.github/pr-review-juez-repos.txt`: los repos donde la compañía abre PRs (`tracker.projects` de `company-options.json`),
-  con si llaman ya al reusable. Esos nunca fijan `engine: propio`: quedan en `juez`. `skirmshop-picqer` está fuera a
+  con si llaman ya al reusable. Esos no fijan motor: quedan en `juez`. `skirmshop-picqer` está fuera a
   propósito (cuenta personal, `runner: ubuntu-latest`: no alcanza el LiteLLM del cluster).
 
 **Los cuatro secretos del juez** (SC-2182): `LITELLM_JUEZ_KEY` (key `ci-review-juez`), `JIRA_JUEZ_EMAIL`, `JIRA_JUEZ_TOKEN`
