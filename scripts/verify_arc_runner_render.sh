@@ -327,6 +327,7 @@ assert [container["name"] for container in shared_spec["containers"]] == ["runne
 assert [container["name"] for container in shared_spec["initContainers"]] == [
     "init-dind-externals",
     "dind",
+    "warm-pr-agent",
 ]
 externals_init = shared_spec["initContainers"][0]
 assert externals_init["image"] == runner_image
@@ -377,6 +378,28 @@ assert dind["resources"] == {
     },
     "limits": {"cpu": "2", "memory": "4Gi", "ephemeral-storage": "40Gi"},
 }
+# INFRA-334 (p95 del job de review): sidecar que pre-tira la imagen pineada del
+# motor pr-agent en el dind del runner. Las tres invariants que no deben perderse:
+# sidecar nativo (no bloquea el arranque del runner), acotado (timeout) y
+# best-effort (|| true, sin modo de fallo nuevo). Y el digest, en paso con
+# PR_AGENT_IMAGE de .github/workflows/reusable-pr-review.yml (main).
+warm = shared_spec["initContainers"][2]
+assert warm["name"] == "warm-pr-agent"
+assert warm["restartPolicy"] == "Always"
+assert warm["image"] == runner_image
+assert warm["imagePullPolicy"] == "IfNotPresent"
+assert warm["command"] == ["bash", "-c"]
+warm_script = " ".join(warm["args"])
+assert "timeout 240 docker pull" in warm_script
+assert "|| true" in warm_script
+assert 'DOCKER_HOST=unix:///var/run/docker.sock' in warm_script
+warm_env = {item["name"]: item.get("value") for item in warm["env"]}
+assert warm_env["PR_AGENT_IMAGE"] == (
+    "harbor.e-dani.com/homelab/pr-agent:0.46.0-github_action"
+    "@sha256:42c7833a3fbdf354387ab3469fe67c34e11b38f9b90370553398a36b47ad6bc0"
+)
+assert [vm["name"] for vm in warm["volumeMounts"]] == ["dind-sock"]
+assert not warm.get("securityContext", {}).get("privileged", False)
 assert {volume["name"] for volume in shared_spec["volumes"]} == {
     "work",
     "dind-sock",

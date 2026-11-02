@@ -218,7 +218,21 @@ spec:
         # Si la espera vuelve con los nodos por encima del 85 %, la respuesta
         # es otro nodo, no mas runners.
         maxRunners: 32
-        minRunners: 0
+        # 2026-11-03 devops · INFRA-334 (p95 del job de review, criterio 6 de la
+        # epica INFRA-298; el defecto medido por qa era cola + pull, no el motor).
+        # Medido con la API de jobs por run sobre los pilotos k8s-litellm y
+        # skirmshop-labels (n=42 jobs "Review del PR (PR-Agent)", 31-10 -> 02-11,
+        # re-ejecuciones excluidas): espera hasta iniciar el job mediana 33,5 s /
+        # p95 139 s (runner frio: cada job pagaba pod + registro, minRunners era
+        # 0) y pull de la imagen del motor dentro del dind efimero mediana 23,5 s
+        # / p95 122 s, con dos runs clavados en el timeout de 240 s del paso
+        # "Wait for the image pull". El motor cumple (p95 98 s). minRunners 0 -> 2:
+        # dos runners calientes y registrados de forma permanente; el job entra al
+        # instante. Coste: 2 x (100m+50m CPU, 1,5 Gi) de requests sobre atlantic +
+        # x86, despreciable frente al tope de 32. Va junto al sidecar
+        # warm-pr-agent de abajo, que es lo que hace que el runner caliente
+        # tambien tenga la imagen del motor en su dind.
+        minRunners: 2
         runnerScaleSetName: arc-k8s
         template:
           spec:
@@ -329,6 +343,55 @@ spec:
                     mountPath: /var/run
                   - name: dind-externals
                     mountPath: /home/runner/externals
+              # INFRA-334 (p95 del job de review, criterio 6 de INFRA-298): el
+              # motor pr-agent corre con `docker run` contra el dind efimero de
+              # este pod, que nace vacio: cada job pagaba el pull de la imagen
+              # pineada (medido 02-11, n=42: p95 122 s, dos runs al timeout de
+              # 240 s del paso "Wait for the image pull" del workflow; el pull
+              # pesa 253 MB y desde atlantic cruza el WAN hasta Harbor, en ks5).
+              # Este sidecar la trae en cuanto dockerd esta listo (arranca tras
+              # la sonda de arranque de dind), en PARALELO con el registro del
+              # runner: con minRunners > 0 el runner caliente ya la tiene
+              # cuando llega el job, y en el camino frio el pull solapa con el
+              # arranque en vez de sumarse a la espera. Best-effort y acotado
+              # (timeout 240 s + `|| true`): si Harbor no responde, el runner
+              # arranca igual y el job paga el pull en su paso de siempre — el
+              # comportamiento previo, sin modo de fallo nuevo. Sin
+              # credenciales: el proyecto homelab/pr-agent se sirve anonimo en
+              # Harbor (medido 02-11, crane pull del digest sin login, 253 MB
+              # en 19 s por LAN). El digest debe ir en paso con PR_AGENT_IMAGE
+              # de .github/workflows/reusable-pr-review.yml (main) y con la
+              # entrada pr-agent de dgx-infra ci/update-watch.yaml; el bump de
+              # imagen es cambiar las dos. Solo en arc-k8s: arc-openclaw y
+              # arc-skills-eval no corren el motor pr-agent.
+              - name: warm-pr-agent
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                # Sidecar nativo (restartPolicy: Always): el contenedor runner
+                # NO espera a que termine, y el pod tampoco. Termina solo tras
+                # el pull (o el timeout).
+                restartPolicy: Always
+                command: ["bash", "-c"]
+                args:
+                  - |
+                    export DOCKER_HOST=unix:///var/run/docker.sock
+                    timeout 240 docker pull "$PR_AGENT_IMAGE" >/dev/null 2>&1 || true
+                env:
+                  - name: PR_AGENT_IMAGE
+                    value: harbor.e-dani.com/homelab/pr-agent:0.46.0-github_action@sha256:42c7833a3fbdf354387ab3469fe67c34e11b38f9b90370553398a36b47ad6bc0
+                resources:
+                  requests:
+                    cpu: "10m"
+                    memory: "32Mi"
+                  limits:
+                    # El pull lo ejecuta el CLI contra el daemon: lo que pesa
+                    # (las capas) aterriza en la capa escribible del sidecar
+                    # dind, acotada arriba (INFRA-972), no aqui.
+                    cpu: "1"
+                    memory: "256Mi"
+                volumeMounts:
+                  - name: dind-sock
+                    mountPath: /var/run
             containers:
               - name: runner
                 image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
