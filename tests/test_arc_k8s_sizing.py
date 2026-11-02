@@ -3,10 +3,12 @@ solo con una medida detras, citada en un comentario fechado en la propia
 Application. Este test es la puerta: quien cambie maxRunners sin comentario
 cerrando el bloque, corta CI.
 
-Las cifras de referencia (INFRA-547, docs/ci-queue-diagnosis-2026-10.md) son
-provisionales a nivel de run hasta su remedicion exacta: el valor se sostiene
-en 16 y lo sube solo una rafaga limpia sobre ks5 (<=70 % CPU, readyz passed,
-etcd sin slow fdatasync) con INFRA-123 cerrado.
+La medida vigente es la remedicion exacta de INFRA-1093 (02-11, API de jobs
+por run: pico ARC 31, p95 212 s): maxRunners = 32, citado en el comentario
+fechado de infra/arc.yaml. El techo lo pone la capacidad de atlantic + x86
+(workload=cpu), no ks5: la rafaga de INFRA-549 e INFRA-123 quedaron sin
+efecto con INFRA-960. Subirlo por encima de la capacidad de esos nodos es
+cortar CI por otra via.
 """
 
 from pathlib import Path
