@@ -7,7 +7,7 @@ from the artifact `pr-review-<pr>-<attempt>` each one uploads, decides per run:
   omitido  the review did not reach the PR or its distribution failed. Any of:
            - no artifact within retention (the run left no verdict)
            - payload.json `status` is not `ok` (PR-Agent skipped/degraded)
-           - distribute.json: push-ingest or labels `degradado` (brain/GitHub answered
+           - distribute.json: push-ingest, Hindsight write or labels `degradado` (brain/Hindsight/GitHub answered
              4xx/5xx or was down) or `rechazado` (401/403)
   ok       anything else. `push_ingest: sin_clave` (BRAIN_CI_KEY not distributed yet,
            SC-1400) is NOT an omission: it is reported apart as a dependency.
@@ -99,7 +99,8 @@ def classify(files: dict[str, Any] | None) -> tuple[str, list[str], bool]:
         reasons.append(f"review {payload.get('status')}")
     dist = files.get("distribute.json") or {}
     no_key = False
-    for step, label in (("push_ingest", "push-ingest al brain"), ("labels", "etiquetas")):
+    for step, label in (("push_ingest", "push-ingest al brain"), ("hindsight_push", "escritura a Hindsight"),
+                        ("labels", "etiquetas")):
         info = dist.get(step) or {}
         state = info.get("state")
         if state in ("degradado", "rechazado"):

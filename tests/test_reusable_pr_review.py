@@ -114,6 +114,32 @@ class TestSuperficieEstable(unittest.TestCase):
             self.assertIn("revisar_pr_juez", salidas[nombre]["value"])
 
 
+class TestTokenDeHindsight(unittest.TestCase):
+    """SC-4304 S5: el token `pr-review` (solo escritura, banco `ops`) llega a UN paso y nunca a un `run`."""
+
+    def pasos_con(self, clave):
+        return [p for p in JOBS["revisar_pr_agent"]["steps"] if clave in (p.get("env") or {})]
+
+    def test_solo_el_paso_de_distribucion_lo_recibe_y_con_guarda_de_fork(self):
+        pasos = self.pasos_con("HINDSIGHT_WRITER_TOKEN")
+        self.assertEqual([p["id"] for p in pasos], ["distribucion"])
+        self.assertIn("steps.guarda.outputs.fork != 'true'", pasos[0]["if"])
+        self.assertEqual(pasos[0]["env"]["HINDSIGHT_WRITER_TOKEN"], "${{ secrets.HINDSIGHT_WRITER_TOKEN }}")
+
+    def test_el_contexto_ya_no_recibe_la_clave_del_brain(self):
+        # la lectura de memoria se retiró: ningún paso salvo la distribución ve BRAIN_CI_KEY
+        self.assertEqual([p["id"] for p in self.pasos_con("BRAIN_CI_KEY")], ["distribucion"])
+
+    def test_el_secreto_es_opcional_y_el_workflow_no_usa_pull_request_target(self):
+        self.assertFalse(CUERPO[True]["workflow_call"]["secrets"]["HINDSIGHT_WRITER_TOKEN"]["required"])
+        self.assertNotIn("pull_request_target", WORKFLOW.read_text(encoding="utf-8").replace("NUNCA `pull_request_target`", ""))
+
+    def test_ningun_run_interpola_el_token(self):
+        for job in JOBS.values():
+            for paso in job.get("steps", []):
+                self.assertNotIn("HINDSIGHT_WRITER_TOKEN", str(paso.get("run", "")).replace("$HINDSIGHT_WRITER_TOKEN", ""))
+
+
 class TestJuezAislado(unittest.TestCase):
     def setUp(self):
         self.job = JOBS["revisar_pr_juez"]

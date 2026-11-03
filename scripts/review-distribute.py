@@ -5,7 +5,11 @@ Writes, in this order and always (contract `pr_review.v1`, schemas/pr_review.v1.
   1 <out-dir>/payload.json  — even when PR-Agent failed (status degraded|skipped)
   2 push-ingest to the brain instance `local-ops` (adapter `pr_review`,
     source_id `pr_review:<owner>/<repo>#<pr>`); no BRAIN_CI_KEY or a brain that
-    fails = degraded, exit 0
+    fails = degraded, exit 0. In parallel (SC-4304 S5, double write until parity is
+    measured) the same review goes to the Hindsight bank `ops` through the boundary
+    writer (`POST /v1/default/banks/ops/memories`, identity `pr-review`, token
+    HINDSIGHT_WRITER_TOKEN, TLS verified against scripts/hindsight-writer-ca.crt;
+    contract fields as tags): same rules, recorded as `hindsight_push`
   3 GitHub labels `changes_required` / `possible security issue`, set or removed
     from the payload; no other label is ever touched
   4 <out-dir>/distribute.json — what each step did (state ok|sin_clave|degradado|
@@ -42,7 +46,7 @@ It calls no model and has no dependencies beyond the standard library and its
 sibling `scripts/review_http.py`.
 Exit codes: 0 (also degraded), 2 invalid usage / missing mandatory env / invalid
 contract-findings, 4 on 401/403 from any API. No other code. Tokens come from the
-environment (GH_TOKEN, BRAIN_CI_KEY) and are never printed. Idempotent: it
+environment (GH_TOKEN, BRAIN_CI_KEY, HINDSIGHT_WRITER_TOKEN) and are never printed. Idempotent: it
 overwrites, and an inline finding already in place is not re-posted.
 
 Usage:
@@ -70,6 +74,10 @@ SCHEMA_FILE = Path(__file__).resolve().parent.parent / "schemas/pr_review.v1.jso
 DRYRUN_REVIEW = Path(__file__).resolve().parent.parent / "tests/fixtures/review-distribute/review.md"
 DEFAULT_BRAIN_URL = "http://skirmshop-brain.skirmshop-brain-prod.svc.cluster.local"
 BRAIN_INSTANCE = "local-ops"
+DEFAULT_HINDSIGHT_URL = "https://hindsight-writer.hindsight.svc:8443"
+HINDSIGHT_BANK = "ops"
+HINDSIGHT_CA = Path(__file__).resolve().parent / "hindsight-writer-ca.crt"  # pública: CN hindsight-boundary-ca
+HINDSIGHT_TIMEOUT = 60  # el escritor contesta tras el retain síncrono (`async: false`, embeddings): 15 s se queda corto
 ADAPTER = "pr_review"
 LABEL_CHANGES = "changes_required"
 LABEL_SECURITY = "possible security issue"
@@ -206,6 +214,22 @@ def push_ingest(p: dict[str, Any], url: str, key: str) -> None:
             body={"adapter": ADAPTER, "documents": [doc]}, timeout=HTTP_TIMEOUT, source="brain")
 
 
+def hindsight_retain(p: dict[str, Any], url: str, token: str) -> None:
+    """Un documento por PR en el banco `ops` por el escritor del boundary (identidad `pr-review`).
+
+    El escritor reescribe `document_id` a un hash de (identidad, id): el mismo PR reemplaza su
+    documento en cada review. Los campos de pr_review.v1 van como tags: la lista blanca de
+    `metadata` del escritor no los admite."""
+    if not url.startswith(("https://", "http://127.0.0.1")):  # el token no viaja en claro fuera de loopback
+        raise Degraded("hindsight: HINDSIGHT_URL debe ser https")
+    tags =[f"repo:{p['repo']}", f"pr:{p['pr']}", f"sha:{p['head_sha']}", f"status:{p['status']}",
+            f"rec:{p['merge_recommendation']}", f"security:{str(p['possible_security_issue']).lower()}"]
+    item = {"document_id": f"{ADAPTER}:{p['repo']}#{p['pr']}", "content": p["content"], "tags": tags}
+    request(f"{url.rstrip('/')}/v1/default/banks/{HINDSIGHT_BANK}/memories",
+            {"Authorization": f"Bearer {token}"}, body={"async": False, "items": [item]},
+            timeout=HINDSIGHT_TIMEOUT, source="hindsight", cafile=str(HINDSIGHT_CA))
+
+
 def sync_labels(p: dict[str, Any], token: str) -> None:
     hdrs = github_headers(token)
     api = os.environ.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
@@ -336,25 +360,38 @@ def main(argv: list[str] | None = None) -> int:
     # Two independent steps: labels are the primary channel to pr-watcher, so a
     # 401 from the brain must not skip them (and a 403 from GitHub must not skip
     # the push-ingest). Exit 4 if either one is rejected.
-    key = os.environ.get("BRAIN_CI_KEY", "")
-    if args.dry_run:
-        steps.append("push-ingest: omitido (--dry-run)")
-        record["push_ingest"] = {"state": "dry_run", "http": None}
-    elif not key:
-        steps.append("push-ingest: omitido, degradado (sin BRAIN_CI_KEY)")
-        record["push_ingest"] = {"state": "sin_clave", "http": None}
-    else:
-        try:
-            push_ingest(payload, os.environ.get("BRAIN_URL", DEFAULT_BRAIN_URL), key)
-            steps.append("push-ingest: ok")
-            record["push_ingest"] = {"state": "ok", "http": None}
-        except Degraded as exc:
-            steps.append(f"push-ingest: degradado ({exc})")
-            record["push_ingest"] = {"state": "degradado", "http": exc.code}
-        except AuthError as exc:
-            steps.append(f"push-ingest: error: {exc} — credencial rechazada")
-            record["push_ingest"] = {"state": "rechazado", "http": exc.code}
-            rc = 4
+    # Doble escritura (SC-4304 S5): el Brain sigue recibiendo lo mismo hasta medir paridad;
+    # Hindsight es independiente, cada sumidero con su clave y su fila en distribute.json.
+    # Sin contenido (review caída) no se envía a Hindsight: el escritor rechaza un `content` vacío.
+    sinks = (
+        ("push_ingest", "push-ingest", "BRAIN_CI_KEY", True,
+         lambda k: push_ingest(payload, os.environ.get("BRAIN_URL", DEFAULT_BRAIN_URL), k)),
+        ("hindsight_push", "hindsight", "HINDSIGHT_WRITER_TOKEN", bool(payload["content"].strip()),
+         lambda k: hindsight_retain(payload, os.environ.get("HINDSIGHT_URL", DEFAULT_HINDSIGHT_URL), k)),
+    )
+    for rec_key, label, env_key, has_doc, send in sinks:
+        key = os.environ.get(env_key, "")
+        if args.dry_run:
+            steps.append(f"{label}: omitido (--dry-run)")
+            record[rec_key] = {"state": "dry_run", "http": None}
+        elif not has_doc:
+            steps.append(f"{label}: omitido (review sin contenido)")
+            record[rec_key] = {"state": "omitido", "http": None}
+        elif not key:
+            steps.append(f"{label}: omitido, degradado (sin {env_key})")
+            record[rec_key] = {"state": "sin_clave", "http": None}
+        else:
+            try:
+                send(key)
+                steps.append(f"{label}: ok")
+                record[rec_key] = {"state": "ok", "http": None}
+            except Degraded as exc:
+                steps.append(f"{label}: degradado ({exc})")
+                record[rec_key] = {"state": "degradado", "http": exc.code}
+            except AuthError as exc:
+                steps.append(f"{label}: error: {exc} — credencial rechazada")
+                record[rec_key] = {"state": "rechazado", "http": exc.code}
+                rc = 4
     if args.dry_run:
         steps.append(f"etiquetas: omitidas (--dry-run); {LABEL_CHANGES}={payload['changes_required']}, "
                      f"{LABEL_SECURITY}={payload['possible_security_issue']}")

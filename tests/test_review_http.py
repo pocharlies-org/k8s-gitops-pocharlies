@@ -185,6 +185,21 @@ class ReviewHttp(unittest.TestCase):
             rh.request(f"{url}/zip", {}, raw=True, source="GitHub")
         assert cm.exception.code == 500
 
+    def test_cafile_missing_is_degraded_not_a_traceback(self):
+        # la CA del escritor es un fichero del repo: si falta, degrada (OSError), nunca tumba el job
+        with self.assertRaises(rh.Degraded) as cm:
+            rh.request("https://127.0.0.1:1/x", {}, body={"a": 1}, cafile="/nonexistent/ca.crt", source="hindsight")
+        assert "hindsight" in str(cm.exception)
+
+    def test_cafile_does_not_follow_redirects_with_the_token(self):
+        srv, url = self.server(_RedirectTo)
+        srv.blob_code = 200
+        with self.assertRaises(rh.Degraded) as cm:
+            # http a loopback: el cafile solo afecta a https; lo que se prueba es que un 302 NO se sigue
+            rh.request(f"{url}/zip", {"Authorization": "Bearer secreto"}, source="hindsight", cafile=str(ROOT / "scripts/hindsight-writer-ca.crt"))
+        assert cm.exception.code == 302
+        assert [c[1] for c in srv.calls] == ["/zip"]
+
     def test_github_headers_shape(self):
         h = rh.github_headers("t")
         assert h["Authorization"] == "Bearer t"

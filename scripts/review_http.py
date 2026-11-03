@@ -26,6 +26,7 @@ Los tokens entran por parámetro y nunca se imprimen. Sin dependencias.
 from __future__ import annotations
 
 import json
+import ssl
 import urllib.error
 import urllib.request
 from typing import Any
@@ -60,19 +61,25 @@ def github_headers(token: str) -> dict[str, str]:
 
 def request(url: str, headers: dict[str, str], *, method: str | None = None,
             body: dict | None = None, raw: bool = False, ok404: bool = False,
-            timeout: int = 15, source: str = "github") -> Any:
+            timeout: int = 15, source: str = "github", cafile: str | None = None) -> Any:
     """Una llamada HTTP: JSON (o bytes con raw), con la clasificación de errores de arriba.
 
     `method` por defecto: POST si hay body, GET si no. `source` es la etiqueta que
-    aparece en el mensaje del error («github», «brain», «GitHub»…)."""
+    aparece en el mensaje del error («github», «brain», «GitHub»…). Con `cafile` el TLS
+    se verifica contra esa CA (la del escritor de Hindsight, privada del clúster) y no se
+    sigue ningún redirect: la cabecera de autorización no sale hacia otro destino."""
     data = json.dumps(body).encode() if body is not None else None
     hdrs = {"Accept": "application/json", **headers}
     if data:
         hdrs["Content-Type"] = "application/json"
     req = urllib.request.Request(url, data=data, headers=hdrs,
                                  method=method or ("POST" if data else "GET"))  # noqa: S310
-    opener = urllib.request.build_opener(_NoRedirect) if raw else urllib.request.build_opener()
     try:
+        if cafile:  # dentro del try: una CA ausente o ilegible es OSError -> Degraded, no un traceback
+            opener = urllib.request.build_opener(
+                _NoRedirect, urllib.request.HTTPSHandler(context=ssl.create_default_context(cafile=cafile)))
+        else:
+            opener = urllib.request.build_opener(_NoRedirect) if raw else urllib.request.build_opener()
         with opener.open(req, timeout=timeout) as resp:  # noqa: S310
             data = resp.read()
             if raw:
