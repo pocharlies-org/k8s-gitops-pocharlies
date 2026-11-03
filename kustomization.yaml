@@ -18,6 +18,7 @@ resources:
   - infra/voicelab.yaml
   - infra/ofimatica.yaml
   - infra/galan-proposal.yaml
+  - infra/arcade-frontend.yaml
   - infra/traefik-lan.yaml
   - infra/traefik-edge.yaml
   - infra/traefik-alphalink.yaml

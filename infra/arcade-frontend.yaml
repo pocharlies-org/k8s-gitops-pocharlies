@@ -1,0 +1,46 @@
+# arcade-frontend — 5 juegos de navegador en https://dgx.lan.e-dani.com/games (INFRA-1103).
+#
+# Mismo patrón que galan-proposal: los manifiestos viven en dgx-infra
+# (k8s/apps/arcade-frontend/k8s.yaml) y aquí solo se declara la Application.
+#
+# Hasta INFRA-1103 los objetos del ns codex-dense se aplicaron a mano (122 días);
+# esta Application los adopta tal cual (kubectl diff tronco/vivo: solo cambia el
+# nodo, x86 → atlantic, ver dgx-infra#1793).
+#
+# prune:false: nada fuera del manifiesto se borra. El Ingress duplicado
+# `arcade-ingress` y el ConfigMap sin montar `arcade-nginx` no están en git y se
+# retiran a mano tras la adopción.
+#
+# Sin CreateNamespace: el manifiesto declara el Namespace `codex-dense`.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arcade-frontend
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/dgx-infra/tree/master/k8s/apps/arcade-frontend
+  labels:
+    e-dani.com/tier: app
+    app.kubernetes.io/part-of: dgx-infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/dgx-infra
+    targetRevision: master
+    path: k8s/apps/arcade-frontend
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: codex-dense
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
