@@ -95,7 +95,7 @@ nodeSelector:
 notary:
   enabled: false
 # INFRA-972: con type=s3 el chart monta /storage como emptyDir (las capas NO
-# se guardan en el nodo: 334 GiB en el bucket harbor-blobs de MinIO, 22-10).
+# se guardan en el nodo, sino en el bucket harbor-blobs de Object Storage de OVH).
 # Los bloques persistentVolumeClaim de mas abajo siguen ahi pero con s3 solo
 # se materializan los de database/redis/trivy/jobservice: registry no. Cuando
 # "el disco de Harbor" se llena, el que escribe es el runner de CI de al lado
@@ -122,6 +122,9 @@ persistence:
       # existe: toda `PutBucketLifecycleConfiguration` rebota con `MalformedXML`.
       # Los buckets de OVH compiten por nombre con todo el proveedor: `harbor-blobs`
       # está libre, otros (`velero-backups`, `loki-chunks`) ya los tiene otra cuenta.
+      # Capacidad (INFRA-482): sin tope. Object Storage Standard de OVH cobra por GiB
+      # (0,0071 EUR/GiB·mes sin IVA; 391 GiB el 03-11, unos 2,8 EUR/mes). Lo acotan la
+      # retención por proyecto y la GC de Harbor. Vigilancia de coste: INFRA-947 (pendiente).
       region: sbg
       regionendpoint: https://s3.sbg.io.cloud.ovh.net
       secure: true
