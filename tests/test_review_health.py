@@ -92,6 +92,21 @@ class Rule(unittest.TestCase):
         bad = {"payload.json": {"status": "ok"}, "distribute.json": {"push_ingest": {"state": "rechazado", "http": 401}}}
         assert self.ev(*make(10, 3, bad))["omitted"] == 3
 
+    def test_hindsight_failure_counts_with_its_own_label(self):
+        for state, http in (("degradado", 502), ("rechazado", 401)):
+            bad = {"payload.json": {"status": "ok"},
+                   "distribute.json": {"push_ingest": {"state": "ok"}, "labels": {"state": "ok"},
+                                       "hindsight_push": {"state": state, "http": http}}}
+            ev = self.ev(*make(10, 3, bad))
+            assert ev["omitted"] == 3
+            assert f"escritura a Hindsight {state} HTTP {http}" in rh.render("o/r", ev)
+
+    def test_hindsight_sin_clave_and_omitido_are_not_omissions(self):
+        for st in ({"state": "sin_clave", "http": None}, {"state": "omitido", "http": None}):
+            ok = {"payload.json": {"status": "ok"},
+                  "distribute.json": {"push_ingest": {"state": "ok"}, "labels": {"state": "ok"}, "hindsight_push": st}}
+            assert self.ev(*make(10, 3, ok))["omitted"] == 0
+
     def test_missing_key_is_not_an_omission_but_is_reported(self):
         runs, arts = make(10, 0)
         arts = {k: NO_KEY for k in arts}

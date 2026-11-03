@@ -5,11 +5,11 @@ It only REPORTS facts. It does not judge contracts: the rules (in-place edits,
 `.vN+1`, trailers, deletions) live in `scripts/check-contracts.py` and are not
 re-implemented here. What this adds is what a reviewer of one repo cannot see:
 who consumes the touched contract (Synapse registry), which other open PRs
-touch the same files, and what the brain remembers (`local-ops`).
+touch the same files.
 
 Sections, fixed and in this order (empty = `_ninguno_`):
   1 Contratos tocados · 2 Trailers Contract-Change · 3 Consumidores del registry
-  4 PRs abiertas que solapan · 5 Memoria local-ops · 6 Degradaciones
+  4 PRs abiertas que solapan · 5 Degradaciones
 
 Beside `--out` it also writes `contract-findings.json`: the deterministic list of
 high-severity contract findings — a `value` that changed in place, with no
@@ -21,8 +21,7 @@ API, so the finding no longer depends on the model obeying its instructions
 
 Exit codes: 0 (also when a source is missing: it is listed in section 6),
 2 invalid usage, 4 on 401/403 from any API. No other code.
-Tokens come from the environment only (GH_TOKEN, BRAIN_CI_KEY) and are never
-printed. Model calls: none.
+The token comes from the environment only (GH_TOKEN) and is never printed. Model calls: none.
 The HTTP client and the AuthError/Degraded rule are shared with the rest of the
 review pipeline in `scripts/review_http.py`.
 
@@ -55,14 +54,11 @@ SECTIONS = (
     "Trailers Contract-Change",
     "Consumidores del registry",
     "PRs abiertas que solapan",
-    "Memoria local-ops",
     "Degradaciones",
 )
 NONE = "_ninguno_"
 MAX_BYTES = 20 * 1024
 DEFAULT_REGISTRY = "./_synapse/libs/synapse-contracts/registry.yaml"
-DEFAULT_BRAIN_URL = "http://skirmshop-brain.skirmshop-brain-prod.svc.cluster.local"
-BRAIN_INSTANCE = "local-ops"
 CONTRACTS_FILE = "CONTRACTS.yaml"
 DRYRUN_FIXTURE = Path(__file__).resolve().parent.parent / "tests/fixtures/review-context/dry-run"
 MARKER_RE = re.compile(r"(?:#|//|/\*|\*|--|<!--)\s*CONTRACT:\s*([a-z0-9][a-z0-9._-]*)")
@@ -70,7 +66,6 @@ TRAILER_RE = re.compile(r"^Contract-Change:\s*(\w+)\s+(\S+)", re.M)
 HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)")
 HTTP_TIMEOUT = 15
 MAX_OPEN_PRS = 30
-MAX_MEMORY = 5
 
 VALUE_LINE_RE = re.compile(r"^\s*value:\s*\S")
 ENTRY_ID_RE = re.compile(r"^\s*-\s+id:\s*(\S+)\s*$")
@@ -249,24 +244,6 @@ def open_prs(repo: str, pr: int | None, files: set[str], token: str) -> list[dic
     return out
 
 
-def brain_memory(url: str, key: str, query: str) -> list[dict[str, str]]:
-    resp = request(f"{url.rstrip('/')}/instances/{BRAIN_INSTANCE}/search",
-                   {"X-API-Key": key, "Authorization": f"Bearer {key}"},
-                   body={"query": query, "limit": MAX_MEMORY * 2},
-                   timeout=HTTP_TIMEOUT, source="brain")
-    if resp.get("instance_id", BRAIN_INSTANCE) != BRAIN_INSTANCE:
-        raise Degraded("brain: la respuesta no es de la instancia local-ops")
-    hits = []
-    for doc in resp.get("documents", []):  # `documents`, not `hits`
-        meta = doc.get("metadata") or {}
-        if meta.get("instance_id", BRAIN_INSTANCE) != BRAIN_INSTANCE:
-            continue  # /search has no per-instance gate: filter the result too
-        source = meta.get("source_id") or meta.get("source") or meta.get("adapter") or "brain"
-        summary = " ".join(str(doc.get("text", "")).split())[:200]
-        hits.append({"source": str(source), "summary": summary})
-    return hits[:MAX_MEMORY]
-
-
 # ── contract findings (inline determinista, sin depender del modelo) ───────
 
 
@@ -330,20 +307,19 @@ def render(ctx: dict[str, Any]) -> str:
                       + (f"; workflows: {', '.join(workflows)}" if workflows else ""))
     s4 = [f"- #{p['number']} {p['title']} (`{p['branch']}`): {', '.join(p['files'])}"
           for p in ctx["prs"]]
-    s5 = [f"- [{m['source']}] {m['summary']}" for m in ctx["memory"]]
-    s6 = [f"- Aviso · `{src}`: {why}" for src, why in ctx["degraded"]]
+    s5 = [f"- Aviso · `{src}`: {why}" for src, why in ctx["degraded"]]
 
-    def build(mem: list[str], prs: list[str]) -> str:
+    def build(prs: list[str]) -> str:
         parts = ["# Contexto de revisión (hechos, sin juicio)\n"]
-        for title, body in zip(SECTIONS, (lst(s1), lst(s2), lst(s3), lst(prs), lst(mem),
-                                          lst(s6) if s6 else "_ninguna_")):
+        for title, body in zip(SECTIONS, (lst(s1), lst(s2), lst(s3), lst(prs),
+                                          lst(s5) if s5 else "_ninguna_")):
             parts.append(f"## {title}\n\n{body}\n")
         return "\n".join(parts)
 
-    text = build(s5, s4)
-    while len(text.encode()) > MAX_BYTES and (s5 or s4):  # trim memory and overlaps, never s6
-        (s5 or s4).pop()
-        text = build(s5, s4)
+    text = build(s4)
+    while len(text.encode()) > MAX_BYTES and s4:  # trim overlaps, never the degradations
+        s4.pop()
+        text = build(s4)
     return text
 
 
@@ -351,8 +327,7 @@ def render(ctx: dict[str, Any]) -> str:
 
 
 def collect(args: argparse.Namespace) -> dict[str, Any]:
-    ctx: dict[str, Any] = {"touched": [], "trailers": [], "consumers": {}, "prs": [],
-                           "memory": [], "degraded": []}
+    ctx: dict[str, Any] = {"touched": [], "trailers": [], "consumers": {}, "prs": [], "degraded": []}
     workdir = Path(args.workdir)
 
     def degrade(source: str, why: object) -> None:
@@ -368,7 +343,7 @@ def collect(args: argparse.Namespace) -> dict[str, Any]:
         canned = json.loads((Path(args.fixtures) / "dry-run.json").read_text())
         ctx["touched"] = canned["touched"]
         ctx["trailers"] = [tuple(t) for t in canned["trailers"]]
-        ctx["prs"], ctx["memory"] = canned["prs"], canned["memory"]
+        ctx["prs"] = canned["prs"]
     else:
         try:
             ctx["touched"] = touched_from_registry_file(workdir, args.base, args.head)
@@ -402,22 +377,12 @@ def collect(args: argparse.Namespace) -> dict[str, Any]:
             ctx["prs"] = open_prs(args.repo, args.pr, files, token)
         except Degraded as exc:
             degrade("github", exc)
-
-    key = os.environ.get("BRAIN_CI_KEY", "")
-    if not key:
-        degrade("brain", "sin BRAIN_CI_KEY")
-    else:
-        query = " ".join([args.repo or "", *sorted(t["id"] for t in ctx["touched"]), *sorted(files)[:10]])
-        try:
-            ctx["memory"] = brain_memory(os.environ.get("BRAIN_URL", DEFAULT_BRAIN_URL), key, query)
-        except Degraded as exc:
-            degrade("brain", exc)
     return ctx
 
 
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--repo", help="owner/repo (open PRs and brain query)")
+    p.add_argument("--repo", help="owner/repo (open PRs)")
     p.add_argument("--pr", type=int)
     p.add_argument("--base", "--base-sha", dest="base")
     p.add_argument("--head", "--head-sha", dest="head")
@@ -457,7 +422,7 @@ def main(argv: list[str] | None = None) -> int:
         ctx = collect(args)
     except AuthError as exc:
         # No misleading partial context: only section 6 says what failed.
-        empty = {"touched": [], "trailers": [], "consumers": {}, "prs": [], "memory": [],
+        empty = {"touched": [], "trailers": [], "consumers": {}, "prs": [],
                  "degraded": [(exc.source, f"{exc} — credencial rechazada")]}
         out.write_text(render(empty))
         findings_path.write_text("[]\n")  # sin contexto no hay hallazgo que publicar

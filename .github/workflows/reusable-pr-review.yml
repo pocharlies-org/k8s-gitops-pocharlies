@@ -10,7 +10,7 @@ name: Reusable PR review
 #   pr-agent PR-Agent 0.46.0 en contenedor, orquestado en tres pasos (INFRA-332):
 #            contexto (scripts/review-context.py) -> PR-Agent (imagen de Harbor por
 #            digest) -> distribucion (scripts/review-distribute.py: payload del
-#            contrato pr_review.v1, brain local-ops, etiquetas, y el hallazgo de contrato
+#            contrato pr_review.v1, brain local-ops + Hindsight `ops` (solo escritura), etiquetas, y el hallazgo de contrato
 #            en linea por la API, determinista). Diseño: adjunto
 #            nota-architect-diseno.md de INFRA-298; runbook: docs/ci-pr-review.md.
 #
@@ -128,7 +128,10 @@ on:
       JIRA_API_TOKEN:
         required: false
       BRAIN_CI_KEY:
-        description: Brain local-ops. Sin ella la memoria y el push-ingest van degradados.
+        description: Brain local-ops (solo escritura, push-ingest). Sin ella el push-ingest va degradado.
+        required: false
+      HINDSIGHT_WRITER_TOKEN:
+        description: Token de la identidad `pr-review` del escritor de Hindsight (banco `ops`, solo escritura). Sin el, la escritura va degradada.
         required: false
       HARBOR_USER:
         description: Pull de la imagen de PR-Agent desde harbor.e-dani.com/homelab (privado).
@@ -337,7 +340,6 @@ jobs:
         if: ${{ steps.guarda.outputs.fork != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
-          BRAIN_CI_KEY: ${{ secrets.BRAIN_CI_KEY }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -514,6 +516,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BRAIN_CI_KEY: ${{ secrets.BRAIN_CI_KEY }}
+          HINDSIGHT_WRITER_TOKEN: ${{ secrets.HINDSIGHT_WRITER_TOKEN }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}

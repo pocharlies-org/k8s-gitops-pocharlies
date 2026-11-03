@@ -124,7 +124,8 @@ class ReviewDistribute(unittest.TestCase):
 
     def run_script(self, *extra: str, env: dict | None = None):
         e = {k: v for k, v in os.environ.items()
-             if k not in ("GH_TOKEN", "BRAIN_CI_KEY", "BRAIN_URL", "GITHUB_API_URL", "GITHUB_EVENT_PATH")}
+             if k not in ("GH_TOKEN", "BRAIN_CI_KEY", "BRAIN_URL", "HINDSIGHT_WRITER_TOKEN", "HINDSIGHT_URL",
+                          "GITHUB_API_URL", "GITHUB_EVENT_PATH")}
         e.update(env or {})
         return subprocess.run([sys.executable, str(SCRIPT), "--out-dir", str(self.out), *extra],
                               capture_output=True, text=True, env=e)
@@ -295,6 +296,7 @@ class ReviewDistribute(unittest.TestCase):
                                  "BRAIN_URL": brain_url, "BRAIN_CI_KEY": "k"})
         assert r.returncode == 0
         assert self.dist() == {"push_ingest": {"state": "degradado", "http": 404},
+                               "hindsight_push": {"state": "sin_clave", "http": None},
                                "labels": {"state": "ok", "http": None}}
 
     def test_distribute_json_without_key_and_on_rejection(self):
@@ -302,6 +304,7 @@ class ReviewDistribute(unittest.TestCase):
         assert self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc", "--review-md", str(REVIEW),
                                env={"GH_TOKEN": "t", "GITHUB_API_URL": gh_url}).returncode == 4
         assert self.dist() == {"push_ingest": {"state": "sin_clave", "http": None},
+                               "hindsight_push": {"state": "sin_clave", "http": None},
                                "labels": {"state": "rechazado", "http": 403}}
 
     def test_brain_failure_degrades_exit_0(self):
@@ -336,6 +339,109 @@ class ReviewDistribute(unittest.TestCase):
                                  "BRAIN_URL": brain_url, "BRAIN_CI_KEY": "k"})
         assert r.returncode == 4, r.stdout + r.stderr
         assert [c[1] for c in brain.calls] == ["/instances/local-ops/push-ingest"]
+
+    # ── Hindsight (SC-4304 S5): doble escritura junto al Brain ──
+
+    def hs_env(self, gh_url, hs_url, token="hs-token-0123456789", brain_url=None):
+        env = {"GH_TOKEN": "t", "GITHUB_API_URL": gh_url, "HINDSIGHT_URL": hs_url, "HINDSIGHT_WRITER_TOKEN": token}
+        if brain_url:
+            env.update({"BRAIN_URL": brain_url, "BRAIN_CI_KEY": "k"})
+        return env
+
+    def run_pr(self, env, review=REVIEW):
+        return self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc", "--review-md", str(review), env=env)
+
+    def test_hindsight_retain_shape(self):
+        gh, gh_url = self.server()
+        hs, hs_url = self.server()
+        r = self.run_pr(self.hs_env(gh_url, hs_url))
+        assert r.returncode == 0, r.stderr
+        m, path, body, hdrs = hs.calls[0]
+        assert (m, path) == ("POST", "/v1/default/banks/ops/memories")
+        assert hdrs["Authorization"] == "Bearer hs-token-0123456789"
+        assert set(body) == {"async", "items"} and body["async"] is False and len(body["items"]) == 1
+        item = body["items"][0]
+        # solo campos que el escritor admite (ITEM_FIELDS): nada de metadata propia
+        assert set(item) == {"document_id", "content", "tags"}
+        assert item["document_id"] == "pr_review:o/r#7"
+        assert item["content"] == self.payload()["content"] and len(item["content"].encode()) <= 12 * 1024
+        assert item["tags"] == ["repo:o/r", "pr:7", "sha:abc", "status:ok", "rec:changes_required", "security:true"]
+        assert self.dist()["hindsight_push"] == {"state": "ok", "http": None}
+        assert "hs-token-0123456789" not in r.stdout + r.stderr
+
+    def test_double_write_hits_brain_and_hindsight(self):
+        gh, gh_url = self.server()
+        brain, brain_url = self.server()
+        hs, hs_url = self.server()
+        r = self.run_pr(self.hs_env(gh_url, hs_url, brain_url=brain_url))
+        assert r.returncode == 0, r.stderr
+        assert [c[1] for c in brain.calls] == ["/instances/local-ops/push-ingest"]
+        assert [c[1] for c in hs.calls] == ["/v1/default/banks/ops/memories"]
+        d = self.dist()
+        assert d["push_ingest"]["state"] == "ok" and d["hindsight_push"]["state"] == "ok"
+
+    def test_hindsight_401_is_exit_4_but_brain_and_labels_still_done(self):
+        gh, gh_url = self.server()
+        brain, brain_url = self.server()
+        hs, hs_url = self.server(code=401)
+        r = self.run_pr(self.hs_env(gh_url, hs_url, brain_url=brain_url))
+        assert r.returncode == 4, r.stdout + r.stderr
+        assert self.dist()["hindsight_push"] == {"state": "rechazado", "http": 401}
+        assert len(brain.calls) == 1 and len(gh.calls) == 2
+
+    def test_hindsight_403_is_exit_4(self):
+        gh, gh_url = self.server()
+        hs, hs_url = self.server(code=403)
+        assert self.run_pr(self.hs_env(gh_url, hs_url)).returncode == 4
+        assert self.dist()["hindsight_push"] == {"state": "rechazado", "http": 403}
+
+    def test_hindsight_5xx_and_429_degrade_exit_0(self):
+        for code in (429, 500, 502):
+            gh, gh_url = self.server()
+            hs, hs_url = self.server(code=code)
+            r = self.run_pr(self.hs_env(gh_url, hs_url))
+            assert r.returncode == 0, (code, r.stdout + r.stderr)
+            assert self.dist()["hindsight_push"] == {"state": "degradado", "http": code}
+
+    def test_hindsight_unreachable_degrades_exit_0(self):
+        gh, gh_url = self.server()
+        r = self.run_pr(self.hs_env(gh_url, "http://127.0.0.1:1"))
+        assert r.returncode == 0, r.stdout + r.stderr
+        assert self.dist()["hindsight_push"]["state"] == "degradado"
+
+    def test_hindsight_without_token_is_sin_clave_exit_0(self):
+        gh, gh_url = self.server()
+        hs, hs_url = self.server()
+        env = self.hs_env(gh_url, hs_url)
+        del env["HINDSIGHT_WRITER_TOKEN"]
+        r = self.run_pr(env)
+        assert r.returncode == 0 and "sin HINDSIGHT_WRITER_TOKEN" in r.stdout
+        assert hs.calls == [] and self.dist()["hindsight_push"] == {"state": "sin_clave", "http": None}
+
+    def test_hindsight_refuses_plain_http_outside_loopback(self):
+        # el token no viaja en claro: una URL http a otro host degrada sin salir de la máquina
+        gh, gh_url = self.server()
+        r = self.run_pr(self.hs_env(gh_url, "http://hindsight-writer.hindsight.svc:8443"))
+        assert r.returncode == 0, r.stdout + r.stderr
+        assert self.dist()["hindsight_push"]["state"] == "degradado"
+        assert "hs-token-0123456789" not in r.stdout + r.stderr
+
+    def test_hindsight_skipped_when_review_has_no_content(self):
+        # review caída (status != ok) = contenido vacío: el escritor rechaza `content` vacío, no se envía
+        gh, gh_url = self.server()
+        hs, hs_url = self.server()
+        empty = self.out.parent / "empty.md"
+        empty.write_text("")
+        r = self.run_pr(self.hs_env(gh_url, hs_url), review=empty)
+        assert r.returncode == 0, r.stdout + r.stderr
+        assert hs.calls == [] and self.dist()["hindsight_push"] == {"state": "omitido", "http": None}
+
+    def test_hindsight_dry_run_makes_no_call(self):
+        hs, hs_url = self.server()
+        r = self.run_script("--dry-run", "--repo", "o/r", "--pr", "7",
+                            env={"HINDSIGHT_URL": hs_url, "HINDSIGHT_WRITER_TOKEN": "hs-token-0123456789"})
+        assert r.returncode == 0 and hs.calls == []
+        assert self.dist()["hindsight_push"] == {"state": "dry_run", "http": None}
 
     # ── inline contract findings (seguimiento D del arquitecto, INFRA-332/333) ──
 

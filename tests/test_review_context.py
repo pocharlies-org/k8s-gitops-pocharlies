@@ -25,7 +25,7 @@ SCRIPT = ROOT / "scripts/review-context.py"
 FIX = ROOT / "tests/fixtures/review-context"
 REGISTRY = FIX / "registry.yaml"
 HEADERS = ["Contratos tocados", "Trailers Contract-Change", "Consumidores del registry",
-           "PRs abiertas que solapan", "Memoria local-ops", "Degradaciones"]
+           "PRs abiertas que solapan", "Degradaciones"]
 
 spec = importlib.util.spec_from_file_location("review_context", SCRIPT)
 rc = importlib.util.module_from_spec(spec)
@@ -68,14 +68,13 @@ def headers(text: str) -> list[str]:
     return [l[3:] for l in text.splitlines() if l.startswith("## ")]
 
 
-class _Brain(http.server.BaseHTTPRequestHandler):
-    code, payload = 200, b""
+class _GitHub(http.server.BaseHTTPRequestHandler):
+    code = 200
 
-    def do_POST(self):
-        self.rfile.read(int(self.headers.get("Content-Length", 0)))
+    def do_GET(self):
         self.send_response(self.code)
         self.end_headers()
-        self.wfile.write(self.payload)
+        self.wfile.write(b"[]")
 
     def log_message(self, *a):
         pass
@@ -87,11 +86,12 @@ class ReviewContext(unittest.TestCase):
         self.addCleanup(d.cleanup)
         self.tmp = Path(d.name)
 
-    def brain(self):
-        srv = http.server.HTTPServer(("127.0.0.1", 0), _Brain)
+    def github(self, code):
+        _GitHub.code = code
+        srv = http.server.HTTPServer(("127.0.0.1", 0), _GitHub)
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         self.addCleanup(srv.shutdown)
-        return srv, f"http://127.0.0.1:{srv.server_port}"
+        return f"http://127.0.0.1:{srv.server_port}"
 
     def test_value_changed_lists_id_and_consumers(self):
         out = self.tmp / "context.md"
@@ -130,11 +130,13 @@ class ReviewContext(unittest.TestCase):
         assert "app.py:2" in out.read_text()
 
 
-    def test_degraded_without_brain_key_exit_0(self):
-        out = self.tmp / "context.md"
-        r = run(make_repo(self.tmp, "value-changed"), out)
-        assert r.returncode == 0
-        assert "`brain`: sin BRAIN_CI_KEY" in out.read_text()
+    def test_no_memory_section_and_brain_key_is_ignored(self):
+        # SC-4304 S5: el review ya no lee memoria; BRAIN_CI_KEY en el entorno no hace nada ni aparece
+        out, key = self.tmp / "context.md", "sekret-key-123"
+        r = run(make_repo(self.tmp, "value-changed"), out, env={"BRAIN_CI_KEY": key, "BRAIN_URL": "http://127.0.0.1:1"})
+        text = out.read_text()
+        assert r.returncode == 0 and "memoria" not in text.lower() and "brain" not in text.split("## Degradaciones", 1)[-1]
+        assert key not in r.stdout + r.stderr + text
 
 
     def test_missing_registry_degrades_exit_0(self):
@@ -150,33 +152,11 @@ class ReviewContext(unittest.TestCase):
         assert "Aviso · `registry`" in txt.split("## Degradaciones", 1)[-1]
 
 
-    def test_brain_down_and_secret_not_printed(self):
-        out, key = self.tmp / "context.md", "sekret-key-123"
-        r = run(make_repo(self.tmp, "value-changed"), out,
-                env={"BRAIN_CI_KEY": key, "BRAIN_URL": "http://127.0.0.1:1"})
-        assert r.returncode == 0
-        assert "`brain`" in out.read_text()
-        assert key not in r.stdout + r.stderr + out.read_text()
-
-
-    def test_brain_ok_cites_hits_in_documents_key(self):
-        srv, url = self.brain()
-        _Brain.code = 200
-        _Brain.payload = (b'{"instance_id":"local-ops","documents":[{"text":"memoria  previa","score":1,'
-                          b'"metadata":{"source_id":"pr_review:x/y#1"}},{"text":"ajeno","score":1,'
-                          b'"metadata":{"instance_id":"otra","source_id":"z"}}]}')
+    def test_github_403_exits_4_without_partial_context(self):
+        url = self.github(403)
         out = self.tmp / "context.md"
-        r = run(make_repo(self.tmp, "value-changed"), out, env={"BRAIN_CI_KEY": "k", "BRAIN_URL": url})
-        text = out.read_text()
-        assert r.returncode == 0
-        assert "- [pr_review:x/y#1] memoria previa" in text and "ajeno" not in text
-
-
-    def test_brain_403_exits_4_without_partial_context(self):
-        srv, url = self.brain()
-        _Brain.code, _Brain.payload = 403, b"{}"
-        out = self.tmp / "context.md"
-        r = run(make_repo(self.tmp, "value-changed"), out, env={"BRAIN_CI_KEY": "bad", "BRAIN_URL": url})
+        r = run(make_repo(self.tmp, "value-changed"), out, "--repo", "x/y", "--pr", "1",
+                env={"GH_TOKEN": "bad", "GITHUB_API_URL": url})
         text = out.read_text()
         assert r.returncode == 4
         assert headers(text) == HEADERS and "credencial rechazada" in text and "brain.ingest.v1" not in text
@@ -190,14 +170,14 @@ class ReviewContext(unittest.TestCase):
         assert subprocess.run([sys.executable, str(SCRIPT), "--bogus"], capture_output=True).returncode == 2
 
 
-    def test_dry_run_six_headers_in_order_no_git(self):
+    def test_dry_run_headers_in_order_no_git(self):
         out = self.tmp / "context.md"
         r = subprocess.run([sys.executable, str(SCRIPT), "--dry-run", "--repo", "x/y", "--pr", "1",
                             "--registry", str(REGISTRY), "--out", str(out)],
                            capture_output=True, text=True, cwd=self.tmp)
         text = out.read_text()
         assert r.returncode == 0, r.stderr
-        assert headers(text) == HEADERS and "- #7 otra PR" in text and "- [pr_review:x/y#3]" in text
+        assert headers(text) == HEADERS and "- #7 otra PR" in text and "pr_review:" not in text
         assert "consumers" in text
 
 
@@ -254,10 +234,10 @@ class ReviewContext(unittest.TestCase):
 
     def test_size_capped_and_degradations_kept(self):
         ctx = {"touched": [], "trailers": [], "consumers": {}, "prs": [],
-               "memory": [{"source": "s", "summary": "m" * 200}] * 5, "degraded": [("brain", "x")]}
+               "degraded": [("github", "x")]}
         ctx["prs"] = [{"number": i, "title": "t" * 300, "branch": "b", "files": ["f" * 200] * 40} for i in range(60)]
         text = rc.render(ctx)
-        assert len(text.encode()) <= 20 * 1024 and "`brain`: x" in text
+        assert len(text.encode()) <= 20 * 1024 and "`github`: x" in text
 
 if __name__ == "__main__":
     unittest.main()

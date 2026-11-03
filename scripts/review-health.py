@@ -99,7 +99,8 @@ def classify(files: dict[str, Any] | None) -> tuple[str, list[str], bool]:
         reasons.append(f"review {payload.get('status')}")
     dist = files.get("distribute.json") or {}
     no_key = False
-    for step, label in (("push_ingest", "push-ingest al brain"), ("labels", "etiquetas")):
+    for step, label in (("push_ingest", "push-ingest al brain"), ("hindsight_push", "escritura a Hindsight"),
+                        ("labels", "etiquetas")):
         info = dist.get(step) or {}
         state = info.get("state")
         if state in ("degradado", "rechazado"):

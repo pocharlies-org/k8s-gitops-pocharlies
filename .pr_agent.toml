@@ -118,7 +118,7 @@ Este bloque lo genera el CI y solo contiene HECHOS: no inventes contratos, consu
    - NO emitas una sugerencia de código para este hallazgo: el CI ya lo publica como comentario en línea sobre la línea del value, de forma determinista y con los consumidores del registry. Repetirlo en /improve es ruido.
    - En la review: ponlo como PRIMER punto clave (key issue) con relevant_file = la ruta de CONTRACTS.yaml y las líneas del value cambiado, con el mismo id y los mismos consumidores que «Consumidores del registry» lista para ese id (si no lista ninguno, escribe «el registry no lista consumidores»).
 2. Ticket. Si «Tickets Jira citados en el PR» dice «ninguno», añade en la review un punto clave titulado exactamente «sin criterios de aceptación que verificar», con «Severidad media» en el texto: el PR no cita ninguna clave Jira y no hay criterios de aceptación contra los que comprobarlo. Si cita alguna, no añadas ese punto.
-3. PRs que solapan, memoria local-ops y degradaciones: contexto; menciónalos solo si cambian lo que hay que revisar.
+3. PRs que solapan y degradaciones: contexto; menciónalos solo si cambian lo que hay que revisar.
 """
 
 [jira]

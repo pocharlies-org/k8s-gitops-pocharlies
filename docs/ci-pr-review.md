@@ -4,7 +4,7 @@ INFRA-298 / INFRA-330. Genera `.review/context.md`, que lee PR-Agent junto al di
 las reglas de contratos siguen en `scripts/check-contracts.py`.
 
 Seis secciones fijas, en orden: Contratos tocados · Trailers Contract-Change · Consumidores del registry ·
-PRs abiertas que solapan · Memoria local-ops · Degradaciones (líneas `Aviso · <fuente>: <motivo>`).
+PRs abiertas que solapan · Degradaciones (líneas `Aviso · <fuente>: <motivo>`).
 
 Registry de Synapse, solo lectura y offline (sin `/search/code`, que da 429):
 
@@ -19,7 +19,7 @@ con fichero, línea del value en head, valores viejo/nuevo, consumidores y cuerp
 señal de entrada del inline publicado por `review-distribute.py` (seguimiento D del arquitecto): el
 hallazgo no depende de que el modelo obedezca.
 
-Entorno: `GH_TOKEN` (PRs abiertas), `BRAIN_URL`, `BRAIN_CI_KEY` (sin ella la memoria va a Degradaciones).
+Entorno: `GH_TOKEN` (PRs abiertas). Ya no lee memoria (SC-4304 S5): la sección «Memoria local-ops» se retiró.
 Salidas: 0 (también degradado), 2 uso inválido, 4 si una API responde 401/403. `--dry-run` no usa git ni red.
 El HTTP (AuthError/Degraded/cliente) es común a los tres scripts del motor: `scripts/review_http.py`.
 Tests: `python3 -m unittest tests/test_review_context.py`.
@@ -235,6 +235,30 @@ DESPUÉS del reparto verificado sobre la lista completa, en PR aparte.
 **Qué falta para lanzar la oleada 1:** INFRA-1058 (cuenta Jira `pr-agent-ro` + PAT `secrets: write`,
 Request IT) e INFRA-1059 (clave de instancia del brain para `BRAIN_CI_KEY` por repo; el mecanismo
 fusionado, la clave restringida la emite security después).
+
+## Memoria de las reviews en Hindsight (SC-4304 S5)
+
+La review ya NO lee memoria: la sección «Memoria local-ops» de `review-context.py` se retiró (la señal de sus
+hits nunca se midió, y el lector del boundary solo sirve knowledge-base). Lo que sí se conserva es la
+ESCRITURA, que va en doble con el Brain hasta medir paridad (S8 retira `local-ops`):
+
+- `review-distribute.py` hace `POST https://hindsight-writer.hindsight.svc:8443/v1/default/banks/ops/memories`
+  con la identidad `pr-review` (banco fijo `ops`, solo escritura). Un documento por PR: `document_id`
+  `pr_review:<owner>/<repo>#<pr>` (el escritor lo reescribe a un hash de identidad+id, así que cada review del
+  mismo PR reemplaza el anterior), `content` = la review (≤12 KiB), campos de `pr_review.v1` como **tags**
+  (`repo:`, `pr:`, `sha:`, `status:`, `rec:`, `security:`; la lista blanca de `metadata` del escritor no los admite).
+- Token: secreto de repo `HINDSIGHT_WRITER_TOKEN` (item 1Password `k8s-pocharlies/hindsight-writer-pr-review`,
+  campo `token`). Lo reparte security con `review-distribute-secrets.sh` (nombre ya conocido; NO entra en el juego
+  por defecto). Llega solo al paso «Distribute the review», con la guarda de fork, por `env:`, nunca por argv.
+- TLS verificado con la CA pública del boundary, `scripts/hindsight-writer-ca.crt` (CN `hindsight-boundary-ca`,
+  Secret `hindsight-writer-ca-tls` del ns `hindsight`; si se regenera, se vuelve a copiar). Sin redirects.
+- Misma regla que el Brain: sin token = `sin_clave` (exit 0), 429/5xx/red = `degradado` (exit 0), 401/403 =
+  `rechazado` (exit 4, rojo). Sin contenido (review caída) = `omitido`. Se registra como `hindsight_push` en
+  `distribute.json` y `review-health.py` lo cuenta como omisión si falla.
+- Red: `arc-runners` → 8443 del escritor (NetworkPolicy `hindsight-ingress`, k8s-hindsight-pocharlies#62).
+- Aislamiento entre repos: una sola identidad, así que es por convención de `document_id`; quien tenga el token
+  puede sobrescribir documentos de `ops`, pero no leer ni escribir en otro banco. Retención de 90 días: pendiente
+  (no verificada por banco en Hindsight 1.0.0).
 
 ## Señal de salud nocturna (`review-health.yml`, INFRA-333)
 
