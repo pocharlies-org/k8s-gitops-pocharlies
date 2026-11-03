@@ -48,6 +48,40 @@ configs:
         message = 'CronJob: no gatea el sync; visibilidad via K8sCronJobFailed (topic Crons)'
       }
       return health
+    # SC-4482: misma clase de defecto que SC-2082 pero con Job. Una Job con
+    # spec.suspend=true reporta health Suspended y la operacion de sync se queda
+    # en Running para siempre "waiting for healthy state of batch/Job/..."
+    # (company-crm: el pin de imagen recrea la Job de import suspendida con
+    # Replace=true y el sync de 2026-11-03 18:53 llevo 30 min colgado; la
+    # anotacion argocd.argoproj.io/ignore-healthcheck que puso SC-1771 no es
+    # una funcion de ArgoCD, no hacia nada). Con esta lua la anotacion pasa a
+    # ser real: solo las Jobs suspendidas CON la anotacion reportan Healthy y no
+    # gatean el sync; las demas Jobs conservan el comportamiento de siempre
+    # (Progressing mientras corren, Healthy al Complete, Degraded al Failed).
+    # Como en SC-2082, el script devuelve SIEMPRE un health con status.
+    resource.customizations.health.batch_Job: |
+      health = { status = 'Progressing', message = 'Job: esperando finalizacion' }
+      if obj.spec.suspend == true and obj.metadata.annotations ~= nil
+          and obj.metadata.annotations['argocd.argoproj.io/ignore-healthcheck'] == 'true' then
+        health = {
+          status = 'Healthy',
+          message = 'Job suspendida a proposito (ignore-healthcheck): no gatea el sync'
+        }
+        return health
+      end
+      if obj.status ~= nil and obj.status.conditions ~= nil then
+        for i, condition in ipairs(obj.status.conditions) do
+          if condition.type == 'Failed' and condition.status == 'True' then
+            health = { status = 'Degraded', message = condition.message }
+            return health
+          end
+          if condition.type == 'Complete' and condition.status == 'True' then
+            health = { status = 'Healthy', message = condition.message }
+            return health
+          end
+        end
+      end
+      return health
     timeout.reconciliation: 60s
     statusbadge.enabled: "true"
 
