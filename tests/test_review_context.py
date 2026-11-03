@@ -143,7 +143,7 @@ class ReviewContext(unittest.TestCase):
         # INFRA-334: sin FRAMEWORK_REPO_TOKEN el paso del registry ni se ejecuta
         # (puerta `if: env.FRAMEWORK_REPO_TOKEN != ''` en el workflow); el
         # contrato que sigue vigente es que registry.yaml ausente NO puede hacer
-        # fallar el job: la fuente va a la seccion 6 (Degradaciones) y exit 0.
+        # fallar el job: la fuente va a la seccion 5 (Degradaciones) y exit 0.
         out = self.tmp / "context.md"
         repo = make_repo(self.tmp, "value-changed")
         r = run(repo, out, "--registry", str(self.tmp / "nope.yaml"))

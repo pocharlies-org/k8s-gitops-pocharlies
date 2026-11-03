@@ -19,7 +19,7 @@ review-distribute.py) publishes those as inline review comments through the GitH
 API, so the finding no longer depends on the model obeying its instructions
 (seguimiento D del arquitecto, INFRA-332).
 
-Exit codes: 0 (also when a source is missing: it is listed in section 6),
+Exit codes: 0 (also when a source is missing: it is listed in section 5),
 2 invalid usage, 4 on 401/403 from any API. No other code.
 The token comes from the environment only (GH_TOKEN) and is never printed. Model calls: none.
 The HTTP client and the AuthError/Degraded rule are shared with the rest of the
@@ -421,7 +421,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         ctx = collect(args)
     except AuthError as exc:
-        # No misleading partial context: only section 6 says what failed.
+        # No misleading partial context: only section 5 says what failed.
         empty = {"touched": [], "trailers": [], "consumers": {}, "prs": [],
                  "degraded": [(exc.source, f"{exc} — credencial rechazada")]}
         out.write_text(render(empty))

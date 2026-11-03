@@ -3,7 +3,7 @@
 INFRA-298 / INFRA-330. Genera `.review/context.md`, que lee PR-Agent junto al diff. Solo aporta hechos:
 las reglas de contratos siguen en `scripts/check-contracts.py`.
 
-Seis secciones fijas, en orden: Contratos tocados · Trailers Contract-Change · Consumidores del registry ·
+Cinco secciones fijas, en orden: Contratos tocados · Trailers Contract-Change · Consumidores del registry ·
 PRs abiertas que solapan · Degradaciones (líneas `Aviso · <fuente>: <motivo>`).
 
 Registry de Synapse, solo lectura y offline (sin `/search/code`, que da 429):
