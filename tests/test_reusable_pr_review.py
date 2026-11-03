@@ -297,5 +297,70 @@ class TestJuezV3(unittest.TestCase):
         self.assertEqual(en_marcha("pull_request", "juez"), ["revisar_pr_juez"])
 
 
+class TestInvariantesINFRA298(unittest.TestCase):
+    """INFRA-298 (validación final de la épica; qa midió a mano en `70-qa.md` de INFRA-334): las
+    invariantes del sistema de review quedan fijadas aquí, sin red, sobre los ficheros que mide la
+    señal nocturna. Reutilizan `en_marcha`/`JOBS`/`WORKFLOW`/`_filas` de este módulo.
+
+    No se repite lo que ya comprueban las clases de arriba:
+      - pr-agent-repos == {llamadores con engine pr-agent} (=> pr-agent ⊆ llamadores y "un repo no
+        corre los dos motores" por el valor único de `engine`):
+        TestCoberturaDelJuez.test_cobertura_pr_agent_es_la_lista_de_pr_agent
+      - forma del job del juez (timeout/nombre/permisos/env): TestJuezAislado y TestJuezV3
+      - el formato del marcador v3 que emite review.py: tests/test_llm_review_juez.py
+    Se fija lo que eso no cubre: que el único repo en las dos listas es un piloto que declara
+    pr-agent (1), que el motor `propio` retirado en F4a no vuelve (2, = grep `engine.*propio` de qa),
+    y que el contrato del marcador v3 y el job que lo emite siguen ahí (3, = grep CONTRACT de qa).
+    """
+
+    def setUp(self):
+        self.llam = {f[0]: f for f in _filas("pr-review-llamadores.txt")}
+
+    # (1) coherencia de listas: un repo no corre los dos motores.
+    def test_un_repo_no_corre_los_dos_motores(self):
+        # qa midió (criterio 2) que los pilotos k8s-litellm y skirmshop-labels están en las dos
+        # listas: es correcto porque fijan `engine: pr-agent`, así que el juez queda SKIPPED. La
+        # invariante NO es que las listas sean disjuntas (no lo son), sino que un repo que aparece
+        # en la del juez y además es piloto lo declara: si alguien mete en pr-agent-repos un repo
+        # que corre juez por defecto, aquí salta (eso sí sería correr los dos motores).
+        pr_agent = {f[0] for f in _filas("pr-agent-repos.txt")}
+        juez = {f[0] for f in _filas("pr-review-juez-repos.txt")}
+        for repo in sorted(pr_agent & juez):
+            fila = next(f for f in _filas("pr-review-juez-repos.txt") if f[0] == repo)
+            nota = fila[3] if len(fila) > 3 else ""
+            self.assertRegex(nota, r"engine:\s*pr-agent",
+                             f"{repo}: en pr-agent-repos y en la lista del juez sin declarar que "
+                             f"fija engine: pr-agent (se leería como doble motor)")
+            # y su motor declarado en llamadores es pr-agent, no el default juez
+            self.assertEqual(self.llam[repo][2], "pr-agent", repo)
+
+    # (2) el motor `propio` retirado (F4a, INFRA-334) no puede volver.
+    def test_el_motor_propio_no_es_un_motor(self):
+        # `propio` cae al job que pinta rojo (motor_invalido): no tiene motor asignado, como
+        # cualquier valor desconocido. El enum de hecho del reusable admite solo pr-agent y juez.
+        for evento in ("pull_request", "workflow_dispatch"):
+            with self.subTest(evento):
+                self.assertEqual(en_marcha(evento, "propio"), ["motor_invalido"])
+
+    def test_el_reusable_no_menciona_engine_propio(self):
+        # el grep de qa (criterio 8.i): `engine.*propio` vacío en el reusable. La palabra `propio`
+        # vive en prosa («TELEGRAM_BOT_TOKEN propio», «su propio»), pero nunca con `engine` delante
+        # en la misma línea: ese patrón es el que midió qa y debe seguir sin casar.
+        self.assertNotRegex(WORKFLOW.read_text(encoding="utf-8"), r"engine.*propio")
+
+    # (3) el contrato del marcador v3 y el job que lo emite siguen presentes.
+    def test_el_contrato_del_marcador_v3_sigue_en_review_py(self):
+        # el grep de qa (criterio 8.iii): la línea de contrato del marcador que lee company-aprobar.
+        review = (ROOT / ".github/actions/llm-review/review.py").read_text(encoding="utf-8")
+        self.assertIn("CONTRACT: ci.llm-review-bot.marcador.v3", review)
+
+    def test_el_job_del_juez_sigue_emitiendo_el_marcador(self):
+        # "el juez sobrevive" (qa 8.iii): el job del juez sigue llamando al revisor en modo --juez,
+        # que es lo que publica el marcador v3. Su forma (timeout/nombre/permisos) la fijan
+        # TestJuezAislado y TestJuezV3; aquí solo el vínculo con el marcador.
+        run = "\n".join(str(p.get("run", "")) for p in JOBS["revisar_pr_juez"]["steps"])
+        self.assertIn("--juez", run)
+
+
 if __name__ == "__main__":
     unittest.main()
