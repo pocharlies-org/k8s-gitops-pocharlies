@@ -10,15 +10,16 @@
 backupsEnabled: true
 configuration:
   backupStorageLocation:
-  - bucket: velero-backups
+  # INFRA-1175: destino Object Storage de OVH (era la MinIO de sauvage). La credential
+  # la materializa el ExternalSecret platform/velero/ovh-credentials.yaml de k8s-infra.
+  - bucket: velero-backups-pocharlies
     config:
-      publicUrl: https://minio-s3.e-dani.com
-      region: us-east-1
+      region: sbg
       s3ForcePathStyle: true
-      s3Url: http://minio-s3.minio.svc.cluster.local:9000
+      s3Url: https://s3.sbg.io.cloud.ovh.net
     credential:
       key: cloud
-      name: velero-minio-creds
+      name: velero-ovh-creds
     default: true
     name: default
     provider: aws
@@ -50,7 +51,7 @@ configuration:
     name: default
     provider: aws
 credentials:
-  existingSecret: velero-minio-creds
+  existingSecret: velero-ovh-creds
   useSecret: true
 deployNodeAgent: true
 initContainers:
