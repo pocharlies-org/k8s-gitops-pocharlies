@@ -20,6 +20,10 @@ spec:
     automated:
       selfHeal: true
       prune: false
+    # SC-4611: sin reintentos. Con el limit 5 por defecto ArgoCD repetía la MISMA revisión (refresh false):
+    # un hook roto (57dc9d48) bloqueó 3 h el commit que lo arreglaba. Fallar una vez y aplicar el siguiente commit.
+    retry:
+      limit: 0
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
