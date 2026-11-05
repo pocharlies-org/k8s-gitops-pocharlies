@@ -1,0 +1,82 @@
+# Deployment + Service del exporter de cola CI (INFRA-550). El scrape lo hace
+# el repo k8s-observability (VMServiceScrape `ci-queue-exporter`, patrón
+# cert-manager-scrape). Métricas: ver exporter.py.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ci-queue-exporter
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # 1 réplica: dos exporters duplicarían requests sin ganar nada
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ci-queue-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ci-queue-exporter
+    spec:
+      containers:
+        - name: exporter
+          # python:3.12-slim por digest (Kyverno restrict-image-registries es
+          # Audit; el digest evita el drift de la tag).
+          image: docker.io/library/python:3.12-slim@sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f
+          command: ["python3", "/app/exporter.py"]
+          # Lleva un token de GitHub. python:3.12-slim no trae usuario sin
+          # privilegios: 65534 (nobody) lee el código (ConfigMap 0644) y el
+          # token (Secret 0644); sin escritura en disco (no usa /tmp ni pycache).
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: CI_QUEUE_ORG
+              value: pocharlies-org
+            - name: CI_QUEUE_TOKEN_FILE
+              value: /etc/ci-queue-token/token
+          ports:
+            - name: metrics
+              containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            periodSeconds: 60
+            timeoutSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: code
+              mountPath: /app
+            - name: token
+              mountPath: /etc/ci-queue-token
+              readOnly: true
+      volumes:
+        - name: code
+          configMap:
+            name: ci-queue-exporter-code
+        - name: token
+          secret:
+            secretName: ci-queue-github-token
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ci-queue-exporter
+spec:
+  selector:
+    app.kubernetes.io/name: ci-queue-exporter
+  ports:
+    - name: metrics
+      port: 8080
+      targetPort: metrics

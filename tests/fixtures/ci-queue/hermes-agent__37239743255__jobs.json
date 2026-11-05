@@ -1,0 +1,224 @@
+{
+ "total_count": 7,
+ "jobs": [
+  {
+   "id": 111545874615,
+   "run_id": 37239743255,
+   "workflow_name": "Install & Update E2E",
+   "head_branch": "main",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ-Kb4tw",
+   "head_sha": "fa7673ed391d426da0294007409483c91d3e8b46",
+   "status": "completed",
+   "conclusion": "success",
+   "created_at": "2026-10-04T22:22:03Z",
+   "started_at": "2026-10-04T22:22:04Z",
+   "completed_at": "2026-10-04T22:22:10Z",
+   "name": "Upload leg player",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/111545874615",
+   "labels": [
+    "ubuntu-latest"
+   ],
+   "runner_group_name": "GitHub Actions"
+  },
+  {
+   "id": 111545874744,
+   "run_id": 37239743255,
+   "workflow_name": "Install & Update E2E",
+   "head_branch": "main",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ-Kb5OA",
+   "head_sha": "fa7673ed391d426da0294007409483c91d3e8b46",
+   "status": "completed",
+   "conclusion": "failure",
+   "created_at": "2026-10-04T22:22:03Z",
+   "started_at": "2026-10-04T22:22:05Z",
+   "completed_at": "2026-10-04T22:22:10Z",
+   "name": "Pick release tags",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run set -euo pipefail",
+     "status": "completed",
+     "conclusion": "failure"
+    },
+    {
+     "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/111545874744",
+   "labels": [
+    "ubuntu-latest"
+   ],
+   "runner_group_name": "GitHub Actions"
+  },
+  {
+   "id": 111545902594,
+   "run_id": 37239743255,
+   "workflow_name": "Install & Update E2E",
+   "head_branch": "main",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ-KdmAg",
+   "head_sha": "fa7673ed391d426da0294007409483c91d3e8b46",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-04T22:22:10Z",
+   "started_at": "2026-10-04T22:22:10Z",
+   "completed_at": "2026-10-04T22:22:10Z",
+   "name": "Expand combinations",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/111545902594",
+   "labels": [
+    "ubuntu-latest"
+   ],
+   "runner_group_name": null
+  },
+  {
+   "id": 111545902723,
+   "run_id": 37239743255,
+   "workflow_name": "Install & Update E2E",
+   "head_branch": "main",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ-Kdmgw",
+   "head_sha": "fa7673ed391d426da0294007409483c91d3e8b46",
+   "status": "completed",
+   "conclusion": "failure",
+   "created_at": "2026-10-04T22:22:11Z",
+   "started_at": "2026-10-04T22:22:13Z",
+   "completed_at": "2026-10-04T22:22:19Z",
+   "name": "Result chart",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run set -euo pipefail",
+     "status": "completed",
+     "conclusion": "failure"
+    },
+    {
+     "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/111545902723",
+   "labels": [
+    "ubuntu-latest"
+   ],
+   "runner_group_name": "GitHub Actions"
+  },
+  {
+   "id": 111545903264,
+   "run_id": 37239743255,
+   "workflow_name": "Install & Update E2E",
+   "head_branch": "main",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ-KdooA",
+   "head_sha": "fa7673ed391d426da0294007409483c91d3e8b46",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-04T22:22:11Z",
+   "started_at": "2026-10-04T22:22:11Z",
+   "completed_at": "2026-10-04T22:22:10Z",
+   "name": "matrix.name",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/111545903264",
+   "labels": [],
+   "runner_group_name": null
+  },
+  {
+   "id": 111545903352,
+   "run_id": 37239743255,
+   "workflow_name": "Install & Update E2E",
+   "head_branch": "main",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ-Kdo-A",
+   "head_sha": "fa7673ed391d426da0294007409483c91d3e8b46",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-04T22:22:11Z",
+   "started_at": "2026-10-04T22:22:11Z",
+   "completed_at": "2026-10-04T22:22:10Z",
+   "name": "matrix.name",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/111545903352",
+   "labels": [],
+   "runner_group_name": null
+  },
+  {
+   "id": 111545903454,
+   "run_id": 37239743255,
+   "workflow_name": "Install & Update E2E",
+   "head_branch": "main",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ-KdpXg",
+   "head_sha": "fa7673ed391d426da0294007409483c91d3e8b46",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-04T22:22:11Z",
+   "started_at": "2026-10-04T22:22:11Z",
+   "completed_at": "2026-10-04T22:22:10Z",
+   "name": "matrix.name",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/111545903454",
+   "labels": [],
+   "runner_group_name": null
+  }
+ ]
+}

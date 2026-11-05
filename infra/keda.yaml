@@ -20,6 +20,11 @@ spec:
           install: true
         operator:
           replicaCount: 1
+        # INFRA-628 P2-b: p95 0,7m / max 1,1m (7 d); el default del chart es 100m. Solo cambia requests.cpu (limits y memory se heredan).
+        resources:
+          webhooks:
+            requests:
+              cpu: 10m
   destination:
     server: https://kubernetes.default.svc
     namespace: keda

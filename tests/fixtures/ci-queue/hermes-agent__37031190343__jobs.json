@@ -1,0 +1,73 @@
+{
+ "total_count": 2,
+ "jobs": [
+  {
+   "id": 110918136467,
+   "run_id": 37031190343,
+   "workflow_name": "Nix flake check",
+   "head_branch": "ci/pr-review-duplicados",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ0zxykw",
+   "head_sha": "49a2ce092ad5976581ff004f45a759bf2a39bc6f",
+   "status": "completed",
+   "conclusion": "success",
+   "created_at": "2026-10-02T16:02:33Z",
+   "started_at": "2026-10-02T16:02:35Z",
+   "completed_at": "2026-10-02T16:02:50Z",
+   "name": "Detect affected areas",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Detect affected areas",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/110918136467",
+   "labels": [
+    "ubuntu-latest"
+   ],
+   "runner_group_name": "GitHub Actions"
+  },
+  {
+   "id": 110918261958,
+   "run_id": 37031190343,
+   "workflow_name": "Nix flake check",
+   "head_branch": "ci/pr-review-duplicados",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ0z5cxg",
+   "head_sha": "49a2ce092ad5976581ff004f45a759bf2a39bc6f",
+   "status": "completed",
+   "conclusion": "cancelled",
+   "created_at": "2026-10-02T16:02:51Z",
+   "started_at": "2026-10-02T16:02:51Z",
+   "completed_at": "2026-10-03T16:02:52Z",
+   "name": "nix flake check",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/110918261958",
+   "labels": [
+    "ubuntu-latest-32-core"
+   ],
+   "runner_group_name": ""
+  }
+ ]
+}

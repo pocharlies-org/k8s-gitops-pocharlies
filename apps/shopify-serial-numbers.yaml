@@ -4,7 +4,7 @@ metadata:
   name: shopify-serial-numbers
   namespace: argocd
   annotations:
-    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies/k8s-shopify-serial-numbers-pocharlies
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-shopify-serial-numbers-pocharlies
   labels:
     e-dani.com/portfolio: skirmshop
     e-dani.com/tier: app
@@ -12,7 +12,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/pocharlies/k8s-shopify-serial-numbers-pocharlies
+    repoURL: https://github.com/pocharlies-org/k8s-shopify-serial-numbers-pocharlies
     targetRevision: main
     path: k8s
   destination:

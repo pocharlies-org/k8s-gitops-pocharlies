@@ -1,0 +1,72 @@
+{
+ "total_count": 1,
+ "jobs": [
+  {
+   "id": 111569828818,
+   "run_id": 37248065155,
+   "workflow_name": "duplicados",
+   "head_branch": "INFRA-548-runs-on-arc",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ-hR70g",
+   "head_sha": "557e525bf929ae0a0ac03d9fc172ecb431077f91",
+   "status": "completed",
+   "conclusion": "success",
+   "created_at": "2026-10-05T00:34:49Z",
+   "started_at": "2026-10-05T00:35:30Z",
+   "completed_at": "2026-10-05T00:36:45Z",
+   "name": "duplicados / duplicados",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Check out the duplicados framework",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Resolve the diff range",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Install verified Node.js",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Detect copied code",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Check out the duplicados framework",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/111569828818",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": "default"
+  }
+ ]
+}

@@ -1,0 +1,116 @@
+{
+ "total_count": 4,
+ "jobs": [
+  {
+   "id": 111569827203,
+   "run_id": 37248064711,
+   "workflow_name": "Docker Build, Test, and Publish",
+   "head_branch": "INFRA-548-runs-on-arc",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ-hR1gw",
+   "head_sha": "557e525bf929ae0a0ac03d9fc172ecb431077f91",
+   "status": "completed",
+   "conclusion": "success",
+   "created_at": "2026-10-05T00:34:48Z",
+   "started_at": "2026-10-05T00:35:20Z",
+   "completed_at": "2026-10-05T00:36:10Z",
+   "name": "Detect affected areas",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Detect affected areas",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Decide whether to build",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/111569827203",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": "default"
+  },
+  {
+   "id": 111570093041,
+   "run_id": 37248064711,
+   "workflow_name": "Docker Build, Test, and Publish",
+   "head_branch": "INFRA-548-runs-on-arc",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ-hiD8Q",
+   "head_sha": "557e525bf929ae0a0ac03d9fc172ecb431077f91",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-05T00:36:11Z",
+   "started_at": "2026-10-05T00:36:11Z",
+   "completed_at": "2026-10-05T00:36:11Z",
+   "name": "build",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/111570093041",
+   "labels": [],
+   "runner_group_name": null
+  },
+  {
+   "id": 111570093623,
+   "run_id": 37248064711,
+   "workflow_name": "Docker Build, Test, and Publish",
+   "head_branch": "INFRA-548-runs-on-arc",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ-hiGNw",
+   "head_sha": "557e525bf929ae0a0ac03d9fc172ecb431077f91",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-05T00:36:11Z",
+   "started_at": "2026-10-05T00:36:11Z",
+   "completed_at": "2026-10-05T00:36:11Z",
+   "name": "publish",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/111570093623",
+   "labels": [],
+   "runner_group_name": null
+  },
+  {
+   "id": 111570094486,
+   "run_id": 37248064711,
+   "workflow_name": "Docker Build, Test, and Publish",
+   "head_branch": "INFRA-548-runs-on-arc",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ-hiJlg",
+   "head_sha": "557e525bf929ae0a0ac03d9fc172ecb431077f91",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-05T00:36:11Z",
+   "started_at": "2026-10-05T00:36:11Z",
+   "completed_at": "2026-10-05T00:36:11Z",
+   "name": "merge",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/111570094486",
+   "labels": [
+    "arc-k8s"
+   ],
+   "runner_group_name": null
+  }
+ ]
+}

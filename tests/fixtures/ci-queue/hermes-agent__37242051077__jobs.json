@@ -1,0 +1,26 @@
+{
+ "total_count": 1,
+ "jobs": [
+  {
+   "id": 111552594163,
+   "run_id": 37242051077,
+   "workflow_name": "Skills Index Freshness Check",
+   "head_branch": "main",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ-Q2A8w",
+   "head_sha": "fa7673ed391d426da0294007409483c91d3e8b46",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-04T22:59:07Z",
+   "started_at": "2026-10-04T22:59:07Z",
+   "completed_at": "2026-10-04T22:58:58Z",
+   "name": "check-freshness",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/111552594163",
+   "labels": [
+    "ubuntu-latest"
+   ],
+   "runner_group_name": null
+  }
+ ]
+}

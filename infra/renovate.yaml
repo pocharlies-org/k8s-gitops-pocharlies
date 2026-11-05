@@ -1,0 +1,51 @@
+# renovate: Renovate self-hosted (DGX-389, C5 de la epica DGX-310 criterio 9).
+#
+# Mismo patron que infra/update-watch.yaml: los manifiestos viven en dgx-infra
+# (k8s/infrastructure/renovate/) y AQUI solo se declara la Application. NO en
+# dgx-infra/k8s/argocd/apps/: ese directorio no lo sincroniza nada.
+#
+# prune:true: sin el, los ConfigMaps huérfanos que deja cada configMapGenerator
+# (update-watch-registry-*, update-watch-tool-*) se quedan OutOfSync para siempre y
+# el diff de la app nunca se vacía. El ESTADO del contrato (ns, PV, PVC que montan
+# x86:/srv/nfs/k8s-warm/update-watch con attempts.jsonl) sigue a salvo: vive en git
+# y además lleva la anotación argocd.argoproj.io/sync-options: Prune=false
+# (dgx-infra PR #741). selfHeal:true reconcilia hacia git.
+#
+# ORDEN DE FUSION: primero el PR de dgx-infra (dgx-310/c5-renovate -> master);
+# hasta que ese path no exista en master, esta app da error de resolucion de path
+# (precedente update-watch, PR #366). El PR de gitops puede quedar OPEN hasta
+# entonces.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: renovate
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/dgx-infra/tree/master/k8s/infrastructure/renovate
+  labels:
+    e-dani.com/tier: infra
+    app.kubernetes.io/part-of: dgx-infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/dgx-infra
+    targetRevision: master
+    path: k8s/infrastructure/renovate
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: renovate
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+  revisionHistoryLimit: 10

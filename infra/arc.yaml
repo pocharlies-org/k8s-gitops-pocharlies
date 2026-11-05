@@ -59,6 +59,10 @@ spec:
           namespace: arc-systems
         githubConfigSecret: arc-github-app
         githubConfigUrl: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
+        # SC-2019: KS5 preferido, sin required (desborda a ubuntu, no queda Pending);
+        # sin fallback a sauvage (role=edge): md3 al 100 % de IO y 307 ms
+        # de escritura medidos el 07-10; el validate cayo alli y tardo el triple.
+        # Misma razon que arc-k8s. Si md3 se libera, se revierte.
         # Dedicated OpenClaw pool. The shared arc-k8s pool is organization-wide
         # and can be saturated by unrelated repos; beta deploys need deterministic
         # access to the in-cluster BuildKit/Harbor network.
@@ -73,16 +77,6 @@ spec:
           spec:
             affinity:
               nodeAffinity:
-                requiredDuringSchedulingIgnoredDuringExecution:
-                  nodeSelectorTerms:
-                    - matchExpressions:
-                        - key: node-pool
-                          operator: In
-                          values: [ks5-nvme]
-                    - matchExpressions:
-                        - key: role
-                          operator: In
-                          values: [edge]
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
                     preference:
@@ -106,18 +100,17 @@ spec:
                 key: pool
                 operator: Equal
                 value: dev
-              - effect: NoSchedule
-                key: role
-                operator: Equal
-                value: edge
             containers:
               - name: runner
-                image: ghcr.io/actions/actions-runner:2.335.1@sha256:08c30b0a7105f64bddfc485d2487a22aa03932a791402393352fdf674bda2c29
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
                 imagePullPolicy: IfNotPresent
                 command: ["/home/runner/run.sh"]
                 resources:
+                  # SC-2019: 500m = peso CFS minimo bajo contencion (ks5-cp-3 al 92 %);
+                  # el runner consume ~0,9 cores de media y el limit no estrangula
+                  # (0,5 % de periodos throttled). Se reserva lo que usa de verdad.
                   requests:
-                    cpu: "500m"
+                    cpu: "1"
                     memory: "1Gi"
                   limits:
                     cpu: "2"
@@ -156,16 +149,102 @@ spec:
           namespace: arc-systems
         githubConfigSecret: arc-github-app
         githubConfigUrl: https://github.com/pocharlies-org
-        # 2026-09-16 dani · pool a 6 y scheduling libre sobre amd64: los runners
-        # van al nodo amd64 con más hueco (ks5, sauvage, x86). Se asume a
-        # propósito la contención de I/O con Harbor/MinIO (md3) que motivó la
-        # restricción original a ks5-nvme.
-        maxRunners: 6
-        minRunners: 0
+        # 2026-09-22 dani · pool a 6 sobre los amd64 SANOS: ks5-cp-1/2/3 y x86.
+        # sauvage queda fuera otra vez, y no por afinidad sino por no tolerar su
+        # taint (role=edge) — es el unico nodo que lo lleva, asi que no hay que
+        # fijar hostnames.
+        #
+        # Deroga el "scheduling libre" del 16-09, que asumia a proposito la
+        # contencion de I/O de md3. Medido el 22-09 con la cola atascada (12 runs
+        # encolados, 6/6 slots ocupados):
+        #   - sauvage: iowait 31 % (media 24 h 7 %), md3 al 100 % de utilizacion;
+        #     arrancar un pod y escribir 200 MB NO termino en 120 s.
+        #   - ks5-cp-1: lo mismo en 0,34 s. Resto del cluster: iowait 0,1-3,4 %.
+        # Un runner que cae ahi no falla, se arrastra: un job llevaba 2 h (1 h
+        # solo en apt-get, 17 min en setup-go) secuestrando uno de los 6 slots.
+        # Por eso el pool entero se atasca aunque el controlador este sano.
+        #
+        # Matiz sobre el motivo original: Harbor ya NO vive en sauvage (esta en
+        # ks5-cp-2/3). Hoy a md3 lo castigan minio-0 + backup-minio-0 y los ~132
+        # pods de skirmshop. Si algun dia md3 deja de estar saturado, esto se
+        # revierte devolviendo la toleration de role=edge.
+        #
+        # 2026-09-24 dani · 6 -> 16 sobre los 4 amd64 SANOS (ks5-cp-1/2/3 + x86).
+        # Con 6 la cola de la org llego a ~79 runs encolados (el mas viejo 1 h
+        # 45 min) con los nodos holgados (ks5 al 27-41 % de CPU real, x86 28 %).
+        # sauvage se probo como desborde el mismo dia y NO vale: los 4 runners
+        # que cayeron ahi se quedaron en CreateContainerError ("context deadline
+        # exceeded") — containerd no llega a crear ni el initContainer con md3
+        # saturado. Ocupaban 4 plazas sin correr nada. Sigue fuera por taint.
+        # Riesgo aceptado: hasta 4 runners por ks5 (control-plane + etcd, 8
+        # cores). Si el apiserver o etcd se resienten, bajar maxRunners aqui.
+        #
+        # 2026-10-05 devops · INFRA-549 (P3 de INFRA-400). Medidas de la cola
+        # en INFRA-547 (docs/ci-queue-diagnosis-2026-10.md, 7 dias, 8128
+        # jobs): pool ARC p95 97 s, pico de concurrencia en ejecucion 28 con
+        # estos 16 (el pico suma arc-k8s + arc-openclaw + x86-hermes). Los
+        # 86401 s de hermes-agent son un label sin runner (INFRA-548), no
+        # falta de capacidad: no cuentan para dimensionar. El informe sugiere
+        # >=42 plazas; NO se sube con esa cifra: es aproximacion a nivel de
+        # run (el atajo run_started_at sesga el p95 a la baja) y esta en
+        # recuento exacto. El techo de aquella epoca (rafaga de prueba sobre
+        # ks5 con INFRA-123 abierto) quedo sin efecto el 28-10 con INFRA-960:
+        # el nodeSelector ya no deja caer runners en ks5. Se dejo el tope en
+        # 16 hasta la remedicion exacta (bloque 02-11, INFRA-1093).
+        #
+        # 2026-10-28 it · INFRA-960. atlantic entro el 2026-10-24 (OVH, 16 CPU /
+        # 128 GiB, workload=cpu, sin taint): el pool CPU dedicado que faltaba en
+        # septiembre. El pool sale de los control planes: nodeSelector
+        # workload=cpu deja ks5-cp-1/2/3 fuera (atlantic + x86 como unicos
+        # amd64 sin taint con esa etiqueta; sauvage sigue fuera por no tolerar
+        # role=edge). Los jobs de skirmshop-labels se pasaban del timeout de
+        # 15 min con los cp al 115-120 % de CPU (PR #161, tres veces el 20-10).
+        # Desde aqui ks5 ya no dimensiona el pool: la rafaga de INFRA-549 no
+        # puede estresarlo y la condicion de techo quedo obsoleta.
+        #
+        # 2026-11-02 it · INFRA-1093 (remedicion exacta, criterio C3 de
+        # INFRA-549). Ventana 25-10 23:26 -> 01-11 23:26 UTC medida con la API
+        # de jobs por run (sin el atajo run_started_at, que sesga el p95 a la
+        # baja): 13253 jobs; pool ARC p95 212 s, espera maxima 3887 s, pico de
+        # concurrencia en ejecucion 31 (suma arc-k8s + arc-openclaw +
+        # arc-skills-eval + x86-hermes; los otros tres topados a 2+2+1, luego
+        # arc-k8s solo >=26). Con 16 el pool quedo clavado desired==max durante
+        # >3 h el 01-11 (SC-4032) con atlantic al 35 % y x86 al 43 % de CPU
+        # real: habia holgura. Techo vigente: la capacidad de atlantic + x86
+        # (workload=cpu, 32 cores), no ks5. 16 -> 32: cubre el pico medido con
+        # margen y cabe en los nodos (a pool lleno, ~0,8 cores reales por
+        # runner => ~80 % de 32 cores). El >=47 que sugiere el informe
+        # (1,5 x pico) no se usa: excede la capacidad de los dos nodos CPU.
+        # Si la espera vuelve con los nodos por encima del 85 %, la respuesta
+        # es otro nodo, no mas runners.
+        maxRunners: 32
+        # 2026-11-03 devops · INFRA-334 (p95 del job de review, criterio 6 de la
+        # epica INFRA-298; el defecto medido por qa era cola + pull, no el motor).
+        # Medido con la API de jobs por run sobre los pilotos k8s-litellm y
+        # skirmshop-labels (n=42 jobs "Review del PR (PR-Agent)", 31-10 -> 02-11,
+        # re-ejecuciones excluidas): espera hasta iniciar el job mediana 33,5 s /
+        # p95 139 s (runner frio: cada job pagaba pod + registro, minRunners era
+        # 0) y pull de la imagen del motor dentro del dind efimero mediana 23,5 s
+        # / p95 122 s, con dos runs clavados en el timeout de 240 s del paso
+        # "Wait for the image pull". El motor cumple (p95 98 s). minRunners 0 -> 2:
+        # dos runners calientes y registrados de forma permanente; el job entra al
+        # instante. Coste: 2 x (100m+50m CPU, 1,5 Gi) de requests sobre atlantic +
+        # x86, despreciable frente al tope de 32. Va junto al sidecar
+        # warm-pr-agent de abajo, que es lo que hace que el runner caliente
+        # tambien tenga la imagen del motor en su dind.
+        minRunners: 2
         runnerScaleSetName: arc-k8s
         template:
           spec:
             affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    # Doble candado con el nodeSelector: los ks5-cp-* no llevan
+                    # taint, el selector es la unica barrera (INFRA-960).
+                    - matchExpressions:
+                        - key: node-role.kubernetes.io/control-plane
+                          operator: DoesNotExist
               podAntiAffinity:
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
@@ -177,23 +256,18 @@ spec:
                       topologyKey: kubernetes.io/hostname
             nodeSelector:
               kubernetes.io/arch: amd64
+              workload: cpu
             tolerations:
               - effect: PreferNoSchedule
                 key: pool
                 operator: Equal
                 value: dev
-              # 2026-09-16: permitir colocación en sauvage (role=edge) tras
-              # quitar la afinidad obligada a ks5-nvme.
-              - effect: NoSchedule
-                key: role
-                operator: Equal
-                value: edge
             # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
             # container. containerMode must stay unset when that sidecar is
             # customized, otherwise Helm silently discards its resources.
             initContainers:
               - name: init-dind-externals
-                image: ghcr.io/actions/actions-runner:2.335.1@sha256:08c30b0a7105f64bddfc485d2487a22aa03932a791402393352fdf674bda2c29
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
                 imagePullPolicy: IfNotPresent
                 # Keep command and args explicit.  The pre-GitOps Helm manager
                 # still owns the args field in the live ARS; a full command
@@ -242,9 +316,236 @@ spec:
                     # steady-state footprint and retain the 2-core burst limit.
                     cpu: "50m"
                     memory: "512Mi"
+                    # INFRA-972: the build cache and the image layers of DinD
+                    # land in its writable layer, on the node's root disk --
+                    # the same md3 (878 G) Harbor shares on ks5-cp-1/2/3.
+                    # Unbounded, one release build took ks5-cp-3 from 77 % to
+                    # 98.6 % in 7 h (22-10) and Harbor pushes timed out. With
+                    # a limit kubelet evicts the runner that overflows (the
+                    # job fails and retries) instead of leaving the node full.
+                    ephemeral-storage: "10Gi"
                   limits:
                     cpu: "2"
                     memory: "4Gi"
+                    ephemeral-storage: "40Gi"
+                securityContext:
+                  privileged: true
+                startupProbe:
+                  exec:
+                    command: ["docker", "info"]
+                  initialDelaySeconds: 0
+                  failureThreshold: 24
+                  periodSeconds: 5
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+                  - name: dind-externals
+                    mountPath: /home/runner/externals
+              # INFRA-334 (p95 del job de review, criterio 6 de INFRA-298): el
+              # motor pr-agent corre con `docker run` contra el dind efimero de
+              # este pod, que nace vacio: cada job pagaba el pull de la imagen
+              # pineada (medido 02-11, n=42: p95 122 s, dos runs al timeout de
+              # 240 s del paso "Wait for the image pull" del workflow; el pull
+              # pesa 253 MB y desde atlantic cruza el WAN hasta Harbor, en ks5).
+              # Este sidecar la trae en cuanto dockerd esta listo (arranca tras
+              # la sonda de arranque de dind), en PARALELO con el registro del
+              # runner: con minRunners > 0 el runner caliente ya la tiene
+              # cuando llega el job, y en el camino frio el pull solapa con el
+              # arranque en vez de sumarse a la espera. Best-effort y acotado
+              # (timeout 240 s + `|| true`): si Harbor no responde, el runner
+              # arranca igual y el job paga el pull en su paso de siempre — el
+              # comportamiento previo, sin modo de fallo nuevo. Sin
+              # credenciales: el proyecto homelab/pr-agent se sirve anonimo en
+              # Harbor (medido 02-11, crane pull del digest sin login, 253 MB
+              # en 19 s por LAN). El digest debe ir en paso con PR_AGENT_IMAGE
+              # de .github/workflows/reusable-pr-review.yml (main) y con la
+              # entrada pr-agent de dgx-infra ci/update-watch.yaml; el bump de
+              # imagen es cambiar las dos. Solo en arc-k8s: arc-openclaw y
+              # arc-skills-eval no corren el motor pr-agent.
+              - name: warm-pr-agent
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                # Sidecar nativo (restartPolicy: Always): el contenedor runner
+                # NO espera a que termine, y el pod tampoco. Termina solo tras
+                # el pull (o el timeout).
+                restartPolicy: Always
+                command: ["bash", "-c"]
+                args:
+                  - |
+                    export DOCKER_HOST=unix:///var/run/docker.sock
+                    timeout 240 docker pull "$PR_AGENT_IMAGE" >/dev/null 2>&1 || true
+                env:
+                  - name: PR_AGENT_IMAGE
+                    value: harbor.e-dani.com/homelab/pr-agent:0.46.0-github_action@sha256:42c7833a3fbdf354387ab3469fe67c34e11b38f9b90370553398a36b47ad6bc0
+                resources:
+                  requests:
+                    cpu: "10m"
+                    memory: "32Mi"
+                  limits:
+                    # El pull lo ejecuta el CLI contra el daemon: lo que pesa
+                    # (las capas) aterriza en la capa escribible del sidecar
+                    # dind, acotada arriba (INFRA-972), no aqui.
+                    cpu: "1"
+                    memory: "256Mi"
+                volumeMounts:
+                  - name: dind-sock
+                    mountPath: /var/run
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["/home/runner/run.sh"]
+                env:
+                  - name: DOCKER_HOST
+                    value: unix:///var/run/docker.sock
+                  - name: RUNNER_WAIT_FOR_DOCKER_IN_SECONDS
+                    value: "120"
+                resources:
+                  requests:
+                    # ARC runners are ephemeral and burst-bound. A small CPU
+                    # request lets two anti-affine runners schedule on KS5;
+                    # the unchanged 2-core limit protects build throughput.
+                    cpu: "100m"
+                    memory: "1Gi"
+                    # INFRA-972: checkout and build context live in the `work`
+                    # emptyDir, on the node's root disk. Bounded so one job
+                    # cannot wedge md3.
+                    ephemeral-storage: "2Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                    ephemeral-storage: "10Gi"
+                volumeMounts:
+                  - name: work
+                    mountPath: /home/runner/_work
+                  - name: dind-sock
+                    mountPath: /var/run
+            volumes:
+              - name: work
+                emptyDir: {}
+              - name: dind-sock
+                emptyDir: {}
+              - name: dind-externals
+                emptyDir: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-runners
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+---
+# arc-skills-eval: scale set propio de la evaluacion de skills externas
+# (SC-3635, security 2026-10-29; decided por security, redactado sobre el
+# patron DinD de arc-k8s). Corre la evaluacion de SC-1823/SC-3602: codigo de
+# terceros dentro de DinD, con el sandbox `docker run --network none`.
+#
+# FIJADO A ATLANTIC (node-pool=ovh-heavy) a proposito: si atlantic cae, los
+# jobs hacen cola (Pending) en vez de desbordar a otro nodo — que el codigo no
+# confiable solo toque este nodo es parte del aislamiento. Su egress lo acota la
+# NetworkPolicy `arc-skills-eval-egress` (k8s-infra, networking/arc-skills-eval/):
+# DNS + LiteLLM:4000 + internet publico (GitHub); ks5-cp-*, LAN y el resto del
+# cluster, fuera. El namespace es propio (no arc-runners) porque las policies
+# de egreso se unen y en arc-runners toda pod hereda ya la baseline del pool
+# compartido; no se puede restar.
+#
+# El githubConfigSecret (arc-github-app) lo materializa aqui un ExternalSecret
+# del mismo item de 1Password (networking/arc-skills-eval/ en k8s-infra).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-skills-eval
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-skills-eval
+      values: |
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-app
+        githubConfigUrl: https://github.com/pocharlies-org/k8s-skills-catalog-pocharlies
+        # 2026-10-29 security · SC-3635. Dos plazas: evaluar-skill.yml corre dos
+        # jobs en serie (sandbox y juez) y pueden coincidir dos PRs del catalogo
+        # a la vez; con mas, hacen cola, no fallan. atlantic (16 CPU / 128 GiB)
+        # sobra: el sandbox de evaluacion es ligero.
+        maxRunners: 2
+        minRunners: 0
+        runnerScaleSetName: arc-skills-eval
+        template:
+          spec:
+            affinity:
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
+            # Fijado duro al pool de atlantic (SC-3635): unico amd64 con esta
+            # etiqueta hoy. Sin tolerations: atlantic no lleva taint.
+            nodeSelector:
+              kubernetes.io/arch: amd64
+              node-pool: ovh-heavy
+            # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
+            # container. containerMode must stay unset when that sidecar is
+            # customized, otherwise Helm silently discards its resources.
+            initContainers:
+              - name: init-dind-externals
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["cp"]
+                args: ["-r", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+                resources:
+                  requests:
+                    cpu: "5m"
+                    memory: "32Mi"
+                  limits:
+                    cpu: "100m"
+                    memory: "128Mi"
+                volumeMounts:
+                  - name: dind-externals
+                    mountPath: /home/runner/tmpDir
+              - name: dind
+                image: docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c
+                imagePullPolicy: IfNotPresent
+                args:
+                  - dockerd
+                  - --host=unix:///var/run/docker.sock
+                  - --group=$(DOCKER_GROUP_GID)
+                  # Mismo motivo que en arc-k8s: el bridge de dockerd queda en
+                  # 1500 y la red de pods va a 1230 (flannel vxlan sobre
+                  # tailscale0). Medido en atlantic el 2026-10-29: eth0=1230.
+                  - --mtu=1230
+                env:
+                  - name: DOCKER_GROUP_GID
+                    value: "123"
+                restartPolicy: Always
+                resources:
+                  requests:
+                    cpu: "50m"
+                    memory: "512Mi"
+                    ephemeral-storage: "10Gi"
+                  limits:
+                    cpu: "2"
+                    memory: "4Gi"
+                    ephemeral-storage: "40Gi"
                 securityContext:
                   privileged: true
                 startupProbe:
@@ -262,7 +563,7 @@ spec:
                     mountPath: /home/runner/externals
             containers:
               - name: runner
-                image: ghcr.io/actions/actions-runner:2.335.1@sha256:08c30b0a7105f64bddfc485d2487a22aa03932a791402393352fdf674bda2c29
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
                 imagePullPolicy: IfNotPresent
                 command: ["/home/runner/run.sh"]
                 env:
@@ -272,14 +573,13 @@ spec:
                     value: "120"
                 resources:
                   requests:
-                    # ARC runners are ephemeral and burst-bound. A small CPU
-                    # request lets two anti-affine runners schedule on KS5;
-                    # the unchanged 2-core limit protects build throughput.
                     cpu: "100m"
                     memory: "1Gi"
+                    ephemeral-storage: "2Gi"
                   limits:
                     cpu: "2"
                     memory: "4Gi"
+                    ephemeral-storage: "10Gi"
                 volumeMounts:
                   - name: work
                     mountPath: /home/runner/_work
@@ -294,7 +594,7 @@ spec:
                 emptyDir: {}
   destination:
     server: https://kubernetes.default.svc
-    namespace: arc-runners
+    namespace: arc-skills-eval
   syncPolicy:
     automated:
       selfHeal: true

@@ -1,0 +1,40 @@
+# INFRA-940: Hindsight (memoria de agentes; fase 0 de la migración del brain).
+# Multi-source, como apps/langfuse.yaml:
+#   fuente 1 = chart upstream ghcr.io/vectorize-io/charts/hindsight (fijado), values de la fuente 2.
+#   fuente 2 = pocharlies-org/k8s-hindsight-pocharlies: `$values` (k8s/values.yaml, fuera de `path`)
+#              y k8s/platform (ExternalSecret Connect y NetworkPolicy).
+# La base `hindsight` y su rol viven en k8s-infra-pocharlies (databases/postgres-shared).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hindsight
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-hindsight-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  sources:
+    - repoURL: ghcr.io/vectorize-io/charts
+      chart: hindsight
+      targetRevision: 1.0.0
+      helm:
+        releaseName: hindsight
+        valueFiles:
+          - $values/k8s/values.yaml
+    - repoURL: https://github.com/pocharlies-org/k8s-hindsight-pocharlies
+      targetRevision: main
+      ref: values
+      path: k8s/platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: hindsight
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

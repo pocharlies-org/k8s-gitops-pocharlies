@@ -16,6 +16,12 @@
 # no `helm get values`.
 #
 # `archiveOnDelete: true` protege los datos al borrar un PVC.
+#
+# INFRA-1102 (security, 02-11): el provisioner monta el export /srv/nfs/k8s-warm
+# del x86. Se ancla a un nodo de casa (ubuntu es el unico lan+amd64) para que ese
+# export pueda cerrarse a los nodos de OVH/cloud: ningun pod de OVH monta ya
+# nfs-warm. El server sigue siendo el nombre MagicDNS (resuelve igual de bien
+# desde casa).
 nfs:
   path: /srv/nfs/k8s-warm
   server: x86.taile0ad27.ts.net
@@ -23,3 +29,6 @@ storageClass:
   archiveOnDelete: true
   name: nfs-warm
   provisionerName: cluster.local/nfs-warm
+nodeSelector:
+  topology: lan
+  kubernetes.io/arch: amd64

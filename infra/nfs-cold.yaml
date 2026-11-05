@@ -51,3 +51,9 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      # INFRA-799: el Deployment vivo conserva el volumen `nfs` inline que puso el
+      # `helm install` de 2026-05 (manager "helm"). El chart 4.0.18 renderiza ese
+      # mismo volumen como persistentVolumeClaim y ServerSideApply no puede retirar
+      # un campo que posee otro manager -> el apiserver rechaza el merge. Replace
+      # hace un PUT completo que barre el campo huérfano; el rollout es rolling.
+      - Replace=true

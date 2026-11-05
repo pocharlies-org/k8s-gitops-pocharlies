@@ -1,0 +1,31 @@
+# AlphaLink: la web pública alphalinkcrossfit.com (WordPress + mysql), antes en
+# el docker del droplet. SC-2659. Corre en el nodo dedicado `alphalink`; el
+# manifiesto vive en el repo del producto y la ruta pública en k8s-infra.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: wordpress-alphalink
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/wordpress-alphalink
+  labels:
+    e-dani.com/tier: app
+    app.kubernetes.io/part-of: wordpress-alphalink
+  finalizers:
+    - resources-finalizer.argocd.argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/wordpress-alphalink
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: alphalink
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

@@ -44,9 +44,9 @@ velero restore create --from-backup <backup-name> \
   --namespace-mappings <original-ns>:<new-ns> \
   --wait
 
-# Example: restore vault to vault-restore for inspection
+# Example: restore skirmshop to skirmshop-restore for inspection
 velero restore create --from-backup daily-critical-20260520-030000 \
-  --namespace-mappings vault:vault-restore \
+  --namespace-mappings skirmshop:skirmshop-restore \
   --wait
 ```
 
@@ -93,5 +93,4 @@ kubectl get pvc -n <namespace>
 |---|---|
 | PVC stuck in Pending | Longhorn CSI snapshots may need manual trigger: `kubectl describe volumesnapshot` |
 | Restore PartiallyFailed | Check `velero restore describe --details`; usually harmless CRD warnings |
-| Vault starts sealed | Expected — unseal with 3/5 keys from 1Password (`k3s • Vault Unseal Keys`) |
 | ArgoCD shows OutOfSync after restore | Expected — ArgoCD will re-sync from Git. Let it reconcile before manually editing |

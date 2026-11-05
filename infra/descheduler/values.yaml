@@ -1,0 +1,146 @@
+# Descheduler: devuelve al x86 (`ubuntu`) lo que tuvo que saltar a otro nodo.
+#
+# 29-09-2026, tras un corte de luz en el x86: los servicios que prefieren
+# `ubuntu` (por latencia a la LAN y a los Sparks) llevan ahora
+# `preferredDuringScheduling` hacia `ubuntu` y pueden caer en `sauvage` si el
+# x86 no esta. El scheduler NO los devuelve solo cuando el x86 vuelve: por eso
+# existe esto. Cada 2 min evalua RemovePodsViolatingNodeAffinity en modo
+# `preferred` y desaloja el pod que podria estar en un nodo con mejor
+# preferencia.
+#
+# Opt-in por etiqueta: SOLO toca pods con `e-dani.com/vuelve-a-x86: "true"`.
+# Desde INFRA-934 hay un segundo perfil, `cps-a-sauvage`, que sí reequilibra
+# carga de trabajo desde los cps hacia sauvage (ver abajo).
+#
+# - nodeFit: true -> solo desaloja si el pod cabe en otro nodo (taints,
+#   afinidad, requests). Con el x86 NotReady lleva el taint
+#   node.kubernetes.io/unreachable:NoSchedule, asi que no desaloja nada
+#   hasta que vuelve.
+# - Respeta los PDB: con maxUnavailable 1 mueve una replica por pasada.
+# - Desde DGX-1090 (18-10) litellm y su Valkey ya no participan: viven solo en
+#   `ubuntu`. Queda plan-gateway.
+kind: CronJob
+schedule: "*/2 * * * *"
+successfulJobsHistoryLimit: 1
+failedJobsHistoryLimit: 1
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+deschedulerPolicy:
+  profiles:
+    - name: vuelve-a-x86
+      pluginConfig:
+        - name: DefaultEvictor
+          args:
+            nodeFit: true
+        - name: RemovePodsViolatingNodeAffinity
+          args:
+            nodeAffinityType:
+              - preferredDuringSchedulingIgnoredDuringExecution
+            labelSelector:
+              matchLabels:
+                e-dani.com/vuelve-a-x86: "true"
+      plugins:
+        deschedule:
+          enabled:
+            - RemovePodsViolatingNodeAffinity
+
+    # INFRA-934 (18-10): los cps llevan ~100 pods de workload con requests de
+    # CPU al 98-100 % mientras sauvage tiene ~38 núcleos libres. Sin taints
+    # (decisión de Dani): LowNodeUtilization expulsa de los nodos por encima de
+    # targetThresholds hacia los que están por debajo de thresholds, hasta
+    # dejarlos bajo el target — auto-limitante. Corregida contra la API
+    # v1alpha2 real de v0.36.0 y verificada con el binario real y el informer
+    # de verdad (el 70-qa.md de qa cayó en dos artefactos: campos de v1alpha1,
+    # y `--dry-run` en v0.36.0 clasifica con el caché sandbox sin sincronizar,
+    # uso 0). Reglas del plugin: sobre el target basta con SUPERARLO en UN
+    # recurso; para ser destino hay que estar por debajo en TODOS.
+    # Umbrales medidos (usage de requests, no dry-run): cps cpu 93-100 /
+    # mem 34-42; ubuntu cpu 88-97 segun la hora / mem ~90; sauvage cpu 18 /
+    # mem 26; Sparks cpu 3-21 / mem 15-19. Con target {cpu: 90, memory: 90}
+    # los cps son fuente (basta superar en UN recurso). ubuntu puede entrar en
+    # la fuente en sus picos (>90): desalojarle a él también es correcto — está
+    # saturado de verdad; si eso provocara churn con vuelve-a-x86, opt-in por
+    # etiqueta con DefaultEvictor.labelSelector. Destino: sauvage — los Sparks
+    # y alphalink llevan taint dedicated y nodeFit ya los excluye para pods sin
+    # toleración. nodeFit además deja quietos los pods que no caben en sauvage
+    # (taint role=edge): solo se mueve lo que puede.
+    # evictionLimits.node = 5 por nodo y pasada (cada 2 min): migración suave.
+    # `evictableNamespaces` SOLO filtra qué se desaloja; el uso del nodo se
+    # cuenta con todos los pods, así que los cps sí se ven saturados.
+    - name: cps-a-sauvage
+      pluginConfig:
+        - name: DefaultEvictor
+          args:
+            nodeFit: true
+            # SC-2844 (28-10): los CronJobs cortos (reembed-truncated ~10 s,
+            # brain-windows, ...) caían bajo el desalojo: evicted a los
+            # segundos de arrancar -> Job Failed (backoffLimit 0) -> alerta
+            # K8sCronJobFailed (30 reaperturas de SC-2608). Un pod de batch
+            # no es carga que reequilibrar: se va sola. Con minPodAge los
+            # pods de menos de 30 min no son candidatos; los deployments
+            # asentados —el objetivo real del perfil— no se enteran.
+            minPodAge: 30m
+        - name: LowNodeUtilization
+          args:
+            thresholds:
+              cpu: 60
+              memory: 60
+            targetThresholds:
+              cpu: 90
+              memory: 90
+            evictionLimits:
+              node: 5
+            evictableNamespaces:
+              exclude:
+                - kube-system
+                - longhorn-system
+                - argocd
+                - cert-manager
+                - external-secrets-operator
+                - metallb-system
+                - keda
+                - kyverno
+                - velero
+                - cnpg-system
+                - databases
+                - keycloak
+                - harbor
+                - arc-runners
+                - arc-systems
+                - onepassword-connect
+                - minio
+                - backup-hub
+                # SC-2852 (28-10): `monitoring` faltaba y LowNodeUtilization
+                # desalojaba kube-state-metrics de ks5-cp-1; el scheduler lo
+                # devolvía al cp (tolera el taint) y el ciclo se repetía cada
+                # pasada de 2 min. Cada reinicio de KSM deja la serie
+                # kube_cronjob_status_last_successful_time sin scrape, y las
+                # alertas Sii*CronStale (cláusula absent()) disparaban incidentes
+                # critical de fiscal con los cron sanos (29 IPs de pod en 46 h).
+                # Singleton de observabilidad: no se desaloja, como el resto.
+                - monitoring
+                # SC-2776 (28-10): ping-pong de desalojos. Los pods de control-nexus
+                # (worker de Image Studio, ui, spark-bot) al desalojarlos vuelven a un
+                # nodo fuente (ubuntu por su afinidad preferida lan, o los propios cps),
+                # y la pasada de cada 2 min los vuelve a desalojar: el worker del worker
+                # loop no llega a consolidar tick y dispara ImageStudioWorkerDown /
+                # Krea2TrainerWorkerDown (incidentos IMG de Keep del 19/10 y del 27/10).
+                # Además son servicios de latencia LAN (afinidad a ubuntu por diseño):
+                # moverlos a sauvage (OVH) es contraproducente para ellos.
+                - control-nexus
+                # INFRA-1103 (02-11): ping-pong de NATS (whatsapp-mcp-nats). Su nodeSelector
+                # node-pool=ks5-nvme lo devuelve a ks5-cp-1 y al cumplir minPodAge se desaloja
+                # otra vez: un reinicio cada 30 min desde la caída del x86 del 01-11 (22 en un
+                # día). Es NATS core: lo que se publica durante cada reinicio no llega a
+                # correo-bridge ni a los demás suscriptores.
+                - whatsapp-mcp
+      plugins:
+        balance:
+          enabled:
+            - LowNodeUtilization

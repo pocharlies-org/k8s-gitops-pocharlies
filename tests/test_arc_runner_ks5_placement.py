@@ -3,7 +3,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNNER_IMAGE = "ghcr.io/actions/actions-runner:2.335.1@sha256:08c30b0a7105f64bddfc485d2487a22aa03932a791402393352fdf674bda2c29"
+RUNNER_IMAGE = "ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4"
 DIND_IMAGE = "docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c"
 
 
@@ -13,40 +13,65 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.openclaw_values = self.manifest.split("name: arc-openclaw", 1)[1].split("---", 1)[0]
         self.shared_values = self.manifest.split("name: arc-k8s", 1)[1]
 
-    def test_shared_runner_has_free_amd64_scheduling(self) -> None:
-        """arc-k8s se coloca en cualquier nodo amd64 — sin nodeAffinity.
+    def test_shared_runner_is_pinned_to_the_cpu_pool(self) -> None:
+        """arc-k8s va al pool CPU dedicado (INFRA-960, 2026-10-28).
 
-        Reescrito 2026-09-16 (decision de Dani). Sustituye al pinning a
-        ks5-nvme (2026-08-13): el pool se amplió a 6 y los runners van al
-        nodo amd64 con mas hueco (ks5, sauvage, x86). Se asume a proposito la
-        contencion de I/O con el MinIO de Harbor sobre md3 que motivo la
-        restriccion original. arc-openclaw si conserva su pinning a KS5 con
-        fallback a edge.
+        nodeSelector workload=cpu (atlantic + x86) y nodeAffinity required que
+        excluye los control planes: ks5-cp-* no llevan taint y los 16 runners
+        los saturaban (115-120 % de CPU), dejando los jobs de skirmshop-labels
+        fuera de su timeout de 15 min. A sauvage se le sigue dejando fuera no
+        tolerando su taint (test_shared_pool_does_not_tolerate_edge). No se fija
+        ningun hostname concreto: el pool se elige por etiqueta.
         """
         runner_values = self.shared_values.split("runnerScaleSetName: arc-k8s", 1)[1]
         runner_values = runner_values.split("tolerations:", 1)[0]
 
         self.assertIn("kubernetes.io/arch: amd64", runner_values)
+        self.assertIn("workload: cpu", runner_values)
         self.assertIn("preferredDuringSchedulingIgnoredDuringExecution:", runner_values)
+        self.assertIn("requiredDuringSchedulingIgnoredDuringExecution:", runner_values)
+        self.assertIn("node-role.kubernetes.io/control-plane", runner_values)
+        self.assertIn("operator: DoesNotExist", runner_values)
         self.assertNotIn("key: node-pool", runner_values)
-        self.assertNotIn("requiredDuringSchedulingIgnoredDuringExecution:", runner_values)
         self.assertNotIn("values: [ks5-nvme]", runner_values)
         self.assertNotIn("kubernetes.io/hostname:", runner_values)
-        self.assertNotIn("workload: cpu", runner_values)
 
-    def test_edge_node_is_tolerated_by_both_pools(self) -> None:
-        """arc-openclaw conserva el fallback a edge; arc-k8s lo tolera desde 2026-09-16."""
-        self.assertIn("key: role", self.openclaw_values)
-        self.assertIn("value: edge", self.openclaw_values)
-        self.assertIn("values: [edge]", self.openclaw_values)
+    def test_openclaw_prefers_ks5_without_hard_pinning_or_edge(self) -> None:
+        """arc-openclaw (SC-2019): KS5 preferido, sin required (desborda a ubuntu
+        en vez de quedar Pending) y sin toleration de edge (sauvage, md3 saturado)."""
+        self.assertIn("preferredDuringSchedulingIgnoredDuringExecution:", self.openclaw_values)
+        self.assertIn("values: [ks5-nvme]", self.openclaw_values)
+        self.assertNotIn("requiredDuringSchedulingIgnoredDuringExecution:", self.openclaw_values)
+        self.assertNotIn("values: [edge]", self.openclaw_values)
+        self.assertNotIn("value: edge", self.openclaw_values)
+        self.assertNotIn("key: role", self.openclaw_values)
 
-        self.assertIn("key: role", self.shared_values)
-        self.assertIn("value: edge", self.shared_values)
+    def test_shared_pool_does_not_tolerate_edge(self) -> None:
+        """arc-k8s NO tolera role=edge, y por eso no aterriza en sauvage.
 
-    def test_runner_pool_caps_backlog_drain_at_six(self) -> None:
-        self.assertIn("maxRunners: 6", self.shared_values)
-        self.assertNotIn("maxRunners: 3", self.shared_values)
-        self.assertNotIn("maxRunners: 4", self.manifest)
+        22-09: md3 al 100 %, escribir 200 MB no termino en 120 s (0,34 s en
+        ks5-cp-1). 24-09: se probo como desborde con nodeAffinity preferida y
+        el scheduler le mando 4 runners de golpe, que se quedaron en
+        CreateContainerError ("context deadline exceeded") ocupando 4 plazas.
+        Es una toleration y no una nodeAffinity a proposito: asi vale para
+        cualquier nodo edge futuro. Si md3 deja de estar saturado, se revierte.
+        """
+        runner_tolerations = self.shared_values.split("tolerations:", 1)[1]
+        runner_tolerations = runner_tolerations.split("initContainers:", 1)[0]
+        self.assertNotIn("value: edge", runner_tolerations)
+        self.assertNotIn("key: role", runner_tolerations)
+        # la del x86 (pool=dev, PreferNoSchedule) SI se conserva: ese nodo va bien
+        self.assertIn("key: pool", runner_tolerations)
+
+    def test_runner_pool_caps_backlog_drain_at_thirty_two(self) -> None:
+        """32 plazas sobre el pool cpu (remedicion exacta INFRA-1093, 02-11);
+        ver el comentario en infra/arc.yaml."""
+        # Anclados al fin de linea: "maxRunners: 32" contiene "maxRunners: 3",
+        # y un assert de subcadena a secas se auto-contradice con dos digitos.
+        self.assertIn("maxRunners: 32\n", self.shared_values)
+        for stale in ("maxRunners: 16", "maxRunners: 8", "maxRunners: 6", "maxRunners: 3"):
+            self.assertNotIn(f"{stale}\n", self.shared_values)
+        self.assertNotIn("maxRunners: 4\n", self.manifest)
 
     def test_openclaw_has_dedicated_runner_pool(self) -> None:
         self.assertIn("https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies", self.openclaw_values)
@@ -62,9 +87,14 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertIn("imagePullPolicy: IfNotPresent", self.openclaw_values)
 
     def test_all_runner_and_dind_images_are_digest_pinned(self) -> None:
-        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 3)
-        self.assertEqual(self.manifest.count(f"image: {DIND_IMAGE}"), 1)
-        self.assertEqual(self.manifest.count("imagePullPolicy: IfNotPresent"), 4)
+        # 2026-10-29 security · SC-3635: anade arc-skills-eval (runner +
+        # init-dind-externals comparten imagen de runner, dind la suya).
+        # 2026-11-03 devops · INFRA-334: +1 runner image y +1 IfNotPresent — el
+        # sidecar warm-pr-agent de arc-k8s reutiliza la imagen de runner (trae
+        # el CLI de docker); sigue sin anadir imagen de dind nueva.
+        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 6)
+        self.assertEqual(self.manifest.count(f"image: {DIND_IMAGE}"), 2)
+        self.assertEqual(self.manifest.count("imagePullPolicy: IfNotPresent"), 8)
         self.assertNotIn("image: docker:dind", self.manifest)
         self.assertNotIn("image: ghcr.io/actions/actions-runner:2.335.1\n", self.manifest)
 
@@ -142,6 +172,64 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         verifier = ROOT / "scripts/verify_arc_runner_render.sh"
         self.assertTrue(verifier.is_file())
         self.assertIn("scripts/verify_arc_runner_render.sh", workflow)
+
+
+class ArcSkillsEvalPlacementTest(unittest.TestCase):
+    """SC-3635 (security, 2026-10-29): el pool de evaluacion de skills externas.
+
+    Codigo de terceros en DinD: fijado a atlantic (node-pool=ovh-heavy) y con
+    su egress acotado por la NetworkPolicy arc-skills-eval-egress (k8s-infra).
+    Que el job haga cola si atlantic cae es el comportamiento querido, no un
+    fallo: el codigo no confiable no debe aterrizar en otro nodo.
+    """
+
+    def setUp(self) -> None:
+        import yaml
+
+        documents = yaml.safe_load_all((ROOT / "infra/arc.yaml").read_text())
+        self.application = next(
+            d
+            for d in documents
+            if isinstance(d, dict)
+            and d.get("kind") == "Application"
+            and d["metadata"]["name"] == "arc-skills-eval"
+        )
+        self.values = yaml.safe_load(self.application["spec"]["source"]["helm"]["values"])
+
+    def test_repo_scoped_to_the_skills_catalog(self) -> None:
+        self.assertEqual(
+            self.values["githubConfigUrl"],
+            "https://github.com/pocharlies-org/k8s-skills-catalog-pocharlies",
+        )
+        self.assertEqual(self.values["runnerScaleSetName"], "arc-skills-eval")
+
+    def test_pinned_hard_to_the_ovh_heavy_pool(self) -> None:
+        spec = self.values["template"]["spec"]
+        self.assertEqual(
+            spec["nodeSelector"],
+            {"kubernetes.io/arch": "amd64", "node-pool": "ovh-heavy"},
+        )
+        # Sin required nodeAffinity: el nodeSelector ya es el candado duro
+        # (atlantic es el unico nodo con la etiqueta). Y sin tolerar edge.
+        self.assertNotIn(
+            "requiredDuringSchedulingIgnoredDuringExecution",
+            str(spec.get("affinity", {})),
+        )
+        self.assertNotIn("value: edge", str(spec.get("tolerations", [])))
+
+    def test_two_slots_serial_jobs(self) -> None:
+        self.assertEqual(self.values["maxRunners"], 2)
+        self.assertEqual(self.values["minRunners"], 0)
+
+    def test_dind_pattern_like_shared_pool(self) -> None:
+        # containerMode sigue sin usarse (el chart descartaria los resources
+        # del sidecar customizado); dind con --mtu=1230 e imagenes pineadas.
+        self.assertNotIn("containerMode", self.values)
+        text = self.application["spec"]["source"]["helm"]["values"]
+        self.assertIn("--mtu=1230", text)
+        self.assertIn(f"image: {RUNNER_IMAGE}", text)
+        self.assertIn(f"image: {DIND_IMAGE}", text)
+        self.assertIn("privileged: true", text)
 
 
 if __name__ == "__main__":

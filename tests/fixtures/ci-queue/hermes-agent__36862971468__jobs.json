@@ -1,0 +1,73 @@
+{
+ "total_count": 2,
+ "jobs": [
+  {
+   "id": 110577168856,
+   "run_id": 36862971468,
+   "workflow_name": "Nix flake check",
+   "head_branch": "sc-1495-title-generator-copy-context",
+   "run_attempt": 2,
+   "node_id": "CR_kwDOUlcXHs8AAAAZvumx2A",
+   "head_sha": "48320a1e5ea6acb04b477b96086915c47513b034",
+   "status": "completed",
+   "conclusion": "success",
+   "created_at": "2026-10-01T20:47:26Z",
+   "started_at": "2026-10-01T12:37:16Z",
+   "completed_at": "2026-10-01T12:37:25Z",
+   "name": "Detect affected areas",
+   "steps": [
+    {
+     "name": "Set up job",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Detect affected areas",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Post Run actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd",
+     "status": "completed",
+     "conclusion": "success"
+    },
+    {
+     "name": "Complete job",
+     "status": "completed",
+     "conclusion": "success"
+    }
+   ],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/110577168856",
+   "labels": [
+    "ubuntu-latest"
+   ],
+   "runner_group_name": "GitHub Actions"
+  },
+  {
+   "id": 110577169909,
+   "run_id": 36862971468,
+   "workflow_name": "Nix flake check",
+   "head_branch": "sc-1495-title-generator-copy-context",
+   "run_attempt": 2,
+   "node_id": "CR_kwDOUlcXHs8AAAAZvum19Q",
+   "head_sha": "48320a1e5ea6acb04b477b96086915c47513b034",
+   "status": "completed",
+   "conclusion": "cancelled",
+   "created_at": "2026-10-01T20:47:26Z",
+   "started_at": "2026-10-01T20:47:26Z",
+   "completed_at": "2026-10-01T20:48:36Z",
+   "name": "nix flake check",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/110577169909",
+   "labels": [
+    "ubuntu-latest-32-core"
+   ],
+   "runner_group_name": ""
+  }
+ ]
+}

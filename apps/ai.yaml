@@ -976,8 +976,8 @@ spec:
     # cachea prefijos —94,4 % de acierto medido sobre 24 h— pero con la flag a
     # su default (False) devuelve `usage.prompt_tokens_details: null`, LiteLLM
     # no puede inventarse el campo y SpendLogs guarda null en las 8.390 filas
-    # del dia. Consecuencia: los clientes cuentan cache_read=0 (el run STA-7 de
-    # Paperclip reporto 52,6 M de "input" que eran prefijo cacheado) y el
+    # del dia. Consecuencia: los clientes cuentan cache_read=0 (el run STA-7
+    # reporto 52,6 M de "input" que eran prefijo cacheado) y el
     # dashboard tiene que sacar la cuota de las metricas del motor en vez de por
     # peticion. Solo cambia el JSON de `usage`: no toca scheduling, ni KV, ni
     # memoria.
@@ -1320,8 +1320,489 @@ spec:
     # dos nodos, asi que ningun valor fijo sirve a la pareja: ibv_modify_qp fallaba con
     # el GID del otro lado vacio (::). Con ROCE_VERSION_NUM=2 y ADDR_FAMILY=AF_INET ya
     # presentes, "-1" deja que NCCL localice el GID correcto en cada nodo.
-    targetRevision: f8a84df713f48ed448da6828026471f5eaa868fb
-    path: overlays/ornith-sm121v5-lmheadw4-20260721
+    # 21-09-2026 — repin a 18319a7: SOLO la imagen omnivoice 0.2.1+FlashInfer
+    # (dgx-infra 561dbb5: torch 2.15.0.dev20260921 + omnivoice 0.2.1 con el
+    # commit 28bc088 del #239, modulo omnivoice_flashinfer.py OPT-IN no
+    # activado). 18319a7 = cherry-pick de d40c033 (k8s-ai#84) sobre f8a84df,
+    # AISLADO a proposito: el tip de main (1a17edb) arrastra k8s-ai#83, cuyo
+    # pin gitops (PR k8s-gitops#356) esta en draft deliberado hasta la
+    # proxima ventana vigilada (reinicia el TP=2 entero, ~10-15 min sin
+    # residente). NO BORRAR la rama k8s-ai omnivoice-021-only hasta que
+    # #356 se fusione y este pin se reapunte al tip de main.
+    # ROLLBACK: f8a84df (NCCL GID -1, 20-09).
+    # 23-09-2026 — A/B de cache de prefijos del residente (prueba 1 de 2, Dani):
+    # 5e54557 = 18319a7 + SPECULATIVE_CONFIG disable_eagle_block_drop:true en head
+    # y worker (rama k8s-ai test/qwen38fn-eagle-block-drop-20260923). Unica
+    # diferencia del render. Sigue SIN k8s-ai#83. Reinicia el TP=2 entero.
+    # ROLLBACK: 18319a76d31423c8e718dcd68765ff3b3a6d7c05 (lo de antes).
+    # 23-09-2026 21:40 — REVERTIDA la prueba 1: con 5e54557 el EngineCore se colgo
+    # a los 45 min (RPC sample_tokens timed out, paso con la cola de 142 tokens de
+    # un prompt de ~205k alineado a bloque + 2 decodes MTP). 18319a7 llevaba 3 dias
+    # sin reinicios. Vuelve a 18319a7 hasta aislar la causa.
+    # 24-09-2026 01:10 — A/B autopiloto (Dani): prueba 1 otra vez = 5e54557 (flag), luego
+    # prueba 2 (T=2048) y vuelta a 18319a7. Vigilante: si el motor se cuelga, se pasa al
+    # siguiente paso. ROLLBACK: 18319a76d31423c8e718dcd68765ff3b3a6d7c05.
+    # Prueba 2: 788d28e = 18319a7 + LONG_PREFILL_TOKEN_THRESHOLD=2048 en head y worker
+    # (rama k8s-ai test/qwen38fn-long-prefill-2048-20260924). Sin el flag de la prueba 1.
+    # Fin del A/B: vuelta a 18319a7 (la estable conocida) hasta que Dani decida.
+    # 24-09-2026 04:45 — Dani elige la opcion D para medirla: b09ae41 = 18319a7 +
+    # disable_eagle_block_drop:true + LONG_PREFILL_TOKEN_THRESHOLD=2048 (head y worker,
+    # rama k8s-ai test/qwen38fn-combo-eagle-t2048-20260924). Vigilante de cuelgue activo.
+    # ROLLBACK: 18319a76d31423c8e718dcd68765ff3b3a6d7c05.
+    # 24-09-2026 — opcion E (Dani: la mayoria de peticiones comparten sistema y
+    # herramientas de Claude Code/opencode): b247e33 = 17239c4 (D + omnivoice) con
+    # T=2048 + --prefix-match-unit 64 + --enable-mamba-fine-grained-prefix-cache y el
+    # drop de EAGLE ACTIVO (sin el flag de la prueba 1). Rama k8s-ai
+    # test/qwen38fn-finegrained-prefix-v2-20260924.
+    # ROLLBACK: 17239c40ab22e8fb7f60d70079733831be5e2318 (opcion D + omnivoice).
+    # Vuelta de E a 17239c4 (opcion D + omnivoice): vigilante o decision de Dani.
+    # 24-09-2026 — sonda de refusal token a token (fase B, Dani): 1a0244e =
+    # 596e12a (D + omnivoice seed de k8s-gitops#381, que esta la SUSTITUYE) +
+    # cherry-pick de k8s-ai#87 (VLLM_REFUSAL_PROBE=1, patch_vllm_probe.py, CM
+    # qwen38fn-refusal-probe-cal). Rama k8s-ai deploy/refusal-probe-on-596e12a-20260924.
+    # La config del A/B D (flag + T=2048) queda IDENTICA; la sonda no toca el
+    # forward. Reinicia el TP=2 (launch-revision). OJO quien repinee despues
+    # (vuelta a E, etc.): monta encima de 1a0244e o pierde la sonda.
+    # ROLLBACK: 596e12a904cc66ae893042ef6e25b7be60b2db42 (D + omnivoice seed, sin sonda).
+    # 24-09-2026 — calibracion cal-20260924a de la sonda: c99d816 = 1a0244e + cal.json
+    # en el CM qwen38fn-refusal-probe-cal. SOLO cambia ese ConfigMap: sin reinicio
+    # (refusal_probe.py lo relee por mtime). ROLLBACK: 1a0244e (sonda sin calibrar).
+    # 24-09-2026 — fase 3 del plan PLE (Dani): fdfc28c = c99d816 + tabla PLE leida del
+    # checkpoint (vllm#58439 portada, overlay qwen38fn-ursu-overlays-c) + head con pesos
+    # LOCALES en gx10-ec3d (fuera el PVC NFS) + puertas GPU_MEM_UTIL 0.80/0.76.
+    # Rama k8s-ai qwen38fn/ple-checkpoint-mapped-20260924. Reinicia el TP=2 entero.
+    # ROLLBACK: c99d81684de225f52089056886006b4bba661821.
+    # Vuelta de la fase 3 PLE a c99d816 (preparada para cortar el tiempo sin residente).
+    # 24-09-2026 — DGX-366 (voz de Jarvis, Dani): e4209da = c99d816 + omnivoice-audio
+    # con TTS por GPU (Service nuevo omnivoice-tts-gpu, fuera el reparto al azar con el
+    # gemelo CPU) y fallback Alibaba del plan Team para TTS y ASR (ExternalSecret
+    # omnivoice-alibaba). Rama k8s-ai deploy/voice-gpu-alibaba-on-c99d816; en main por
+    # k8s-ai#86. Diff de render contra c99d816: SOLO Service + ExternalSecret nuevos y
+    # env/imagen del Deployment omnivoice-audio — el LLM no se toca, no reinicia el TP=2.
+    # OJO a los siguientes pines de esta serie: que partan de aqui o lleven k8s-ai#86
+    # (cherry-pick b0b57bd + e4209da), o la voz vuelve al pool mixto GPU/CPU y sin
+    # fallback cloud.
+    # ROLLBACK: c99d81684de225f52089056886006b4bba661821.
+    # 24-09-2026: e4209da + puerta del worker 0.781 -> 0.77 (con vm.min_free_kbytes=1 GiB
+    # el worker ve 92,75 GiB libres y no pasaba). Rama k8s-ai deploy/qwen38fn-gate-077-on-e4209da.
+    # ROLLBACK: e4209daaf124a95d30005cf7496e6d04dab27eaa.
+    # 24-09-2026 — fase 3b PLE (Dani): 984b3be + tabla PLE leida del checkpoint (vllm#58439
+    # hasta be7a84fe, que arregla el cudaErrorStreamCaptureIsolation de fdfc28c) + head con
+    # pesos LOCALES en gx10-ec3d + puertas 0.64/0.60. Rama k8s-ai
+    # deploy/qwen38fn-ple-mapped-fix-on-984b3be. Lleva la voz de DGX-366. Reinicia el TP=2.
+    # ROLLBACK: 984b3be95a27f40be51583b40d22fbc5fb30c6a7 (y drop_caches en dgx1 si la
+    # puerta 0.77 del worker no pasa con la page cache llena).
+    # Vuelta de la fase 3b a 984b3be (preparada; recuerda drop_caches en dgx1 si la puerta 0.77 no pasa).
+    # 24-09-2026 — DGX-366: c36f005 = 984b3be + el servicio de voz FUERA de `ai` (a la
+    # app `voice`, apps/voice.yaml; k8s-ai#91). Diff de render: solo desaparecen los 10
+    # objetos de voz (gateway, nvfp4, stt-turbo, omnivoice-tts-cpu, sus Services y el
+    # ExternalSecret omnivoice-alibaba); ningun otro objeto cambia, el LLM no reinicia.
+    # Los PVC de voz, su Job y la PriorityClass `preemptible` SIGUEN aqui.
+    # OJO a los siguientes pines: que partan de aqui o de main >= k8s-ai#91. Un pin
+    # anterior volveria a renderizar la voz dentro de `ai` y pelearia con `voice`.
+    # ROLLBACK: 984b3be95a27f40be51583b40d22fbc5fb30c6a7 (y borrar apps/voice.yaml).
+    # 25-09-2026 (Dani): prueba del bloque MTP en NVFP4 trasplantado (RadixArk#6) =
+    # c36f005 + MODEL_PATH a /cache/huggingface/qwen38fn-mtp-nvfp4 (head y worker); diff de
+    # render: solo esas dos variables. Rama k8s-ai deploy/qwen38fn-mtp-nvfp4-on-c36f005.
+    # Reinicia el TP=2. ROLLBACK: c36f005f3db6b8dcfa0e53cb6994768be1943566 (drop_caches en
+    # los dos Sparks antes de las puertas de arranque).
+    # Vuelta de la prueba MTP NVFP4 a c36f005 (preparada; drop_caches en los dos Sparks al reiniciar).
+    # 25-09-2026 (Dani): perfilado del drafter MTP NVFP4 = c36f005 + MODEL_PATH
+    # /cache/huggingface/qwen38fn-mtp-nvfp4 + --profiler-config (VLLM_PROFILER_CONFIG).
+    # Rama k8s-ai deploy/qwen38fn-mtp-nvfp4-profile-on-c36f005. Reinicia el TP=2; ventana
+    # de ~30 min. ROLLBACK: c36f005f3db6b8dcfa0e53cb6994768be1943566 (drop_caches en los
+    # dos Sparks antes de las puertas de arranque).
+    # Vuelta de la ventana de perfilado del MTP NVFP4 a c36f005 (drop_caches en los dos Sparks al reiniciar).
+    # 25-09-2026 — DGX-366: c2f7d45 = c36f005 + los PVC de voz y su Job de copia FUERA de
+    # `ai` (a la app `voice`, k8s-ai#93). Diff de render: solo salen omnivoice-voices,
+    # omnivoice-voices-nfs, omnivoice-model, stt-hf-cache y el Job omnivoice-voices-to-nfs-v1.
+    # Backup Velero verificado por restore antes (voice-pvcs-pre-move-20260925 +
+    # voice-stt-cache-tar-20260925b, 232/232 sha256 iguales). Mismo aviso que arriba: los
+    # siguientes pines, desde aqui o desde main >= k8s-ai#93.
+    # ROLLBACK: c36f005f3db6b8dcfa0e53cb6994768be1943566.
+    # 25-09-2026 (Dani): MTP NVFP4 a produccion = c2f7d45 + MODEL_PATH
+    # /cache/huggingface/qwen38fn-mtp-nvfp4 (head y worker; sin profiler). Rama k8s-ai
+    # deploy/qwen38fn-mtp-nvfp4-on-c2f7d45. Empata con D en decode y libera ~1,7 GiB por
+    # rank (dgx1: 13 NV_ERR/5 min frente a 374-478 en D). Reinicia el TP=2.
+    # ROLLBACK: c2f7d453c1eec169055efa65ca1ba469c72bf27e (drop_caches en los dos Sparks
+    # antes de las puertas de arranque).
+    # 25-09-2026 (Dani): MTP adaptativo 1-4 por tamano de lote = 1d3e361 +
+    # SPECULATIVE_CONFIG num_speculative_tokens 4 y num_speculative_tokens_per_batch_size
+    # [[1,4,4],[5,8,3],[9,12,2],[13,16,1]] (head y worker). Rama k8s-ai
+    # deploy/qwen38fn-dynsd-1to4-on-1d3e361. Reinicia el TP=2.
+    # ROLLBACK: 1d3e361463dd46ed02e61761629e69a31525db36 (drop_caches en los dos Sparks
+    # antes de las puertas de arranque).
+    # Vuelta del MTP adaptativo (Dynamic SD) a 1d3e361: el head no arranca con ac5eaab
+    # (Engine core initialization failed, 25-09 08:01 UTC).
+    # 25-09-2026: segundo intento del MTP adaptativo 1-4 con el backport de vllm#48329
+    # (arregla vllm#58692, ZeroDivisionError en _init_candidates del drafter) aplicado en
+    # launch.sh. Rama k8s-ai deploy/qwen38fn-dynsd-1to4-fix58692. Reinicia el TP=2.
+    # ROLLBACK: 1d3e361463dd46ed02e61761629e69a31525db36 (drop_caches en los dos Sparks).
+    # Vuelta a 1d3e361: con 3ec32c5 arranca (el backport de #48329 funciona) pero el decode
+    # cae a ~10 tok/s agregados con 8-9 en curso (frente a 130-200 con k=3 fijo), 25-09 10:13 UTC.
+    # 25-09-2026 (Dani): reintento del MTP adaptativo 1-4 (3ec32c5). El rollback anterior se
+    # decidio midiendo dentro del calentamiento JIT; ahora se evalua a partir de 10 min tras
+    # startup complete. Referencia k=3 caliente (10:50 UTC): 99,6 tok/s, ~8,6 en curso.
+    # ROLLBACK: 1d3e361463dd46ed02e61761629e69a31525db36 (drop_caches en los dos Sparks).
+    # 26-09-2026 (Dani): 4ed4e45 = c3f7963 + k8s-ai#97 (apagado del residente 27B del
+    # perfil creative: Deployment vllm-qwen38-27b-uncensored + sus dos Services + el
+    # ConfigMap ornith-tool-parser-patch, ya sin consumidores). Cherry-pick del squash
+    # 213ea46 SOBRE el pin vivo para no pisar la evaluacion del MTP adaptativo: diff de
+    # render vs c3f7963 = SOLO la salida del 27B y del ConfigMap (prune:true); el
+    # qwen38-flash-next NO cambia, NO reinicia el TP=2. El arbitro y el RBAC ya salieron
+    # desplegados (dgx-infra#680, merge 07:45Z + sync de control-nexus). OJO al
+    # siguiente pin: que parta de 4ed4e45 o de main >= k8s-ai#97; un pin anterior
+    # resucitaria el 27B. ROLLBACK: c3f796386422ba2dfd9f80f382694778f27cec82.
+    # 27-09-2026 (Dani): 00b8c01 = 4ed4e45 + Dynamic SD con K3 como maximo (1-8 -> 3,
+    # 9-12 -> 2, 13-16 -> 1). Base K4 en 2 dias de trafico real: 4a posicion 9,2 %,
+    # longitud aceptada 2,72. Reinicia el TP=2. Fase 1 de 2 (fase 2: Mamba SSM BF16 con
+    # prueba de calidad de contexto largo). ROLLBACK: 4ed4e4538a08a73b424824a34237b2208b1cd704.
+    # 27-09-2026 (Dani): 5b32938 = 00b8c01 + estado SSM de Mamba en BF16
+    # (--mamba-ssm-cache-dtype bfloat16; el modelo declara float32). Fase 2 de 2. Calidad
+    # de referencia FP32 (longctx_eval.py, needle 32k-190k): 318/320 campos en dos pasadas.
+    # Reinicia el TP=2. ROLLBACK: 00b8c0181375519628072a08d67bfe3537177a83 (K3 max, FP32).
+    # 27-09-2026 (Dani): 30dc1b0 = 5b32938 + top-k determinista de la QSA (jschmied,
+    # vllm#55122). En GB10 el persistent_topk stock cambia orden y a veces conjunto de bloques
+    # (vllm#51782, abierto). Se compila al arrancar y pasa test_det.py antes de cablearse; si
+    # falla, kernel stock. Reinicia el TP=2. ROLLBACK: 5b32938036462b633fa91a157956f2f7c744506b.
+    # 27-09-2026 (Dani): 5c38977 = 30dc1b0 + grafos PIECEWISE breakable (sin torch.compile) para
+    # los pasos mixtos y de prefill, que iban en eager con FULL_DECODE_ONLY. Techo de captura 2560.
+    # Base sonda 64k: frio c1 48,7 s, turno caliente 3,8 s; c4 frio 50,3/80,3 s, caliente 2,5-3,4 s.
+    # Reinicia el TP=2. ROLLBACK: 30dc1b0662adec43fa10e993387751a0679a3b3c.
+    # 27-09-2026 22:35 (Dani): ROLLBACK de 5c38977 (grafos PIECEWISE breakable). Con ellos el
+    # decode se hundio: 2-15 tok/s agregados e ITL 1,4-2 s (antes 143-277 tok/s, ITL 126-293 ms),
+    # 16 en curso y cola por capacidad. Vuelta a 30dc1b0 (FULL_DECODE_ONLY + top-k determinista).
+    # 27-09-2026 23:35 (Dani): REPETICION del A/B de grafos PIECEWISE breakable (5c38977). El
+    # primer intento (22:14) quedo confundido con la tormenta de prefill en frio tras el reinicio;
+    # esta vez se juzga en estado estable tras drenar. Base estable 23:10-23:30 (30dc1b0):
+    # trabajo 3483 tok/s, gen 155/s, ITL 524 ms, 31 en curso, 20 en cola, 82 % de aciertos.
+    # ROLLBACK: 30dc1b0662adec43fa10e993387751a0679a3b3c.
+    # 28-09-2026 00:12 (Dani): ROLLBACK definitivo de 5c38977 (grafos PIECEWISE breakable). En la
+    # repeticion el EngineCore murio a las 00:03 con carga real: un rango se colgo en un paso
+    # (shm_broadcast TimeoutError -> EngineDeadError). Antes de morir: 323-2326 tok/s de trabajo e
+    # ITL 1,9-2,5 s frente a 3275 tok/s e ITL 504 ms de 30dc1b0 en estado estable. Descartado.
+    # 28-09-2026 00:45 (Dani, PRUEBA): 5bb40c2 = 5c38977 (grafos PIECEWISE breakable) + KV 22 -> 19
+    # GiB por rango, para que el worker no se quede sin memoria unificada (causa del EngineDead de
+    # las 00:03). Base estable 23:10-23:32 (30dc1b0): trabajo 3275 tok/s, gen 158/s, ITL 504 ms.
+    # Reinicia el TP=2. ROLLBACK: 30dc1b0662adec43fa10e993387751a0679a3b3c.
+    # 28-09-2026 02:05 (Dani): ROLLBACK de 5bb40c2 (PIECEWISE + KV 19 GiB). Sin problemas de memoria
+    # (PSI 0 %, worker 1,3-1,7 GiB libres) y el motor proceso mas (trabajo 3726 tok/s vs 3275), pero
+    # con 3 GiB menos de KV la cache de prefijos no aguanto la carga (16 en curso + 16-31 en cola):
+    # aciertos 26-54 % vs 83 %, gen 67/s vs 158, TTFT 116 s vs 70, ITL 933 ms vs 504. Vuelta a 30dc1b0.
+    # 28-09-2026 08:45 (Dani): dedcd8f = 30dc1b0 + MTP de NVIDIA (nvidia/Qwen3.8-Flash-Next-NVFP4@fc694b5,
+    # expertos FP8_PB_WO en vez de NVFP4 de provsalt; resto identico) + KV 22 -> 21,5 GiB por la
+    # memoria del worker. Referencia MTP provsalt (6,5 h reales): long. aceptada 2,28, aceptacion
+    # 64,4 %, por posicion 77,5/37,7/12,6 %. Reinicia el TP=2. ROLLBACK: 30dc1b0662adec43fa10e993387751a0679a3b3c.
+    # 28-09-2026 (Dani): fa0b6bf = dedcd8f + claves comprimidas del indexador QSA en FP8
+    # (indexer_kv_dtype=fp8; por defecto bf16). Esperado +~5 % de KV (hoy 2.712.238 tokens).
+    # Reinicia el TP=2. ROLLBACK: dedcd8fbe106dcbef195798e0b3a7a26a259498e.
+    # 28-09-2026 (Dani): c5aab37 = fa0b6bf + checkpoint hibrido: 156 proyecciones densas (GDN in/out, QSA
+    # q/k/v/o) BF16 -> FP8 por bloques 128 (FP8_PB_WO), idea de blazux. -1,25 GiB/rango de pesos, que
+    # quedan de margen en el worker. Base 10:18-10:53 (fa0b6bf): gen 267/s, ITL 231 ms, 32 en curso, 15
+    # en cola, 88 % aciertos. Reinicia el TP=2. ROLLBACK: fa0b6bfd96b790292ca4287d13ceb44db484d44a.
+    # 28-09-2026 (Dani, PRUEBA): 8a8424f = c5aab37 + caches JIT persistentes (e5a9170) + KV principal en
+    # NVFP4 (lectura portada del overlay 3edbfcb a los overlays actuales de la QSA). 288 B/token/capa en
+    # vez de 512: esperado ~+56 % de KV (hoy 2.871.868 tokens). Reinicia el TP=2.
+    # ROLLBACK: c5aab379ad1bb4d6700b35afbee386f4d314317e.
+    # 28-09-2026 13:05: 1bbadab = 8a8424f + arreglo del warmup de la QSA (reconoce la cache nvfp4 por el
+    # layout; get_current_vllm_config_or_none() es None en el warmup y calculaba head_dim=72).
+    # 28-09-2026 13:25: 2505d92 = 1bbadab + anotacion overlays-revision en la plantilla: el arreglo solo tocaba
+    # el ConfigMap de overlays, no hubo rollout y el worker se quedo con el overlay viejo y sin rendezvous.
+    # 28-09-2026 13:45: ROLLBACK de la prueba de KV principal en NVFP4 (8a8424f/1bbadab/2505d92). Arranca con
+    # 4.449.363 tokens de KV pero la salida degenera en basura a las pocas palabras: la lectura portada del
+    # overlay 3edbfcb no cuadra con lo que escribe reshape_and_cache_flash en esta nightly. Vuelta a c5aab37.
+    # 29-09-2026 (Dani, PRUEBA): 430f9a9 = c5aab37 + SPECULATIVE_CONFIG con rejection_sample_method=block y
+    # draft_sample_method=probabilistic (receta v16b de dime-online). Nada mas. Reinicia el TP=2.
+    # ROLLBACK: c5aab379ad1bb4d6700b35afbee386f4d314317e.
+    # 29-09-2026 02:55: 4a9dfcb = 430f9a9 + GPU_MEM_UTIL del worker 0.77 -> 0.73 (solo puerta de arranque; la
+    # cache de paginas del arranque la hacia fallar y el TP=2 no volvia). ROLLBACK: 430f9a9 / c5aab37.
+    # 29-09-2026 (Dani, PRUEBA punto 2): 32fc081 = 4a9dfcb + COMPILATION_CONFIG mode 3 (torch.compile) y
+    # cudagraph_mode FULL_AND_PIECEWISE (receta v16b de dime-online). Punto 1 medido antes: aceptacion pos0
+    # 77,3 -> 81,9 %. Reinicia el TP=2 y compila en el arranque. ROLLBACK: 4a9dfcbfad1038eb23972f20f8aa9b9c3eb54005.
+    # 29-09-2026 05:10Z (DEVOPS, NvidiaDgxMemoryLow): 48c3886 = 3325203 + pool KV
+    # 21,5 -> 17,5 GiB en ambos rangos (k8s-ai PR #100, rama de la lineage del pin).
+    # nvidia-dgx llevaba 1,0 GiB de MemAvailable con pgmajfault >700/s sostenidos y
+    # gx10-ec3d 3 GiB, sin swap: SystemOOM del rank se lleva a residentes/litellm/
+    # brain. GPU_MEM_UTIL no es la palanca (desde 19-09 es solo puerta de arranque;
+    # el pool lo fija --kv-cache-memory-bytes). Uso medido del pool: 24,5% con 11
+    # requests running — 17,5 GiB deja 12,2 de margen. Reinicia el TP=2 (~10-15 min
+    # sin residente, ventana de prueba ya abierta esta noche).
+    # ROLLBACK: 33252030a7972b8932ea8f7cd682b6b3ab455aa4.
+    # 29-09-2026 10:15Z (DEVOPS, TargetDown:llm voicelab): 2a92469 = 48c3886 + drop
+    # del target voicelab en k8s/vmservicescrape.yaml (k8s-ai PR #99, mergeada a la
+    # lineage del pin via PR #101). voicelab no expone /metrics (404) y mantenía
+    # TargetDown:llm activo desde el boot del reboot 07:18Z. Sin cambio de runtime:
+    # solo la línea del relabel.
+    # ROLLBACK: 48c388625e4b78cf714a047163caaa8d8d6aba46.
+    # 29-09-2026 (Dani): f4ac658 = 2a92469 + pool KV 17,5 -> 19,5 GiB en los dos rangos. El hueco
+    # lo crean los bge en la RTX (k8s-ai #102/#103) y el STT en DGX2 (#104): ~8 GiB disponibles en
+    # cada Spark antes del cambio, ~6 despues. Reinicia el TP=2. ROLLBACK: 2a92469bce0bc628bb9f5e5cd7ab7aee379f9a86.
+    # 29-09-2026 (Dani, tarde): b5df721 = f4ac658 + NORMA DE DESPLIEGUE con hooks
+    # (llm-deploy-pause PreSync: pausa el arbitro a phase sync-paused y escala TTS/STT a 0 antes
+    # de tocar head/worker; llm-deploy-resume PostSync/SyncFail: los devuelve al estar Healthy)
+    # + pool KV 19,5 -> 21,0 GiB por rango (voz repartida TTS=dgx1/STT=dgx2, deja ~6,7/~5,2
+    # libres; objetivo >=5 por nodo). El RBAC de los hooks va en el propio pin y se pre-aplico
+    # a mano UNA vez (k8s/llm-deploy-hooks-rbac.yaml, hecho 21:55). Reinicia el TP=2 ~30 min;
+    # la voz (TTS/STT) estara caida toda la ventana, a proposito. ROLLBACK: f4ac6586c4f0651f196b32b2d658ee7f0d8c6f77.
+    # 30-09-2026 (DGX-452, ventana nocturna): 45c8ed5 = b5df721 + --scheduling-policy priority
+    # SOLO en los args del head (launch.sh rank 0; env SCHEDULING_POLICY en los dos para que el
+    # par se recree junto). Activa el orden del campo `priority` que ya inyecta LiteLLM
+    # (priority_by_alias: -10 Hermes/Open WebUI, +10 hermes-batch). Mismo PR en main: k8s-ai #108.
+    # Reinicia el TP=2 con la norma de hooks de b5df721. ROLLBACK: b5df721eeb7d9d8bf71cce7a3fd00aa11795dc48.
+    # 05-10-2026 (DGX-582, Dani): 04678a3 = 45c8ed5 + MAX_NUM_SEQS 16 -> 24 en head y worker. La cola del
+    # vLLM se formaba por el tope de 16 ranuras (running a 16, waiting > 0 el 35% de la noche) con la KV al
+    # 55% p95 / 62% max y 0 preempciones. Mismo PR en main: k8s-ai #111. Reinicia el TP=2 con la norma de
+    # hooks de b5df721. ROLLBACK: 45c8ed5a7197e6e77a6afc3b3eb602197352859b.
+    # 05-10-2026 14:15: el rollback a 45c8ed5 (#499) se revirtió sin llegar a aplicarse. El arranque con
+    # seqs=24 no estaba colgado: tardó ~33 min (13:38 -> 14:11) y quedó Healthy justo antes del merge de
+    # #499. La app ai se congeló con skip-reconcile para no reiniciar otra vez el TP=2. Sigue 04678a3.
+    # 05-10-2026 19:00 (DGX-582, Dani: «¿qué es más realista? hazlo»): VUELTA a 45c8ed5 (seqs=16). Medido 14:30-19:00
+    # contra la misma franja del día anterior (job=qwen38-flash-next-head): 24 ranuras dieron 58,8 tok/s agregados
+    # (antes 120,2), 6,2 tok/s por petición (antes 10,2), cola el 29 % del tiempo (antes 16 %), TTFT p95 112 s (antes 23)
+    # y 1.949 peticiones terminadas (antes 4.037). Incumple los criterios de DGX-582. Reinicia el TP=2 (~33 min con la
+    # norma de hooks de b5df721). ROLLBACK de esto: 04678a3ef7b9b085c4b89c25f3e1354afa032190.
+    # 05-10-2026 (DGX-588, Dani): d017c92 = 45c8ed5 + MAX_NUM_SEQS 16 -> 10 en head y worker. Medido 3 días por
+    # peticiones en curso: el agregado toca techo con 9-10 (129 tok/s) y cae con 13-16 (107); por petición 13,6 frente
+    # a 7,2 tok/s. Mismo PR en main: k8s-ai #114. Reinicia el TP=2 (~33 min, norma de hooks de b5df721).
+    # ROLLBACK: 45c8ed5a7197e6e77a6afc3b3eb602197352859b.
+    # 08-10-2026 (DGX-684, A/B de palancas TP=2 de DGX-680): ARRANQUE DE PRUEBA, no es un pin de producción.
+    # fadbbdd = d017c92 + MTP k=1 plano (num_speculative_tokens 1, tabla [[1,16,1]]) en head y worker: un fichero,
+    # dos líneas (rama test/dgx-680-mtp-k1 de k8s-ai; no entra en main). Reinicia el TP=2 (~33 min, norma de hooks de b5df721).
+    # ROLLBACK: d017c92dcf7bb34b5e60c9e14ea41441581f3ca0.
+    # 09-10-2026 (DGX-768): 8de525a = fadbbdd + el MTP del lab de dgx3 (DGX-745/759) en head y worker (k8s-ai #133,
+    # rama test/dgx-680-mtp-k1; no entra en main): k=3 con 1-4 peticiones y k=1 con 5-10 (`[[1,4,3],[5,10,1]]`),
+    # borrador greedy con argmax local (`use_local_argmax_reduction`) y vocabulario de 47.172 ids (`VLLM_MTP_DRAFT_VOCAB`,
+    # bloque `QWEN_MTP_VOCAB` de launch.sh). Reinicia el TP=2 (~33 min, norma de hooks de b5df721; ~20 min sin log tras
+    # «GPU KV cache size» NO es cuelgue). Durante el reinicio el tráfico va a Alibaba y fallan las claves sin fallback.
+    # El momento del merge lo decide Dani. ROLLBACK (el único): fadbbdda1a6a3f85aaeed7138f924cd066210e8c.
+    # 09-10-2026 (DGX-777, Dani lo ordena ya): VUELTA a fadbbdd (MTP k=1 probabilístico: num_speculative_tokens 1, sin
+    # QWEN_MTP_VOCAB ni borrador greedy). DGX-768 (8de525a) no ganaba con 7-10 peticiones. Reinicia el TP=2 (~33 min;
+    # ~20 min sin log tras «GPU KV cache size» NO es cuelgue); el tráfico va a Alibaba. ROLLBACK de esto: 8de525a094d4f1d1292b4ac6b1fd3c10764849a4.
+    # 09-10-2026 (DGX-773): 63dd55f = fadbbdd + la tabla PLE (23,84 GiB por rango) fuera de la GPU, en un fichero mapeado en el NVMe
+    # de cada nodo (k8s-ai #136, rama test/dgx-773-ple-base; no entra en main): KV_CACHE_MEMORY_BYTES 21,0 -> 36,0 GiB por rango.
+    # El PRIMER arranque construye esa tabla (initContainer ple-table, 23,84 GiB por nodo) ANTES de los ~33 min del arranque normal
+    # (norma de hooks de b5df721; ~20 min sin log tras «GPU KV cache size» NO es cuelgue); los siguientes la reutilizan (ready.json).
+    # Riesgos: cada paso copia GPU<-CPU solo las filas que usa (sincronía por paso: puede bajar tok/s y TTFT) y la memoria del head
+    # es la que hay que vigilar tras el arranque. El tráfico va a Alibaba durante el reinicio. El momento del merge lo decide Dani.
+    # ROLLBACK (el único): fadbbdda1a6a3f85aaeed7138f924cd066210e8c.
+    # 10-10-2026 (DGX-780, Dani autoriza la cadena entera de TP=3): a51da60 = 63dd55f + el checkpoint TP=3 (k8s-ai #138 a #141,
+    # línea pin/qwen38-tp3-20261010; no entra en main). Crea en dgx3 los Jobs convert (16Gi), serve y publish (este en nvidia-dgx,
+    # 4Gi) del checkpoint TP=3, sin GPU, con su ConfigMap qwen38fn-tp3 y el Service qwen38fn-tp3-serve. NO reinicia el residente:
+    # head y worker renderizan igual que en 63dd55f (kustomize del overlay en los dos SHA, lo comprobó qa en #141). Los ConfigMaps
+    # planos qwen38-flash-next-vllm-launch y qwen38fn-ple-mmap cambian en sitio (parches TP=3, inertes con TP=2) y ningún pod se reinicia.
+    # Voz: los hooks de la sync (llm-deploy-pause/resume) bajan omnivoice-tts-nvfp4 y stt-turbo a 0 y los devuelven, unos 2-3 min sin voz.
+    # ROLLBACK de esto: 63dd55f112190d4363b30851bec7b33fc9d7cb06.
+    # 10-10-2026 (DGX-781, ventana con Dani): 47c8ff2 = a51da60 + el residente en TP=3 sobre dgx1, dgx2 y dgx3 (k8s-ai #143,
+    # línea pin/qwen38-tp3-20261010; no entra en main): tercer rango en el Deployment nuevo qwen38-flash-next-worker-dgx3,
+    # PV/PVC NFS hf-cache-dgx1-dgx3-llm-ro, NCCL por el triángulo CX7, plano de control por la LAN, checkpoint TP=3 y KV 48 GiB.
+    # REINICIA el residente: arranque estimado de 35-40 min con el tráfico en el fallback (Alibaba); ~20 min sin log tras
+    # «GPU KV cache size» NO es cuelgue. NO se fusiona hasta que la sesión abra la ventana con Dani.
+    # 10-10-2026 (DGX-781, tras el fallo de NCCL entre carriles del primer arranque): 1f5aefd = 47c8ff2 + NCCL_IB_SUBNET_PREFIX_LEN=24
+    # en los tres rangos (k8s-ai #145, línea pin/qwen38-tp3-20261010; no entra en main). Motivo: el fallo de NCCL entre carriles
+    # del primer arranque de TP=3. El tráfico sigue en el fallback (Alibaba) hasta que el residente arranque.
+    # ROLLBACK de esto (el único): a51da6025a7fe175549a349e0c4400959f602ae9, en la PR hermana DGX-781-ai-vuelta-tp2 (#578).
+    # 10-10-2026 (DGX-781, VUELTA a TP=2): a51da60 = el residente otra vez en TP=2 (dgx1+dgx2); sale el worker-dgx3 y el PV/PVC NFS
+    # hf-cache-dgx1-dgx3-llm-ro. Motivo: dos arranques TP=3 fallaron en NCCL (ibv_modify_qp 110: dgx2 rocep1s0f0 -> GID 10.0.2.3
+    # de dgx3, entre carriles), incluso con NCCL_IB_SUBNET_AWARE_ROUTING=1 y NCCL_IB_SUBNET_PREFIX_LEN=24. La ventana decide volver.
+    # Reinicia head y worker (~33 min, el tráfico va a Alibaba); la tabla PLE se reconstruye a tp=2 (ready.json con tp_size=3 no casa,
+    # ~42 s por nodo). El PV/PVC es Retain: no se borra el NFS; si la sync no poda worker-dgx3 y el PV/PVC, quedan huérfanos y hay que
+    # podarlos (el árbitro tolera el worker-dgx3 AUSENTE, DGX-779, no uno presente y huérfano).
+    # ROLLBACK de esto (volver a TP=3): 1f5aefd88e6c2660a7b4d05152444541e836531d.
+    # 10-10-2026 (DGX-810, ventana de los Sparks con Dani): 92fb200 = e25be96 + la sonda NCCL v3c, la v3b con la conexión diferida de NCCL
+    # (k8s-ai #158, fusionada por squash en la línea pin/sparks-ventana-20261010; no entra en main). e25be96 (k8s-ai #157) era 5a1789d + la
+    # sonda v3b con el montaje del volumen image corregido, 5a1789d (k8s-ai #156) era 6332446 + la sonda v3 con la libnccl parcheada de
+    # DGX-815, 6332446 (k8s-ai #151 y #152) era 5e7be80 + la sonda v2 y la pausa que acepta recovering, y 5e7be80 (k8s-ai #150) era
+    # a51da60 + la ventana. Path overlays/sparks-ventana-20261010: el render de a51da60 sin head ni worker de qwen38 (el prune los borra
+    # y libera dgx1 y dgx2; dgx3 no tiene residente), sin el PostSync llm-deploy-resume, y con la sonda NCCL. El PreSync llm-deploy-pause
+    # deja el árbitro en sync-paused y la voz a 0 y así se quedan toda la ventana. El residente cae (~33 min de arranque al volver) y el
+    # tráfico va a Alibaba.
+    # Qué añade 92fb200 sobre e25be96: los Jobs sparks-nccl-sonda-v3c-dgx1/2/3 (sonda v3c: la libnccl.so.2 parcheada de nccl-ring, DGX-815,
+    # con NCCL_CUMEM_ENABLE=1 y NCCL_RUNTIME_CONNECT=1 para que NCCL no conecte árboles ni PAT en el init, y el grafo del generador). El
+    # prune retira los Jobs v3b (ya no están en el render); los v1 y v2 siguen en el overlay y dieron FALLA. Se leen con
+    # `kubectl logs -n llm job/sparks-nccl-sonda-v3c-dgxN` (N = 1, 2, 3), una línea JSON por caso. La ventana ya está abierta (#581, #583,
+    # #584, #585); esta PR la mueve a 92fb200 en sitio (misma app, mismo path): añade los Jobs v3c, retira los v3b y la sync sigue pasando
+    # el PreSync de pausa.
+    # ROLLBACK de esto (a la ventana con la sonda v3b): e25be96c4c250015ed1f941119fd0fdf491837ac, mismo path. Con la sonda v3:
+    # 5a1789dfaa03f8d4e8f8e08555d586c1b96c5604. Con la sonda v2 y sin la v3: 6332446d26cd675d35b92bc0b757a01935f59295. Sin la sonda v2 ni
+    # la v3 y con la pausa vieja: 5e7be8045946c0ad2780c7ffa81a94f65219de75.
+    # ROLLBACK de la ventana (la vuelta): la PR hermana DGX-810-ai-vuelta (#582, path overlays/sparks-ventana-salida-20261010 en el
+    # mismo SHA; a51da60 tal cual no pasa su PreSync desde sync-paused).
+    # 10-10-2026 (DGX-817, ventana de los Sparks con Dani): 01f9b4d = el residente qwen38 en TP=3 (k8s-ai #159, línea
+    # pin/qwen38-tp3-20261010; no entra en main). Path overlays/qwen38-tp3-ventana-20261010: head en dgx2, worker en dgx1 y
+    # worker-dgx3 en dgx3, con la libnccl parcheada de DGX-815 (LD_PRELOAD y VLLM_NCCL_SO_PATH, NCCL_CUMEM_ENABLE=1, NCCL_RUNTIME_CONNECT=1)
+    # y el grafo del anillo del triángulo generado por rango en launch.sh (la receta de la sonda v3c, que pasó en los tres Sparks), más
+    # la pausa de la ventana (el PreSync llm-deploy-pause acepta el árbitro en sync-paused). Conserva el PostSync llm-deploy-resume y
+    # no lleva Jobs de sonda: el prune retira los sparks-nccl-sonda de 92fb200.
+    # Arranque: unos 33 min, con unos 20 min SIN log tras «GPU KV cache size» (NO es cuelgue). El tráfico va a Alibaba hasta que el
+    # residente responda.
+    # ROLLBACK de esto (volver a la ventana): 92fb20060dcb84ceb624c95b6a1090a48e824f76 con path overlays/sparks-ventana-20261010.
+    # 10-10-2026 (DGX-818, ventana de los Sparks con Dani): 1a500ac = el residente GLM-5.3-Flash en TP=3 (k8s-ai #161, línea
+    # pin/glm53-ventana-20261010, desde 92fb200; no entra en main). Path overlays/glm53-tp3-ventana-k4-20261010: GLM TP=3 con el head
+    # en dgx3 (rango 0) y los workers en dgx1 (rango 1) y dgx2 (rango 2), modo k4, con la libnccl parcheada de DGX-815 y el anillo de
+    # rangos dgx3 -> dgx1 -> dgx2 (la receta de la sonda v3c), más la pausa de la ventana. Sustituye a qwen38 TP=3 (01f9b4d).
+    # Efecto de la sync: el prune retira qwen38 TP=3 (qwen38-flash-next-head, -worker y -worker-dgx3, y el PV/PVC
+    # hf-cache-dgx1-dgx3-llm-ro, PV Retain: el NFS no se toca) y el PostSync llm-deploy-resume ya no está en el render: la pausa deja la
+    # voz (omnivoice-tts-nvfp4 y stt-turbo) a 0 toda la prueba. El residente local cae y el tráfico va a Alibaba hasta que GLM responda
+    # (API de la cabeza: Service glm53-tp3, puerto 8002).
+    # El Secret glm53-tp3-mentat (ExternalSecret con deletionPolicy Retain) queda retenido aunque se retire GLM: si GLM no se reactiva,
+    # hay que borrarlo a mano (kubectl delete secret glm53-tp3-mentat -n llm, tras el ExternalSecret).
+    # ROLLBACK de esto (volver a qwen38 TP=3): 01f9b4da163dcf4626e6d33db0c450fababd7e10 con path overlays/qwen38-tp3-ventana-20261010.
+    # 10-10-2026 (DGX-818, segundo paso): b3f92e8 = la misma línea pin/glm53-ventana-20261010 (k8s-ai #162), mismo path.
+    # Qué cambia: MENTAT_FABRIC_IP (el rendezvous de GLM) y GLOO/NCCL_SOCKET_IFNAME (los bootstrap) pasan a la LAN: 192.168.50.143 en la
+    # cabeza (dgx3), .140 en dgx1, .141 en dgx2, interfaz enP7s7. mentatd, HEAD_HOST y VLLM_HOST_IP se quedan en el triángulo.
+    # Por qué: el primer arranque con 1a500ac murió con DistStoreError (2/3 clientes): los tres rangos usaron tcp://10.0.2.3 y dgx2 no
+    # alcanza 10.0.2.3.
+    # Cómo verlo: el log de la cabeza (glm53-tp3-head) debe decir distributed_init_method=tcp://192.168.50.143: (antes, tcp://10.0.2.3:).
+    # ROLLBACK de este paso: 1a500ac1bdd4434c36edadd7744b10275a0616ac (mismo path), o volver a qwen38 TP=3 con
+    # 01f9b4da163dcf4626e6d33db0c450fababd7e10 y path overlays/qwen38-tp3-ventana-20261010.
+    # 11-10-2026 (DGX-818, tercer paso): dfdc0e6 = la misma línea pin/glm53-ventana-20261010 (k8s-ai #163), mismo path. EXPERIMENTO DE
+    # AISLAMIENTO: GLM TP=3 SIN ARX (VLLM_ARX_ALLREDUCE=0 y VLLM_GLM_ARX_PREFETCH=0; all-reduce, reduce-scatter y all-gather caen a
+    # PyNccl) y NCCL_DEBUG_SUBSYS=INIT,NET,PROXY para tener más log de NCCL.
+    # Por qué: con b3f92e8 NCCL llega a «Init COMPLETE» en los tres rangos y ARX se inicializa, pero el anillo no se conecta (nunca
+    # «Connected all rings»), el worker no lee pesos y la API no escucha. qwen38 TP=3 con la misma lib y el mismo grafo, sin ARX, sí conecta.
+    # No es una mejora propuesta: es una medida para saber si ARX es lo que cuelga el arranque.
+    # ROLLBACK de este paso: b3f92e8512d151ce959d89656403e539b2bf7783 (mismo path, vuelve ARX), o volver a qwen38 TP=3 con
+    # 01f9b4da163dcf4626e6d33db0c450fababd7e10 y path overlays/qwen38-tp3-ventana-20261010.
+    # 11-10-2026 (DGX-818, cuarto paso): 66a7553 = la misma línea pin/glm53-ventana-20261010 (k8s-ai #164), mismo path.
+    # Qué cambia: vuelve ARX de la receta (VLLM_ARX_ALLREDUCE y VLLM_GLM_ARX_PREFETCH a 1; NCCL_DEBUG_SUBSYS se queda con PROXY, es solo
+    # log) y KV_CACHE_MEMORY del modo k4 baja de 16 a 12 GiB. El ConfigMap de modo y el de la receta cambian de hash y, con Recreate, los
+    # tres rangos se reinician a la vez.
+    # Por qué: la cabeza murió por la compilación JIT de CUDA (la prueba de prefix cache) con la memoria de dgx3 a 0 (RPC timeout), y el
+    # cuelgue de dfdc0e6 no era ARX (era la IP del MessageQueue), así que el experimento sin ARX se deshace.
+    # Las rutas del triángulo CX7 (DGX-819, dgx-infra #1142) ya están instaladas.
+    # ROLLBACK de este paso: dfdc0e682f11d641d75a215370887d6ee8821636 (mismo path, sin ARX y KV de 16 GiB), o volver a qwen38 TP=3
+    # con 01f9b4da163dcf4626e6d33db0c450fababd7e10 y path overlays/qwen38-tp3-ventana-20261010.
+    # 11-10-2026 (DGX-817, vuelta a qwen38 TP=3 en la ventana): 01f9b4d otra vez (k8s-ai #159, línea pin/qwen38-tp3-20261010), path
+    # overlays/qwen38-tp3-ventana-20261010, exactamente lo de la #587. GLM ya terminó sus medidas (decode, benchy y batería de calidad) y
+    # qwen38 TP=3 recibe la suya. Es el rollback documentado de GLM, sin cambios.
+    # Efecto de la sync: GLM se retira y el prune quita sus tres rangos (cabeza en dgx3, workers en dgx1 y dgx2). Vuelven head en dgx2,
+    # worker en dgx1 y worker-dgx3 en dgx3 de qwen38 y el PostSync llm-deploy-resume.
+    # El Secret glm53-tp3-mentat (ExternalSecret con deletionPolicy Retain) queda retenido aunque se retire GLM: si GLM no se reactiva,
+    # hay que borrarlo (kubectl delete secret glm53-tp3-mentat -n llm, tras el ExternalSecret), porque es una condición de security.
+    # Arranque de qwen38: unos 33 min, con unos 20 min SIN log tras «GPU KV cache size» (NO es cuelgue). El tráfico va a Alibaba hasta que
+    # el residente responda.
+    # ROLLBACK de esto (volver a GLM): 66a75539c673a68ff02a014ae574d3598ee969ce con path overlays/glm53-tp3-ventana-k4-20261010.
+    # 11-10-2026 (DGX-820, C1): 92fb200 otra vez, path overlays/sparks-ventana-20261010, la misma ventana de DGX-810 (#581, #586). Es la
+    # ventana para la prueba del kernel de 64K (C1 de DGX-820): Dani autorizó el 11-10 reiniciar los Sparks, y para reiniciar dgx1 y dgx2
+    # hay que parar el residente sin `kubectl scale` y sin pasar al perfil creative (P1-9 de scripts/glm53/README.md en dgx-infra).
+    # Efecto de la sync: el PreSync llm-deploy-pause deja el árbitro en sync-paused y la voz (omnivoice-tts-nvfp4 y stt-turbo) a 0; el
+    # prune retira qwen38-flash-next-head, -worker y -worker-dgx3, el PostSync llm-deploy-resume y el PV/PVC hf-cache-dgx1-dgx3-llm-ro
+    # (PV Retain: el NFS no se toca). El render no deja ningún Deployment de qwen38 (solo vllm-vision-deep, a 0). Entran los Jobs de la
+    # sonda de NCCL (v1, v2 y v3c, uno por Spark, cada uno con 1 GPU): corren una vez y no tienen ttl. Los qwen38fn-tp3-* salen igual en
+    # los dos renders y siguen Complete. El tráfico va a Alibaba mientras no haya residente.
+    # El residente NO vuelve hasta que los tres nodos estén en el kernel que se decida (4K o 64K): esta app se queda en la ventana.
+    # ROLLBACK de esto (volver a qwen38 TP=3): 01f9b4da163dcf4626e6d33db0c450fababd7e10 con path overlays/qwen38-tp3-ventana-20261010.
+    # 11-10-2026: fin de la ventana DGX-820, vuelta del residente qwen38 TP=3 en 4K (C3): 01f9b4d otra vez (k8s-ai #159, línea
+    # pin/qwen38-tp3-20261010), path overlays/qwen38-tp3-ventana-20261010, la misma revisión de la #592. La prueba de 64K se paró por el DAC P0
+    # dgx1-dgx2 y los tres Sparks vuelven a 4K; se fusiona cuando los tres estén en 4K con P0 arriba.
+    # Efecto de la sync: lo inverso de la #593. Salen los Jobs de la sonda de NCCL (v1, v2 y v3c) y vuelven el PV/PVC
+    # hf-cache-dgx1-dgx3-llm-ro, head en dgx2, worker en dgx1 y worker-dgx3 en dgx3 de qwen38 y el PostSync llm-deploy-resume.
+    # Arranque de qwen38: unos 33 min, con unos 20 min SIN log tras «GPU KV cache size» (NO es cuelgue). El tráfico va a Alibaba hasta que
+    # el residente responda.
+    # ROLLBACK de esto: 92fb200 con overlays/sparks-ventana-20261010 (92fb20060dcb84ceb624c95b6a1090a48e824f76, volver a la ventana).
+    # 11-10-2026 (DGX-820, C5): b4052f1dae714c643eddad8eca259e9c0de6847a = GLM-5.3-Flash en TP=3 en 64K (k8s-ai #166, sobre la línea
+    # pin/glm53-ventana-20261010), path overlays/glm53-tp3-ventana-k64-20261010: el overlay k4 de la ventana (head en dgx3, workers en dgx1 y
+    # dgx2) con el modo k64 (EXPECT_PAGESIZE=65536, REQUIRE_DISPRAM=1) y KV de 12 GiB. Sustituye a qwen38 TP=3 (01f9b4d), que no carga en 64K:
+    # se atasca copiando los pesos de los expertos. Los tres Sparks están en el kernel 7.0.0-1019-nvidia-64k.
+    # Requisito: el overlay exige `dispramd` vivo en los tres nodos. Su init `check-host` no deja arrancar el pod si falta, y hostPath
+    # /run/dispram es de tipo Directory. Hasta tenerlo en los tres, GLM no arranca y el residente sigue caído (el tráfico va a Alibaba).
+    # Efecto de la sync: el prune retira qwen38 TP=3 (qwen38-flash-next-head, -worker y -worker-dgx3, y el PV/PVC hf-cache-dgx1-dgx3-llm-ro) y el
+    # PostSync llm-deploy-resume; el PreSync llm-deploy-pause deja la voz a 0 mientras dure la prueba.
+    # ROLLBACK de esto (volver a qwen38 TP=3): 01f9b4da163dcf4626e6d33db0c450fababd7e10 con path overlays/qwen38-tp3-ventana-20261010.
+    # 11-10-2026 (DGX-820, C5): 92fb200 otra vez, path overlays/sparks-ventana-20261010, la misma ventana que la #593. GLM TP=3 en 64K
+    # (b4052f1) se cae al reservar la caché KV con dispram (`cuMemsetD8 failed: CUresult 700`) y Dani pide investigar en dgx3 por qué no
+    # funciona el 64K: para eso hacen falta las GPU de los Sparks libres, y la ventana no lleva ninguna carga (el residente sigue caído y
+    # el tráfico va a Alibaba).
+    # ROLLBACK de esto (volver a GLM en 64K): b4052f1dae714c643eddad8eca259e9c0de6847a con path overlays/glm53-tp3-ventana-k64-20261010.
+    # 12-10-2026 (DGX-820, C8): 5c0b09e = 92fb200 + el Job de diagnóstico k64-repro-dgx3 (k8s-ai #167, línea pin/sparks-ventana-20261010),
+    # mismo path overlays/sparks-ventana-20261010: reproduce el fallo del 64K en dgx3 con 1 GPU unos minutos. No toca nada más de la ventana.
+    # ROLLBACK de esto: 92fb20060dcb84ceb624c95b6a1090a48e824f76 con el mismo path (el prune retira el Job).
+    # 12-10-2026 (DGX-820, C5): `ai` SIGUE LA RAMA pin/sparks-ventana-20261010 en vez de un SHA. Decisión de Dani (12-10): mientras dure la
+    # ventana de investigación del 64K, cada PR fusionada en esa rama de k8s-ai se despliega sola; así cada ronda de diagnóstico no pide dos
+    # PR (una en k8s-ai y otra aquí). Es TEMPORAL: al cerrar la ventana `ai` vuelve a un SHA fijo, con su propia PR. Mismo path, y el
+    # contenido que se sirve hoy es el mismo (la rama apunta a 5c0b09e).
+    # ROLLBACK de esto (volver a SHA fijo): 5c0b09e95c4a7ad77e3923ff71ccdd9ca91abfcf (head de la rama al abrir la PR, `git ls-remote`
+    # k8s-ai pin/sparks-ventana-20261010) con el mismo path overlays/sparks-ventana-20261010.
+    # 12-10-2026 (DGX-820, C9): `ai` pasa a seguir la rama pin/qwen38-tp3-20261010 con el path overlays/qwen38-tp3-ventana-20261010: qwen38 TP=3
+    # en 64K con `--safetensors-load-strategy=eager` en los tres rangos (k8s-ai #169). Es la prueba de C9: el 64K no carga qwen38 con la carga
+    # por defecto (se atasca copiando los pesos de los expertos) y la carga eager es lo que se quiere medir. TEMPORAL: dura lo que la
+    # investigación del 64K; sigue una rama y no un SHA por la decisión de Dani del 12-10 (arriba). Se fusiona SOLO después de k8s-ai #169.
+    # ROLLBACK de esto (volver a la ventana sin carga): targetRevision pin/sparks-ventana-20261010 con path overlays/sparks-ventana-20261010.
+    # 12-10-2026 (DGX-820, cierre): fin de las pruebas de 64K y de GLM por decisión de Dani: los Sparks vuelven a lo del 10-10 (kernel
+    # 6.17.0-1032-nvidia 4K, driver 610.57.04) y `ai` vuelve al SHA fijo 01f9b4d de qwen38 TP=3 en 4K, lo mismo que la #594. Fuera la carga
+    # eager (k8s-ai #169) y el KV de 6 GiB (#171), que solo existen en la rama. GLM y MiaAI se han borrado del cluster y de los discos.
+    # ROLLBACK de esto: targetRevision pin/qwen38-tp3-20261010 con el mismo path (qwen38 TP=3 64K eager).
+    # 14-10-2026 (DGX-852): `ai` pasa al SHA 8d1c46b (línea pin/qwen38-ursu-2mas1-20261014, k8s-ai #177) con el path
+    # overlays/qwen38-ursu-2mas1-20261014: el residente llm-tp en el fork de vLLM de ursuciprian en «2 + 1» (TP=2 en dgx2+dgx1, que
+    # sirve los Services de siempre, y TP=1 en dgx3 con su Service `qwen38-flash-next-tp1`), con el mod de refusal (dial por
+    # petición y detector de negativas). Trae la retirada de vllm-vision-deep (DGX-877, k8s-ai #174): sale de la lista de
+    # ignoreDifferences de la raíz.
+    # ROLLBACK de esto: targetRevision 01f9b4da163dcf4626e6d33db0c450fababd7e10 con path overlays/qwen38-tp3-ventana-20261010.
+    # 14-10-2026 (DGX-852): 4a422b8 (k8s-ai #178, misma línea y path): el PostSync levanta el TP=2 y espera a que head y worker
+    # estén Ready antes de subir la voz (con stt-turbo arriba el head se queda sin memoria en dgx2 al reservar el KV). No toca
+    # head ni worker: esta sync solo baja la voz unos minutos y la vuelve a subir.
+    # ROLLBACK de esto: 8d1c46b549c1881391e9389e4383364ff4e8a43a con el mismo path.
+    # 15-10-2026 (DGX-898): 72417e5 (k8s-ai #179 y #180, misma línea y path): el worker del TP=2 espera a una sesión NUEVA del
+    # head antes de unirse (no se engancha a la vieja si las dos mitades se reinician a la vez) y su livenessProbe lo reinicia
+    # si el head cambia de sesión. La launch-revision sube en head y worker: reinicia el TP=2 entero (~30 min; sirven el TP=1 y
+    # Alibaba, y la voz baja y sube con los hooks de la sync).
+    # ROLLBACK de esto: 4a422b81d931440e0c8d9e38e94c4f63eac2e187 con el mismo path.
+    # 15-10-2026 (DGX-907): d839915 (k8s-ai #181, misma línea y path): KV fija. TP=2 a 4,2 M tokens (34,66e9 bytes por rango;
+    # antes GMU 0.75 = 3,12 M) y TP=1 a 20 GiB (antes 14). Reinicia head, worker y TP=1 a la vez (~5 min sin LLM local: el
+    # fallback de LiteLLM manda a Alibaba); la voz baja y sube con los hooks.
+    # ROLLBACK de esto: 72417e52588482ed41a9f76d109adad4196117e9 con el mismo path.
+    # 15-10-2026 (DGX-915): fc564d7 (k8s-ai #183, misma línea y path): KV fija del TP=2 a 3,7 M tokens (30,535e9 bytes por
+    # rango; con 4,2 M el head arrancaba en ~12 min por falta de memoria libre en dgx2). Reinicia head y worker; el TP=1 de dgx3
+    # no se toca. La voz baja y sube con los hooks.
+    # ROLLBACK de esto: d8399156fb51152214e074f6fe130a0dcc654f03 con el mismo path.
+    # 15-10-2026 (DGX-940): 48f499c (k8s-ai #184, misma línea y path): KV fija del TP=2 a ~3,45 M tokens (28,5e9 bytes por
+    # rango; con 3,7 M el head caía por OOM global de dgx2 cada ~50 min con carga). Reinicia head y worker; el TP=1 de dgx3
+    # no se toca. La voz baja y sube con los hooks.
+    # ROLLBACK de esto: fc564d73fca5748fd17b0ad663d05e51006f3d27 con el mismo path.
+    # 16-10-2026 (DGX-944): 0cdea00 (k8s-ai #186, misma línea y path): el LLM compacta la memoria del nodo antes de lanzar
+    # vLLM (la KV se reservaba en 20-40 min con la memoria fragmentada; compactada, 2-4 min). Solo cambia el ConfigMap
+    # de la receta: no reinicia nada, vale desde el siguiente arranque. La voz baja y sube con los hooks.
+    # ROLLBACK de esto: 48f499c637777189d54b4cf3b7e8d1b7df988f3a con el mismo path.
+    # 16-10-2026 (DGX-948): 0b2abc0 (k8s-ai #187, misma línea y path): KV fija del TP=2 1 GB más alta, 29,5e9 bytes por rango
+    # (~3,57 M tokens; Dani pide subirla y dgx2 tenía 7,8 GB libres con carga). Reinicia head y worker; el TP=1 no se toca.
+    # La voz baja y sube con los hooks. Si vuelve el OOM del head de DGX-940, este ROLLBACK.
+    # ROLLBACK de esto: 0cdea006c8d021f9af837c1c04b2b837055b31ae con el mismo path.
+    # 16-10-2026 (DGX-951): cc53b0a (k8s-ai #188): cada chunk de uso continuo del vLLM lleva cached_tokens
+    # (el panel dice cuánto de la entrada entró en caché). Reinicia solo el TP=1 de dgx3; el TP=2 sigue sirviendo.
+    # ROLLBACK de esto: 0b2abc019f45c9dd55f2bb7612df30e38d54052c con el mismo path.
+    # 16-10-2026 (DGX-951): 803b8a3 (k8s-ai #189): el TP=2 arranca con el parche del uso con caché de #188.
+    # Reinicia head y worker; el TP=1 (ya parcheado) sirve mientras. La voz baja y sube con los hooks.
+    # ROLLBACK de esto: cc53b0a7cd4f025950913f4a3908e07dd855d0e2 con el mismo path.
+    # 17-10-2026 (DGX-955d): 989407a (k8s-ai #193): KV fija del TP=2 a 20 GiB por rango. Con 29,5e9 el par v2.2.0 views
+    # dio NV_ERR_NO_MEMORY en dgx1 al capturar los graphs de prefill y la imagen vieja ya tumbó el head en dgx2 (19:14).
+    # Reinicia head y worker; la voz baja y sube con los hooks.
+    # ROLLBACK de esto: 9a68a70bba2f1086a2772c8facdbd5a2db202b54 con el mismo path.
+    # 17-10-2026 (k8s-ai #195, 419ced8): dgx3 (TP=1) con caché de imágenes a 1 GiB (shm) y KV a 21,5 GiB.
+    # ROLLBACK de esto: 989407ac722dbf59f1b4a2661e0177fb0c775f20 con el mismo path.
+    # 18-10-2026 (DGX-955, Dani): ROLLBACK de todo DGX-955 a 803b8a3 (imagen ursu anterior en TP=2 y dgx3, caché de imágenes
+    # por defecto, KV TP=2 29,5e9 y dgx3 20 GiB). La imagen views no mejoró en producción y la caché shm tumbaba el motor.
+    # Ojo: con 29,5e9 el head de dgx2 se quedó sin memoria a las ~40 h (17-10 19:14) al llenarse la caché de imágenes.
+    # ROLLBACK de esto: 419ced846061795b4edb0631cd50198dccfeda98 con el mismo path.
+    # 17-10-2026 (k8s-ai #196, ae1c975): dgx3 (TP=1) con caché de imágenes a 1 GiB (lru) y KV a 18 GiB.
+    # ROLLBACK de esto: 803b8a3979d62e9dcd04f13e0a1ea462d02d6db2 con el mismo path.
+    # 20-10-2026 (DGX-1146, Dani): vuelta a c10512a (KV fija del TP=2 a 29,5e9). La bajada a 28,5e9 (0874d51,
+    # k8s-ai #204) no hacia falta: el OOM de dgx2 lo paga la voz que compartia el nodo, no el KV.
+    # 25-10-2026 (DGX-1291, Dani): TP=2 a 10 secuencias a prueba con auditoria a 24 h (k8s-ai #217). Rama pin nueva
+    # abierta en c10512a para que la prueba sea de una sola variable: no arrastra el KV 28,5e9 de DGX-1146.
+    # ROLLBACK de esto: c10512abd4b7a886bb7de8b147241b2f5a5ce008 con el mismo path.
+    # 27-10-2026 (DGX-1303, Dani): dgx3 (TP=1) a la imagen 1x-v2.4.0 de ursu (HC down en BF16 en prefill, k8s-ai #218).
+    # Solo cambian el ConfigMap env-1x y el Deployment de dgx3; el TP=2 no se reinicia.
+    # ROLLBACK de esto: 0bb7db40ed80abf0545a11f0806c71ecf49c8c40 con el mismo path.
+    # 28-10-2026 (DGX-1322, Dani): TP=2 con la ruta BF16 del HC en prefill como parche al arrancar (k8s-ai #220).
+    # Reinicia head y worker del TP=2; dgx3 no se toca.
+    # ROLLBACK de esto: 542f8dc467e2c964389d0c1423664904e26c011f con el mismo path.
+    # 03-11-2026 (SC-4494, k8s-ai #236): re-pin con la drop rule de ollaya, gliner2-extract y
+    # eg2-embedding-pilot en el VMServiceScrape llm-apps: sus scrapes, fallando en bucle (404 / JSON
+    # en /metrics), mantenian firing TooManyLogs en vmagent (Keep MON-18394, monitoring-degraded).
+    # Unico cambio respecto a 18370dc: la VMServiceScrape; ningun Deployment del residente se toca.
+    # ROLLBACK de esto: 18370dc8ca190122354af4bd83c03d0ad6c751f7 con el mismo path.
+    targetRevision: 57031c9a2781f813970b2859a72ffcd7f0761201
+    path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
     namespace: llm

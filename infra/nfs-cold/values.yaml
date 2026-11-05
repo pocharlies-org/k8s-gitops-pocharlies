@@ -11,9 +11,22 @@
 # ks5 (OVH) es la unica ruta. Los 2 PV de esta clase la llevan grabada.
 #
 # `archiveOnDelete: true` es lo que evita que borrar un PVC borre los datos.
+#
+# INFRA-727: `nfs.mountOptions` va a la StorageClass (los PV NUEVOS nacen con estas
+# opciones) y el chart 4.0.18 monta entonces el propio share del provisioner por un PV+PVC
+# estático (`pv-nfs-cold-…`, 10Mi, Retain). Los PV YA existentes NO cambian: llevan
+# mountOptions=None y hay que tramitarlos aparte (ver la PR). Sin esto, sauvage por relay
+# DERP colgó el x86 34 min: los montajes `hard` esperan indefinidamente.
+# soft/timeo/retrans: un corte devuelve EIO tras agotar los reintentos (minutos), no cuelga.
+# nfsvers=4.2 es lo que negocia hoy el servidor (vers=4.2 en /proc/mounts del x86).
 nfs:
   path: /srv/nfs/k8s-cold
   server: 100.109.183.9
+  mountOptions:
+    - soft
+    - nfsvers=4.2
+    - timeo=100
+    - retrans=3
 nodeSelector:
   node-pool: ks5-nvme
 replicaCount: 1

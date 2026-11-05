@@ -35,7 +35,7 @@ applications = {
     if isinstance(document, dict) and document.get("kind") == "Application"
 }
 
-for name in ("arc-openclaw", "arc-k8s"):
+for name in ("arc-openclaw", "arc-k8s", "arc-skills-eval"):
     application = applications[name]
     source = application["spec"]["source"]
     assert source["targetRevision"] == "0.14.1"
@@ -47,7 +47,7 @@ for name in ("arc-openclaw", "arc-k8s"):
     (output / f"{name}.values.yaml").write_text(values_text, encoding="utf-8")
 PY
 
-for release in arc-openclaw arc-k8s; do
+for release in arc-openclaw arc-k8s arc-skills-eval; do
   helm template "${release}" "${CHART}" \
     --version "${CHART_VERSION}" \
     --namespace arc-runners \
@@ -65,9 +65,12 @@ if not __debug__:
     raise SystemExit("ARC render validation requires Python assertions enabled")
 
 root = Path(sys.argv[1])
-runner_image = "ghcr.io/actions/actions-runner:2.335.1@sha256:08c30b0a7105f64bddfc485d2487a22aa03932a791402393352fdf674bda2c29"
+runner_image = "ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4"
 dind_image = "docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c"
 expected_selector = {"kubernetes.io/arch": "amd64"}
+# arc-k8s (INFRA-960, 2026-10-28): pool CPU dedicado (workload=cpu: atlantic +
+# ubuntu). Los ks5-cp-* pierden el puesto de destino por defecto.
+expected_selector_shared = {"kubernetes.io/arch": "amd64", "workload": "cpu"}
 expected_antiaffinity_labels = {
     "app.kubernetes.io/component": "runner",
     "app.kubernetes.io/part-of": "gha-runner-scale-set",
@@ -88,12 +91,17 @@ def rendered_runner_set(release: str) -> dict:
 
 
 def validate_common(
-    release: str, expected_max: int, *, edge_fallback: bool
+    release: str,
+    expected_max: int,
+    *,
+    edge_fallback: bool,
+    selector: dict,
+    hard_pinned_by_selector: bool = False,
 ) -> tuple[dict, dict]:
     runner_set = rendered_runner_set(release)
     assert runner_set["spec"]["maxRunners"] == expected_max
     pod_spec = runner_set["spec"]["template"]["spec"]
-    assert pod_spec["nodeSelector"] == expected_selector
+    assert pod_spec["nodeSelector"] == selector
     assert "kubernetes.io/hostname" not in pod_spec["nodeSelector"]
 
     ks5_term = {
@@ -101,17 +109,19 @@ def validate_common(
             {"key": "node-pool", "operator": "In", "values": ["ks5-nvme"]}
         ]
     }
-    if edge_fallback:
-        # arc-openclaw: KS5 fijado, con fallback a edge (sauvage).
+    if hard_pinned_by_selector:
+        # arc-skills-eval (SC-3635, security 2026-10-29): el nodeSelector
+        # node-pool=ovh-heavy es el candado duro (atlantic es el unico nodo con
+        # la etiqueta y no lleva taint): sin nodeAffinity y sin tolerations.
+        # Que el job haga cola si atlantic cae es el comportamiento querido.
+        assert "nodeAffinity" not in pod_spec.get("affinity", {})
+        assert not pod_spec.get("tolerations")
+    elif edge_fallback:
+        # arc-openclaw (SC-2019): KS5 solo PREFERIDO (sin required: si no cabe,
+        # desborda a ubuntu en vez de quedar Pending) y sin tolerar role=edge
+        # (sauvage, md3 saturado).
         node_affinity = pod_spec["affinity"]["nodeAffinity"]
-        edge_term = {
-            "matchExpressions": [
-                {"key": "role", "operator": "In", "values": ["edge"]}
-            ]
-        }
-        assert node_affinity["requiredDuringSchedulingIgnoredDuringExecution"] == {
-            "nodeSelectorTerms": [ks5_term, edge_term]
-        }
+        assert "requiredDuringSchedulingIgnoredDuringExecution" not in node_affinity
         node_preferences = node_affinity[
             "preferredDuringSchedulingIgnoredDuringExecution"
         ]
@@ -121,19 +131,35 @@ def validate_common(
             "key": "role",
             "operator": "Equal",
             "value": "edge",
-        } in pod_spec["tolerations"]
+        } not in pod_spec["tolerations"]
     else:
-        # arc-k8s (2026-09-16, Dani): scheduling libre sobre todos los nodos
-        # amd64 — sin nodeAffinity, el scheduler coloca el runner donde haya
-        # mas hueco (ks5, sauvage, x86). Se asume a proposito la contencion
-        # de I/O con Harbor/MinIO (md3) que motivo la restriccion original.
-        assert "nodeAffinity" not in pod_spec["affinity"]
+        # arc-k8s (INFRA-960, 2026-10-28): pool CPU dedicado — nodeSelector
+        # workload=cpu (atlantic + ubuntu; sauvage sigue fuera por no tolerar
+        # role=edge, md3 al 100 %) y nodeAffinity required que excluye los
+        # control planes: ks5-cp-* no llevan taint y los 16 runners los
+        # saturaban (115-120 % CPU), dejando los jobs de skirmshop-labels
+        # fuera de su timeout. Deroga el anclaje a ks5-cp-1/2/3 + x86 del
+        # 2026-09-22, que no tenia otro amd64 sano donde ir.
+        assert pod_spec["affinity"]["nodeAffinity"] == {
+            "requiredDuringSchedulingIgnoredDuringExecution": {
+                "nodeSelectorTerms": [
+                    {
+                        "matchExpressions": [
+                            {
+                                "key": "node-role.kubernetes.io/control-plane",
+                                "operator": "DoesNotExist",
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
         assert {
             "effect": "NoSchedule",
             "key": "role",
             "operator": "Equal",
             "value": "edge",
-        } in pod_spec["tolerations"]
+        } not in pod_spec["tolerations"]
 
     pod_anti_affinity = pod_spec["affinity"]["podAntiAffinity"]
     assert "requiredDuringSchedulingIgnoredDuringExecution" not in pod_anti_affinity
@@ -149,26 +175,41 @@ def validate_common(
 def scheduler_eligible(pod_spec: dict, labels: dict[str, str]) -> bool:
     if any(labels.get(key) != value for key, value in pod_spec["nodeSelector"].items()):
         return False
+    # Un nodo con taint role=edge (hoy solo sauvage) exige tolerarlo. Antes esto
+    # no se modelaba y la matriz daba sauvage=True para cualquier pool: al dejar
+    # de tolerarlo, el render habria seguido "verde" mintiendo.
+    if labels.get("role") == "edge" and not any(
+        t.get("key") == "role" and t.get("value") == "edge"
+        for t in pod_spec.get("tolerations", [])
+    ):
+        return False
     node_affinity = pod_spec["affinity"].get("nodeAffinity")
     if node_affinity is None:
-        # Scheduling libre (arc-k8s): solo el nodeSelector (arch) acota. Las
-        # toleraciones que hacen falta p.ej. en sauvage se verifican aparte
-        # en validate_common.
         return True
-    terms = node_affinity["requiredDuringSchedulingIgnoredDuringExecution"][
-        "nodeSelectorTerms"
-    ]
+    required = node_affinity.get("requiredDuringSchedulingIgnoredDuringExecution")
+    if required is None:
+        # Solo preferred (arc-openclaw): no excluye ningun nodo.
+        return True
+    terms = required["nodeSelectorTerms"]
     return any(
         all(
-            expression["operator"] == "In"
-            and labels.get(expression["key"]) in expression["values"]
+            (
+                expression["operator"] == "In"
+                and labels.get(expression["key"]) in expression["values"]
+            )
+            or (
+                expression["operator"] == "DoesNotExist"
+                and expression["key"] not in labels
+            )
             for expression in term["matchExpressions"]
         )
         for term in terms
     )
 
 
-_, openclaw_spec = validate_common("arc-openclaw", 2, edge_fallback=True)
+_, openclaw_spec = validate_common(
+    "arc-openclaw", 2, edge_fallback=True, selector=expected_selector
+)
 assert [container["name"] for container in openclaw_spec["containers"]] == ["runner"]
 assert openclaw_spec.get("initContainers", []) == []
 assert openclaw_spec.get("volumes", []) == []
@@ -178,14 +219,60 @@ assert openclaw_runner["imagePullPolicy"] == "IfNotPresent"
 assert not openclaw_runner.get("securityContext", {}).get("privileged", False)
 assert "DOCKER_HOST" not in {item["name"] for item in openclaw_runner.get("env", [])}
 
-_, shared_spec = validate_common("arc-k8s", 6, edge_fallback=False)
+_, shared_spec = validate_common(
+    "arc-k8s", 32, edge_fallback=False, selector=expected_selector_shared
+)
+
+# arc-skills-eval (SC-3635, security 2026-10-29): evaluacion de skills externas
+# (codigo de terceros en DinD). Fijado duro a atlantic; el egress lo acota la
+# NetworkPolicy arc-skills-eval-egress (k8s-infra), no este render.
+expected_selector_skills_eval = {
+    "kubernetes.io/arch": "amd64",
+    "node-pool": "ovh-heavy",
+}
+_, skills_eval_spec = validate_common(
+    "arc-skills-eval",
+    2,
+    edge_fallback=False,
+    selector=expected_selector_skills_eval,
+    hard_pinned_by_selector=True,
+)
+assert [container["name"] for container in skills_eval_spec["containers"]] == ["runner"]
+assert [container["name"] for container in skills_eval_spec["initContainers"]] == [
+    "init-dind-externals",
+    "dind",
+]
+skills_eval_runner = skills_eval_spec["containers"][0]
+assert skills_eval_runner["image"] == runner_image
+skills_eval_env = {item["name"] for item in skills_eval_runner.get("env", [])}
+assert "DOCKER_HOST" in skills_eval_env
+skills_eval_dind = skills_eval_spec["initContainers"][1]
+assert skills_eval_dind["image"] == dind_image
+assert "--mtu=1230" in skills_eval_dind["args"]
+assert skills_eval_dind["securityContext"]["privileged"] is True
 
 eligibility_matrix = {
-    "ks5": {"kubernetes.io/arch": "amd64", "node-pool": "ks5-nvme"},
-    "sauvage": {"kubernetes.io/arch": "amd64", "role": "edge"},
+    # ks5-cp: sin taint y sin workload=cpu — arc-k8s no debe entrar (INFRA-960).
+    "ks5-cp": {
+        "kubernetes.io/arch": "amd64",
+        "node-role.kubernetes.io/control-plane": "true",
+    },
+    "atlantic": {"kubernetes.io/arch": "amd64", "workload": "cpu"},
+    # atlantic real (SC-3635): lleva la etiqueta del pool ovh-heavy.
+    "atlantic-ovh-heavy": {
+        "kubernetes.io/arch": "amd64",
+        "workload": "cpu",
+        "node-pool": "ovh-heavy",
+    },
+    "sauvage": {
+        "kubernetes.io/arch": "amd64",
+        "role": "edge",
+        "workload": "cpu",
+    },
     "ubuntu-gpu": {
         "kubernetes.io/arch": "amd64",
         "pool": "dev",
+        "workload": "cpu",
         "nvidia.com/gpu.present": "true",
     },
     "arm-gpu": {
@@ -194,24 +281,42 @@ eligibility_matrix = {
         "nvidia.com/gpu.present": "true",
     },
 }
-# arc-k8s es elegible en cualquier nodo amd64 desde 2026-09-16 (ver validate_common).
+# arc-k8s (INFRA-960): solo el pool cpu (atlantic + ubuntu). sauvage tiene
+# workload=cpu pero sigue fuera por no tolerar role=edge (md3 al 100 %).
+# arc-openclaw: anclado a ks5 como preferred, sin required — cualquier amd64
+# sin taint le vale.
+# arc-skills-eval (SC-3635): SOLO atlantic (node-pool=ovh-heavy); en cualquier
+# otro nodo hace cola. Es el aislamiento pedido, no un defecto.
 expected_eligibility = {
     "arc-openclaw": {
-        "ks5": True,
-        "sauvage": True,
-        "ubuntu-gpu": False,
+        "ks5-cp": True,
+        "atlantic": True,
+        "atlantic-ovh-heavy": True,
+        "sauvage": False,
+        "ubuntu-gpu": True,
         "arm-gpu": False,
     },
     "arc-k8s": {
-        "ks5": True,
-        "sauvage": True,
+        "ks5-cp": False,
+        "atlantic": True,
+        "atlantic-ovh-heavy": True,
+        "sauvage": False,
         "ubuntu-gpu": True,
+        "arm-gpu": False,
+    },
+    "arc-skills-eval": {
+        "ks5-cp": False,
+        "atlantic": False,
+        "atlantic-ovh-heavy": True,
+        "sauvage": False,
+        "ubuntu-gpu": False,
         "arm-gpu": False,
     },
 }
 for release, runner_spec in (
     ("arc-openclaw", openclaw_spec),
     ("arc-k8s", shared_spec),
+    ("arc-skills-eval", skills_eval_spec),
 ):
     for case, labels in eligibility_matrix.items():
         assert scheduler_eligible(runner_spec, labels) is expected_eligibility[
@@ -222,6 +327,7 @@ assert [container["name"] for container in shared_spec["containers"]] == ["runne
 assert [container["name"] for container in shared_spec["initContainers"]] == [
     "init-dind-externals",
     "dind",
+    "warm-pr-agent",
 ]
 externals_init = shared_spec["initContainers"][0]
 assert externals_init["image"] == runner_image
@@ -242,9 +348,11 @@ assert shared_runner["image"] == runner_image
 assert shared_runner["imagePullPolicy"] == "IfNotPresent"
 runner_env = {item["name"]: item.get("value") for item in shared_runner["env"]}
 assert runner_env["DOCKER_HOST"] == "unix:///var/run/docker.sock"
+# INFRA-972: ephemeral-storage acota lo que un build escribe en md3 (el disco
+# raiz que comparte con Harbor); sin limite, kubelet no puede expulsarlo.
 assert shared_runner["resources"] == {
-    "requests": {"cpu": "100m", "memory": "1Gi"},
-    "limits": {"cpu": "2", "memory": "4Gi"},
+    "requests": {"cpu": "100m", "memory": "1Gi", "ephemeral-storage": "2Gi"},
+    "limits": {"cpu": "2", "memory": "4Gi", "ephemeral-storage": "10Gi"},
 }
 
 dind = shared_spec["initContainers"][1]
@@ -263,9 +371,35 @@ assert dind["args"] == [
 assert dind["restartPolicy"] == "Always"
 assert dind["securityContext"]["privileged"] is True
 assert dind["resources"] == {
-    "requests": {"cpu": "50m", "memory": "512Mi"},
-    "limits": {"cpu": "2", "memory": "4Gi"},
+    "requests": {
+        "cpu": "50m",
+        "memory": "512Mi",
+        "ephemeral-storage": "10Gi",
+    },
+    "limits": {"cpu": "2", "memory": "4Gi", "ephemeral-storage": "40Gi"},
 }
+# INFRA-334 (p95 del job de review): sidecar que pre-tira la imagen pineada del
+# motor pr-agent en el dind del runner. Las tres invariants que no deben perderse:
+# sidecar nativo (no bloquea el arranque del runner), acotado (timeout) y
+# best-effort (|| true, sin modo de fallo nuevo). Y el digest, en paso con
+# PR_AGENT_IMAGE de .github/workflows/reusable-pr-review.yml (main).
+warm = shared_spec["initContainers"][2]
+assert warm["name"] == "warm-pr-agent"
+assert warm["restartPolicy"] == "Always"
+assert warm["image"] == runner_image
+assert warm["imagePullPolicy"] == "IfNotPresent"
+assert warm["command"] == ["bash", "-c"]
+warm_script = " ".join(warm["args"])
+assert "timeout 240 docker pull" in warm_script
+assert "|| true" in warm_script
+assert 'DOCKER_HOST=unix:///var/run/docker.sock' in warm_script
+warm_env = {item["name"]: item.get("value") for item in warm["env"]}
+assert warm_env["PR_AGENT_IMAGE"] == (
+    "harbor.e-dani.com/homelab/pr-agent:0.46.0-github_action"
+    "@sha256:42c7833a3fbdf354387ab3469fe67c34e11b38f9b90370553398a36b47ad6bc0"
+)
+assert [vm["name"] for vm in warm["volumeMounts"]] == ["dind-sock"]
+assert not warm.get("securityContext", {}).get("privileged", False)
 assert {volume["name"] for volume in shared_spec["volumes"]} == {
     "work",
     "dind-sock",

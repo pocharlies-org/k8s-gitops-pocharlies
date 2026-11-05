@@ -94,18 +94,40 @@ nodeSelector:
   node-pool: ks5-nvme
 notary:
   enabled: false
+# INFRA-972: con type=s3 el chart monta /storage como emptyDir (las capas NO
+# se guardan en el nodo, sino en el bucket harbor-blobs de Object Storage de OVH).
+# Los bloques persistentVolumeClaim de mas abajo siguen ahi pero con s3 solo
+# se materializan los de database/redis/trivy/jobservice: registry no. Cuando
+# "el disco de Harbor" se llena, el que escribe es el runner de CI de al lado
+# (infra/arc.yaml), no el registry.
 persistence:
   enabled: true
   imageChartStorage:
     disableredirect: true
     s3:
       bucket: harbor-blobs
-      existingSecret: harbor-s3-credentials
+      existingSecret: harbor-s3-ovh-credentials
       multipartcopychunksize: '33554432'
-      multipartcopymaxconcurrency: '1'
-      region: us-east-1
-      regionendpoint: http://minio-s3.minio.svc.cluster.local:9000
-      secure: false
+      # Cerrar una subida hace una copia multiparte dentro del almacén; con 1 era
+      # trozo a trozo (p99 190 s en la MinIO de sauvage, INFRA-931). 8 en paralelo;
+      # el defecto de distribution es 16.
+      multipartcopymaxconcurrency: '8'
+      # Object Storage de OVH, región Estrasburgo (INFRA-482). El almacén estaba en
+      # la MinIO de sauvage —HDD RAID1 al 100 % de io_time— y la CI cortaba al cerrar
+      # una capa. La registry corre en ks5 (OVH Roubaix), así que la escritura ya no
+      # sale de la red de OVH. Dos trampas medidas con la credencial real:
+      # `region` va en minúsculas (`SBG` rechaza la firma v4), y el bucket tiene que
+      # estar en el endpoint `.io` —el clásico `s3.sbg.cloud.ovh.net` es la fachada
+      # Swift, donde el ciclo de vida (purgado de subidas multiparte truncadas) NO
+      # existe: toda `PutBucketLifecycleConfiguration` rebota con `MalformedXML`.
+      # Los buckets de OVH compiten por nombre con todo el proveedor: `harbor-blobs`
+      # está libre, otros (`velero-backups`, `loki-chunks`) ya los tiene otra cuenta.
+      # Capacidad (INFRA-482): sin tope. Object Storage Standard de OVH cobra por GiB
+      # (0,0071 EUR/GiB·mes sin IVA; 391 GiB el 03-11, unos 2,8 EUR/mes). Lo acotan la
+      # retención por proyecto y la GC de Harbor. Vigilancia de coste: INFRA-947 (pendiente).
+      region: sbg
+      regionendpoint: https://s3.sbg.io.cloud.ovh.net
+      secure: true
       v4auth: true
     type: s3
   persistentVolumeClaim:

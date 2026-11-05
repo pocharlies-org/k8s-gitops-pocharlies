@@ -1,0 +1,47 @@
+{
+ "total_count": 2,
+ "jobs": [
+  {
+   "id": 111531716431,
+   "run_id": 37234821459,
+   "workflow_name": "Build Skills Index",
+   "head_branch": "main",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ987vTw",
+   "head_sha": "fa7673ed391d426da0294007409483c91d3e8b46",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-04T21:07:43Z",
+   "started_at": "2026-10-04T21:07:43Z",
+   "completed_at": "2026-10-04T21:07:43Z",
+   "name": "build-index",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/111531716431",
+   "labels": [
+    "ubuntu-latest"
+   ],
+   "runner_group_name": null
+  },
+  {
+   "id": 111531716999,
+   "run_id": 37234821459,
+   "workflow_name": "Build Skills Index",
+   "head_branch": "main",
+   "run_attempt": 1,
+   "node_id": "CR_kwDOUlcXHs8AAAAZ987xhw",
+   "head_sha": "fa7673ed391d426da0294007409483c91d3e8b46",
+   "status": "completed",
+   "conclusion": "skipped",
+   "created_at": "2026-10-04T21:07:43Z",
+   "started_at": "2026-10-04T21:07:43Z",
+   "completed_at": "2026-10-04T21:07:43Z",
+   "name": "trigger-deploy",
+   "steps": [],
+   "check_run_url": "https://api.github.com/repos/pocharlies-org/hermes-agent/check-runs/111531716999",
+   "labels": [
+    "ubuntu-latest"
+   ],
+   "runner_group_name": null
+  }
+ ]
+}

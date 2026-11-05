@@ -41,6 +41,7 @@ ssh x86 sudo systemctl stop k3s
 # On all workers (not strictly required but avoids confusion)
 ssh dgx1 sudo systemctl stop k3s-agent
 ssh dgx2 sudo systemctl stop k3s-agent
+ssh dgx3 sudo systemctl stop k3s-agent
 ssh sauvage sudo systemctl stop k3s-agent
 ```
 
@@ -87,6 +88,7 @@ Workers will reconnect automatically once the master is back. If they don't reco
 # On each worker
 ssh dgx1 sudo systemctl restart k3s-agent
 ssh dgx2 sudo systemctl restart k3s-agent
+ssh dgx3 sudo systemctl restart k3s-agent
 ssh sauvage sudo systemctl restart k3s-agent
 ```
 
@@ -122,4 +124,5 @@ ssh x86 sudo k3s server --cluster-reset
 - k3s snapshots are self-contained: they include all cluster state (secrets, deployments, PVCs metadata).
 - **PVC data** (Longhorn volumes, NFS data) is NOT in the etcd snapshot — it's on the storage nodes and survives independently.
 - After restore, Longhorn may show degraded replicas. This is normal; let Longhorn reconcile (5–15 min).
-- Vault pods will start sealed after a cluster restore — unseal manually using 1Password keys.
+- Vault was retired on 2026-09-28 (SC-699): after a cluster restore there is no
+  vault to open. Secrets come from 1Password via `ClusterSecretStore/onepassword`.

@@ -10,6 +10,14 @@
 # unico nodo en la LAN de casa que puede anunciar por ARP las IPs del pool. Si lo
 # sueltas, MetalLB anuncia desde un nodo de OVH y las IPs de la LAN dejan de
 # responder. Los IPAddressPool/L2Advertisement NO los define este chart.
+#
+# Sondas y CPU del speaker (SC-2807, 28-10): ubuntu se satura de madrugada con las
+# tareas de backup (load1 medido 495-783, 200-270 tareas en D). Con las sondas por
+# defecto (timeoutSeconds=1, failureThreshold=3) el speaker no contesta a tiempo,
+# muere, y MetalLB retira los VIPs .240/.241 -> adguard y traefik-lan dejan de ser
+# alcanzables (la "ventana nocturna DNS" de SC-2807). timeoutSeconds 1->5 y
+# failureThreshold 3->5 para que sobreviva a la saturacion; requests de CPU al alza
+# para tener share garantizado en el CFS bajo esa carga.
 controller:
   resources:
     limits:
@@ -18,12 +26,21 @@ controller:
       cpu: 10m
       memory: 96Mi
 speaker:
+  livenessProbe:
+    timeoutSeconds: 5
+    periodSeconds: 10
+    failureThreshold: 5
+  readinessProbe:
+    timeoutSeconds: 5
+    periodSeconds: 10
+    failureThreshold: 5
   frr:
+    # Sus sondas reutilizan speaker.livenessProbe/readinessProbe (chart 0.15.3).
     resources:
       limits:
         memory: 256Mi
       requests:
-        cpu: 10m
+        cpu: 100m
         memory: 64Mi
   frrMetrics:
     resources:
@@ -67,7 +84,7 @@ speaker:
     limits:
       memory: 256Mi
     requests:
-      cpu: 10m
+      cpu: 100m
       memory: 96Mi
   tolerations:
   - effect: NoSchedule
