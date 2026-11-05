@@ -32,6 +32,19 @@ stringData:
 apiVersion: v1
 kind: Secret
 metadata:
+  name: repo-k8s-gbp-festivos-pocharlies
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+type: Opaque
+stringData:
+  type: git
+  name: k8s-gbp-festivos-pocharlies
+  url: https://github.com/pocharlies-org/k8s-gbp-festivos-pocharlies
+---
+apiVersion: v1
+kind: Secret
+metadata:
   name: repo-k8s-shopify-chatbot-pocharlies
   namespace: argocd
   labels:
