@@ -1801,7 +1801,7 @@ spec:
     # en /metrics), mantenian firing TooManyLogs en vmagent (Keep MON-18394, monitoring-degraded).
     # Unico cambio respecto a 18370dc: la VMServiceScrape; ningun Deployment del residente se toca.
     # ROLLBACK de esto: 18370dc8ca190122354af4bd83c03d0ad6c751f7 con el mismo path.
-    targetRevision: 57031c9a2781f813970b2859a72ffcd7f0761201
+    targetRevision: cdfdc8c8adae2366737bd7c09505a4c6dbdc4c67
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
