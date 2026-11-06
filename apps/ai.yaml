@@ -1801,7 +1801,14 @@ spec:
     # en /metrics), mantenian firing TooManyLogs en vmagent (Keep MON-18394, monitoring-degraded).
     # Unico cambio respecto a 18370dc: la VMServiceScrape; ningun Deployment del residente se toca.
     # ROLLBACK de esto: 18370dc8ca190122354af4bd83c03d0ad6c751f7 con el mismo path.
-    targetRevision: 57031c9a2781f813970b2859a72ffcd7f0761201
+    # 06-11-2026 (SC-4788, k8s-ai #248): la receta de serve-gdn-mix.sh se relanza dentro del
+    # contenedor hasta que arranca (10 s entre intentos): tras un reinicio de nodo el TP=2 tardaba
+    # ~27 min en converger porque cada fallo de vllm caia en el CrashLoopBackOff de kubelet (tope
+    # 5 min) y las ventanas del head (601 s de TCPStore) y del worker se descuadraban (SC-4757).
+    # Unico cambio respecto a 57031c9: el guion de arranque (ConfigMap recipe); los Deployments no
+    # cambian de spec, asi que el arreglo se estrena en el proximo recreado de pod.
+    # ROLLBACK de esto: 57031c9a2781f813970b2859a72ffcd7f0761201 con el mismo path.
+    targetRevision: 98176b4f36bfecda5dba7b9245acb7547f224331
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
