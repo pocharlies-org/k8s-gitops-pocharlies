@@ -1808,7 +1808,12 @@ spec:
     # Unico cambio respecto a 57031c9: el guion de arranque (ConfigMap recipe); los Deployments no
     # cambian de spec, asi que el arreglo se estrena en el proximo recreado de pod.
     # ROLLBACK de esto: 57031c9a2781f813970b2859a72ffcd7f0761201 con el mismo path.
-    targetRevision: 98176b4f36bfecda5dba7b9245acb7547f224331
+    # 06-11-2026 (SC-4799, k8s-ai #249): NCCL_IB_GID_INDEX=-1 (+ ROCE_VERSION_NUM=2, ADDR_FAMILY=AF_INET) en
+    # qwen38fn-b12x-env-2x: NCCL elige el GID RoCE v2 IPv4 de cada HCA. Fijo a 3, el TP=2 no arrancaba cuando el
+    # reinicio de un Spark movia el GID del otro al indice 4 (dgx1 tras reiniciar dgx2, 06-11). Solo cambia el
+    # ConfigMap env-2x; se estrena en el proximo arranque del head y del worker.
+    # ROLLBACK de esto: 98176b4f36bfecda5dba7b9245acb7547f224331 con el mismo path.
+    targetRevision: 9eb0d84271a9dad232fee6d66ccd5e89136543a8
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
