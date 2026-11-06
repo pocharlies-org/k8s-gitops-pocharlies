@@ -95,6 +95,7 @@ resources:
   - apps/inmobiliarias-proposal.yaml
   - apps/frigate.yaml
   - apps/agentjake-browser-mcp.yaml
+  - apps/agentjake-chrome.yaml
   - apps/stt-mcp.yaml
   - apps/teslamate-mcp.yaml
   - apps/dgx-synapse-mcp.yaml
