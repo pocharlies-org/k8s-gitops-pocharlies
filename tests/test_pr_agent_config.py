@@ -26,9 +26,9 @@ ROOT = Path(__file__).resolve().parent.parent
 CHECK = ROOT / "scripts/check-pr-agent-config.py"
 DIST = ROOT / "scripts/review-distribute-secrets.sh"
 CONFIG = ROOT / ".pr_agent.toml"
-SECRETS = ["PR_AGENT_LITELLM_KEY", "JIRA_EMAIL", "JIRA_API_TOKEN", "BRAIN_CI_KEY"]
+SECRETS = ["PR_AGENT_LITELLM_KEY", "JIRA_EMAIL", "JIRA_API_TOKEN"]
 VALUES = {"PR_AGENT_LITELLM_KEY": "sk-fake-litellm-0001", "JIRA_EMAIL": "ro@example.test",
-          "JIRA_API_TOKEN": "fake-jira-token-0002", "BRAIN_CI_KEY": "fake-brain-key-0004"}
+          "JIRA_API_TOKEN": "fake-jira-token-0002"}
 CONNECT_TOKEN = "fake-connect-token-0005"
 
 FAKE_GH = textwrap.dedent(r'''
@@ -274,13 +274,13 @@ class DistributeTest(unittest.TestCase):
     def repo(self, r):
         return json.loads((self.state / (r.replace("/", "__") + ".json")).read_text())
 
-    def test_dry_run_lists_four_per_repo_without_values(self):
+    def test_dry_run_lists_three_per_repo_without_values(self):
         r = self.run_dist("--dry-run", "--repos", "o/a,o/b", env=VALUES)
         self.assertEqual(r.returncode, 0, r.stderr)
         lines = [ln for ln in r.stdout.splitlines() if ln.startswith("repo=")]
-        self.assertEqual(len(lines), 8)
+        self.assertEqual(len(lines), 6)
         self.assertIn("repo=o/b secreto=JIRA_EMAIL estado=presente accion=ya-presente", r.stdout)
-        self.assertIn("RESUMEN modo=dry-run repos=2 crear=7 rotar=0 ya-presente=1", r.stdout)
+        self.assertIn("RESUMEN modo=dry-run repos=2 crear=5 rotar=0 ya-presente=1", r.stdout)
         for v in VALUES.values():
             self.assertNotIn(v, r.stdout + r.stderr)
         self.assertEqual(self.repo("o/a")["names"], [])
@@ -295,7 +295,7 @@ class DistributeTest(unittest.TestCase):
         self.assertNotIn("JIRA_EMAIL", self.repo("o/b").get("values", {}))  # presente: no se toca
         again = self.run_dist("--dry-run", "--repos", "o/a,o/b")
         self.assertEqual(again.returncode, 0)
-        self.assertIn("crear=0 rotar=0 ya-presente=8", again.stdout)
+        self.assertIn("crear=0 rotar=0 ya-presente=6", again.stdout)
 
     def test_rotate_overwrites(self):
         r = self.run_dist("--rotate", "--repos", "o/b", env=VALUES)
@@ -322,7 +322,7 @@ class DistributeTest(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
             self.assertIn("fuente=op", r.stdout)
             self.assertEqual(self.repo("o/a")["values"]["PR_AGENT_LITELLM_KEY"], VALUES["PR_AGENT_LITELLM_KEY"])
-            self.assertEqual(self.repo("o/a")["values"]["BRAIN_CI_KEY"], VALUES["BRAIN_CI_KEY"])
+            self.assertEqual(self.repo("o/a")["values"]["JIRA_API_TOKEN"], VALUES["JIRA_API_TOKEN"])
             # El token llega a Connect por cabecera Authorization: Bearer, pero nunca está en el
             # argv de curl ni en la salida; el fichero de la cabecera es 0600 y no sobrevive.
             self.assertEqual(_Connect.seen_token, f"Bearer {CONNECT_TOKEN}")
@@ -397,12 +397,13 @@ class DistributeTest(unittest.TestCase):
             self.assertEqual(r.returncode, 2, malo)
         self.assertEqual(self.repo("o/a")["names"], [])
 
-    def test_brain_key_distribuida_desde_infra_1055(self):
-        # BRAIN_CI_KEY entró en el juego por defecto tras el veredicto de security
-        # (SC-1400/INFRA-1055): autorizada en los pilotos; la oleada espera INFRA-1059.
+    def test_brain_key_ya_no_se_distribuye(self):
+        # SC-4304 fase 2: la review no escribe al Brain; BRAIN_CI_KEY sale del juego por defecto y del reparto
         r = self.run_dist("--dry-run", "--repos", "o/a", env=VALUES)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("repo=o/a secreto=BRAIN_CI_KEY estado=ausente accion=crear fuente=env", r.stdout)
+        self.assertNotIn("BRAIN_CI_KEY", r.stdout)
+        r = self.run_dist("--dry-run", "--secrets", "BRAIN_CI_KEY", "--repos", "o/a")
+        self.assertEqual(r.returncode, 2)
 
 
 if __name__ == "__main__":

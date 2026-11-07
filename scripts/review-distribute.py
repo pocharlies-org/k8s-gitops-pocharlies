@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Distribute one PR review (PR-Agent markdown) to its three consumers.
+"""Distribute one PR review (PR-Agent markdown) to its consumers.
 
 Writes, in this order and always (contract `pr_review.v1`, schemas/pr_review.v1.json):
   1 <out-dir>/payload.json  — even when PR-Agent failed (status degraded|skipped)
-  2 push-ingest to the brain instance `local-ops` (adapter `pr_review`,
-    source_id `pr_review:<owner>/<repo>#<pr>`); no BRAIN_CI_KEY or a brain that
-    fails = degraded, exit 0. In parallel (SC-4304 S5, double write until parity is
-    measured) the same review goes to the Hindsight bank `ops` through the boundary
-    writer (`POST /v1/default/banks/ops/memories`, identity `pr-review`, token
+  2 the review to the Hindsight bank `ops` through the boundary writer
+    (`POST /v1/default/banks/ops/memories`, identity `pr-review`, token
     HINDSIGHT_WRITER_TOKEN, TLS verified against scripts/hindsight-writer-ca.crt;
-    contract fields as tags): same rules, recorded as `hindsight_push`
+    contract fields as tags, document `pr_review:<owner>/<repo>#<pr>`): no token or a
+    writer that fails = degraded, exit 0; recorded as `hindsight_push`. Since SC-4304
+    phase 2 it is the only sink: the push-ingest to the Brain instance `local-ops`
+    (BRAIN_CI_KEY) was removed when the double-write window closed.
   3 GitHub labels `changes_required` / `possible security issue`, set or removed
     from the payload; no other label is ever touched
   4 <out-dir>/distribute.json — what each step did (state ok|sin_clave|degradado|
@@ -46,7 +46,7 @@ It calls no model and has no dependencies beyond the standard library and its
 sibling `scripts/review_http.py`.
 Exit codes: 0 (also degraded), 2 invalid usage / missing mandatory env / invalid
 contract-findings, 4 on 401/403 from any API. No other code. Tokens come from the
-environment (GH_TOKEN, BRAIN_CI_KEY, HINDSIGHT_WRITER_TOKEN) and are never printed. Idempotent: it
+environment (GH_TOKEN, HINDSIGHT_WRITER_TOKEN) and are never printed. Idempotent: it
 overwrites, and an inline finding already in place is not re-posted.
 
 Usage:
@@ -72,8 +72,6 @@ from review_http import AuthError, Degraded, github_headers, request  # noqa: E4
 SCHEMA_ID = "pr_review.v1"
 SCHEMA_FILE = Path(__file__).resolve().parent.parent / "schemas/pr_review.v1.json"
 DRYRUN_REVIEW = Path(__file__).resolve().parent.parent / "tests/fixtures/review-distribute/review.md"
-DEFAULT_BRAIN_URL = "http://skirmshop-brain.skirmshop-brain-prod.svc.cluster.local"
-BRAIN_INSTANCE = "local-ops"
 DEFAULT_HINDSIGHT_URL = "https://hindsight-writer.hindsight.svc:8443"
 HINDSIGHT_BANK = "ops"
 HINDSIGHT_CA = Path(__file__).resolve().parent / "hindsight-writer-ca.crt"  # pública: CN hindsight-boundary-ca
@@ -81,7 +79,7 @@ HINDSIGHT_TIMEOUT = 60  # el escritor contesta tras el retain síncrono (`async:
 ADAPTER = "pr_review"
 LABEL_CHANGES = "changes_required"
 LABEL_SECURITY = "possible security issue"
-MAX_CONTENT = 12 * 1024  # bytes; the brain cuts at 16384 chars, the margin is on purpose
+MAX_CONTENT = 12 * 1024  # bytes of review text kept in the payload
 MAX_FINDINGS = 50
 HTTP_TIMEOUT = 15
 RECOMMENDATIONS = ("merge", "changes_required", "needs_human")
@@ -204,14 +202,6 @@ def notify_text(p: dict[str, Any]) -> str:
 
 
 # ── HTTP (cliente y clasificación de errores: scripts/review_http.py) ──────
-
-
-def push_ingest(p: dict[str, Any], url: str, key: str) -> None:
-    meta = {k: v for k, v in p.items() if k != "content"}  # contract fields, flat
-    doc = {"source_id": f"{ADAPTER}:{p['repo']}#{p['pr']}", "content": p["content"], "metadata": meta}
-    request(f"{url.rstrip('/')}/instances/{BRAIN_INSTANCE}/push-ingest",
-            {"X-API-Key": key, "Authorization": f"Bearer {key}"}, method="POST",
-            body={"adapter": ADAPTER, "documents": [doc]}, timeout=HTTP_TIMEOUT, source="brain")
 
 
 def hindsight_retain(p: dict[str, Any], url: str, token: str) -> None:
@@ -358,14 +348,11 @@ def main(argv: list[str] | None = None) -> int:
     record: dict[str, Any] = {}  # .review/distribute.json: what review-health.py counts
     rc = 0
     # Two independent steps: labels are the primary channel to pr-watcher, so a
-    # 401 from the brain must not skip them (and a 403 from GitHub must not skip
-    # the push-ingest). Exit 4 if either one is rejected.
-    # Doble escritura (SC-4304 S5): el Brain sigue recibiendo lo mismo hasta medir paridad;
-    # Hindsight es independiente, cada sumidero con su clave y su fila en distribute.json.
+    # 401 from Hindsight must not skip them (and a 403 from GitHub must not skip
+    # the Hindsight write). Exit 4 if either one is rejected.
+    # Desde SC-4304 fase 2 Hindsight es el único sumidero (el Brain se retiró al cerrar la doble escritura).
     # Sin contenido (review caída) no se envía a Hindsight: el escritor rechaza un `content` vacío.
     sinks = (
-        ("push_ingest", "push-ingest", "BRAIN_CI_KEY", True,
-         lambda k: push_ingest(payload, os.environ.get("BRAIN_URL", DEFAULT_BRAIN_URL), k)),
         ("hindsight_push", "hindsight", "HINDSIGHT_WRITER_TOKEN", bool(payload["content"].strip()),
          lambda k: hindsight_retain(payload, os.environ.get("HINDSIGHT_URL", DEFAULT_HINDSIGHT_URL), k)),
     )

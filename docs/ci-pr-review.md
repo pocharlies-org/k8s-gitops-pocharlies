@@ -73,8 +73,8 @@ Equivalencias con los nombres del encargo: «output_language» es `config.respon
     scripts/review-distribute-secrets.sh --dry-run --repos k8s-litellm-pocharlies,skirmshop-labels
     scripts/review-distribute-secrets.sh --repos <r1,r2> --from-op k8s-pocharlies/pr-review-ci [--rotate]
 
-Reparte `PR_AGENT_LITELLM_KEY`, `JIRA_EMAIL`, `JIRA_API_TOKEN` y `BRAIN_CI_KEY` (esta última
-autorizada por security solo en los 2 pilotos hasta INFRA-1059; ver «Rollout P6b» abajo).
+Reparte `PR_AGENT_LITELLM_KEY`, `JIRA_EMAIL` y `JIRA_API_TOKEN`. `BRAIN_CI_KEY` dejó de repartirse en SC-4304
+fase 2 (la review ya no escribe al Brain; ver «Memoria de las reviews en Hindsight»).
 `--secrets A,B` elige el juego (los de PR-Agent de arriba o los del juez); el del juez (SC-2182) es
 `--secrets LITELLM_JUEZ_KEY,JIRA_JUEZ_EMAIL,JIRA_JUEZ_TOKEN,JIRA_JUEZ_URL`, con nombres propios para no tocar ni rotar
 `LITELLM_CI_KEY`, `JIRA_EMAIL` y `JIRA_API_TOKEN`. Valor: variable de entorno del mismo nombre o, con
@@ -122,7 +122,7 @@ Permisos del job: `contents: read` + `pull-requests: write`. No `issues: write`:
 permiso que el llamador no concede tumba el run entero al arrancar, y la plantilla no lo concede;
 `pull-requests: write` cubre comentarios y etiquetas del PR (tabla oficial de permisos de GitHub).
 
-Rojo solo por 401/403 (LiteLLM, GitHub, Harbor, brain) o uso inválido (D3). Sin `PR_AGENT_LITELLM_KEY`, sin
+Rojo solo por 401/403 (LiteLLM, GitHub, Harbor, Hindsight) o uso inválido (D3). Sin `PR_AGENT_LITELLM_KEY`, sin
 `HARBOR_*`, modelo caído, timeout o config inválida: verde con aviso y `status` `skipped`/`degraded`.
 El 401/403 de PR-Agent lo decide `scripts/pr-agent-auth-check.py` (INFRA-620): solo cuentan las líneas de log
 ERROR/WARNING/CRITICAL, la excepción adjunta o un traceback crudo entero (hasta el siguiente registro de log; así cuenta un
@@ -186,11 +186,9 @@ dejan aplicar las demás puertas.
 ## Rollout P6b (INFRA-334): estado, oleadas y [GOTCHA] de la migración
 
 SC-1400/INFRA-1055 (security, 31-10-2026) cerró la dependencia: `PR_AGENT_LITELLM_KEY` regenerada y
-repartida a los 2 pilotos; `BRAIN_CI_KEY` compartida autorizada **solo en los 2 pilotos** (ya
-repartida por `review-distribute-secrets.sh --from-op`, medido `resultado=ok` en ambos); los valores
-viven en el item 1Password `k8s-pocharlies/pr-review-ci`. El ticket Jira y la memoria del brain siguen
-degradados donde falten las claves: sin `BRAIN_CI_KEY` el push-ingest sale `sin_clave` (la señal
-nocturna lo informa aparte) y sin `JIRA_*` la sección «Tickets Jira citados» va a Degradaciones.
+repartida a los 2 pilotos (entonces también `BRAIN_CI_KEY`, retirada en SC-4304 fase 2); los valores
+viven en el item 1Password `k8s-pocharlies/pr-review-ci`. Sin `JIRA_*` la sección «Tickets Jira citados»
+va a Degradaciones.
 
 **[GOTCHA] de la migración** (lo que rompió el camino viejo, medido):
 
@@ -221,7 +219,7 @@ fichero tampoco reciben oleada: la plantilla es el criterio.
 
 1. **Oleada 1 (10 repos):** `scripts/review-distribute-secrets.sh --repos <10> --from-op
    k8s-pocharlies/pr-review-ci` (secrets: `PR_AGENT_LITELLM_KEY`, `JIRA_EMAIL`, `JIRA_API_TOKEN`;
-   `BRAIN_CI_KEY` solo cuando INFRA-1059 dé la clave de instancia), PR por repo fijando
+   sin `BRAIN_CI_KEY`: retirada en SC-4304 fase 2), PR por repo fijando
    `engine: pr-agent` en su `pr-review.yml`, y los 10 añadidos a `.github/pr-agent-repos.txt` en el
    mismo PR (la señal nocturna es la puerta). Comprobación: `gh run list -R pocharlies-org/<repo>
    -w "PR review" -L 5 --json conclusion` sin `failure` por opinión (D3).
@@ -233,14 +231,14 @@ El cambio de `templates/ci/pr-review.yml` al motor nuevo y la retirada de `revie
 DESPUÉS del reparto verificado sobre la lista completa, en PR aparte.
 
 **Qué falta para lanzar la oleada 1:** INFRA-1058 (cuenta Jira `pr-agent-ro` + PAT `secrets: write`,
-Request IT) e INFRA-1059 (clave de instancia del brain para `BRAIN_CI_KEY` por repo; el mecanismo
-fusionado, la clave restringida la emite security después).
+Request IT). INFRA-1059 (clave de instancia del brain para `BRAIN_CI_KEY`) quedó sin objeto en SC-4304 fase 2.
 
 ## Memoria de las reviews en Hindsight (SC-4304 S5)
 
 La review ya NO lee memoria: la sección «Memoria local-ops» de `review-context.py` se retiró (la señal de sus
 hits nunca se midió, y el lector del boundary solo sirve knowledge-base). Lo que sí se conserva es la
-ESCRITURA, que va en doble con el Brain hasta medir paridad (S8 retira `local-ops`):
+ESCRITURA. Desde SC-4304 fase 2 es el único destino: el push-ingest al Brain (instancia `local-ops`, `BRAIN_CI_KEY`)
+se retiró al cerrar la ventana de doble escritura (2026-11-08 22:00Z):
 
 - `review-distribute.py` hace `POST https://hindsight-writer.hindsight.svc:8443/v1/default/banks/ops/memories`
   con la identidad `pr-review` (banco fijo `ops`, solo escritura). Un documento por PR: `document_id`
@@ -252,7 +250,7 @@ ESCRITURA, que va en doble con el Brain hasta medir paridad (S8 retira `local-op
   por defecto). Llega solo al paso «Distribute the review», con la guarda de fork, por `env:`, nunca por argv.
 - TLS verificado con la CA pública del boundary, `scripts/hindsight-writer-ca.crt` (CN `hindsight-boundary-ca`,
   Secret `hindsight-writer-ca-tls` del ns `hindsight`; si se regenera, se vuelve a copiar). Sin redirects.
-- Misma regla que el Brain: sin token = `sin_clave` (exit 0), 429/5xx/red = `degradado` (exit 0), 401/403 =
+- Sin token = `sin_clave` (exit 0), 429/5xx/red = `degradado` (exit 0), 401/403 =
   `rechazado` (exit 4, rojo). Sin contenido (review caída) = `omitido`. Se registra como `hindsight_push` en
   `distribute.json` y `review-health.py` lo cuenta como omisión si falla.
 - Red: `arc-runners` → 8443 del escritor (NetworkPolicy `hindsight-ingress`, k8s-hindsight-pocharlies#62).
@@ -269,12 +267,11 @@ dispatch puntual). Lee los runs de `PR review` de las últimas 24 h —la ventan
 (`date -u -d '24 hours ago'`), no hay fecha fija en el YAML— hasta 50, y el artefacto
 `pr-review-<pr>-<intento>` de cada uno (`payload.json` + `distribute.json`).
 
-- **Omitido** = sin artefacto dentro de la retención (14 d), `status` ≠ `ok`, o push-ingest/etiquetas `degradado`
-  (el brain o GitHub dieron 4xx/5xx) o `rechazado` (401/403). Cuenta una vez por run.
+- **Omitido** = sin artefacto dentro de la retención (14 d), `status` ≠ `ok`, o escritura a Hindsight/etiquetas `degradado`
+  (Hindsight o GitHub dieron 4xx/5xx) o `rechazado` (401/403). Cuenta una vez por run.
 - **Rojo** (job en rojo + aviso al topic `ci`) si omitidos > 20 % de los runs medibles (10 de 50 es verde, 11 es rojo; con
   menos de 50 runs, sobre los que haya) o si el último run terminó en `failure` (credencial rota).
-- **No cuentan**: runs sin el motor PR-Agent (`engine: juez`, forks), anteriores a `--since`, sin datos por retención, y
-  `push_ingest: sin_clave` (falta `BRAIN_CI_KEY`, SC-1400): se informa aparte como dependencia.
+- **No cuentan**: runs sin el motor PR-Agent (`engine: juez`, forks), anteriores a `--since` y sin datos por retención.
 - Si no se puede medir (GitHub caído) sale 3, no verde. Es la puerta de cada oleada de INFRA-334.
 
 # PR review: el motor `juez` (SC-2182)

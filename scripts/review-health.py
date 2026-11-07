@@ -7,10 +7,10 @@ from the artifact `pr-review-<pr>-<attempt>` each one uploads, decides per run:
   omitido  the review did not reach the PR or its distribution failed. Any of:
            - no artifact within retention (the run left no verdict)
            - payload.json `status` is not `ok` (PR-Agent skipped/degraded)
-           - distribute.json: push-ingest, Hindsight write or labels `degradado` (brain/Hindsight/GitHub answered
-             4xx/5xx or was down) or `rechazado` (401/403)
-  ok       anything else. `push_ingest: sin_clave` (BRAIN_CI_KEY not distributed yet,
-           SC-1400) is NOT an omission: it is reported apart as a dependency.
+           - distribute.json: Hindsight write or labels `degradado` (Hindsight/GitHub answered
+             4xx/5xx or was down) or `rechazado` (401/403). A `push_ingest` entry left by an artifact
+             from before SC-4304 phase 2 (the Brain write was removed) is ignored.
+  ok       anything else.
   ajeno    the run did not execute the PR-Agent engine (`engine: juez`, a fork, a skipped
            job), predates --since, or is a deliberate contract test (marker `PRUEBA` in the
            run title, SC-1592): it says nothing about this review. Left out of the ratio.
@@ -87,10 +87,10 @@ def select_runs(runs: list[dict[str, Any]], jobs: dict[int, list[dict[str, Any]]
     return picked[:window], foreign
 
 
-def classify(files: dict[str, Any] | None) -> tuple[str, list[str], bool]:
-    """(`ok`|`omitido`, reasons, no_key) for the files of one artifact (None = no artifact)."""
+def classify(files: dict[str, Any] | None) -> tuple[str, list[str]]:
+    """(`ok`|`omitido`, reasons) for the files of one artifact (None = no artifact)."""
     if files is None:
-        return "omitido", ["sin artefacto: la review no dejó veredicto"], False
+        return "omitido", ["sin artefacto: la review no dejó veredicto"]
     reasons: list[str] = []
     payload = files.get("payload.json")
     if not isinstance(payload, dict):
@@ -98,17 +98,13 @@ def classify(files: dict[str, Any] | None) -> tuple[str, list[str], bool]:
     elif payload.get("status") != "ok":
         reasons.append(f"review {payload.get('status')}")
     dist = files.get("distribute.json") or {}
-    no_key = False
-    for step, label in (("push_ingest", "push-ingest al brain"), ("hindsight_push", "escritura a Hindsight"),
-                        ("labels", "etiquetas")):
+    for step, label in (("hindsight_push", "escritura a Hindsight"), ("labels", "etiquetas")):
         info = dist.get(step) or {}
         state = info.get("state")
         if state in ("degradado", "rechazado"):
             http = f" HTTP {info['http']}" if info.get("http") else ""
             reasons.append(f"{label} {state}{http}")
-        if step == "push_ingest" and state == "sin_clave":
-            no_key = True
-    return ("omitido" if reasons else "ok"), reasons, no_key
+    return ("omitido" if reasons else "ok"), reasons
 
 
 def read_artifact(repo: str, run_id: int, token: str, base: str) -> dict[str, Any] | None:
@@ -137,15 +133,14 @@ def evaluate(runs: list[dict[str, Any]], artifacts: dict[int, dict[str, Any] | N
     """Pure rule. `runs` newest first; `artifacts` run id -> files (None = none found)."""
     considered = [r for r in runs if r.get("conclusion") in MEASURED][:window]
     cutoff = now - timedelta(days=retention_days)
-    omitted, ok, expired, no_key, rows = 0, 0, 0, 0, []
+    omitted, ok, expired, rows = 0, 0, 0, []
     for r in considered:
         created = datetime.fromisoformat(r["created_at"].replace("Z", "+00:00"))
         files = artifacts.get(r["id"])
         if files is None and created < cutoff:
             expired += 1
             continue
-        verdict, reasons, nk = classify(files)
-        no_key += nk
+        verdict, reasons = classify(files)
         omitted += verdict == "omitido"
         ok += verdict == "ok"
         if verdict == "omitido":
@@ -159,7 +154,7 @@ def evaluate(runs: list[dict[str, Any]], artifacts: dict[int, dict[str, Any] | N
     if latest_failed:
         red.append("el último run concluyó en failure (credencial rota 401/403)")
     return {"considered": len(considered), "measured": measured, "omitted": omitted, "ok": ok,
-            "expired": expired, "foreign": foreign, "no_key": no_key, "ratio": ratio, "red": red, "rows": rows}
+            "expired": expired, "foreign": foreign, "ratio": ratio, "red": red, "rows": rows}
 
 
 def render(repo: str, ev: dict[str, Any]) -> str:
@@ -168,9 +163,6 @@ def render(repo: str, ev: dict[str, Any]) -> str:
              f"- runs considerados: {ev['considered']} · medidos: {ev['measured']} · "
              f"omitidos: {ev['omitted']} ({ev['ratio']:.0%}) · expirados (sin datos): {ev['expired']} · "
              f"ajenos (sin motor PR-Agent o previos a --since): {ev['foreign']}"]
-    if ev["no_key"]:
-        lines.append(f"- {ev['no_key']} run(s) sin BRAIN_CI_KEY: el payload no llega al brain "
-                     "(dependencia SC-1400/B1, no se cuenta como omisión)")
     if not ev["measured"]:
         lines.append("- sin runs medibles: nada que juzgar")
     lines += [f"- ROJO: {r}" for r in ev["red"]]

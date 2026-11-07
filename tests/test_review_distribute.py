@@ -1,7 +1,7 @@
 """Tests for scripts/review-distribute.py: payload contract, exit codes 0/2/4, labels, push-ingest.
 
 Run: python3 -m unittest tests/test_review_distribute.py
-stdlib only. GitHub and the brain are local HTTP servers: no live data.
+stdlib only. GitHub and Hindsight are local HTTP servers: no live data.
 """
 
 from __future__ import annotations
@@ -195,14 +195,14 @@ class ReviewDistribute(unittest.TestCase):
         assert p["merge_recommendation"] == "merge" and p["possible_security_issue"] is False
         assert p["changes_required"] is False
 
-    # ── brain and labels ──
+    # ── hindsight and labels ──
 
-    def test_without_brain_key_degrades_exit_0_and_syncs_labels(self):
+    def test_without_hindsight_token_degrades_exit_0_and_syncs_labels(self):
         srv, url = self.server()
         r = self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc", "--review-md", str(REVIEW),
                             env={"GH_TOKEN": "t", "GITHUB_API_URL": url})
         assert r.returncode == 0, r.stderr
-        assert "sin BRAIN_CI_KEY" in r.stdout
+        assert "sin HINDSIGHT_WRITER_TOKEN" in r.stdout and "push-ingest" not in r.stdout
         assert (self.out / "payload.json").is_file() and (self.out / "notify.txt").is_file()
         calls = [(m, p, b) for m, p, b, _ in srv.calls]
         assert ("POST", "/repos/o/r/issues/7/labels", {"labels": ["changes_required"]}) in calls
@@ -267,22 +267,16 @@ class ReviewDistribute(unittest.TestCase):
             ("DELETE", "/repos/o/r/issues/7/labels/changes_required"),
             ("DELETE", "/repos/o/r/issues/7/labels/possible%20security%20issue")]
 
-    def test_push_ingest_shape(self):
+    def test_no_brain_write_even_with_the_old_env(self):
+        # SC-4304 fase 2: BRAIN_URL y BRAIN_CI_KEY ya no significan nada; el Brain no recibe ni una llamada
         gh, gh_url = self.server()
         brain, brain_url = self.server()
         r = self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc", "--review-md", str(REVIEW),
                             env={"GH_TOKEN": "t", "GITHUB_API_URL": gh_url,
                                  "BRAIN_URL": brain_url, "BRAIN_CI_KEY": "sekret-key-123"})
         assert r.returncode == 0, r.stderr
-        m, path, body, hdrs = brain.calls[0]
-        assert (m, path) == ("POST", "/instances/local-ops/push-ingest")
-        assert body["adapter"] == "pr_review"
-        doc = body["documents"][0]
-        assert doc["source_id"] == "pr_review:o/r#7"
-        assert doc["content"] == self.payload()["content"] and len(doc["content"].encode()) <= 12 * 1024
-        meta = doc["metadata"]
-        assert "content" not in meta and meta["schema"] == "pr_review.v1"
-        assert meta["changes_required"] is True and meta["findings"][0]["file"] == "src/db.py"
+        assert brain.calls == []
+        assert "push_ingest" not in self.dist() and "push-ingest" not in r.stdout
         assert "sekret-key-123" not in r.stdout + r.stderr
 
     def dist(self) -> dict:
@@ -290,30 +284,18 @@ class ReviewDistribute(unittest.TestCase):
 
     def test_distribute_json_records_each_step(self):
         gh, gh_url = self.server()
-        brain, brain_url = self.server(code=404)
         r = self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc", "--review-md", str(REVIEW),
-                            env={"GH_TOKEN": "t", "GITHUB_API_URL": gh_url,
-                                 "BRAIN_URL": brain_url, "BRAIN_CI_KEY": "k"})
+                            env={"GH_TOKEN": "t", "GITHUB_API_URL": gh_url})
         assert r.returncode == 0
-        assert self.dist() == {"push_ingest": {"state": "degradado", "http": 404},
-                               "hindsight_push": {"state": "sin_clave", "http": None},
+        assert self.dist() == {"hindsight_push": {"state": "sin_clave", "http": None},
                                "labels": {"state": "ok", "http": None}}
 
     def test_distribute_json_without_key_and_on_rejection(self):
         gh, gh_url = self.server(code=403)
         assert self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc", "--review-md", str(REVIEW),
                                env={"GH_TOKEN": "t", "GITHUB_API_URL": gh_url}).returncode == 4
-        assert self.dist() == {"push_ingest": {"state": "sin_clave", "http": None},
-                               "hindsight_push": {"state": "sin_clave", "http": None},
+        assert self.dist() == {"hindsight_push": {"state": "sin_clave", "http": None},
                                "labels": {"state": "rechazado", "http": 403}}
-
-    def test_brain_failure_degrades_exit_0(self):
-        gh, gh_url = self.server()
-        brain, brain_url = self.server(code=500)
-        r = self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc", "--review-md", str(REVIEW),
-                            env={"GH_TOKEN": "t", "GITHUB_API_URL": gh_url,
-                                 "BRAIN_URL": brain_url, "BRAIN_CI_KEY": "sekret-key-123"})
-        assert r.returncode == 0 and "push-ingest: degradado" in r.stdout
 
     def test_github_403_exit_4_files_still_written(self):
         srv, url = self.server(code=403)
@@ -322,31 +304,19 @@ class ReviewDistribute(unittest.TestCase):
         assert r.returncode == 4, r.stdout + r.stderr
         assert (self.out / "payload.json").is_file() and (self.out / "notify.txt").is_file()
 
-    def test_brain_401_exit_4_but_labels_still_synced(self):
-        gh, gh_url = self.server()
-        brain, brain_url = self.server(code=401)
-        r = self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc", "--review-md", str(REVIEW),
-                            env={"GH_TOKEN": "t", "GITHUB_API_URL": gh_url,
-                                 "BRAIN_URL": brain_url, "BRAIN_CI_KEY": "k"})
-        assert r.returncode == 4, r.stdout + r.stderr
-        assert len(gh.calls) == 2 and all(c[0] == "POST" for c in gh.calls)
-
-    def test_github_403_exit_4_but_push_ingest_still_attempted(self):
+    def test_github_403_exit_4_but_hindsight_still_attempted(self):
         gh, gh_url = self.server(code=403)
-        brain, brain_url = self.server()
+        hs, hs_url = self.server()
         r = self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc", "--review-md", str(REVIEW),
-                            env={"GH_TOKEN": "t", "GITHUB_API_URL": gh_url,
-                                 "BRAIN_URL": brain_url, "BRAIN_CI_KEY": "k"})
+                            env={"GH_TOKEN": "t", "GITHUB_API_URL": gh_url, "HINDSIGHT_URL": hs_url,
+                                 "HINDSIGHT_WRITER_TOKEN": "hs-token-0123456789"})
         assert r.returncode == 4, r.stdout + r.stderr
-        assert [c[1] for c in brain.calls] == ["/instances/local-ops/push-ingest"]
+        assert [c[1] for c in hs.calls] == ["/v1/default/banks/ops/memories"]
 
-    # ── Hindsight (SC-4304 S5): doble escritura junto al Brain ──
+    # ── Hindsight (SC-4304 S5; único sumidero desde la fase 2) ──
 
-    def hs_env(self, gh_url, hs_url, token="hs-token-0123456789", brain_url=None):
-        env = {"GH_TOKEN": "t", "GITHUB_API_URL": gh_url, "HINDSIGHT_URL": hs_url, "HINDSIGHT_WRITER_TOKEN": token}
-        if brain_url:
-            env.update({"BRAIN_URL": brain_url, "BRAIN_CI_KEY": "k"})
-        return env
+    def hs_env(self, gh_url, hs_url, token="hs-token-0123456789"):
+        return {"GH_TOKEN": "t", "GITHUB_API_URL": gh_url, "HINDSIGHT_URL": hs_url, "HINDSIGHT_WRITER_TOKEN": token}
 
     def run_pr(self, env, review=REVIEW):
         return self.run_script("--repo", "o/r", "--pr", "7", "--head-sha", "abc", "--review-md", str(review), env=env)
@@ -369,25 +339,25 @@ class ReviewDistribute(unittest.TestCase):
         assert self.dist()["hindsight_push"] == {"state": "ok", "http": None}
         assert "hs-token-0123456789" not in r.stdout + r.stderr
 
-    def test_double_write_hits_brain_and_hindsight(self):
+    def test_only_hindsight_is_written(self):
         gh, gh_url = self.server()
         brain, brain_url = self.server()
         hs, hs_url = self.server()
-        r = self.run_pr(self.hs_env(gh_url, hs_url, brain_url=brain_url))
+        env = self.hs_env(gh_url, hs_url)
+        env.update({"BRAIN_URL": brain_url, "BRAIN_CI_KEY": "k"})  # el entorno viejo ya no cuenta
+        r = self.run_pr(env)
         assert r.returncode == 0, r.stderr
-        assert [c[1] for c in brain.calls] == ["/instances/local-ops/push-ingest"]
+        assert brain.calls == []
         assert [c[1] for c in hs.calls] == ["/v1/default/banks/ops/memories"]
-        d = self.dist()
-        assert d["push_ingest"]["state"] == "ok" and d["hindsight_push"]["state"] == "ok"
+        assert self.dist()["hindsight_push"]["state"] == "ok" and "push_ingest" not in self.dist()
 
-    def test_hindsight_401_is_exit_4_but_brain_and_labels_still_done(self):
+    def test_hindsight_401_is_exit_4_but_labels_still_done(self):
         gh, gh_url = self.server()
-        brain, brain_url = self.server()
         hs, hs_url = self.server(code=401)
-        r = self.run_pr(self.hs_env(gh_url, hs_url, brain_url=brain_url))
+        r = self.run_pr(self.hs_env(gh_url, hs_url))
         assert r.returncode == 4, r.stdout + r.stderr
         assert self.dist()["hindsight_push"] == {"state": "rechazado", "http": 401}
-        assert len(brain.calls) == 1 and len(gh.calls) == 2
+        assert len(gh.calls) == 2
 
     def test_hindsight_403_is_exit_4(self):
         gh, gh_url = self.server()

@@ -20,7 +20,6 @@
 #                               ellos, lo mismo.
 #   JIRA_EMAIL / JIRA_API_TOKEN  cumplimiento del ticket; sin ellos la seccion
 #                               va a «Degradaciones».
-#   BRAIN_CI_KEY                escritura en el brain local-ops; sin ella, degradada.
 #   HINDSIGHT_WRITER_TOKEN      escritura en Hindsight (banco `ops`); sin el, degradada.
 # TELEGRAM_CI_BOT_TOKEN y TELEGRAM_CI_CHAT_ID son de organizacion y entran con
 # `secrets: inherit` solo en repos PUBLICOS.
