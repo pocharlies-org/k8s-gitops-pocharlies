@@ -53,6 +53,7 @@ spec:
     - https://metallb.github.io/metallb
     - https://prometheus-community.github.io/helm-charts
     - https://raw.githubusercontent.com/Arvo-AI/aurora/gh-pages
+    - https://stakater.github.io/stakater-charts   # Reloader
     - https://traefik.github.io/charts
     - https://victoriametrics.github.io/helm-charts
     - https://vmware-tanzu.github.io/helm-charts

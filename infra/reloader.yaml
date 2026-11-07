@@ -1,0 +1,39 @@
+# Stakater Reloader: reinicia un workload cuando cambia un Secret que
+# lee. Sin él, una rotación sincronizada por ESO no llega a los pods que leen el
+# secreto por env hasta un `rollout restart` manual (31-10: CONNECTOR_SHARED_SECRET
+# → 401 de firma en dgx-messages y los connectors durante una semana).
+# Opt-in por workload: anotación `reloader.stakater.com/auto: "true"` en
+# metadata.annotations del Deployment/StatefulSet (no del pod template).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: reloader
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/stakater/Reloader
+  labels:
+    e-dani.com/tier: infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  sources:
+    - repoURL: https://stakater.github.io/stakater-charts
+      chart: reloader
+      targetRevision: 2.2.19
+      helm:
+        releaseName: reloader
+        valueFiles:
+          - $values/infra/reloader/values.yaml
+    - repoURL: https://github.com/pocharlies-org/k8s-gitops-pocharlies
+      targetRevision: deploy/prod
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: reloader
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

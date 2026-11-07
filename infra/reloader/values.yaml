@@ -1,0 +1,25 @@
+reloader:
+  # annotations: el reinicio escribe `reloader.stakater.com/last-reloaded-from`
+  # en el pod template (la estrategia por defecto inyecta un env falso). Medido
+  # 07-11: una anotación así en el pod template no saca a la Application de Synced.
+  reloadStrategy: annotations
+  # Mínimo privilegio (veredicto de security, SC-4836): solo Secrets y
+  # Deployments/StatefulSets/DaemonSets; sin ConfigMaps ni create/delete de Jobs.
+  ignoreConfigMaps: true
+  ignoreJobs: true
+  ignoreCronJobs: true
+  readOnlyRootFileSystem: true  # el chart monta /tmp como emptyDir
+  deployment:
+    nodeSelector:
+      node-pool: ks5-nvme
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
