@@ -1,4 +1,4 @@
-# Stakater Reloader: reinicia un workload cuando cambia un Secret/ConfigMap que
+# Stakater Reloader: reinicia un workload cuando cambia un Secret que
 # lee. Sin él, una rotación sincronizada por ESO no llega a los pods que leen el
 # secreto por env hasta un `rollout restart` manual (31-10: CONNECTOR_SHARED_SECRET
 # → 401 de firma en dgx-messages y los connectors durante una semana).
