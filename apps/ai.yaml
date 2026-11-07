@@ -1819,7 +1819,11 @@ spec:
     # espera a que el head rearranque y el par no converge nunca (20 min sin servir). Cambia el recipe (script
     # nuevo) y la spec del head (la sonda): el rollout reinicia el head y, tras el, el worker por --vigila.
     # ROLLBACK de esto: 9eb0d84271a9dad232fee6d66ccd5e89136543a8 con el mismo path.
-    targetRevision: fb5fa116a2831c84af0a9592dce4560c3bdc77f5
+    # 07-11-2026 (SC-4954, k8s-ai #252): el worker no se engancha a un head que muere (worker-sigue-head mira
+    # `started` de kubelet, no /health; el reintento de la receta no cambia de head) y la liveness del head no hace
+    # cola (con peticiones en curso mira el progreso de /metrics). Solo cambia el ConfigMap recipe: no reinicia nada.
+    # ROLLBACK de esto: fb5fa116a2831c84af0a9592dce4560c3bdc77f5 con el mismo path.
+    targetRevision: d9d8dfff9d6bb1f47f82a36ed4eb0dae4d6ea1aa
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
