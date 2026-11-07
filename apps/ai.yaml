@@ -1813,7 +1813,13 @@ spec:
     # reinicio de un Spark movia el GID del otro al indice 4 (dgx1 tras reiniciar dgx2, 06-11). Solo cambia el
     # ConfigMap env-2x; se estrena en el proximo arranque del head y del worker.
     # ROLLBACK de esto: 98176b4f36bfecda5dba7b9245acb7547f224331 con el mismo path.
-    targetRevision: 9eb0d84271a9dad232fee6d66ccd5e89136543a8
+    # 07-11-2026 (SC-4788, k8s-ai #251): livenessProbe del head por completion real (ursu/head-engine-vivo.py,
+    # 1 token, timeout 25 s, failureThreshold 3). Medido en la simulacion de la Request: borrando solo el worker
+    # el head queda con el engine zombie y /health sigue dando 200 mientras los completions cuelgan; el worker
+    # espera a que el head rearranque y el par no converge nunca (20 min sin servir). Cambia el recipe (script
+    # nuevo) y la spec del head (la sonda): el rollout reinicia el head y, tras el, el worker por --vigila.
+    # ROLLBACK de esto: 9eb0d84271a9dad232fee6d66ccd5e89136543a8 con el mismo path.
+    targetRevision: fb5fa116a2831c84af0a9592dce4560c3bdc77f5
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
