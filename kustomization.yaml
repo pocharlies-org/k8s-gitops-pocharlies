@@ -34,6 +34,7 @@ resources:
   - infra/metallb.yaml
   - infra/kyverno.yaml
   - infra/reflector.yaml
+  - infra/reloader.yaml
   - infra/descheduler.yaml
   - infra/longhorn.yaml
   # INFRA-168: el fixture longhorn-zombie-test se activaba aquí (PR #507) y se

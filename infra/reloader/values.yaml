@@ -1,0 +1,15 @@
+reloader:
+  # annotations: el reinicio escribe `reloader.stakater.com/last-reloaded-from`
+  # en el pod template. La estrategia por defecto inyecta un env falso, peor
+  # para el diff de ArgoCD. Cada Application que opte por Reloader ignora esa
+  # anotación (ignoreDifferences) para que selfHeal no la revierta.
+  reloadStrategy: annotations
+  deployment:
+    nodeSelector:
+      node-pool: ks5-nvme
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 256Mi
