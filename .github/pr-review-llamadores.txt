@@ -128,6 +128,7 @@ pocharlies-org/k8s-skirmshop-drive-mirror-pocharlies	activo	default	main	secreto
 pocharlies-org/k8s-skirmshop-wiki-pocharlies	activo	default	main	secretos
 pocharlies-org/k8s-skirmshopshopifyapp-pocharlies	activo	default	main	secretos
 pocharlies-org/k8s-socialmedia-pocharlies	activo	default	main	secretos
+pocharlies-org/k8s-redroid-pocharlies	activo	default	main	secretos
 pocharlies-org/k8s-stt-mcp-pocharlies	activo	default	main	secretos
 pocharlies-org/k8s-synapse-pocharlies	activo	default	main	secretos
 pocharlies-org/k8s-tesla-pocharlies	activo	pr-agent	main	pr-agent

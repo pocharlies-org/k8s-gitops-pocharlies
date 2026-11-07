@@ -64,6 +64,7 @@ pocharlies-org/k8s-skirmshop-drive-mirror-pocharlies	llama	SKIRM
 pocharlies-org/k8s-skirmshop-wiki-pocharlies	llama	SKIRM	
 pocharlies-org/k8s-skirmshopshopifyapp-pocharlies	llama	SKIRM	
 pocharlies-org/k8s-socialmedia-pocharlies	llama	SKIRM	
+pocharlies-org/k8s-redroid-pocharlies	llama	SC	
 pocharlies-org/k8s-stt-mcp-pocharlies	llama	DGX	
 pocharlies-org/k8s-synapse-pocharlies	llama	SKIRM	
 pocharlies-org/k8s-teslamate-mcp-pocharlies	llama	INFRA	
