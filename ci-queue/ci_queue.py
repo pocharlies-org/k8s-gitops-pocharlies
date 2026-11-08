@@ -33,16 +33,6 @@ import urllib.request
 
 API = "https://api.github.com"
 
-# Pools ARC extra que no salen como `runnerScaleSetName` de infra/arc.yaml.
-# INFRA-1056: queda vacío. Antes llevaba `x86-hermes` para «perseguir» un runner
-# autoalojado, pero un runner autoalojado NO es un pool ARC: se reconoce por el
-# marcador `self-hosted` de sus labels (ver `classify_job`), no por una lista
-# fija. Así cualquier pool autoalojado nuevo (x86, nexus-mac, …) entra solo, sin
-# tocar el código — que es lo que pidió el ticket (descubrir por la API, no con
-# una lista). `load_pools` sigue sumando esta tupla (hoy vacía) por si algún día
-# hiciera falta un pool ARC que no viva en arc.yaml.
-EXTRA_POOLS: tuple[str, ...] = ()
-
 # Labels de GitHub-hosted (la granja de GitHub, no nuestra): no son «sin pool»,
 # simplemente no pasan por ARC. macos-*/windows-* se documentan como fuera de
 # pool (spec C2), no se migran.
@@ -87,13 +77,14 @@ def percentile(values: list[float], q: float) -> float:
 
 
 def load_pools(arc_yaml_text: str) -> frozenset[str]:
-    """Pools válidos = `runnerScaleSetName` de infra/arc.yaml + EXTRA_POOLS.
+    """Pools válidos = `runnerScaleSetName` de infra/arc.yaml.
 
     Fuente única (architect §2): el valor vive dentro del bloque `values: |` de
-    cada Application, así que se lee el texto, no el YAML ya parseado.
+    cada Application, así que se lee el texto, no el YAML ya parseado. Un runner
+    autoalojado no es un pool ARC: se reconoce por `self-hosted` en `classify_job`
+    (INFRA-1056), no por esta lista.
     """
-    pools = set(re.findall(r"^\s*runnerScaleSetName:\s*(\S+)\s*$", arc_yaml_text, re.M))
-    return frozenset(pools | set(EXTRA_POOLS))
+    return frozenset(re.findall(r"^\s*runnerScaleSetName:\s*(\S+)\s*$", arc_yaml_text, re.M))
 
 
 def classify_label(label: str, pools: frozenset[str]) -> str:

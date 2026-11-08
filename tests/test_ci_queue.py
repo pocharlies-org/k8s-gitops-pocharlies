@@ -83,16 +83,14 @@ class TestLabels(unittest.TestCase):
         self.assertIn("arc-skills-eval", self.pools)
 
     def test_x86_hermes_no_es_pool_arc(self):
-        # INFRA-1056: x86-hermes dejó de estar en EXTRA_POOLS. Es un runner
-        # autoalojado, no un scale set de ARC: se reconoce por el marcador
-        # `self-hosted` de sus labels (classify_job), no como pool ARC.
+        # INFRA-1056: x86-hermes es un runner autoalojado, no un scale set de
+        # ARC: se reconoce por el marcador `self-hosted` de sus labels
+        # (classify_job), no como pool ARC.
         self.assertNotIn("x86-hermes", self.pools)
 
     def test_classification(self):
         # classify_label ve UN label suelto: no distingue el pool autoalojado
-        # (necesita la lista completa → classify_job). Un `x86-hermes` suelto,
-        # sin el marcador `self-hosted`, cae en sin-pool: es correcto, el caso
-        # real (labels en lista) lo cubre test_classify_job.
+        # (necesita la lista completa → classify_job, que cubre test_classify_job).
         cases = {
             "arc-k8s": "pool", "arc-openclaw": "pool",
             "ubuntu-latest": "github", "ubuntu-24.04": "github",
