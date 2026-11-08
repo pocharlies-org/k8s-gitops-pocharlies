@@ -33,9 +33,15 @@ import urllib.request
 
 API = "https://api.github.com"
 
-# Runners self-hosted que no son scale set de ARC y por tanto no salen en
-# infra/arc.yaml (decisión del architect en nota-architect-plan.md).
-EXTRA_POOLS = ("x86-hermes",)
+# Pools ARC extra que no salen como `runnerScaleSetName` de infra/arc.yaml.
+# INFRA-1056: queda vacío. Antes llevaba `x86-hermes` para «perseguir» un runner
+# autoalojado, pero un runner autoalojado NO es un pool ARC: se reconoce por el
+# marcador `self-hosted` de sus labels (ver `classify_job`), no por una lista
+# fija. Así cualquier pool autoalojado nuevo (x86, nexus-mac, …) entra solo, sin
+# tocar el código — que es lo que pidió el ticket (descubrir por la API, no con
+# una lista). `load_pools` sigue sumando esta tupla (hoy vacía) por si algún día
+# hiciera falta un pool ARC que no viva en arc.yaml.
+EXTRA_POOLS: tuple[str, ...] = ()
 
 # Labels de GitHub-hosted (la granja de GitHub, no nuestra): no son «sin pool»,
 # simplemente no pasan por ARC. macos-*/windows-* se documentan como fuera de
@@ -47,6 +53,16 @@ _GITHUB_HOSTED_RE = re.compile(
 # persigue el spec C2: si no hay license/runner detrás, el job espera horas.
 _LARGER_RUNNER_RE = re.compile(
     r"^((ubuntu|windows)-(latest|\d\d\.\d\d)-\d+-core|blacksmith-.+)$"
+)
+
+# Marcadores genéricos que GitHub añade a TODO runner autoalojado (el job pide
+# `runs-on: [self-hosted, Linux, X64, x86]`). No identifican un pool: el que lo
+# hace es el label propio (aquí `x86`). Un job cuyo `runs-on` lleve
+# `self-hosted` es autoalojado; su pool es el último label que no está en esta
+# lista (ver `self_hosted_pool_label`). Es vocabulario fijo de GitHub, no una
+# lista de nuestros pools.
+_SELF_HOSTED_GENERIC = frozenset(
+    {"self-hosted", "Linux", "macOS", "Windows", "X64", "ARM64", "ARM"}
 )
 
 
@@ -84,6 +100,11 @@ def classify_label(label: str, pools: frozenset[str]) -> str:
     """`pool` (ARC), `github` (granja GitHub) o `sin-pool` (ningún listener).
 
     Un label `sin-pool` es el caso C4: el job espera un runner que no existe.
+
+    Clasifica UN label suelto: no ve el marcador `self-hosted` de un job
+    autoalojado (sus labels van en lista), así que un runner propio no-ARC
+    (x86, nexus-mac) no se reconoce aquí. Para un job completo usa
+    `classify_job`, que sí distingue el pool autoalojado (INFRA-1056).
     """
     if label in pools:
         return "pool"
@@ -92,6 +113,51 @@ def classify_label(label: str, pools: frozenset[str]) -> str:
     if _GITHUB_HOSTED_RE.match(label):
         return "github"
     return "sin-pool"
+
+
+def self_hosted_pool_label(labels) -> str | None:
+    """El label que identifica el pool de un job autoalojado, o None si no lo es.
+
+    Un job autoalojado pide `runs-on: [self-hosted, Linux, X64, x86]`: lleva el
+    marcador `self-hosted` y el pool es el ÚLTIMO label que no es marcador
+    genérico de GitHub. Se toma el último porque el label propio del runner va
+    al final y es el más específico: un runner `x86-hermes` pide
+    `[self-hosted, Linux, X64, x86, x86-hermes]` y su pool es `x86-hermes`, no
+    `x86` (el runner `x86` a secas pide `[self-hosted, Linux, X64, x86]` → pool
+    `x86`). None si no lleva `self-hosted` (no es autoalojado) o si todos sus
+    labels son marcadores (caso raro: `runs-on: [self-hosted]` a secas → pool
+    `self-hosted`)."""
+    ls = [l for l in (labels or ()) if l]
+    if "self-hosted" not in ls:
+        return None
+    custom = [l for l in ls if l not in _SELF_HOSTED_GENERIC]
+    return custom[-1] if custom else "self-hosted"
+
+
+def classify_job(labels, pools: frozenset[str]) -> tuple[str, str]:
+    """`(pool_label, kind)` para un job dado su `runs-on` completo (lista).
+
+    `kind` es la clasificación que publica el exporter en la etiqueta `pool` de
+    la métrica: `pool` (ARC), `self-hosted` (runner propio no-ARC, INFRA-1056),
+    `github` (granja GitHub) o `sin-pool` (ningún listener, caso C4).
+    `pool_label` es el label que identifica el pool (arc-k8s, x86, nexus-mac,
+    ubuntu-latest, …): es lo que el exporter publica en la etiqueta `label`, de
+    modo que la VMRule pueda dar umbral propio a cada pool.
+
+    Orden: primero ARC (un job puede llevar `self-hosted` + el scale set), luego
+    autoalojado por el marcador `self-hosted`, luego el resto con la lógica de
+    label suelto. Antes el exporter miraba solo `labels[0]`, que en un job
+    autoalojado es `self-hosted` → caía en `github` y quedaba excluido de la
+    alerta (el hueco del 07-11: x86 y x86-hermes sin aviso)."""
+    ls = [l for l in (labels or ()) if l]
+    for l in ls:
+        if l in pools:
+            return l, "pool"
+    sh = self_hosted_pool_label(ls)
+    if sh is not None:
+        return sh, "self-hosted"
+    label = ls[0] if ls else "?"
+    return label, classify_label(label, pools)
 
 
 class GitHubError(Exception):

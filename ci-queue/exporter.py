@@ -25,6 +25,14 @@ histórico.
 Los jobs con label sin pool nunca llegan al listener ARC, por eso la fuente es
 la API de GitHub (decisión del architect, nota-architect-plan.md §1B).
 
+Pools (INFRA-1056): la etiqueta `pool` vale `pool` (ARC), `self-hosted` (runner
+propio no-ARC: x86, x86-hermes, nexus-mac…), `github` o `sin-pool`. El label que
+identifica el pool sale de la lista COMPLETA de `runs-on` (`ci_queue.classify_job`),
+no de `labels[0]`: un runner autoalojado lleva `self-hosted` de primer label y
+antes caía en `github`, excluido de la alerta (el hueco del 07-11). El pool
+autoalojado se descubre de la propia API (los labels del job), no con una lista
+fija: un pool nuevo entra solo y la VMRule le da umbral por `label`.
+
 Auth: token de instalación de la GitHub App `arc-github-app` montado como
 Secret — lo genera external-secrets con el generator GithubAccessToken (ver
 kustomization.yaml); sin PAT. La validez del token (1 h) la gestiona ESO, no
@@ -131,8 +139,12 @@ def scrape(client, pools, cache: dict, now: dt.datetime,
                     if created is None:
                         errors += 1  # respuesta rara: se anota, no se muere el ciclo
                         continue
-                    label = (job.get("labels") or ["?"])[0]
-                    pool = ci_queue.classify_label(label, pools)
+                    # Clasifica con la lista COMPLETA de labels: un job
+                    # autoalojado lleva `self-hosted` de primer label, y mirar
+                    # solo labels[0] lo metía en `github` (excluido de la alerta
+                    # — el hueco del 07-11). classify_job devuelve el label que
+                    # identifica el pool (x86, x86-hermes, nexus-mac, arc-k8s…).
+                    label, pool = ci_queue.classify_job(job.get("labels"), pools)
                     key = (label, pool)
                     queued[key] = queued.get(key, 0) + 1
                     age = max(0.0, (now - created).total_seconds())

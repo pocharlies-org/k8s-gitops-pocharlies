@@ -59,14 +59,19 @@ def build_report(jobs: list[cq.Job], pools: frozenset[str], since: dt.datetime,
         "| --- | --- | --- | --- | --- | --- | --- |",
     ]
 
-    groups: dict[tuple[str, str], list[float]] = {}
+    groups: dict[tuple[str, str, str], list[float]] = {}
     for j in measured:
-        groups.setdefault((j.repo, "(run rápido)" if j.synthetic else j.label),
-                          []).append(j.wait)
+        # classify_job con la lista completa: un job autoalojado se agrupa por su
+        # pool real (x86, nexus-mac) y su clase (self-hosted), no bajo
+        # `self-hosted` → `github` (INFRA-1056).
+        if j.synthetic:
+            key = (j.repo, "(run rápido)", "run")
+        else:
+            pool_label, kind = cq.classify_job(j.labels, pools)
+            key = (j.repo, pool_label, kind)
+        groups.setdefault(key, []).append(j.wait)
     rows = []
-    for (repo, label), ws in groups.items():
-        kind = ("run" if label == "(run rápido)"
-                else cq.classify_label(label, pools))
+    for (repo, label, kind), ws in groups.items():
         rows.append((cq.percentile(ws, 95), repo, label, len(ws),
                      cq.percentile(ws, 50), max(ws), kind))
     for p95_r, repo, label, n, p50_r, max_r, kind in sorted(rows, reverse=True):
@@ -94,19 +99,42 @@ def build_report(jobs: list[cq.Job], pools: frozenset[str], since: dt.datetime,
                 lines.append(f"- **{repo}#{number}**: sin jobs en la ventana.")
 
     sin_pool = [j for j in jobs if not j.synthetic
-                and cq.classify_label(j.label, pools) == "sin-pool"]
+                and cq.classify_job(j.labels, pools)[1] == "sin-pool"]
     lines += ["", "## sin-pool (ningún listener ARC los sirve — caso C4)", ""]
     if sin_pool:
         lines += ["| repo | label | jobs | edad máx. |", "| --- | --- | --- | --- |"]
         by_label: dict[tuple[str, str], list[cq.Job]] = {}
         for j in sin_pool:
-            by_label.setdefault((j.repo, j.label), []).append(j)
+            by_label.setdefault((j.repo, cq.classify_job(j.labels, pools)[0]), []).append(j)
         for (repo, label), js in sorted(by_label.items(),
                                         key=lambda kv: -max(x.wait for x in kv[1])):
             lines.append(f"| {repo} | {label} | {len(js)} | "
                          f"{max(x.wait for x in js):.0f} s |")
     else:
         lines.append("Sin jobs con label sin pool en la ventana.")
+
+    # INFRA-1056 (C3): los pools autoalojados (runner propio no-ARC) se miden y
+    # reportan SEPARADOS, no mezclados en el número de ARC ni escondidos como
+    # `github`. Cada pool tiene su umbral en la VMRule (arc-rules.yaml); aquí se
+    # listan sus esperas y, con `--assert-self-hosted-max`, se les aplica un
+    # umbral propio al assert (opción «entran con umbral propio» del criterio).
+    self_hosted = [j for j in jobs if not j.synthetic
+                   and cq.classify_job(j.labels, pools)[1] == "self-hosted"]
+    lines += ["", "## autoalojados (runners propios no-ARC — INFRA-1056)", ""]
+    if self_hosted:
+        lines += ["| pool | jobs | p95 | max |", "| --- | --- | --- | --- |"]
+        by_pool: dict[str, list[float]] = {}
+        for j in self_hosted:
+            by_pool.setdefault(cq.classify_job(j.labels, pools)[0], []).append(j.wait)
+        for pool, ws in sorted(by_pool.items(), key=lambda kv: -max(kv[1])):
+            lines.append(f"| {pool} | {len(ws)} | "
+                         f"{cq.percentile(ws, 95):.0f} s | {max(ws):.0f} s |")
+        lines += ["", "> Pools autoalojados: su umbral de alerta vive en "
+                  "`manifests/arc-rules.yaml` (k8s-observability), no en el de "
+                  "ARC. nexus-mac duerme por WoL, así que su umbral es más alto "
+                  "a propósito. No entran en la línea «pool ARC»."]
+    else:
+        lines.append("Sin jobs de pools autoalojados en la ventana.")
 
     cancelled = [j for j in jobs if j.conclusion == "cancelled"]
     idx = cq.runs_index(jobs)
@@ -151,6 +179,7 @@ def build_report(jobs: list[cq.Job], pools: frozenset[str], since: dt.datetime,
                                         if j.started_at
                                         and since + dt.timedelta(hours=h) <= j.started_at
                                         < since + dt.timedelta(hours=h + 1)), default=0))
+    sh_waits = [j.wait for j in self_hosted]
     lines += [
         "", "## Conclusiones", "",
         f"- p50 = {p50:.0f} s · p95 = {p95:.0f} s · max = {mx:.0f} s "
@@ -158,6 +187,9 @@ def build_report(jobs: list[cq.Job], pools: frozenset[str], since: dt.datetime,
         f"- Solo jobs de pool ARC (labels {', '.join(sorted(pools))}): "
         f"p95 = {p95_pool:.0f} s · max = {max_pool:.0f} s "
         f"(jobs: {len(pool_jobs)})",
+        f"- Solo jobs de pools autoalojados (x86, x86-hermes, nexus-mac…): "
+        f"p95 = {cq.percentile(sh_waits, 95):.0f} s · max = {max(sh_waits, default=0.0):.0f} s "
+        f"(jobs: {len(self_hosted)}); umbral propio en arc-rules.yaml, no en el de ARC.",
         f"- Concurrencia máxima en ejecución: **{peak_pool}** en pool ARC · "
         f"{peak} en total (incluye GitHub-hosted).",
         f"- Hora con peor espera: {since + dt.timedelta(hours=worst_hour):%m-%d %H} UTC.",
@@ -192,6 +224,10 @@ def main(argv: list[str] | None = None, client: cq.Client | None = None,
                     help="fallar (exit 2) si p95 > S segundos")
     ap.add_argument("--assert-max", type=float, metavar="S",
                     help="fallar (exit 2) si max > S segundos")
+    ap.add_argument("--assert-self-hosted-max", type=float, metavar="S",
+                    help="fallar (exit 2) si el max de los pools autoalojados "
+                         "(x86, x86-hermes, nexus-mac…) > S segundos: su umbral "
+                         "propio, separado del de ARC (INFRA-1056, C3)")
     ap.add_argument("--repo", action="append",
                     help="restringir a este repo (repetible); por defecto toda la org")
     ap.add_argument("--case", action="append", default=[], metavar="REPO#N",
@@ -208,7 +244,7 @@ def main(argv: list[str] | None = None, client: cq.Client | None = None,
         since = now - dt.timedelta(days=args.days or 7)
 
     exact = bool(args.since) or args.assert_p95 is not None \
-        or args.assert_max is not None
+        or args.assert_max is not None or args.assert_self_hosted_max is not None
     client = client or cq.Client()
     pools = cq.load_pools((REPO_ROOT / "infra" / "arc.yaml").read_text())
     jobs = cq.collect_jobs(client, args.org, since, until, now=now,
@@ -227,17 +263,26 @@ def main(argv: list[str] | None = None, client: cq.Client | None = None,
     # C5 la lee sin ambigüedad.
     if args.out:
         Path(args.out).write_text(report)
-    elif not (args.assert_p95 is not None or args.assert_max is not None):
+    elif not (args.assert_p95 is not None or args.assert_max is not None
+              or args.assert_self_hosted_max is not None):
         print(report)
 
     waits = [j.wait for j in jobs if not j.queued_now or j.wait > 0]
     p95, mx = cq.percentile(waits, 95), max(waits, default=0.0)
     print(f"p95={p95:.0f} max={mx:.0f}")
+    # Umbral propio de los pools autoalojados (INFRA-1056, C3): se mide aparte
+    # del de ARC; así un runner x86 caído no se cuela por el assert de ARC ni
+    # tapa un atasco de ARC con su ruido.
+    sh_waits = [j.wait for j in jobs if not j.queued_now or j.wait > 0
+                if cq.classify_job(j.labels, pools)[1] == "self-hosted"]
+    sh_max = max(sh_waits, default=0.0)
     failed = []
     if args.assert_p95 is not None and p95 > args.assert_p95:
         failed.append(f"p95 {p95:.0f} s > {args.assert_p95:.0f} s")
     if args.assert_max is not None and mx > args.assert_max:
         failed.append(f"max {mx:.0f} s > {args.assert_max:.0f} s")
+    if args.assert_self_hosted_max is not None and sh_max > args.assert_self_hosted_max:
+        failed.append(f"self-hosted max {sh_max:.0f} s > {args.assert_self_hosted_max:.0f} s")
     if failed:
         print("ASSERT FALLADO: " + "; ".join(failed), file=sys.stderr)
         return 2
