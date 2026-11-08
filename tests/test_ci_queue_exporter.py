@@ -127,6 +127,48 @@ class QueuedJobsTest(unittest.TestCase):
                          "algún request filtra por pushed_at")
 
 
+class SelfHostedQueueTest(unittest.TestCase):
+    """INFRA-1056: un job autoalojado (runs-on con `self-hosted`) se publica con
+    su pool real (x86, x86-hermes, nexus-mac) y clase `self-hosted`, no como
+    `github`. Antes el exporter miraba labels[0] = "self-hosted" → github → la
+    VMRule lo excluía (el hueco del 07-11: x86 y x86-hermes sin aviso)."""
+
+    PAGES = {
+        "/orgs/pocharlies-org/repos": (200, repos("repo-x86"), {}),
+        "repo-x86/actions/runs?": (200, {"workflow_runs": [{"id": 1, "status": "queued"}]}, {}),
+        "runs/1/jobs": (200, {"jobs": [
+            job("queued", "2026-10-05T11:00:00Z",
+                labels=("self-hosted", "Linux", "X64", "x86")),
+            job("queued", "2026-10-05T10:30:00Z",
+                labels=("self-hosted", "Linux", "X64", "x86", "x86-hermes")),
+            job("queued", "2026-10-05T11:45:00Z",
+                labels=("self-hosted", "macOS", "ARM64", "nexus-mac")),
+        ]}, {}),
+    }
+
+    def test_self_hosted_pool_y_clase(self):
+        calls = []
+        result = exporter.scrape(client_with(dict_transport(self.PAGES, calls)), POOLS, {}, NOW)
+        # pool = la clase (self-hosted), label = el pool que identifica el runner
+        self.assertEqual(result["queued"], {
+            ("x86", "self-hosted"): 1,
+            ("x86-hermes", "self-hosted"): 1,
+            ("nexus-mac", "self-hosted"): 1,
+        })
+        # edad por (label, pool, repo): nexus-mac es el más reciente (15 min),
+        # x86-hermes el más viejo (90 min)
+        self.assertEqual(result["oldest"], {
+            ("x86", "self-hosted", "repo-x86"): 3600.0,
+            ("x86-hermes", "self-hosted", "repo-x86"): 5400.0,
+            ("nexus-mac", "self-hosted", "repo-x86"): 900.0,
+        })
+        self.assertEqual(result["errors"], 0)
+        # y en el texto de exposición salen con pool="self-hosted"
+        out = exporter.render(result, ts_success=1.0, rate_remaining=5, errors_total=0)
+        self.assertIn('ci_queue_queued_jobs{label="x86",pool="self-hosted"} 1', out)
+        self.assertIn('ci_queue_queued_jobs{label="nexus-mac",pool="self-hosted"} 1', out)
+
+
 class RenderEscapeTest(unittest.TestCase):
     """`label` es entrada externa (el `runs-on` de cualquier PR)."""
 

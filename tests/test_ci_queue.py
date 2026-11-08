@@ -80,11 +80,19 @@ class TestLabels(unittest.TestCase):
         # Fuente única: los runnerScaleSetName de infra/arc.yaml, no copiados.
         self.assertIn("arc-k8s", self.pools)
         self.assertIn("arc-openclaw", self.pools)
-        self.assertIn("x86-hermes", self.pools)  # extra declarado
+        self.assertIn("arc-skills-eval", self.pools)
+
+    def test_x86_hermes_no_es_pool_arc(self):
+        # INFRA-1056: x86-hermes es un runner autoalojado, no un scale set de
+        # ARC: se reconoce por el marcador `self-hosted` de sus labels
+        # (classify_job), no como pool ARC.
+        self.assertNotIn("x86-hermes", self.pools)
 
     def test_classification(self):
+        # classify_label ve UN label suelto: no distingue el pool autoalojado
+        # (necesita la lista completa → classify_job, que cubre test_classify_job).
         cases = {
-            "arc-k8s": "pool", "arc-openclaw": "pool", "x86-hermes": "pool",
+            "arc-k8s": "pool", "arc-openclaw": "pool",
             "ubuntu-latest": "github", "ubuntu-24.04": "github",
             "macos-14": "github", "windows-2022": "github",
             "ubuntu-latest-32-core": "sin-pool",  # el caso del spec
@@ -93,6 +101,30 @@ class TestLabels(unittest.TestCase):
         }
         for label, want in cases.items():
             self.assertEqual(cq.classify_label(label, self.pools), want, label)
+
+    def test_classify_job(self):
+        # classify_job con la lista COMPLETA de runs-on: aquí sí se distingue el
+        # pool autoalojado (el hueco del 07-11: x86 y x86-hermes caían en github
+        # porque el exporter miraba solo labels[0] = "self-hosted").
+        cases = {
+            ("arc-k8s",): ("arc-k8s", "pool"),
+            ("arc-openclaw",): ("arc-openclaw", "pool"),
+            # runner autoalojado del x86: marcador self-hosted + label propio
+            ("self-hosted", "Linux", "X64", "x86"): ("x86", "self-hosted"),
+            ("self-hosted", "Linux", "X64", "x86", "x86-hermes"): ("x86-hermes", "self-hosted"),
+            ("self-hosted", "macOS", "ARM64", "nexus-mac"): ("nexus-mac", "self-hosted"),
+            # granja GitHub (label único, sin self-hosted)
+            ("ubuntu-latest",): ("ubuntu-latest", "github"),
+            ("macos-15",): ("macos-15", "github"),
+            # larger runner sin license: sin-pool (caso C4)
+            ("ubuntu-latest-32-core",): ("ubuntu-latest-32-core", "sin-pool"),
+            # ARC pedido con self-hosted explícito: sigue siendo ARC (ARC primero)
+            ("self-hosted", "arc-k8s"): ("arc-k8s", "pool"),
+            # self-hosted sin label propio (raro): pool "self-hosted"
+            ("self-hosted",): ("self-hosted", "self-hosted"),
+        }
+        for labels, want in cases.items():
+            self.assertEqual(cq.classify_job(labels, self.pools), want, labels)
 
 
 class TestCollect(unittest.TestCase):
@@ -359,6 +391,76 @@ class TestCli(unittest.TestCase):
                 and "repo" not in l.split("|")[1]]
         self.assertGreaterEqual(len(rows), 4, "filas repo×label del fixture")
         self.assertIn("ubuntu-latest-32-core", report)
+
+
+class TestReportSelfHosted(unittest.TestCase):
+    """INFRA-1056 (C3): el informe no mezcla los pools autoalojados con ARC."""
+
+    def _cli(self):
+        spec = importlib.util.spec_from_file_location(
+            "ci_queue_report", ROOT / "scripts" / "ci_queue_report.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def _jobs(self):
+        return [
+            job(repo="arc-repo", labels=("arc-k8s",), wait=100.0),
+            job(repo="x86-repo", labels=("self-hosted", "Linux", "X64", "x86"), wait=5000.0),
+            job(repo="mac-repo", labels=("self-hosted", "macOS", "ARM64", "nexus-mac"),
+                wait=30000.0),
+        ]
+
+    def test_seccion_de_autoalojados_y_no_mecla_arc(self):
+        cli = self._cli()
+        pools = cq.load_pools((ROOT / "infra" / "arc.yaml").read_text())
+        report = cli.build_report(self._jobs(), pools, SINCE, NOW, NOW)
+        # sección propia de autoalojados, con cada pool nombrado
+        self.assertIn("## autoalojados", report)
+        self.assertIn("| x86 |", report)
+        self.assertIn("| nexus-mac |", report)
+        # la tabla repo×label marca el pool como self-hosted, no github
+        self.assertIn("| x86-repo | x86 | self-hosted |", report)
+        # la línea de ARC NO arrastra las esperas de los autoalojados
+        arc_line = next(l for l in report.splitlines() if "Solo jobs de pool ARC" in l)
+        self.assertIn("max = 100 s", arc_line)
+        self.assertNotIn("30000", arc_line)
+        # y hay una línea de autoalojados con su max
+        sh_line = next(l for l in report.splitlines()
+                       if "Solo jobs de pools autoalojados" in l)
+        self.assertIn("max = 30000 s", sh_line)
+
+    def test_assert_self_hosted_max_umbral_propio(self):
+        # Un job autoalojado de 5000 s: pasa con umbral alto, falla con uno bajo,
+        # y el assert de ARC (--assert-max) no lo ve (no está en ARC).
+        cli = self._cli()
+        run = {"workflow_runs": [{"id": 1, "run_number": 1, "name": "ci",
+                                  "run_attempt": 1, "event": "push", "head_branch": "main",
+                                  "created_at": "2026-10-01T10:00:00Z",
+                                  "run_started_at": "2026-10-01T11:23:20Z",
+                                  "updated_at": "2026-10-01T11:24:00Z",
+                                  "status": "completed", "conclusion": "success"}]}
+        jobs = {"jobs": [{"name": "deploy", "labels": ["self-hosted", "Linux", "X64", "x86"],
+                          "status": "completed", "conclusion": "success",
+                          "created_at": "2026-10-01T10:00:00Z",
+                          "started_at": "2026-10-01T11:23:20Z",
+                          "completed_at": "2026-10-01T11:24:00Z"}]}
+
+        def transport(url, headers):
+            if url.endswith("/jobs?per_page=100"):
+                return 200, {}, json.dumps(jobs).encode()
+            return 200, {}, json.dumps(run).encode()
+
+        client = cq.Client(token="t", transport=transport)
+        base = ["--org", ORG, "--repo", "r", "--since", cq.iso(SINCE), "--hours", "168"]
+        # umbral bajo (600 s) → falla por el self-hosted de 5000 s
+        with redirect_stdout(io.StringIO()):
+            rc = cli.main(base + ["--assert-self-hosted-max", "600"], client=client, now=NOW)
+        self.assertEqual(rc, 2)
+        # umbral alto → pasa
+        with redirect_stdout(io.StringIO()):
+            rc = cli.main(base + ["--assert-self-hosted-max", "99999"], client=client, now=NOW)
+        self.assertEqual(rc, 0)
 
 
 class TestPeakConcurrency(unittest.TestCase):

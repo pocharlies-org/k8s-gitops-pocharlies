@@ -85,7 +85,7 @@ kustomize build ci-queue                                  # el exporter no cuelg
 bash scripts/verify_arc_runner_render.sh
 python3 scripts/ci_queue_report.py --org pocharlies-org --days 7   # informe de cola (requiere gh auth)
 ```
-Nº de tests: 58 (medido con `unittest discover` el 2026-10-08; 23 en `tests/test_ci_queue.py`, 11 en
+Nº de tests: 105 (medido con `unittest discover` el 2026-11-08; 27 en `tests/test_ci_queue.py`, 12 en
 `tests/test_ci_queue_exporter.py` y 1 en `tests/test_ci_queue_pools.py`, herméticos, fixtures en
 `tests/fixtures/ci-queue/`).
 
@@ -107,8 +107,9 @@ Nº de tests: 58 (medido con `unittest discover` el 2026-10-08; 23 en `tests/tes
 - `2026-08-14` · postmortem «renombrado y guerras del controlador» (`docs/postmortem-20260814-…md`): dos controladores
   peleando por el mismo recurso; leer antes de renombrar Applications.
 - `bootstrap/app-of-apps.yaml` es el arranque manual del `root`; no se aplica en el día a día.
-- La lista de pools válidos de runners = los `runnerScaleSetName` de `infra/arc.yaml` + los extras declarados en
-  `ci-queue/ci_queue.py` (`EXTRA_POOLS`, p. ej. `x86-hermes`); fuente única, no se copia en ningún otro sitio.
+- La lista de pools ARC válidos = los `runnerScaleSetName` de `infra/arc.yaml`; fuente única, no se copia en ningún
+  otro sitio. Los runners autoalojados (x86, x86-hermes, nexus-mac…) no están en la lista: el exporter los reconoce
+  por `self-hosted` en el `runs-on` del job (`ci_queue.classify_job`, INFRA-1056).
   Excepción mecánica: el exporter monta `ci-queue/pools.txt`, copia DERIVADA (kustomize no lee ficheros fuera de
   su raíz); `tests/test_ci_queue_pools.py` falla si diverge de `infra/arc.yaml` y su mensaje trae el comando. Al
   cambiar un pool, desde la raíz del repo:
