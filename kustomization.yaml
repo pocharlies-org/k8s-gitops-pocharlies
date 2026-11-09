@@ -108,6 +108,7 @@ resources:
   - apps/shopify-admin-mcp.yaml
   - apps/playwright-mcp.yaml
   - apps/paseo.yaml
+  - apps/nova.yaml
   - apps/photos-mcp.yaml
   - argocd/ingressroute.yaml
   - argocd/repositories.yaml
