@@ -1,0 +1,32 @@
+# Nova (INFRA-1219): agente de voz para reuniones y llamadas. Servicio + pods de reunión en atlantic, ns nova.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nova
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-nova-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-nova-pocharlies
+    targetRevision: main
+    path: k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nova
+  syncPolicy:
+    # el SA nova crea pods: el namespace nace con Pod Security restricted (veredicto de security, 09-11)
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: restricted
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
