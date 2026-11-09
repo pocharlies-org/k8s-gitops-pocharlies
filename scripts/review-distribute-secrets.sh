@@ -12,8 +12,8 @@
 #   --dry-run     no escribe nada: dice qué haría por repo y secreto, sin valores.
 #   --rotate      sobrescribe también los que ya existen (rotación). Sin él, un secreto
 #                 presente no se toca: reejecutar es idempotente.
-#   --secrets     qué repartir, separado por comas, de PR_AGENT_LITELLM_KEY, JIRA_EMAIL, JIRA_API_TOKEN
-#                 y BRAIN_CI_KEY (PR-Agent, el juego por defecto) y LITELLM_JUEZ_KEY, JIRA_JUEZ_EMAIL,
+#   --secrets     qué repartir, separado por comas, de PR_AGENT_LITELLM_KEY, JIRA_EMAIL y JIRA_API_TOKEN
+#                 (PR-Agent, el juego por defecto) y LITELLM_JUEZ_KEY, JIRA_JUEZ_EMAIL,
 #                 JIRA_JUEZ_TOKEN, JIRA_JUEZ_URL (el juez, SC-2182):
 #                 --secrets LITELLM_JUEZ_KEY,JIRA_JUEZ_EMAIL,JIRA_JUEZ_TOKEN,JIRA_JUEZ_URL.
 #   --from-op     item de 1Password por Connect, como `k8s-pocharlies/pr-review-ci`; los campos del
@@ -33,13 +33,13 @@
 #
 # Permisos del token: basta `.permissions.secrets == "write"` (PAT fine-grained `Secrets: write` +
 # `Metadata: read`, exigido por security antes de la oleada, SC-1400); `admin` del repo también vale.
-# BRAIN_CI_KEY: autorizada por security SOLO en los 2 pilotos (INFRA-1055); la oleada a los 108
-# repos espera INFRA-1059 (clave de instancia del brain) e INFRA-1058 (cuenta Jira + PAT).
+# SC-4304 fase 2: BRAIN_CI_KEY ya no se reparte (la review no escribe al Brain). Los secretos BRAIN_CI_KEY que los
+# 2 pilotos (INFRA-1055) ya tienen en el repo no los borra este script: se quitan con `gh secret delete BRAIN_CI_KEY`.
 set -Eeuo pipefail
 set +x 2>/dev/null || true
 
-SECRETS=(PR_AGENT_LITELLM_KEY JIRA_EMAIL JIRA_API_TOKEN BRAIN_CI_KEY)
-KNOWN=" PR_AGENT_LITELLM_KEY JIRA_EMAIL JIRA_API_TOKEN BRAIN_CI_KEY HINDSIGHT_WRITER_TOKEN LITELLM_JUEZ_KEY JIRA_JUEZ_EMAIL JIRA_JUEZ_TOKEN JIRA_JUEZ_URL "
+SECRETS=(PR_AGENT_LITELLM_KEY JIRA_EMAIL JIRA_API_TOKEN)
+KNOWN=" PR_AGENT_LITELLM_KEY JIRA_EMAIL JIRA_API_TOKEN HINDSIGHT_WRITER_TOKEN LITELLM_JUEZ_KEY JIRA_JUEZ_EMAIL JIRA_JUEZ_TOKEN JIRA_JUEZ_URL "
 
 ORG="pocharlies-org"; REPOS=""; DRY=0; ROTATE=0; OP_ITEM=""
 

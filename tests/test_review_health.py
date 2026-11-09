@@ -28,14 +28,14 @@ sys.modules["review_health"] = rh
 spec.loader.exec_module(rh)
 
 NOW = datetime(2026, 10, 2, 3, 0, tzinfo=timezone.utc)
-OK = {"payload.json": {"status": "ok"}, "distribute.json": {"push_ingest": {"state": "ok"}, "labels": {"state": "ok"}}}
+OK = {"payload.json": {"status": "ok"}, "distribute.json": {"hindsight_push": {"state": "ok"}, "labels": {"state": "ok"}}}
 SKIPPED = {"payload.json": {"status": "skipped"}, "distribute.json": {}}
-BRAIN_500 = {"payload.json": {"status": "ok"},
-             "distribute.json": {"push_ingest": {"state": "degradado", "http": 500}, "labels": {"state": "ok"}}}
-BRAIN_404 = {"payload.json": {"status": "ok"},
-             "distribute.json": {"push_ingest": {"state": "degradado", "http": 404}, "labels": {"state": "ok"}}}
-NO_KEY = {"payload.json": {"status": "ok"},
-          "distribute.json": {"push_ingest": {"state": "sin_clave"}, "labels": {"state": "ok"}}}
+# artefacto anterior a SC-4304 fase 2: aún lleva `push_ingest`, que ya no cuenta
+OLD_BRAIN_500 = {"payload.json": {"status": "ok"},
+                 "distribute.json": {"push_ingest": {"state": "degradado", "http": 500}, "hindsight_push": {"state": "ok"},
+                                     "labels": {"state": "ok"}}}
+HS_404 = {"payload.json": {"status": "ok"},
+          "distribute.json": {"hindsight_push": {"state": "degradado", "http": 404}, "labels": {"state": "ok"}}}
 
 
 def make(n: int, bad: int, bad_files=SKIPPED, conclusion="success", age_days=1, start_id=1000):
@@ -78,24 +78,20 @@ class Rule(unittest.TestCase):
         assert ev["red"] == [] and ev["measured"] == 0
         assert "sin runs medibles" in rh.render("o/r", ev)
 
-    def test_brain_5xx_and_4xx_are_counted_as_omissions(self):
-        assert self.ev(*make(10, 3, BRAIN_500))["omitted"] == 3
-        ev = self.ev(*make(10, 3, BRAIN_404))
+    def test_hindsight_4xx_is_counted_as_omission_and_an_old_push_ingest_is_ignored(self):
+        assert self.ev(*make(10, 3, OLD_BRAIN_500))["omitted"] == 0
+        ev = self.ev(*make(10, 3, HS_404))
         assert ev["omitted"] == 3 and ev["red"]
-        assert "HTTP 404" in rh.render("o/r", ev)
+        assert "escritura a Hindsight degradado HTTP 404" in rh.render("o/r", ev)
 
     def test_labels_failure_counts(self):
         bad = {"payload.json": {"status": "ok"}, "distribute.json": {"labels": {"state": "degradado", "http": 502}}}
         assert self.ev(*make(10, 3, bad))["omitted"] == 3
 
-    def test_brain_rejected_counts(self):
-        bad = {"payload.json": {"status": "ok"}, "distribute.json": {"push_ingest": {"state": "rechazado", "http": 401}}}
-        assert self.ev(*make(10, 3, bad))["omitted"] == 3
-
     def test_hindsight_failure_counts_with_its_own_label(self):
         for state, http in (("degradado", 502), ("rechazado", 401)):
             bad = {"payload.json": {"status": "ok"},
-                   "distribute.json": {"push_ingest": {"state": "ok"}, "labels": {"state": "ok"},
+                   "distribute.json": {"labels": {"state": "ok"},
                                        "hindsight_push": {"state": state, "http": http}}}
             ev = self.ev(*make(10, 3, bad))
             assert ev["omitted"] == 3
@@ -104,19 +100,12 @@ class Rule(unittest.TestCase):
     def test_hindsight_sin_clave_and_omitido_are_not_omissions(self):
         for st in ({"state": "sin_clave", "http": None}, {"state": "omitido", "http": None}):
             ok = {"payload.json": {"status": "ok"},
-                  "distribute.json": {"push_ingest": {"state": "ok"}, "labels": {"state": "ok"}, "hindsight_push": st}}
+                  "distribute.json": {"labels": {"state": "ok"}, "hindsight_push": st}}
             assert self.ev(*make(10, 3, ok))["omitted"] == 0
-
-    def test_missing_key_is_not_an_omission_but_is_reported(self):
-        runs, arts = make(10, 0)
-        arts = {k: NO_KEY for k in arts}
-        ev = self.ev(runs, arts)
-        assert ev["omitted"] == 0 and ev["no_key"] == 10 and ev["red"] == []
-        assert "SC-1400" in rh.render("o/r", ev)
 
     def test_degraded_review_counts_and_one_run_two_reasons_counts_once(self):
         both = {"payload.json": {"status": "degraded"},
-                "distribute.json": {"push_ingest": {"state": "degradado", "http": 500}}}
+                "distribute.json": {"hindsight_push": {"state": "degradado", "http": 500}}}
         ev = self.ev(*make(10, 3, both))
         assert ev["omitted"] == 3 and ev["measured"] == 10
 
@@ -156,7 +145,7 @@ class Rule(unittest.TestCase):
         # el paso nuevo de review-distribute.py (inline de contratos) vive en distribute.json
         # pero no entra en la regla: la señal mide la review, no cada comentario.
         bad = {"payload.json": {"status": "ok"},
-               "distribute.json": {"push_ingest": {"state": "ok"}, "labels": {"state": "ok"},
+               "distribute.json": {"hindsight_push": {"state": "ok"}, "labels": {"state": "ok"},
                                    "inline_contract_findings": {"state": "degradado", "http": 500}}}
         ev = self.ev(*make(10, 0, bad))
         assert ev["omitted"] == 0 and ev["red"] == []

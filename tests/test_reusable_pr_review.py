@@ -126,9 +126,10 @@ class TestTokenDeHindsight(unittest.TestCase):
         self.assertIn("steps.guarda.outputs.fork != 'true'", pasos[0]["if"])
         self.assertEqual(pasos[0]["env"]["HINDSIGHT_WRITER_TOKEN"], "${{ secrets.HINDSIGHT_WRITER_TOKEN }}")
 
-    def test_el_contexto_ya_no_recibe_la_clave_del_brain(self):
-        # la lectura de memoria se retiró: ningún paso salvo la distribución ve BRAIN_CI_KEY
-        self.assertEqual([p["id"] for p in self.pasos_con("BRAIN_CI_KEY")], ["distribucion"])
+    def test_ningun_paso_recibe_la_clave_del_brain(self):
+        # la lectura (S5) y la escritura (SC-4304 fase 2) del Brain se retiraron: BRAIN_CI_KEY no llega a ningún paso
+        self.assertEqual(self.pasos_con("BRAIN_CI_KEY"), [])
+        self.assertNotIn("BRAIN_CI_KEY", CUERPO[True]["workflow_call"]["secrets"])
 
     def test_el_secreto_es_opcional_y_el_workflow_no_usa_pull_request_target(self):
         self.assertFalse(CUERPO[True]["workflow_call"]["secrets"]["HINDSIGHT_WRITER_TOKEN"]["required"])
