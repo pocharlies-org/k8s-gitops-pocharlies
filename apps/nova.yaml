@@ -20,6 +20,10 @@ spec:
     server: https://kubernetes.default.svc
     namespace: nova
   syncPolicy:
+    # el SA nova crea pods: el namespace nace con Pod Security restricted (veredicto de security, 09-11)
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: restricted
     automated:
       selfHeal: true
       prune: false
