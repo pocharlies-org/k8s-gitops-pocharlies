@@ -658,3 +658,21 @@ patches:
           namespace: frigate
           jsonPointers:
             - /spec/replicas
+  # INFRA-1277: el árbitro escala nova-avatar (residente de la RTX) a 0 en un acquire exclusivo y lo restaura al
+  # soltar; sin esto selfHeal lo resucita en segundos (visto el 10-11 con wl_comfyui-rtx). Aquí y no en
+  # apps/nova.yaml por lo mismo que frigate.
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+      name: nova
+    patch: |-
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: nova-avatar
+          namespace: nova
+          jsonPointers:
+            - /spec/replicas
