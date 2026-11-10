@@ -278,7 +278,7 @@ notifications:
     # revision deben volver a enviar el `resolved` (con la revision como clave, notifications-engine (state.go:27)
     # se la tragaría y la alerta quedaría firing para siempre — justo el bug medido).
     trigger.on-sync-resolved: |
-      - description: Sync correcto y app Healthy: resuelve las alertas de ArgoCD de la app en Keep
+      - description: "Sync correcto y app Healthy: resuelve las alertas de ArgoCD de la app en Keep"
         when: app.status.operationState != nil and app.status.operationState.phase == 'Succeeded' and app.status.health.status == 'Healthy'
         oncePer: app.status.operationState.finishedAt ?? ""
         send: [keep-sync-failed-resolved, keep-health-degraded-resolved]
