@@ -30,3 +30,12 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  # INFRA-1277: las réplicas de nova-avatar (residente de la RTX) las posee el árbitro de GPU del dashboard: un acquire
+  # exclusivo de la RTX lo escala a 0 y el release lo devuelve. Sin esto, selfHeal lo resucita en segundos (10-11).
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: nova-avatar
+      namespace: nova
+      jsonPointers: ["/spec/replicas"]
