@@ -222,6 +222,41 @@ notifications:
                         "repo": {{ with .app.spec.source }}{{ .repoURL | toJson }}{{ else }}"multi-source"{{ end }}, "revision": {{ .app.status.sync.revision | toJson }}},
              "url": {{ printf "%s/applications/%s" .context.argocdUrl .app.metadata.name | toJson }},
              "description": {{ printf "%s Degraded: %s" .app.metadata.name .app.status.health.message | toJson }}}
+    # (SC-5223) Las dos alertas anteriores no tenían camino de vuelta: ArgoCD solo avisaba del fallo y
+    # NADA las resolvía en Keep. La alerta se quedaba `firing` para siempre (medido: ArgoCDSyncFailed de
+    # k8s-infra llevaba firing desde el 24/10 con el sync ya verde), la regla `argocd-app-degraded`
+    # (create_on: any) solo crea un incidente en el TRANSICIONAMIENTO a firing, y ops-watch solo reacciona
+    # a incidentes FIRING → 36 h de sync fallando (08/11 20:13 → 10/11 08:14) sin incidente, sin Request y
+    # sin acción (SC-5217). Estas dos plantillas, con la MISMA fingerprint, cierran la alerta en el sync
+    # correcto: el sensor se rearma y el siguiente fallo vuelve a ser una transición con incidente.
+    template.keep-sync-failed-resolved: |
+      webhook:
+        keep:
+          method: POST
+          path: /alerts/event
+          body: |
+            {"name": "ArgoCDSyncFailed",
+             "fingerprint": {{ printf "argocd/%s/sync-failed" .app.metadata.name | sha256sum | trunc 16 | toJson }},
+             "status": "resolved", "severity": "warning", "source": ["argocd"],
+             "app": {{ .app.metadata.name | toJson }},
+             "labels": {"app": {{ .app.metadata.name | toJson }}, "sync": {{ .app.status.sync.status | toJson }}, "health": {{ .app.status.health.status | toJson }},
+                        "repo": {{ with .app.spec.source }}{{ .repoURL | toJson }}{{ else }}"multi-source"{{ end }}, "revision": {{ .app.status.sync.revision | toJson }}},
+             "url": {{ printf "%s/applications/%s" .context.argocdUrl .app.metadata.name | toJson }},
+             "description": {{ printf "Sync de %s completado (resuelto por ArgoCD)" .app.metadata.name | toJson }}}
+    template.keep-health-degraded-resolved: |
+      webhook:
+        keep:
+          method: POST
+          path: /alerts/event
+          body: |
+            {"name": "ArgoCDAppDegraded",
+             "fingerprint": {{ printf "argocd/%s/degraded" .app.metadata.name | sha256sum | trunc 16 | toJson }},
+             "status": "resolved", "severity": "warning", "source": ["argocd"],
+             "app": {{ .app.metadata.name | toJson }},
+             "labels": {"app": {{ .app.metadata.name | toJson }}, "sync": {{ .app.status.sync.status | toJson }}, "health": {{ .app.status.health.status | toJson }},
+                        "repo": {{ with .app.spec.source }}{{ .repoURL | toJson }}{{ else }}"multi-source"{{ end }}, "revision": {{ .app.status.sync.revision | toJson }}},
+             "url": {{ printf "%s/applications/%s" .context.argocdUrl .app.metadata.name | toJson }},
+             "description": {{ printf "%s Healthy (resuelto por ArgoCD)" .app.metadata.name | toJson }}}
   triggers:
     trigger.on-sync-failed: |
       - description: El sync de la app ha fallado
@@ -238,8 +273,17 @@ notifications:
         when: app.status.operationState != nil and app.status.operationState.phase == 'Succeeded' and app.status.health.status == 'Healthy'
         oncePer: (app.status.sync.revision ?? "") + join(app.status.sync.revisions ?? [], ",")
         send: [synapse-deployed]
+    # (SC-5223) Resuelve en Keep las dos alertas de fallo (mismas fingerprints) en cada sync correcto con
+    # salud Healthy. `oncePer` es `finishedAt`, no la revision: un fallo y su reintento verde sobre la MISMA
+    # revision deben volver a enviar el `resolved` (con la revision como clave, notifications-engine (state.go:27)
+    # se la tragaría y la alerta quedaría firing para siempre — justo el bug medido).
+    trigger.on-sync-resolved: |
+      - description: Sync correcto y app Healthy: resuelve las alertas de ArgoCD de la app en Keep
+        when: app.status.operationState != nil and app.status.operationState.phase == 'Succeeded' and app.status.health.status == 'Healthy'
+        oncePer: app.status.operationState.finishedAt ?? ""
+        send: [keep-sync-failed-resolved, keep-health-degraded-resolved]
   subscriptions:
     - recipients: [keep]
-      triggers: [on-sync-failed, on-health-degraded]
+      triggers: [on-sync-failed, on-health-degraded, on-sync-resolved]
     - recipients: [synapse]
       triggers: [on-deployed]
