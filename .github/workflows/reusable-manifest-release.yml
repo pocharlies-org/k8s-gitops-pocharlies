@@ -195,7 +195,7 @@ jobs:
           repository_encoded="$(printf '%s' "$ARTIFACT_NAME" | sed 's#/#%252F#g')"
           project_encoded="$REGISTRY_PROJECT"
 
-          # Release preflight (INFRA-352, DGX-1555). The bundle layer is reproducible, but
+          # Release preflight (INFRA-352). The bundle layer is reproducible, but
           # the OCI manifest is not (ORAS stamps org.opencontainers.image.created),
           # so a retry on a commit that already published `sha-<commit>` would
           # push a second manifest and collide with that immutable tag. Resolve

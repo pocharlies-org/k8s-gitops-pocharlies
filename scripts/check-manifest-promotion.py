@@ -126,12 +126,13 @@ legacy_required = [
     '--force-with-lease="refs/heads/${DEPLOY_BRANCH}:${checkout_tip}"',
     "git merge-base --is-ancestor HEAD refs/rho/deploy-tip",
     "nothing to promote",
-    # INFRA-352: a retry reuses the bundle `sha-<commit>` already names
-    # (revision and exact layer checked) instead of colliding with it.
+    # INFRA-352: a retry reuses the bundle `sha-<commit>` already names instead
+    # of colliding with it; DGX-1555: the binding is the revision annotation, a
+    # layer-byte difference is tar/gzip drift between runners and stays a notice.
     "Release preflight (INFRA-352)",
     "lookup_manifest_artifact() {",
     "Reusing manifest bundle",
-    "([.layers[].digest] == [$layer])",
+    "was first published from different bundle bytes",
     "Immutable tags are never moved: release this commit under an unused image_tag.",
 ]
 for marker in legacy_required:
