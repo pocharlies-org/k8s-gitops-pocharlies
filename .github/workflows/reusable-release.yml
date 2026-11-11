@@ -583,7 +583,8 @@ jobs:
             # byte a byte como hoy para los consumidores que no lo declaran.
             npm_secret=()
             [ -n "${NPM_TOKEN:-}" ] && npm_secret=(--secret id=npm_token,env=NPM_TOKEN)
-            timeout "$DOCKER_BUILD_TIMEOUT" docker buildx build "${npm_secret[@]}" \
+            timeout "$DOCKER_BUILD_TIMEOUT" docker buildx build \
+              "${npm_secret[@]}" \
               --load \
               --progress=plain \
               --file "$dockerfile" \
