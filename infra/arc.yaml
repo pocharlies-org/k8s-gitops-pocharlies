@@ -126,6 +126,92 @@ spec:
       - CreateNamespace=true
       - ServerSideApply=true
 ---
+# SC-5371 (security, 11-11-2026): pool DEDICADO al despliegue de Hermes. El workflow
+# "Hermes · despliegue ordenado" (k8s-openclaw-qwen36-pocharlies) sustituye aquí al runner
+# x86-hermes (SC-5299 C4). Su SA arc-hermes-gha-rs-no-permission es la identidad de despliegue:
+# es el ÚNICO runner de la org con get/patch de la Application argocd/hermes, exec en ns hermes y
+# get de los ClusterSecretStore (RBAC: k8s-infra-pocharlies platform/arc/rbac-hermes-despliegue.yaml).
+# Ningún otro workflow usa la etiqueta arc-hermes, así que el privilegio no se filtra a la CI del
+# repo (que sigue en arc-openclaw, sin permisos). maxRunners 1: el workflow ya serializa con su
+# group de concurrency; el job es kubectl+python esperando, no necesita más.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-hermes
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-hermes
+      values: |
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-app
+        githubConfigUrl: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
+        maxRunners: 1
+        minRunners: 0
+        runnerScaleSetName: arc-hermes
+        template:
+          spec:
+            affinity:
+              nodeAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    preference:
+                      matchExpressions:
+                        - key: node-pool
+                          operator: In
+                          values: [ks5-nvme]
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
+            nodeSelector:
+              kubernetes.io/arch: amd64
+            tolerations:
+              - effect: PreferNoSchedule
+                key: pool
+                operator: Equal
+                value: dev
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["/home/runner/run.sh"]
+                resources:
+                  # El job es hermes-despliegue: kubectl + python esperando (rollout status,
+                  # operationState). No compila ni construye: 500m/512Mi de reserva.
+                  requests:
+                    cpu: 500m
+                    memory: 512Mi
+                  limits:
+                    cpu: "1"
+                    memory: 1Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-runners
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

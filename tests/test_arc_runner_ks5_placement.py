@@ -92,9 +92,11 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         # 2026-11-03 devops · INFRA-334: +1 runner image y +1 IfNotPresent — el
         # sidecar warm-pr-agent de arc-k8s reutiliza la imagen de runner (trae
         # el CLI de docker); sigue sin anadir imagen de dind nueva.
-        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 6)
+        # 2026-11-11 security · SC-5371: +1 runner image y +1 IfNotPresent — pool
+        # arc-hermes (despliegue de Hermes desde ARC), misma imagen fijada.
+        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 7)
         self.assertEqual(self.manifest.count(f"image: {DIND_IMAGE}"), 2)
-        self.assertEqual(self.manifest.count("imagePullPolicy: IfNotPresent"), 8)
+        self.assertEqual(self.manifest.count("imagePullPolicy: IfNotPresent"), 9)
         self.assertNotIn("image: docker:dind", self.manifest)
         self.assertNotIn("image: ghcr.io/actions/actions-runner:2.335.1\n", self.manifest)
 
