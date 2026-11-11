@@ -201,7 +201,10 @@ jobs:
           # push a second manifest and collide with that immutable tag. Resolve
           # both tags first: a VERSION owned by another manifest fails here,
           # before anything is pushed, and a `sha-<commit>` already bound to
-          # this revision and this exact bundle layer is reused, never moved.
+          # this revision is reused, never moved. A layer-byte difference is
+          # tar/gzip drift of the runner image between attempts, not another
+          # release — demanding the identical layer was what left the reruns of
+          # DGX-1550 and DGX-1552 dead forever — so it stays a notice.
           lookup_manifest_artifact() {
             local reference="$1"
             local output="$2"
@@ -229,12 +232,16 @@ jobs:
             reuse_digest="$(jq -er '.digest | select(test("^sha256:[a-f0-9]{64}$"))' "$sha_lookup")"
             existing_manifest="$RUNNER_TEMP/manifest-preflight-existing.json"
             oras manifest fetch "${REGISTRY}/${REGISTRY_PROJECT}/${ARTIFACT_NAME}@${reuse_digest}" > "$existing_manifest"
-            jq -e --arg revision "$GITHUB_SHA" --arg layer "$bundle_layer_digest" \
-              '.annotations["org.opencontainers.image.revision"] == $revision and ([.layers[].digest] == [$layer])' \
+            jq -e --arg revision "$GITHUB_SHA" \
+              '.annotations["org.opencontainers.image.revision"] == $revision' \
               "$existing_manifest" >/dev/null || {
-                echo "Immutable manifest tag ${SHA_TAG} is bound to another revision or bundle; it is never moved"
+                echo "Immutable manifest tag ${SHA_TAG} is bound to another revision; it is never moved"
                 exit 1
               }
+            if ! jq -e --arg layer "$bundle_layer_digest" \
+              '[.layers[].digest] == [$layer]' "$existing_manifest" >/dev/null; then
+              echo "::notice::${SHA_TAG} was first published from different bundle bytes (tar/gzip drift between runners); reusing it — same revision, same files"
+            fi
             if ! jq -e --arg version "$VERSION" \
               '.annotations["org.opencontainers.image.version"] == $version' "$existing_manifest" >/dev/null; then
               echo "::notice::${SHA_TAG} was first published under another version annotation; tagging the same bundle as ${VERSION}"
