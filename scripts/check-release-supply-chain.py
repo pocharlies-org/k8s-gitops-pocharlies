@@ -203,7 +203,10 @@ require("refs/(heads|tags)" not in workflow, "mutable certificate reference acce
 # SC-3961 proposal (Security approval pending): optional same-run context for the
 # exact company-runtime/main dispatch, source binding before registry login, and
 # fixed credential-free smoke before candidate push. Default callers unchanged.
-expected_workflow_digest = "9cdf4a067aaa42488df1f77c0e92350187bcf5eca1065181026284e0a48530de"
+# SKIRM-451: NPM_TOKEN opcional montado como BuildKit secret condicional
+# (--secret id=npm_token solo si el llamante lo declara); build idéntico para
+# los consumidores actuales. Revisado en la PR #743 con veredicto de security.
+expected_workflow_digest = "284fef82002af38773c93b65ea45ced1d3c5861cf21f5c429f63f8f0d7e4b36b"
 # La instalacion de Buildx (checksums + imagen por digest) vive ahora en la
 # accion local: se pinnea igual que el workflow, o el contrato pierde cobertura.
 expected_buildx_action_digest = "e39317a5be5b63d9d01959164ac5c0e6f809eed870c8a5e28be2999043eb9353"
