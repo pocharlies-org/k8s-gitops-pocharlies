@@ -1,0 +1,183 @@
+name: Reusable image-guard
+
+# Guard de tamaño de imágenes, estándar de la org (INFRA-536 C4 · INFRA-1298).
+# Falla si la imagen pasa del tope absoluto, o si crece sobre la línea base
+# (`docs/images/sizes-baseline.json` de `k8s-infra-pocharlies`, rama main) por
+# encima del umbral; en modo `avisar` el crecimiento es un ::warning:: y el
+# check pasa. La imagen sin línea base se propone en el log y no falla.
+#
+# Patrón de `reusable-duplicados.yml` y `reusable-alibaba-key-guard.yml`: este
+# YAML es fino (runner, checkout del framework, herramientas fijadas); toda la
+# lógica de decisión vive en `scripts/image-guard.py` con sus unittest en
+# `tests/test_image_guard.py` (dentro del YAML no se prueban en CI).
+#
+# Herramientas, las dos como IMAGEN FIJADA POR DIGEST (skill `ci-runners-arc`:
+# el runner arc-k8s no las trae; hadolint no se instala en ningún sitio):
+#   - hadolint/hadolint@sha256:a1d49ae1… (v2.15.1-alpine, índice OCI): lee el
+#     Dockerfile por stdin (`- < Dockerfile`), sin volúmenes — en DinD los
+#     bind-mounts los resuelve el daemon del sidecar y solo se comparte lo que
+#     está bajo /home/runner/_work.
+#   - gcr.io/go-containerregistry/crane@sha256:1f968817… (v0.22.1): `manifest
+#     --platform` (el comprimido es la suma de `layers[].size`, mismo método
+#     que el inventario de INFRA-1296) y `digest --platform` para resolver el
+#     tag a la clave de la baseline. `--platform` SIEMPRE, incluso con índices
+#     de una sola plataforma.
+#
+# Baseline (`baseline`): ruta en el repo que llama (p. ej. una copia en
+# `docs/images/`), URL https, o el JSON en línea (empieza por `{`). La línea
+# base canónica vive en `k8s-infra-pocharlies@main:docs/images/`. Una entrada
+# de la baseline cuyo `comprimido` lleve el marcador `{"sin_dato": motivo}`
+# (así marca el inventario el dato no obtenible) se trata como SIN línea base:
+# el guard la propone y no falla — el no-dato no pone en rojo a una imagen sana.
+#
+# Consumidores: `uses:
+# pocharlies-org/k8s-gitops-pocharlies/.github/workflows/reusable-image-guard.yml@{sha}`
+# — fijado por SHA (los reusables se consumen así; `@main` no vale aquí porque
+# el check de pins de este repo solo lo admite para acciones propias).
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: Runner ARC del cluster.
+        type: string
+        default: arc-k8s
+      dockerfile:
+        description: Ruta del Dockerfile a lintear (relativa al repo que llama).
+        type: string
+        default: Dockerfile
+      imagen:
+        description: >
+          Imagen a medir: repo@sha256:... (digest de manifiesto) o repo:tag
+          (el tag lo resuelve el guard con `crane digest --platform`).
+        type: string
+        required: true
+      baseline:
+        description: >
+          sizes-baseline.json: ruta en el repo que llama, URL https o JSON en
+          línea. La canónica es la de k8s-infra-pocharlies@main:docs/images/.
+        type: string
+        default: docs/images/sizes-baseline.json
+      modo:
+        description: bloquear (el crecimiento falla) o avisar (::warning::).
+        type: string
+        default: bloquear
+      tope:
+        description: Tope absoluto en bytes (0 = sin tope). Falla en ambos modos.
+        type: number
+        default: 0
+      crecimiento:
+        description: Crecimiento relativo admitido sobre la baseline, en %.
+        type: number
+        default: 20
+      plataforma:
+        description: Plataforma al resolver el manifiesto (arc-k8s es amd64).
+        type: string
+        default: linux/amd64
+
+permissions:
+  contents: read
+
+jobs:
+  image-guard:
+    name: image-guard
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    concurrency:
+      # Un push encima cancela la medición anterior: revisamos el ultimo
+      # commit, no el penultimo.
+      group: image-guard-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Check out the image-guard framework
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Mismo truco que duplicados y alibaba-key-guard: `job.workflow_*` no
+          # es contexto documentado; si no resuelve quedan vacios y el fallback
+          # deja las dos ramas apuntando al framework.
+          repository: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
+          ref: ${{ job.workflow_sha || 'main' }}
+          token: ${{ github.token }}
+          persist-credentials: false
+          path: .image-guard-framework
+
+      - name: Lint the Dockerfile with pinned hadolint
+        env:
+          # Los inputs entran por entorno, nunca interpolados en el `run`:
+          # `check-workflow-pins.py` lo rechaza y son texto de terceros.
+          DOCKERFILE: ${{ inputs.dockerfile }}
+          HADOLINT_IMAGE: hadolint/hadolint@sha256:a1d49ae1a4e83c1dbad26b8c1ad7588c8bd1e04f4866b34ad3cac50335198552
+        run: |
+          set -euo pipefail
+          if [ ! -f "$DOCKERFILE" ]; then
+            echo "::error::no existe el Dockerfile $DOCKERFILE"
+            exit 1
+          fi
+          # `-` = stdin: sin bind-mounts, nada que el daemon de DinD pueda ver mal.
+          docker run --rm -i "$HADOLINT_IMAGE" - < "$DOCKERFILE"
+
+      - name: Resolve the image manifest with pinned crane
+        env:
+          IMAGEN: ${{ inputs.imagen }}
+          PLATAFORMA: ${{ inputs.plataforma }}
+          CRANE_IMAGE: gcr.io/go-containerregistry/crane@sha256:1f968817b95790bed063f71175aa6b8ff879fa17064020415f3e18bb6e6a36e1
+        run: |
+          set -euo pipefail
+          crane() { docker run --rm "$CRANE_IMAGE" "$@"; }
+          crane manifest --platform "$PLATAFORMA" "$IMAGEN" > "$RUNNER_TEMP/manifest.json"
+          case "$IMAGEN" in
+            *@sha256:*) printf '%s' "${IMAGEN#*@}" > "$RUNNER_TEMP/digest.txt" ;;
+            *) crane digest --platform "$PLATAFORMA" "$IMAGEN" > "$RUNNER_TEMP/digest.txt" ;;
+          esac
+
+      - name: Fetch the sizes baseline
+        env:
+          BASELINE: ${{ inputs.baseline }}
+        run: |
+          set -euo pipefail
+          case "$BASELINE" in
+            http://*|https://*)
+              curl --retry 3 --retry-all-errors -fsSL "$BASELINE" -o "$RUNNER_TEMP/baseline.json"
+              ;;
+            '{'*)
+              printf '%s' "$BASELINE" > "$RUNNER_TEMP/baseline.json"
+              ;;
+            *)
+              if [ ! -f "$BASELINE" ]; then
+                echo "::error::no existe la baseline $BASELINE (ruta en el repo, URL https o JSON en línea)"
+                exit 1
+              fi
+              cp "$BASELINE" "$RUNNER_TEMP/baseline.json"
+              ;;
+          esac
+
+      - name: Guard size against the baseline
+        env:
+          IMAGEN: ${{ inputs.imagen }}
+          MODO: ${{ inputs.modo }}
+          TOPE: ${{ inputs.tope }}
+          CRECIMIENTO: ${{ inputs.crecimiento }}
+        run: |
+          set -uo pipefail
+          guard=.image-guard-framework/scripts/image-guard.py
+          if [ ! -f "$guard" ]; then
+            echo "::error::no se pudo traer el framework de image-guard"
+            exit 1
+          fi
+          digesto=""
+          [ -s "$RUNNER_TEMP/digest.txt" ] && digesto="$(cat "$RUNNER_TEMP/digest.txt")"
+          # `--digest` se pasa siempre: vacio, el script usa el del @digest.
+          python3 "$guard" \
+            --imagen "$IMAGEN" \
+            --digest "$digesto" \
+            --manifest "$RUNNER_TEMP/manifest.json" \
+            --baseline "$RUNNER_TEMP/baseline.json" \
+            --modo "$MODO" \
+            --tope "$TOPE" \
+            --crecimiento "$CRECIMIENTO"
