@@ -74,6 +74,14 @@ on:
         description: Plataforma al resolver el manifiesto (arc-k8s es amd64).
         type: string
         default: linux/amd64
+      framework_sha:
+        description: >
+          SHA del framework (este repo) del que se trae scripts/image-guard.py.
+          Vacio = el del propio reusable o main (lo normal). Solo para probar
+          el guard contra una rama antes de fusionar el framework; los
+          consumidores no lo pasan.
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -100,9 +108,11 @@ jobs:
         with:
           # Mismo truco que duplicados y alibaba-key-guard: `job.workflow_*` no
           # es contexto documentado; si no resuelve quedan vacios y el fallback
-          # deja las dos ramas apuntando al framework.
+          # deja las dos ramas apuntando al framework. `framework_sha` (vacio
+          # para los consumidores) permite probar el guard contra una rama
+          # antes de que el script exista en main.
           repository: ${{ job.workflow_repository || 'pocharlies-org/k8s-gitops-pocharlies' }}
-          ref: ${{ job.workflow_sha || 'main' }}
+          ref: ${{ inputs.framework_sha || job.workflow_sha || 'main' }}
           token: ${{ github.token }}
           persist-credentials: false
           path: .image-guard-framework
