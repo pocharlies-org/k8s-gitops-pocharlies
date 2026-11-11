@@ -45,6 +45,12 @@ on:
         required: true
       HARBOR_PASSWORD:
         required: true
+      # SC-2685 igual: no declarado se resuelve vacío. Token del registry
+      # privado de npm para Dockerfiles que montan id=npm_token (apps con
+      # @pocharlies/shopify-app-framework); opcional, la base solo lo pasa
+      # si el llamante lo tiene.
+      NPM_TOKEN:
+        required: false
       OPENCLAW_TELEGRAM_BOT_TOKEN:
         required: false
       OPENCLAW_TELEGRAM_TARGET:
@@ -306,6 +312,7 @@ jobs:
           COMPANY_CONTEXT_ARTIFACT: ${{ inputs.company_context_artifact }}
           HARBOR_USER: ${{ secrets.HARBOR_USER }}
           HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
           if ! echo "$DOCKER_BUILD_TIMEOUT" | grep -Eq '^[1-9][0-9]*[smh]$'; then
@@ -572,7 +579,12 @@ jobs:
             # aquí — un PR no puede envenenar la caché de un release), y el job
             # docker de reusable-ci solo la importa. ignore-error: un fallo de
             # caché nunca tumba un release.
+            # BuildKit secret condicional: sin NPM_TOKEN el comando queda
+            # byte a byte como hoy para los consumidores que no lo declaran.
+            npm_secret=()
+            [ -n "${NPM_TOKEN:-}" ] && npm_secret=(--secret id=npm_token,env=NPM_TOKEN)
             timeout "$DOCKER_BUILD_TIMEOUT" docker buildx build \
+              "${npm_secret[@]}" \
               --load \
               --progress=plain \
               --file "$dockerfile" \
