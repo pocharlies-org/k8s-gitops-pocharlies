@@ -386,15 +386,21 @@ class ManifestPublishRetryTest(unittest.TestCase):
         self.assertFalse(any(call[:2] == ["curl", "POST"] for call in self.calls()))
         self.assertNotIn(f"sha-{self.sha[:12]}", sum(self.tags().values(), []))
 
-    def test_sha_tag_bound_to_another_bundle_is_never_moved(self) -> None:
+    def test_sha_tag_of_this_revision_with_another_bundle_is_reused_not_moved(self) -> None:
+        # DGX-1555: same revision with different bundle bytes is tar/gzip drift
+        # between runner images (the measured reruns of DGX-1550/DGX-1552 were
+        # days apart). The rerun converges on the published digest and the
+        # immutable tag is never moved.
         state = {"artifacts": {DIGEST_A: {"tags": [f"sha-{self.sha[:12]}"], "manifest": {
             "annotations": {"org.opencontainers.image.revision": self.sha},
             "layers": [{"digest": DIGEST_B}]}}}}
         self.state.write_text(json.dumps(state))
         result = self.publish("v1.0.0")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("never moved", result.stdout)
-        self.assertEqual(self.tags(), {DIGEST_A: [f"sha-{self.sha[:12]}"]})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Reusing manifest bundle", result.stdout)
+        self.assertIn("different bundle bytes", result.stdout)
+        self.assertFalse(any(call[:2] == ["oras", "push"] for call in self.calls()))
+        self.assertEqual(self.tags(), {DIGEST_A: [f"sha-{self.sha[:12]}", "v1.0.0"]})
 
 
 DEPLOY_BRANCH = "deploy/fixture"  # a trunk name would be refused by trunk-protecting push hooks
