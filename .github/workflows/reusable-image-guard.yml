@@ -74,6 +74,14 @@ on:
         description: Plataforma al resolver el manifiesto (arc-k8s es amd64).
         type: string
         default: linux/amd64
+      nombre:
+        description: >
+          Discriminador de concurrencia: dos guards del mismo PR (p. ej. el
+          mismo Dockerfile en modo bloquear y en modo avisar, o dos imagenes)
+          necesitan nombres distintos o el segundo cancela al primero. Un solo
+          guard por PR: se deja vacio.
+        type: string
+        default: ''
       framework_sha:
         description: >
           SHA del framework (este repo) del que se trae scripts/image-guard.py.
@@ -95,8 +103,10 @@ jobs:
       contents: read
     concurrency:
       # Un push encima cancela la medición anterior: revisamos el ultimo
-      # commit, no el penultimo.
-      group: image-guard-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      # commit, no el penultimo. `nombre` separa los guards de un mismo PR
+      # (medido en las PRs de prueba: sin él, el segundo job cancelaba al
+      # primero).
+      group: image-guard-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}${{ inputs.nombre && format('-{0}', inputs.nombre) || '' }}
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -129,8 +139,10 @@ jobs:
             echo "::error::no existe el Dockerfile $DOCKERFILE"
             exit 1
           fi
-          # `-` = stdin: sin bind-mounts, nada que el daemon de DinD pueda ver mal.
-          docker run --rm -i "$HADOLINT_IMAGE" - < "$DOCKERFILE"
+          # La imagen fijada no trae ENTRYPOINT (su CMD es `/bin/hadolint -`):
+          # el binario se pasa a mano. `-` = stdin: sin bind-mounts, nada que el
+          # daemon de DinD pueda resolver mal.
+          docker run --rm -i "$HADOLINT_IMAGE" /bin/hadolint - < "$DOCKERFILE"
 
       - name: Resolve the image manifest with pinned crane
         env:
