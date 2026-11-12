@@ -13,6 +13,10 @@ dex:
 configs:
   params:
     server.insecure: "true"   # TLS termination at Traefik
+    # SC-5383: en Argo CD v3 la salud por recurso vive en Redis (appTree) y el CR no la
+    # guarda; el panel de Kubernetes del dashboard (GET /api/cluster/argocd/<app>/tree)
+    # la lee del CR, así que la pedimos persistida. ~127 apps pequeñas: coste etcd ínfimo.
+    controller.resource.health.persist: "true"
   cm:
     application.instanceLabelKey: argocd.argoproj.io/instance
     # SC-2822: los kustomize del repo pueden traer helmCharts (platform/keycloak-sso).
