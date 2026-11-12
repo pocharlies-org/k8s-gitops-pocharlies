@@ -356,10 +356,16 @@ spec:
               # arranque en vez de sumarse a la espera. Best-effort y acotado
               # (timeout 240 s + `|| true`): si Harbor no responde, el runner
               # arranca igual y el job paga el pull en su paso de siempre — el
-              # comportamiento previo, sin modo de fallo nuevo. Sin
-              # credenciales: el proyecto homelab/pr-agent se sirve anonimo en
-              # Harbor (medido 02-11, crane pull del digest sin login, 253 MB
-              # en 19 s por LAN). El digest debe ir en paso con PR_AGENT_IMAGE
+              # comportamiento previo, sin modo de fallo nuevo. El pull del sidecar
+              # es SIN credenciales y hoy NO calienta: el proyecto homelab es
+              # PRIVADO (medido 11-11, token anonimo -> 401 "unauthorized to access
+              # repository: homelab/pr-agent, action: pull"), asi que el pull del
+              # sidecar falla y el `|| true` lo traga. El pull real y autenticado lo
+              # hace el job (HARBOR_USER/HARBOR_PASSWORD en
+              # .github/workflows/reusable-pr-review.yml). Para que este sidecar
+              # vuelva a calentar haria falta un robot de Harbor de solo-pull sobre
+              # homelab/pr-agent materializado en el ASRS (limite de privilegio:
+              # decide security). El digest debe ir en paso con PR_AGENT_IMAGE
               # de .github/workflows/reusable-pr-review.yml (main) y con la
               # entrada pr-agent de dgx-infra ci/update-watch.yaml; el bump de
               # imagen es cambiar las dos. Solo en arc-k8s: arc-openclaw y
@@ -368,14 +374,18 @@ spec:
                 image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
                 imagePullPolicy: IfNotPresent
                 # Sidecar nativo (restartPolicy: Always): el contenedor runner
-                # NO espera a que termine, y el pod tampoco. Termina solo tras
-                # el pull (o el timeout).
+                # NO espera a que termine, y el pod tampoco. PERO un sidecar con
+                # restartPolicy: Always que SALE es relanzado por kubelet en bucle
+                # (BackOff) y el pod no llega a Ready (2/3): eso hacia crashear el
+                # pool (SKIRM-463). Tras el pull best-effort el sidecar se queda
+                # durmiendo para permanecer Ready.
                 restartPolicy: Always
                 command: ["bash", "-c"]
                 args:
                   - |
                     export DOCKER_HOST=unix:///var/run/docker.sock
                     timeout 240 docker pull "$PR_AGENT_IMAGE" >/dev/null 2>&1 || true
+                    sleep infinity
                 env:
                   - name: PR_AGENT_IMAGE
                     value: harbor.e-dani.com/homelab/pr-agent:0.46.0-github_action@sha256:42c7833a3fbdf354387ab3469fe67c34e11b38f9b90370553398a36b47ad6bc0
