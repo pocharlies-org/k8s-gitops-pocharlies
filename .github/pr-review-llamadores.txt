@@ -93,6 +93,7 @@ pocharlies-org/k8s-frigate-pocharlies	activo	pr-agent	main	pr-agent
 pocharlies-org/k8s-gbp-festivos-pocharlies	activo	pr-agent	main	pr-agent
 pocharlies-org/k8s-gitops-pocharlies	activo	default	main	secretos
 pocharlies-org/k8s-hindsight-pocharlies	activo	pr-agent	main	pr-agent
+pocharlies-org/k8s-homeassistant-pocharlies	activo	pr-agent	main	pr-agent
 pocharlies-org/k8s-infra-pocharlies	activo	default	main	secretos
 pocharlies-org/k8s-jarvis-pocharlies	activo	default	main	secretos
 pocharlies-org/k8s-langfuse-pocharlies	activo	default	main	secretos
