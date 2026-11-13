@@ -30,8 +30,9 @@ pocharlies-org/k8s-cv-pocharlies	llama	INFRA
 pocharlies-org/k8s-dgx-synapse-mcp-pocharlies	llama	DGX	
 pocharlies-org/k8s-document-intake-pocharlies	llama	SKIRM	
 pocharlies-org/k8s-firecrawl-pocharlies	llama	INFRA	
-pocharlies-org/k8s-gitops-pocharlies	llama	INFRA	
-pocharlies-org/k8s-infra-pocharlies	llama	INFRA	
+pocharlies-org/k8s-gitops-pocharlies	llama	INFRA
+pocharlies-org/k8s-homeassistant-pocharlies	llama	INFRA
+pocharlies-org/k8s-infra-pocharlies	llama	INFRA
 pocharlies-org/k8s-jarvis-pocharlies	llama	INFRA	
 pocharlies-org/k8s-langfuse-pocharlies	llama	INFRA	
 pocharlies-org/k8s-libreplay-pocharlies	llama	INFRA	
