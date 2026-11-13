@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: homeassistant
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-homeassistant-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-homeassistant-pocharlies
+    targetRevision: HEAD
+    path: k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: homeassistant
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

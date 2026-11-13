@@ -56,6 +56,8 @@ resources:
   - apps/horarios-alphalink.yaml
   - apps/wordpress-alphalink.yaml
   - apps/firecrawl.yaml
+  # INFRA-557: Home Assistant por GitOps (manifiestos en k8s-homeassistant-pocharlies).
+  - apps/homeassistant.yaml
   - apps/hermes.yaml
   - apps/jarvis.yaml
   - apps/libreplay.yaml
