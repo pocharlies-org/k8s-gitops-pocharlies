@@ -261,6 +261,41 @@ notifications:
                         "repo": {{ with .app.spec.source }}{{ .repoURL | toJson }}{{ else }}"multi-source"{{ end }}, "revision": {{ .app.status.sync.revision | toJson }}},
              "url": {{ printf "%s/applications/%s" .context.argocdUrl .app.metadata.name | toJson }},
              "description": {{ printf "%s Healthy (resuelto por ArgoCD)" .app.metadata.name | toJson }}}
+    # (SC-5453) App OutOfSync sin sync automático: git cambió y nada lo va a aplicar
+    # (no se auto-cura). Es la deriva que SC-5448 dejó pasar 3 días: una app pausada a
+    # mano con pods sanos era invisible para ops-watch, que solo trataba "sync fallido
+    # o Degraded" (SC-5451). La correla la regla argocd-app-sync-paused (prefijo PAUSA,
+    # k8s-observability-pocharlies). Mismo patrón de fingerprint que las de arriba.
+    template.keep-sync-paused: |
+      webhook:
+        keep:
+          method: POST
+          path: /alerts/event
+          body: |
+            {"name": "ArgoCDAppSyncPaused",
+             "fingerprint": {{ printf "argocd/%s/sync-paused" .app.metadata.name | sha256sum | trunc 16 | toJson }},
+             "status": "firing", "severity": "warning", "source": ["argocd"],
+             "app": {{ .app.metadata.name | toJson }},
+             "labels": {"app": {{ .app.metadata.name | toJson }}, "sync": {{ .app.status.sync.status | toJson }}, "health": {{ .app.status.health.status | toJson }},
+                        "repo": {{ with .app.spec.source }}{{ .repoURL | toJson }}{{ else }}"multi-source"{{ end }}, "revision": {{ .app.status.sync.revision | toJson }}},
+             "url": {{ printf "%s/applications/%s" .context.argocdUrl .app.metadata.name | toJson }},
+             "description": {{ printf "%s OutOfSync sin sync automatico (automated apagado): no se auto-cura" .app.metadata.name | toJson }}}
+    # Resuelve la anterior (misma fingerprint) cuando la app vuelve a Synced o se le
+    # re-ponen el automated: la condicion de pausado deja de darse.
+    template.keep-sync-paused-resolved: |
+      webhook:
+        keep:
+          method: POST
+          path: /alerts/event
+          body: |
+            {"name": "ArgoCDAppSyncPaused",
+             "fingerprint": {{ printf "argocd/%s/sync-paused" .app.metadata.name | sha256sum | trunc 16 | toJson }},
+             "status": "resolved", "severity": "warning", "source": ["argocd"],
+             "app": {{ .app.metadata.name | toJson }},
+             "labels": {"app": {{ .app.metadata.name | toJson }}, "sync": {{ .app.status.sync.status | toJson }}, "health": {{ .app.status.health.status | toJson }},
+                        "repo": {{ with .app.spec.source }}{{ .repoURL | toJson }}{{ else }}"multi-source"{{ end }}, "revision": {{ .app.status.sync.revision | toJson }}},
+             "url": {{ printf "%s/applications/%s" .context.argocdUrl .app.metadata.name | toJson }},
+             "description": {{ printf "%s sync automatico restaurado o Synced (resuelto por ArgoCD)" .app.metadata.name | toJson }}}
   triggers:
     trigger.on-sync-failed: |
       - description: El sync de la app ha fallado
@@ -289,8 +324,30 @@ notifications:
         when: app.status.operationState != nil and app.status.operationState.phase == 'Succeeded' and app.status.health.status == 'Healthy'
         oncePer: app.status.operationState.finishedAt ?? ""
         send: [keep-sync-failed-resolved, keep-health-degraded-resolved]
+    # (SC-5453) App OutOfSync con el sync automatico APAGADO (spec.syncPolicy.automated
+    # ausente): git cambio y nada lo aplicara. Es la firma de la deriva de SC-5448
+    # (agentjake-chrome pausada a mano por una sesion de depuracion, 3 dias sin aviso).
+    # LIMITACION medida: las notificaciones de ArgoCD no leen git, asi que no pueden
+    # distinguir "pausada a mano" de "declara sync manual a proposito". Se excluyen por
+    # nombre las apps que DEclaran sync manual y estan OutOfSync por diseno: `root`
+    # (app-of-apps, se sincroniza a mano) y `shopify-back-in-stock` (en apps-disabled,
+    # git no declara automated). Si se anade otra app de sync manual y OutOfSync, hay que
+    # anadirla aqui o darle automated; lo guarda tests/test_argocd_notifications_resolved.py.
+    trigger.on-sync-paused: |
+      - description: "App OutOfSync sin sync automatico: no se auto-cura (deriva)"
+        when: app.status.sync.status == 'OutOfSync' and app.spec.syncPolicy.automated == nil and app.metadata.name != 'root' and app.metadata.name != 'shopify-back-in-stock'
+        oncePer: app.status.sync.revision ?? ""
+        send: [keep-sync-paused]
+    trigger.on-sync-paused-resolved: |
+      # Resuelve el pausado (misma fingerprint) cuando la app vuelve a Synced o se le
+      # re-pone el automated. No excluye root/shopify: un resolved sobre una fingerprint
+      # que nunca disparo es un no-op en Keep.
+      - description: "Sync automatico restaurado o app Synced: resuelve el pausado en Keep"
+        when: app.status.sync.status == 'Synced' or app.spec.syncPolicy.automated != nil
+        oncePer: app.status.sync.revision ?? ""
+        send: [keep-sync-paused-resolved]
   subscriptions:
     - recipients: [keep]
-      triggers: [on-sync-failed, on-health-degraded, on-sync-resolved]
+      triggers: [on-sync-failed, on-health-degraded, on-sync-resolved, on-sync-paused, on-sync-paused-resolved]
     - recipients: [synapse]
       triggers: [on-deployed]

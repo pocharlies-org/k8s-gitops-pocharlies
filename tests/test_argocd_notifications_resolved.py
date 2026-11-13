@@ -90,5 +90,45 @@ class ArgocdNotificationsResolvedTest(unittest.TestCase):
                             "el resolved no puede disparar con la condición del firing")
 
 
+class ArgocdNotificationsSyncPausedTest(unittest.TestCase):
+    """(SC-5453) El hallazgo de app con el sync pausado (OutOfSync sin automated) no puede
+    romperse en silencio: mismo espejo firing/resolved que las de fallo, disparado solo
+    cuando la app no se auto-cura, y excluyendo las apps que declaran sync manual a propósito."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.notifications = _notifications()
+
+    def _webhook(self, template: str) -> dict:
+        return yaml.safe_load(self.notifications["templates"][f"template.{template}"])["webhook"]["keep"]
+
+    def test_paused_resolved_is_the_mirror_of_firing(self) -> None:
+        firing, resolved = self._webhook("keep-sync-paused"), self._webhook("keep-sync-paused-resolved")
+        self.assertEqual(firing["path"], resolved["path"])
+        self.assertEqual(_lineas(firing["body"]), _lineas(resolved["body"]),
+                         "keep-sync-paused-resolved debe ser espejo de keep-sync-paused: mismo name y "
+                         "fingerprint (Keep empareja el resolved por huella)")
+        self.assertIn('"name": "ArgoCDAppSyncPaused"', firing["body"])
+        self.assertIn('"status": "firing"', firing["body"])
+        self.assertIn('"status": "resolved"', resolved["body"])
+        self.assertIn('"source": ["argocd"]', resolved["body"],
+                      "source como lista: sin ella Keep descarta el evento (INFRA-405)")
+
+    def test_paused_trigger_condition_excludes_manual_sync_apps(self) -> None:
+        trigger = yaml.safe_load(self.notifications["triggers"]["trigger.on-sync-paused"])[0]
+        when = trigger["when"]
+        self.assertIn("OutOfSync", when)
+        self.assertIn("app.spec.syncPolicy.automated == nil", when)
+        # root (app-of-apps, sync manual) y shopify-back-in-stock (apps-disabled) declaran
+        # sync manual: sin excluirlas abrirían un incidente PAUSA permanente y falso.
+        self.assertIn("root", when)
+        self.assertIn("shopify-back-in-stock", when)
+
+    def test_paused_triggers_are_subscribed_to_keep(self) -> None:
+        keep = [s for s in self.notifications["subscriptions"] if s["recipients"] == ["keep"]][0]
+        self.assertIn("on-sync-paused", keep["triggers"])
+        self.assertIn("on-sync-paused-resolved", keep["triggers"])
+
+
 if __name__ == "__main__":
     unittest.main()
