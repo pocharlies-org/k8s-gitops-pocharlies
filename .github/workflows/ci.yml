@@ -102,6 +102,9 @@ jobs:
       - run: python3 scripts/test-alibaba-key-guard.py
       # INFRA-1298 (INFRA-536 C4): logica de tamano del guard de imagenes.
       - run: python3 -m unittest tests/test_image_guard.py
+      # INFRA-536 regression: la superficie de llamada del reusable (workflow_call,
+      # entradas, nombre del check, herramientas fijadas por digest).
+      - run: python3 -m unittest tests/test_reusable_image_guard.py
       # INFRA-620: la deteccion de credencial rota de PR-Agent mira solo ERROR/WARNING/CRITICAL.
       - run: python3 scripts/test-pr-agent-auth-check.py
       - name: PR-Agent config and secret distribution (INFRA-331)
