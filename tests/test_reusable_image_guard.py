@@ -18,16 +18,14 @@ quien llama al reusable y qa verificó a mano al cerrar la épica (grep de
 
 from __future__ import annotations
 
-import re
 import unittest
 from pathlib import Path
 
 import yaml
 
-ROOT = Path(__file__).resolve().parent.parent
-WORKFLOW = ROOT / ".github" / "workflows" / "reusable-image-guard.yml"
-CUERPO = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+WORKFLOW = Path(__file__).resolve().parent.parent / ".github" / "workflows" / "reusable-image-guard.yml"
 TEXTO = WORKFLOW.read_text(encoding="utf-8")
+CUERPO = yaml.safe_load(TEXTO)
 JOBS = CUERPO["jobs"]
 ENTRADAS = CUERPO[True]["workflow_call"]["inputs"]
 
