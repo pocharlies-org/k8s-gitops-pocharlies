@@ -319,6 +319,23 @@ spec:
         # va como preferred y no como unico destino: x86 sigue de desborde.
         # Vuelta atras: quitar la toleration de role=edge y el required por
         # hostname, y volver a maxRunners 32 sin el scale set de atlantic.
+        #
+        # 2026-11-16 dani · INFRA-1397 · sauvage vuelve a quedar fuera de
+        # arc-k8s. La re-admision del 11-15 (22:54 UTC) fallo igual que en
+        # septiembre: 24 arranques en frio a la vez llevaron md3 de sauvage
+        # (HDD, RAID sda/sdb) de ~30 % a 100 % de utilizacion y el iowait de
+        # 1 % a 26-31 % en 10 min; init-dind-externals (un `cp`) tardo mas de
+        # 7 min, y skirmshop y minio, que comparten ese disco, lo sufrieron.
+        # CORRIGE el bloque anterior: la media de 7 dias (21-29 % de
+        # utilizacion, iowait 1 %) midio el nodo SIN runners, no era una
+        # senal valida para decidir; md3 no estaba "sano", estaba ocioso.
+        # Se quitan la toleration de role=edge y la nodeAffinity preferida a
+        # sauvage. Sigue el required NotIn atlantic, asi que el unico nodo
+        # elegible de arc-k8s es x86 (ubuntu). El tope sigue en 24: los pods
+        # que no caben en x86 quedan Pending, y eso se acepta. atlantic solo
+        # entra por arc-k8s-atlantic (8). Idea de seguimiento, NO verificada
+        # ni hecha: poner los datos de DinD de sauvage en md2 (0 % de
+        # utilizacion) en vez de md3.
         maxRunners: 24
         # 2026-11-03 devops · INFRA-334 (p95 del job de review, criterio 6 de la
         # epica INFRA-298; el defecto medido por qa era cola + pull, no el motor).
@@ -352,13 +369,6 @@ spec:
                         - key: kubernetes.io/hostname
                           operator: NotIn
                           values: [atlantic]
-                preferredDuringSchedulingIgnoredDuringExecution:
-                  - weight: 100
-                    preference:
-                      matchExpressions:
-                        - key: kubernetes.io/hostname
-                          operator: In
-                          values: [sauvage]
               podAntiAffinity:
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
@@ -376,10 +386,6 @@ spec:
                 key: pool
                 operator: Equal
                 value: dev
-              - effect: NoSchedule
-                key: role
-                operator: Equal
-                value: edge
             # gha-runner-scale-set 0.14.1 implements DinD as a restartable init
             # container. containerMode must stay unset when that sidecar is
             # customized, otherwise Helm silently discards its resources.
@@ -606,6 +612,9 @@ spec:
         # solo (16 CPU). minRunners 0: los 2 runners calientes ya los pone
         # arc-k8s. El template es el de arc-k8s tal cual (DinD, limites, MTU,
         # sidecar); tests/test_arc_k8s_atlantic.py falla si divergen.
+        # 2026-11-16 dani · INFRA-1397: arc-k8s ya no llena sauvage (md3
+        # saturado, ver su bloque 2026-11-16); los otros 24 van a x86 y lo que
+        # no cabe espera Pending. Este scale set no cambia.
         maxRunners: 8
         minRunners: 0
         runnerScaleSetName: arc-k8s-atlantic

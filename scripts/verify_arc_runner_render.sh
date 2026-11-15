@@ -165,9 +165,10 @@ def validate_common(
         # ks5-cp-* no llevan taint y los 16 runners los saturaban (115-120 %
         # CPU), dejando los jobs de skirmshop-labels fuera de su timeout.
         # 2026-11-15: atlantic sale de este scale set (required NotIn por
-        # hostname; sus 8 plazas son arc-k8s-atlantic), sauvage entra como
-        # destino preferido (toleration de role=edge, md3 ya no saturado) y x86
-        # queda de desborde.
+        # hostname; sus 8 plazas son arc-k8s-atlantic).
+        # 2026-11-16 (INFRA-1397): sauvage tampoco es elegible. La re-admision
+        # del 11-15 saturo md3 (HDD) con 24 arranques en frio; sin toleration de
+        # role=edge ni nodeAffinity preferida, el unico nodo elegible es x86.
         assert pod_spec["affinity"]["nodeAffinity"] == {
             "requiredDuringSchedulingIgnoredDuringExecution": {
                 "nodeSelectorTerms": [
@@ -186,27 +187,13 @@ def validate_common(
                     }
                 ]
             },
-            "preferredDuringSchedulingIgnoredDuringExecution": [
-                {
-                    "weight": 100,
-                    "preference": {
-                        "matchExpressions": [
-                            {
-                                "key": "kubernetes.io/hostname",
-                                "operator": "In",
-                                "values": ["sauvage"],
-                            }
-                        ]
-                    },
-                }
-            ],
         }
         assert {
             "effect": "NoSchedule",
             "key": "role",
             "operator": "Equal",
             "value": "edge",
-        } in pod_spec["tolerations"]
+        } not in pod_spec["tolerations"]
 
     pod_anti_affinity = pod_spec["affinity"]["podAntiAffinity"]
     assert "requiredDuringSchedulingIgnoredDuringExecution" not in pod_anti_affinity
@@ -366,9 +353,10 @@ eligibility_matrix = {
         "nvidia.com/gpu.present": "true",
     },
 }
-# arc-k8s (INFRA-960, 2026-11-15): pool cpu SIN atlantic (required NotIn por
-# hostname; sus 8 plazas son arc-k8s-atlantic): sauvage (toleration de
-# role=edge, preferido) y ubuntu. arc-k8s-atlantic: solo atlantic.
+# arc-k8s (INFRA-960, 2026-11-16): pool cpu SIN atlantic (required NotIn por
+# hostname; sus 8 plazas son arc-k8s-atlantic) y SIN sauvage (no tolera
+# role=edge: su md3 HDD se satura con arranques en frio, INFRA-1397): solo
+# ubuntu (x86). arc-k8s-atlantic: solo atlantic.
 # arc-openclaw: anclado a ks5 como preferred, sin required — cualquier amd64
 # sin taint le vale.
 # arc-skills-eval (SC-3635): SOLO atlantic (node-pool=ovh-heavy); en cualquier
@@ -386,7 +374,7 @@ expected_eligibility = {
         "ks5-cp": False,
         "atlantic": False,
         "atlantic-ovh-heavy": False,
-        "sauvage": True,
+        "sauvage": False,
         "ubuntu-gpu": True,
         "arm-gpu": False,
     },

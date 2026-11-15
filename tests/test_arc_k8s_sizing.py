@@ -9,7 +9,8 @@ de infra/arc.yaml. El techo lo pone la capacidad de atlantic + x86
 (workload=cpu), no ks5: la rafaga de INFRA-549 e INFRA-123 quedaron sin
 efecto con INFRA-960. Subirlo por encima de la capacidad de esos nodos es
 cortar CI por otra via. Desde el 2026-11-15 las 32 plazas son 24 en arc-k8s
-(maxRunners) + 8 en arc-k8s-atlantic (tests/test_arc_k8s_atlantic.py).
+(maxRunners) + 8 en arc-k8s-atlantic (tests/test_arc_k8s_atlantic.py). Desde el
+2026-11-16 (INFRA-1397) arc-k8s solo cae en x86: sauvage esta fuera (md3 HDD).
 """
 
 from pathlib import Path
@@ -89,24 +90,23 @@ class ArcK8sSizingTest(unittest.TestCase):
         index = self.values_text.index("maxRunners:")
         self.assertIn("INFRA-547", self.values_text[:index])
 
-    def test_edge_node_is_readmitted_only_to_the_shared_pool(self) -> None:
-        """2026-11-15: sauvage vuelve a arc-k8s (md3 ya no saturado: 21-29 % de
-        utilizacion e iowait 1 % en 7 dias); arc-openclaw sigue sin tolerar
-        role=edge."""
-        values = yaml.safe_load(
-            arc_application("arc-openclaw")["spec"]["source"]["helm"]["values"]
-        )
-        openclaw_tolerations = values["template"]["spec"]["tolerations"]
-        self.assertTrue(openclaw_tolerations)
-        self.assertNotIn(
-            "edge",
-            [entry.get("value") for entry in openclaw_tolerations],
-        )
-        shared_tolerations = self.values["template"]["spec"]["tolerations"]
-        self.assertIn(
-            "edge",
-            [entry.get("value") for entry in shared_tolerations],
-        )
+    def test_edge_node_stays_out_of_the_shared_pool(self) -> None:
+        """La rafaga no se lanza contra sauvage: ni arc-k8s ni arc-openclaw
+        toleran role=edge. El 2026-11-15 se probo devolverlo a arc-k8s (con la
+        media de 7 dias como unica senal) y 24 arranques en frio llevaron su md3
+        (HDD) al 100 % de utilizacion y el iowait al 26-31 % (INFRA-1397,
+        2026-11-16)."""
+        for name in ("arc-openclaw", "arc-k8s"):
+            values = yaml.safe_load(
+                arc_application(name)["spec"]["source"]["helm"]["values"]
+            )
+            tolerations = values["template"]["spec"]["tolerations"]
+            self.assertTrue(tolerations, name)
+            self.assertNotIn(
+                "edge",
+                [entry.get("value") for entry in tolerations],
+                name,
+            )
 
 
 if __name__ == "__main__":

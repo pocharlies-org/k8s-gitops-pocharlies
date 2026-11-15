@@ -6,7 +6,8 @@ runners de arc-k8s: 16 CPU al 99 % y el daemon de Paseo sin CPU. El pool de
 (`scaleSetLabels: [arc-k8s]` -> `spec.runnerScaleSetLabels`, chart 0.14.1):
 
   - arc-k8s          maxRunners 24, atlantic excluido (required NotIn por
-                     hostname), sauvage preferido, x86 de desborde;
+                     hostname) y sauvage excluido (no tolera role=edge, ver
+                     INFRA-1397 2026-11-16): solo x86;
   - arc-k8s-atlantic maxRunners 8, fijado a atlantic.
 
 24 + 8 = 32: la capacidad total no cambia. Este test es la puerta de esa
@@ -89,7 +90,10 @@ class ArcAtlanticCapTest(unittest.TestCase):
         )
         self.assertNotIn(EDGE_TOLERATION, self.atlantic_spec["tolerations"])
 
-    def test_shared_set_excludes_atlantic_and_prefers_sauvage(self) -> None:
+    def test_shared_set_excludes_atlantic_and_sauvage(self) -> None:
+        """2026-11-16 (INFRA-1397): arc-k8s solo puede caer en x86. atlantic
+        sale por el required NotIn; sauvage por no tolerar role=edge y sin
+        nodeAffinity preferida (24 arranques en frio saturaron su md3, un HDD)."""
         node_affinity = self.shared_spec["affinity"]["nodeAffinity"]
         required = node_affinity["requiredDuringSchedulingIgnoredDuringExecution"]
         expressions = required["nodeSelectorTerms"][0]["matchExpressions"]
@@ -101,26 +105,12 @@ class ArcAtlanticCapTest(unittest.TestCase):
             {"key": "node-role.kubernetes.io/control-plane", "operator": "DoesNotExist"},
             expressions,
         )
-        preferred = node_affinity["preferredDuringSchedulingIgnoredDuringExecution"]
-        self.assertEqual(
-            preferred,
-            [
-                {
-                    "weight": 100,
-                    "preference": {
-                        "matchExpressions": [
-                            {
-                                "key": "kubernetes.io/hostname",
-                                "operator": "In",
-                                "values": ["sauvage"],
-                            }
-                        ]
-                    },
-                }
-            ],
+        self.assertNotIn(
+            "preferredDuringSchedulingIgnoredDuringExecution",
+            node_affinity,
         )
-        self.assertIn(EDGE_TOLERATION, self.shared_spec["tolerations"])
-        # el nodeSelector de arc-k8s no fija hostname: x86 sigue de desborde
+        self.assertNotIn(EDGE_TOLERATION, self.shared_spec["tolerations"])
+        # el nodeSelector de arc-k8s no fija hostname: el pool se elige por etiqueta
         self.assertNotIn("kubernetes.io/hostname", self.shared_spec["nodeSelector"])
 
     def test_pod_template_is_the_same_apart_from_placement(self) -> None:
