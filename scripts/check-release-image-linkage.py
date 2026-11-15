@@ -200,7 +200,12 @@ for label, mutated_release, mutated_manifest in [
 # (misma primitiva CreateTag + verify_harbor_tag_on_digest, llamada en una linea
 # para no duplicar el sitio multi-linea que muta el self-test de arriba). El enlace
 # digest de imagen -> manifest no cambia.
-expected_release_sha256 = "1f0df689308a95e9172d5a18ad9dc910f7722b10cb5013a019cc467cc570cb9a"
+# Revisado el 15-11-2026 (INFRA-1301, PR #757): mismo cambio revisado en la PR #757
+# (input `base_registry`: login opcional al hostname exacto del FROM para que buildx
+# resuelva la base fijada por digest; default vacío, consumidores actuales intactos y
+# el push sin cambios). Digest actualizado junto con el de check-release-supply-chain.py.
+# El enlace digest de imagen -> manifest no cambia.
+expected_release_sha256 = "0682fc16c146e28573113105e14938f2d538510b5d5552e732bb2ddf0a309ffe"
 expected_manifest_sha256 = "4e48cd19b2bb6da68e674687e68a4f2027daec6d449a882e03bef604af180fef"
 release_sha256 = hashlib.sha256(release.encode()).hexdigest()
 manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()

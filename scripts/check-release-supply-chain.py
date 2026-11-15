@@ -211,7 +211,14 @@ require("refs/(heads|tags)" not in workflow, "mutable certificate reference acce
 # primitiva CreateTag 201/409 + verify; 409 de otro digest y cualquier otro codigo
 # fallan el job). Aditivo: preflight, Trivy, firma cosign, SBOM/SLSA, promocion
 # atomica y verificaciones intactos. Tests en tests/test_release_retry_idempotence.py.
-expected_workflow_digest = "1f0df689308a95e9172d5a18ad9dc910f7722b10cb5013a019cc467cc570cb9a"
+# INFRA-1301: input `base_registry` — login opcional (default vacío, consumidores
+# actuales intactos) al hostname exacto del FROM, para que buildx resuelva la base
+# fijada por digest del nombre canónico de docs/images/bases.md
+# (harbor.e-dani.com); el push sigue yendo a harbor.lan.e-dani.com. Mismo robot
+# HARBOR_USER/HARBOR_PASSWORD, que ya lee homelab/* desde ese hostname (el CI de
+# back-in-stock inicia sesión ahí y está verde). Sin él, run 43654227972: 401 en
+# el HEAD del manifiesto de homelab/base-node.
+expected_workflow_digest = "0682fc16c146e28573113105e14938f2d538510b5d5552e732bb2ddf0a309ffe"
 # La instalacion de Buildx (checksums + imagen por digest) vive ahora en la
 # accion local: se pinnea igual que el workflow, o el contrato pierde cobertura.
 expected_buildx_action_digest = "e39317a5be5b63d9d01959164ac5c0e6f809eed870c8a5e28be2999043eb9353"
