@@ -26,9 +26,10 @@ name: Reusable image-guard
 # Credenciales (INFRA-1363): el consumidor pasa `HARBOR_USER`/`HARBOR_PASSWORD`
 # (secretos opcionales del workflow_call) y el guard hace login en el registry de
 # la imagen antes de medir con crane. Como crane corre como contenedor contra el
-# daemon DinD (que no ve el $HOME del runner), la config del login se copia a
-# $RUNNER_TEMP y se monta en el contenedor por DOCKER_CONFIG. Sin secretos el
-# comportamiento es el de siempre: medición anónima, pública.
+# daemon DinD (que no ve el $HOME del runner), el job fija DOCKER_CONFIG bajo
+# $RUNNER_TEMP: ahí escribe el login la CLI de docker y desde ahí se monta en el
+# contenedor de crane. Sin secretos el comportamiento es el de siempre: medición
+# anónima, pública.
 #
 # Baseline (`baseline`): ruta en el repo que llama (p. ej. una copia en
 # `docs/images/`), URL https, o el JSON en línea (empieza por `{`). La línea
@@ -123,6 +124,12 @@ jobs:
       # Como en el job docker de reusable-ci: el `if` del login decide sobre
       # env, no sobre secrets (un secreto no pasado llega vacío, no undefined).
       HARBOR_USER: ${{ secrets.HARBOR_USER }}
+      # docker/login-action (CLI) escribe el login en $DOCKER_CONFIG si está
+      # puesto; el $HOME del runner NO lo ve el daemon DinD del sidecar (medido
+      # en skirmshop-labels#274: "Login Succeeded!" y crane anónimo igualmente).
+      # $RUNNER_TEMP está bajo el work dir, que sí se comparte: el login cae en
+      # una ruta que el contenedor de crane puede montar.
+      DOCKER_CONFIG: ${{ runner.temp }}/docker-config
     concurrency:
       # Un push encima cancela la medición anterior: revisamos el ultimo
       # commit, no el penultimo. `nombre` separa los guards de un mismo PR
@@ -189,32 +196,12 @@ jobs:
       - name: Log in to the image registry (private Harbor)
         # Solo con credenciales y registry propio: las imágenes de registry
         # público se miden anónimas como hasta ahora (superficie aditiva).
-        id: login
         if: ${{ env.HARBOR_USER != '' && steps.registry.outputs.host != '' }}
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ${{ steps.registry.outputs.host }}
           username: ${{ secrets.HARBOR_USER }}
           password: ${{ secrets.HARBOR_PASSWORD }}
-
-      - name: Expose the login to crane (DinD)
-        # crane corre como `docker run` contra el daemon DinD del sidecar, que
-        # NO ve el $HOME del runner: el login del paso anterior se queda en el
-        # runner y crane medía anónimo (medido en skirmshop-labels#274:
-        # "Login Succeeded!" y UNAUTHORIZED igualmente). DinD solo comparte lo
-        # bajo $RUNNER_TEMP/_work: la config se copia ahí y se monta de solo
-        # lectura en el contenedor (DOCKER_CONFIG, lo que lee go-containerregistry).
-        if: ${{ steps.login.outcome == 'success' }}
-        env:
-          LOGIN_CONFIG: ${{ steps.login.outputs.config }}
-        run: |
-          set -euo pipefail
-          if [ -z "${LOGIN_CONFIG:-}" ] || [ ! -f "$LOGIN_CONFIG" ]; then
-            echo "::error::login-action no dejó config de docker en $LOGIN_CONFIG"
-            exit 1
-          fi
-          mkdir -p "$RUNNER_TEMP/docker-config"
-          cp "$LOGIN_CONFIG" "$RUNNER_TEMP/docker-config/config.json"
 
       - name: Resolve the image manifest with pinned crane
         env:
