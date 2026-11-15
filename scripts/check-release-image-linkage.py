@@ -195,12 +195,17 @@ for label, mutated_release, mutated_manifest in [
 # linkage/signature/promotion remain unchanged. Security review still required.
 # SKIRM-451: mismo cambio revisado en la PR #743 (NPM_TOKEN opcional como
 # BuildKit secret condicional); veredicto de security en el head 5cac20cd.
+# INFRA-1364: en el release, tras la promocion verificada de los tags de release,
+# cada digest publicado recibe ademas el tag de retencion keep-<12 hex del index>
+# (misma primitiva CreateTag + verify_harbor_tag_on_digest, llamada en una linea
+# para no duplicar el sitio multi-linea que muta el self-test de arriba). El enlace
+# digest de imagen -> manifest no cambia.
 # Revisado el 15-11-2026 (INFRA-1301, PR #757): mismo cambio revisado en la PR #757
 # (input `base_registry`: login opcional al hostname exacto del FROM para que buildx
 # resuelva la base fijada por digest; default vacío, consumidores actuales intactos y
-# el push sin cambios). Digest actualizado junto con el de check-release-supply-chain.py
-# (43d8be45). El enlace digest de imagen -> manifest no cambia.
-expected_release_sha256 = "43d8be45fb790a4a2236e2a0ff2ddd9bcca76573c9639c37a0cab36446b048ce"
+# el push sin cambios). Digest actualizado junto con el de check-release-supply-chain.py.
+# El enlace digest de imagen -> manifest no cambia.
+expected_release_sha256 = "0682fc16c146e28573113105e14938f2d538510b5d5552e732bb2ddf0a309ffe"
 expected_manifest_sha256 = "4e48cd19b2bb6da68e674687e68a4f2027daec6d449a882e03bef604af180fef"
 release_sha256 = hashlib.sha256(release.encode()).hexdigest()
 manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()

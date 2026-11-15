@@ -356,6 +356,35 @@ jobs:
               }
           done
 
+          # INFRA-1364: Harbor retention of the homelab project deletes tags
+          # that are neither among the last two pushes, keep-*, nor pulled in
+          # the last 7 days. GitOps pins this artifact by digest, so its digest
+          # also carries keep-<first 12 hex of the digest> and the pin survives
+          # retention. Same CreateTag primitive as above: 201 created, 409
+          # accepted only after verify_harbor_tag_on_digest confirms the tag
+          # resolves to this very digest; anything else fails the job.
+          keep_tag="keep-$(printf '%s' "${ARTIFACT_DIGEST#sha256:}" | cut -c1-12)"
+          keep_response_file="$RUNNER_TEMP/harbor-manifest-create-keep-tag.json"
+          keep_payload="$(printf '{\"name\":\"%s\"}' "$keep_tag")"
+          keep_http_code="$(curl --silent --show-error \
+            --netrc-file "$harbor_netrc" \
+            --output "$keep_response_file" \
+            --write-out '%{http_code}' \
+            --header 'content-type: application/json' \
+            --request POST \
+            --data "$keep_payload" \
+            "https://${REGISTRY}/api/v2.0/projects/${project_encoded}/repositories/${repository_encoded}/artifacts/${digest_encoded}/tags")"
+          case "$keep_http_code" in
+            201) echo "Atomically created retention tag: ${keep_tag} on ${ARTIFACT_DIGEST}" ;;
+            409) echo "Retention tag already exists; verifying digest: ${keep_tag} on ${ARTIFACT_DIGEST}" ;;
+            *)
+              echo "Harbor retention tag creation failed for ${keep_tag} on ${ARTIFACT_DIGEST}: HTTP $keep_http_code"
+              head -c 1000 "$keep_response_file" || true
+              exit 1
+              ;;
+          esac
+          verify_harbor_tag_on_digest "$keep_tag"
+
           {
             echo "ARTIFACT_REF=$REF"
             echo "ARTIFACT_DIGEST=$ARTIFACT_DIGEST"

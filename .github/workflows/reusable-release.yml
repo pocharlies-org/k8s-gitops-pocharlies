@@ -902,6 +902,51 @@ jobs:
             done
           done < "$evidence_dir/promotions.tsv"
 
+          # INFRA-1364: Harbor retention of the homelab project deletes tags
+          # that are neither among the last two pushes, keep-*, nor pulled in
+          # the last 7 days. GitOps pins these images by index digest, so every
+          # released digest also carries keep-<first 12 hex of the index
+          # digest> and the pin survives retention. Same CreateTag primitive as
+          # the release tags above: 201 created, 409 accepted only after the
+          # nested tag lookup verifies the tag resolves to this very digest;
+          # anything else fails the job.
+          while IFS=$'\t' read -r name candidate_ref digest_ref version_ref sha_ref; do
+            [ -n "$candidate_ref" ] || continue
+            safe_name="$(printf '%s' "$name" | sha256sum | cut -c1-32)"
+            repository_encoded="$(NAME="$name" node -e '
+              process.stdout.write(encodeURIComponent(process.env.NAME).replace(/%2F/gi, "%252F"));
+            ')"
+            project_encoded="$(PROJECT="$REGISTRY_PROJECT" node -e '
+              process.stdout.write(encodeURIComponent(process.env.PROJECT));
+            ')"
+            digest="${digest_ref##*@}"
+            digest_encoded="$(DIGEST="$digest" node -e 'process.stdout.write(encodeURIComponent(process.env.DIGEST))')"
+            keep_tag="keep-$(printf '%s' "${digest#sha256:}" | cut -c1-12)"
+            response_file="$RUNNER_TEMP/harbor-create-tag-${safe_name}-keep.json"
+            payload="$(TAG="$keep_tag" node -e 'process.stdout.write(JSON.stringify({name: process.env.TAG}))')"
+            status="$(curl --silent --show-error \
+              --netrc-file "$harbor_netrc" \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
+              --header 'content-type: application/json' \
+              --request POST \
+              --data "$payload" \
+              "https://${REGISTRY}/api/v2.0/projects/${project_encoded}/repositories/${repository_encoded}/artifacts/${digest_encoded}/tags")"
+            case "$status" in
+              201) echo "Atomically created retention tag: ${keep_tag} on ${digest_ref}" ;;
+              409) echo "Retention tag already exists; verifying digest: ${keep_tag} on ${digest_ref}" ;;
+              *)
+                echo "Harbor retention tag creation failed for ${keep_tag} on ${digest_ref}: HTTP $status"
+                head -c 1000 "$response_file" || true
+                exit 1
+                ;;
+            esac
+            # Single-line call on purpose: the linkage self-test of
+            # scripts/check-release-image-linkage.py mutates the one multi-line
+            # `verify_harbor_tag_on_digest \` call site of the promotion loop.
+            verify_harbor_tag_on_digest "$keep_tag" "$repository_encoded" "$digest_encoded" "$RUNNER_TEMP/harbor-tags-${safe_name}-${keep_tag}"
+          done < "$evidence_dir/promotions.tsv"
+
           EVIDENCE_DIR="$evidence_dir" node <<'NODE'
           const fs = require("fs");
           const path = require("path");

@@ -13,6 +13,12 @@ These tests run the code extracted verbatim from the reusable workflows:
 * the whole "Publish Argo CD OCI manifest bundle" step of
   reusable-manifest-release.yml against a fake Harbor API and a fake ORAS;
 * the legacy deploy-branch promotion step against a real bare Git remote.
+
+INFRA-1364 adds the retention tag: every published digest also carries
+keep-<first 12 hex of the index digest> so GitOps pins by digest survive
+Harbor's homelab retention. The keep- step reuses the CreateTag primitive
+(201 created, 409 accepted only when the tag resolves to this very digest,
+anything else fails the job) and is exercised here on both reusable paths.
 """
 
 from __future__ import annotations
@@ -37,6 +43,13 @@ ROOT = Path(__file__).resolve().parents[1]
 RELEASE = ROOT / ".github/workflows/reusable-release.yml"
 MANIFEST = ROOT / ".github/workflows/reusable-manifest-release.yml"
 DECISION = re.compile(r"\n( *// RELEASE_PREFLIGHT_DECISION[^\n]*\n.*?)\n          NODE\n", re.S)
+# The tag-promotion loop of reusable-release.yml: from the nested tag lookup
+# helper to the last loop over promotions.tsv (the release tags and, since
+# INFRA-1364, the keep- retention tag). Greedy: it must end at the LAST loop.
+PROMOTION = re.compile(
+    r"(          verify_harbor_tag_on_digest\(\) \{\n.*done < \"\$evidence_dir/promotions\.tsv\"\n)",
+    re.S,
+)
 REVISION = "a" * 40
 OTHER_REVISION = "b" * 40
 DIGEST_A = "sha256:" + "1" * 64
@@ -66,6 +79,13 @@ def decision_source() -> str:
     match = DECISION.search(RELEASE.read_text(encoding="utf-8"))
     if match is None:  # pragma: no cover - the preflight lost its decision entirely
         raise AssertionError("could not find RELEASE_PREFLIGHT_DECISION in reusable-release.yml")
+    return textwrap.dedent(match.group(1))
+
+
+def promotion_source() -> str:
+    match = PROMOTION.search(RELEASE.read_text(encoding="utf-8"))
+    if match is None:  # pragma: no cover - the workflow lost the promotion loop entirely
+        raise AssertionError("could not find the tag promotion loop in reusable-release.yml")
     return textwrap.dedent(match.group(1))
 
 
@@ -187,6 +207,13 @@ while i < len(args):
     i += 1
 with open(os.environ["FAKE_TOOL_LOG"], "a") as log:
     log.write(json.dumps(["curl", method, url, data]) + "\n")
+# INFRA-1364: opt-in failure injection for tag creation (keep- failure case).
+if method == "POST" and os.environ.get("FAKE_FAIL_POST_TAG_PREFIX"):
+    posted = json.loads(data)["name"] if data else ""
+    if posted.startswith(os.environ["FAKE_FAIL_POST_TAG_PREFIX"]):
+        json.dump({"errors": [{"code": "UNKNOWN"}]}, open(output, "w"))
+        sys.stdout.write("500" if write_out == "%{http_code}" else "")
+        sys.exit(0)
 path = urllib.parse.urlsplit(url).path
 parts = path.split("/artifacts/", 1)[1].split("/")
 reference = urllib.parse.unquote(parts[0])
@@ -268,6 +295,31 @@ else:
     sys.exit(f"unsupported fake oras call: {args}")
 '''
 
+FAKE_DOCKER = r'''#!/usr/bin/env python3
+"""Fake docker buildx imagetools inspect: a tag resolves to its manifest digest."""
+import json, os, sys
+state = json.load(open(os.environ["FAKE_HARBOR_STATE"]))
+args = sys.argv[1:]
+with open(os.environ["FAKE_TOOL_LOG"], "a") as log:
+    log.write(json.dumps(["docker"] + args) + "\n")
+if args[:3] != ["buildx", "imagetools", "inspect"]:
+    sys.exit(f"unsupported fake docker call: {args}")
+ref = args[3]
+digest = None
+if "@" in ref:
+    candidate = ref.split("@", 1)[1]
+    digest = candidate if candidate in state["artifacts"] else None
+else:
+    tag = ref.rsplit(":", 1)[1]
+    for d, artifact in state["artifacts"].items():
+        if tag in artifact["tags"]:
+            digest = d
+            break
+if digest is None:
+    sys.exit(1)
+print(json.dumps({"digest": digest}))
+'''
+
 
 def git(cwd: Path, *args: str) -> str:
     return subprocess.check_output(["git", *args], cwd=cwd, text=True).strip()
@@ -313,7 +365,7 @@ class ManifestPublishRetryTest(unittest.TestCase):
         self.log = self.work / "calls.ndjson"
         self.runs = 0
 
-    def publish(self, version: str) -> subprocess.CompletedProcess[str]:
+    def publish(self, version: str, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
         self.runs += 1
         runner_temp = self.work / f"runner-{self.runs}"
         runner_temp.mkdir()
@@ -342,6 +394,7 @@ class ManifestPublishRetryTest(unittest.TestCase):
                 "GITHUB_RUN_ATTEMPT": "1",
                 "RUNNER_TEMP": str(runner_temp),
                 "GITHUB_ENV": str(runner_temp / "github-env"),
+                **(extra_env or {}),
             },
             capture_output=True,
             text=True,
@@ -400,7 +453,152 @@ class ManifestPublishRetryTest(unittest.TestCase):
         self.assertIn("Reusing manifest bundle", result.stdout)
         self.assertIn("different bundle bytes", result.stdout)
         self.assertFalse(any(call[:2] == ["oras", "push"] for call in self.calls()))
-        self.assertEqual(self.tags(), {DIGEST_A: [f"sha-{self.sha[:12]}", "v1.0.0"]})
+        # INFRA-1364: the reused digest also carries its retention tag.
+        self.assertEqual(
+            self.tags(), {DIGEST_A: [f"sha-{self.sha[:12]}", "v1.0.0", "keep-111111111111"]}
+        )
+
+    # --- INFRA-1364: the keep-<digest12> retention tag ---------------------
+
+    def keep_name(self, digest: str) -> str:
+        return "keep-" + digest.split(":", 1)[1][:12]
+
+    def test_release_attaches_keep_tag_to_the_published_digest(self) -> None:
+        result = self.publish("v1.0.0")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        released = [tags for tags in self.tags().values() if "v1.0.0" in tags]
+        self.assertEqual(len(released), 1)
+        digest = next(d for d, tags in self.tags().items() if "v1.0.0" in tags)
+        self.assertIn(self.keep_name(digest), released[0])
+
+    def test_keep_409_on_the_same_digest_is_a_verified_success(self) -> None:
+        self.assertEqual(self.publish("v1.0.0").returncode, 0)
+        retry = self.publish("v1.0.0")
+        self.assertEqual(retry.returncode, 0, retry.stdout + retry.stderr)
+        self.assertIn("Retention tag already exists", retry.stdout)
+        for tags in self.tags().values():
+            keep_tags = [t for t in tags if t.startswith("keep-")]
+            self.assertLessEqual(len(keep_tags), 1)
+
+    def test_keep_409_on_another_digest_fails_the_job(self) -> None:
+        # A keep- tag of the same name attached to a DIFFERENT digest: the 409
+        # is only accepted when the nested lookup proves the tag resolves to
+        # this digest, so the release must fail.
+        state = {"artifacts": {
+            DIGEST_A: {"tags": [f"sha-{self.sha[:12]}"], "manifest": {
+                "annotations": {"org.opencontainers.image.revision": self.sha}, "layers": []}},
+            DIGEST_B: {"tags": [self.keep_name(DIGEST_A)], "manifest": {
+                "annotations": {"org.opencontainers.image.revision": OTHER_REVISION}, "layers": []}},
+        }}
+        self.state.write_text(json.dumps(state))
+        result = self.publish("v1.0.0")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("not attached", result.stdout)
+        self.assertNotIn(self.keep_name(DIGEST_A), self.tags()[DIGEST_A])
+
+    def test_keep_creation_failure_fails_the_job(self) -> None:
+        result = self.publish("v1.0.0", extra_env={"FAKE_FAIL_POST_TAG_PREFIX": "keep-"})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("retention tag creation failed", result.stdout)
+        self.assertIn(f"sha-{self.sha[:12]}", sum(self.tags().values(), []))
+
+
+@unittest.skipUnless(shutil.which("node"), "the promotion loop resolves encodings with node")
+class ImageKeepTagPromotionTest(unittest.TestCase):
+    """reusable-release.yml: the release-tag promotion loop plus the keep-
+    retention tag of INFRA-1364, run verbatim against the fake Harbor API and
+    a fake `docker buildx imagetools inspect`."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.block = promotion_source()
+        cls.bin = Path(tempfile.mkdtemp(prefix="rho-keep-image-fakes-"))
+        for name, source in {"curl": FAKE_CURL, "docker": FAKE_DOCKER}.items():
+            (cls.bin / name).write_text(source, encoding="utf-8")
+            (cls.bin / name).chmod(0o755)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        shutil.rmtree(cls.bin)
+
+    def setUp(self) -> None:
+        self.work = Path(tempfile.mkdtemp(prefix="rho-keep-image-"))
+        self.addCleanup(shutil.rmtree, self.work)
+        self.state = self.work / "harbor.json"
+        self.log = self.work / "calls.ndjson"
+
+    def tags(self) -> dict[str, list[str]]:
+        state = json.loads(self.state.read_text())
+        return {digest: artifact["tags"] for digest, artifact in state["artifacts"].items()}
+
+    def promote(self, artifacts: dict, extra_env: dict[str, str] | None = None):
+        self.state.write_text(json.dumps({"artifacts": artifacts}))
+        self.log.write_text("")
+        runner_temp = self.work / "runner"
+        evidence_dir = runner_temp / "evidence"
+        evidence_dir.mkdir(parents=True)
+        base = "harbor.lan.e-dani.com/homelab/app"
+        (evidence_dir / "promotions.tsv").write_text(
+            f"app\t{base}:candidate-1-1\t{base}@{DIGEST_A}\t{base}:v1.0.0\t{base}:sha-aaaaaaaaaaaa\n",
+            encoding="utf-8",
+        )
+        script = runner_temp / "promote.sh"
+        script.write_text(
+            "set -euo pipefail\n"
+            'harbor_netrc="$RUNNER_TEMP/harbor.netrc"\n'
+            'printf "machine %s login robot password secret\\n" "$REGISTRY" > "$harbor_netrc"\n'
+            'chmod 0600 "$harbor_netrc"\n'
+            'evidence_dir="$RUNNER_TEMP/evidence"\n'
+            + self.block,
+            encoding="utf-8",
+        )
+        return subprocess.run(  # noqa: S603 - bash on the extracted block, fixed args
+            ["bash", str(script)],
+            env={
+                **os.environ,
+                "PATH": f"{self.bin}:{os.environ['PATH']}",
+                "FAKE_HARBOR_STATE": str(self.state),
+                "FAKE_TOOL_LOG": str(self.log),
+                "REGISTRY": "harbor.lan.e-dani.com",
+                "REGISTRY_PROJECT": "homelab",
+                "RUNNER_TEMP": str(runner_temp),
+                **(extra_env or {}),
+            },
+            capture_output=True,
+            text=True,
+        )
+
+    def test_release_tags_and_keep_tag_land_on_the_index_digest(self) -> None:
+        result = self.promote({DIGEST_A: {"tags": [], "manifest": {}}})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            self.tags()[DIGEST_A], ["sha-aaaaaaaaaaaa", "v1.0.0", "keep-111111111111"]
+        )
+
+    def test_keep_409_on_the_same_digest_is_a_verified_success(self) -> None:
+        result = self.promote(
+            {DIGEST_A: {"tags": ["sha-aaaaaaaaaaaa", "v1.0.0", "keep-111111111111"], "manifest": {}}}
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Retention tag already exists", result.stdout)
+        self.assertEqual(self.tags()[DIGEST_A].count("keep-111111111111"), 1)
+
+    def test_keep_409_on_another_digest_fails_the_job(self) -> None:
+        result = self.promote({
+            DIGEST_A: {"tags": [], "manifest": {}},
+            DIGEST_B: {"tags": ["keep-111111111111"], "manifest": {}},
+        })
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("not attached", result.stdout)
+        self.assertNotIn("keep-111111111111", self.tags()[DIGEST_A])
+
+    def test_keep_creation_failure_fails_the_job(self) -> None:
+        result = self.promote(
+            {DIGEST_A: {"tags": [], "manifest": {}}},
+            extra_env={"FAKE_FAIL_POST_TAG_PREFIX": "keep-"},
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("retention tag creation failed", result.stdout)
 
 
 DEPLOY_BRANCH = "deploy/fixture"  # a trunk name would be refused by trunk-protecting push hooks
