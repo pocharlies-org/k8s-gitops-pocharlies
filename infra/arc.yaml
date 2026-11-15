@@ -310,6 +310,8 @@ spec:
         # runners de arc-k8s: 16 CPU al 99 % y paseo-0, que comparte nodo, sin
         # CPU para el daemon. Aqui atlantic queda excluido (required por
         # hostname) y los runners van a sauvage (preferred, weight 100) o x86.
+        # SC-5633 (mismo dia): el x86 sale tambien (required por hostname); el
+        # desborde ya no existe: con sauvage lleno, el runner espera en Pending.
         # Re-admite sauvage con la toleration de role=edge. Lo sacaron el 22 y
         # el 24-09 por md3 al 100 % de utilizacion (los runners se quedaban en
         # CreateContainerError); ya no se da. Medido hoy en VictoriaMetrics
@@ -345,13 +347,15 @@ spec:
                     # Doble candado con el nodeSelector: los ks5-cp-* no llevan
                     # taint, el selector es la unica barrera (INFRA-960).
                     # 2026-11-15: atlantic sale de este scale set; sus 8 plazas
-                    # son las de arc-k8s-atlantic.
+                    # son las de arc-k8s-atlantic. SC-5633 (dani, mismo dia): el
+                    # x86 (ubuntu) tambien sale -- queda solo para los LLMs y lo
+                    # de casa --, asi que las 24 plazas van a sauvage.
                     - matchExpressions:
                         - key: node-role.kubernetes.io/control-plane
                           operator: DoesNotExist
                         - key: kubernetes.io/hostname
                           operator: NotIn
-                          values: [atlantic]
+                          values: [atlantic, ubuntu]
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
                     preference:
