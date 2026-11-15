@@ -35,7 +35,7 @@ applications = {
     if isinstance(document, dict) and document.get("kind") == "Application"
 }
 
-for name in ("arc-openclaw", "arc-k8s", "arc-skills-eval"):
+for name in ("arc-openclaw", "arc-k8s", "arc-k8s-atlantic", "arc-skills-eval"):
     application = applications[name]
     source = application["spec"]["source"]
     assert source["targetRevision"] == "0.14.1"
@@ -47,7 +47,7 @@ for name in ("arc-openclaw", "arc-k8s", "arc-skills-eval"):
     (output / f"{name}.values.yaml").write_text(values_text, encoding="utf-8")
 PY
 
-for release in arc-openclaw arc-k8s arc-skills-eval; do
+for release in arc-openclaw arc-k8s arc-k8s-atlantic arc-skills-eval; do
   helm template "${release}" "${CHART}" \
     --version "${CHART_VERSION}" \
     --namespace arc-runners \
@@ -97,12 +97,15 @@ def validate_common(
     edge_fallback: bool,
     selector: dict,
     hard_pinned_by_selector: bool = False,
+    hostname_pinned: bool = False,
 ) -> tuple[dict, dict]:
     runner_set = rendered_runner_set(release)
     assert runner_set["spec"]["maxRunners"] == expected_max
     pod_spec = runner_set["spec"]["template"]["spec"]
     assert pod_spec["nodeSelector"] == selector
-    assert "kubernetes.io/hostname" not in pod_spec["nodeSelector"]
+    # Solo el scale set de atlantic (2026-11-15) se fija por hostname en el
+    # nodeSelector; el resto elige el nodo por etiqueta de pool.
+    assert ("kubernetes.io/hostname" in pod_spec["nodeSelector"]) is hostname_pinned
 
     ks5_term = {
         "matchExpressions": [
@@ -132,14 +135,10 @@ def validate_common(
             "operator": "Equal",
             "value": "edge",
         } not in pod_spec["tolerations"]
-    else:
-        # arc-k8s (INFRA-960, 2026-10-28): pool CPU dedicado — nodeSelector
-        # workload=cpu (atlantic + ubuntu; sauvage sigue fuera por no tolerar
-        # role=edge, md3 al 100 %) y nodeAffinity required que excluye los
-        # control planes: ks5-cp-* no llevan taint y los 16 runners los
-        # saturaban (115-120 % CPU), dejando los jobs de skirmshop-labels
-        # fuera de su timeout. Deroga el anclaje a ks5-cp-1/2/3 + x86 del
-        # 2026-09-22, que no tenia otro amd64 sano donde ir.
+    elif hostname_pinned:
+        # arc-k8s-atlantic (2026-11-15): los 8 runners de atlantic. El
+        # hostname va en el nodeSelector; el required de los control planes se
+        # conserva como en arc-k8s y no hace falta tolerar role=edge.
         assert pod_spec["affinity"]["nodeAffinity"] == {
             "requiredDuringSchedulingIgnoredDuringExecution": {
                 "nodeSelectorTerms": [
@@ -160,6 +159,54 @@ def validate_common(
             "operator": "Equal",
             "value": "edge",
         } not in pod_spec["tolerations"]
+    else:
+        # arc-k8s (INFRA-960, 2026-10-28): pool CPU dedicado — nodeSelector
+        # workload=cpu y nodeAffinity required que excluye los control planes:
+        # ks5-cp-* no llevan taint y los 16 runners los saturaban (115-120 %
+        # CPU), dejando los jobs de skirmshop-labels fuera de su timeout.
+        # 2026-11-15: atlantic sale de este scale set (required NotIn por
+        # hostname; sus 8 plazas son arc-k8s-atlantic), sauvage entra como
+        # destino preferido (toleration de role=edge, md3 ya no saturado) y x86
+        # queda de desborde.
+        assert pod_spec["affinity"]["nodeAffinity"] == {
+            "requiredDuringSchedulingIgnoredDuringExecution": {
+                "nodeSelectorTerms": [
+                    {
+                        "matchExpressions": [
+                            {
+                                "key": "node-role.kubernetes.io/control-plane",
+                                "operator": "DoesNotExist",
+                            },
+                            {
+                                "key": "kubernetes.io/hostname",
+                                "operator": "NotIn",
+                                "values": ["atlantic"],
+                            },
+                        ]
+                    }
+                ]
+            },
+            "preferredDuringSchedulingIgnoredDuringExecution": [
+                {
+                    "weight": 100,
+                    "preference": {
+                        "matchExpressions": [
+                            {
+                                "key": "kubernetes.io/hostname",
+                                "operator": "In",
+                                "values": ["sauvage"],
+                            }
+                        ]
+                    },
+                }
+            ],
+        }
+        assert {
+            "effect": "NoSchedule",
+            "key": "role",
+            "operator": "Equal",
+            "value": "edge",
+        } in pod_spec["tolerations"]
 
     pod_anti_affinity = pod_spec["affinity"]["podAntiAffinity"]
     assert "requiredDuringSchedulingIgnoredDuringExecution" not in pod_anti_affinity
@@ -201,6 +248,10 @@ def scheduler_eligible(pod_spec: dict, labels: dict[str, str]) -> bool:
                 expression["operator"] == "DoesNotExist"
                 and expression["key"] not in labels
             )
+            or (
+                expression["operator"] == "NotIn"
+                and labels.get(expression["key"]) not in expression["values"]
+            )
             for expression in term["matchExpressions"]
         )
         for term in terms
@@ -219,9 +270,34 @@ assert openclaw_runner["imagePullPolicy"] == "IfNotPresent"
 assert not openclaw_runner.get("securityContext", {}).get("privileged", False)
 assert "DOCKER_HOST" not in {item["name"] for item in openclaw_runner.get("env", [])}
 
-_, shared_spec = validate_common(
-    "arc-k8s", 32, edge_fallback=False, selector=expected_selector_shared
+shared_set, shared_spec = validate_common(
+    "arc-k8s", 24, edge_fallback=False, selector=expected_selector_shared
 )
+# arc-k8s conserva su etiqueta de scale set (el nombre) y no declara labels
+# extra: el unico que comparte el label `arc-k8s` es el scale set de atlantic.
+assert "runnerScaleSetLabels" not in shared_set["spec"]
+
+# arc-k8s-atlantic (2026-11-15): 8 runners fijados a atlantic con la etiqueta
+# arc-k8s (scaleSetLabels -> spec.runnerScaleSetLabels), de modo que
+# `runs-on: arc-k8s` lo casa igual que al scale set compartido. 24 + 8 = 32.
+expected_selector_atlantic = {
+    "kubernetes.io/arch": "amd64",
+    "kubernetes.io/hostname": "atlantic",
+}
+atlantic_set, atlantic_spec = validate_common(
+    "arc-k8s-atlantic",
+    8,
+    edge_fallback=False,
+    selector=expected_selector_atlantic,
+    hostname_pinned=True,
+)
+assert atlantic_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s"]
+assert atlantic_set["spec"]["runnerScaleSetName"] == "arc-k8s-atlantic"
+assert atlantic_set["spec"]["minRunners"] == 0
+assert shared_set["spec"]["maxRunners"] + atlantic_set["spec"]["maxRunners"] == 32
+# Mismo pod que arc-k8s salvo la colocacion: DinD, limites, MTU, sidecar.
+for key in ("initContainers", "containers", "volumes"):
+    assert atlantic_spec[key] == shared_spec[key], key
 
 # arc-skills-eval (SC-3635, security 2026-10-29): evaluacion de skills externas
 # (codigo de terceros en DinD). Fijado duro a atlantic; el egress lo acota la
@@ -255,34 +331,44 @@ eligibility_matrix = {
     # ks5-cp: sin taint y sin workload=cpu — arc-k8s no debe entrar (INFRA-960).
     "ks5-cp": {
         "kubernetes.io/arch": "amd64",
+        "kubernetes.io/hostname": "ks5-cp-1",
         "node-role.kubernetes.io/control-plane": "true",
     },
-    "atlantic": {"kubernetes.io/arch": "amd64", "workload": "cpu"},
+    "atlantic": {
+        "kubernetes.io/arch": "amd64",
+        "kubernetes.io/hostname": "atlantic",
+        "workload": "cpu",
+    },
     # atlantic real (SC-3635): lleva la etiqueta del pool ovh-heavy.
     "atlantic-ovh-heavy": {
         "kubernetes.io/arch": "amd64",
+        "kubernetes.io/hostname": "atlantic",
         "workload": "cpu",
         "node-pool": "ovh-heavy",
     },
     "sauvage": {
         "kubernetes.io/arch": "amd64",
+        "kubernetes.io/hostname": "sauvage",
         "role": "edge",
         "workload": "cpu",
     },
     "ubuntu-gpu": {
         "kubernetes.io/arch": "amd64",
+        "kubernetes.io/hostname": "ubuntu",
         "pool": "dev",
         "workload": "cpu",
         "nvidia.com/gpu.present": "true",
     },
     "arm-gpu": {
         "kubernetes.io/arch": "arm64",
+        "kubernetes.io/hostname": "dgx3",
         "role": "edge",
         "nvidia.com/gpu.present": "true",
     },
 }
-# arc-k8s (INFRA-960): solo el pool cpu (atlantic + ubuntu). sauvage tiene
-# workload=cpu pero sigue fuera por no tolerar role=edge (md3 al 100 %).
+# arc-k8s (INFRA-960, 2026-11-15): pool cpu SIN atlantic (required NotIn por
+# hostname; sus 8 plazas son arc-k8s-atlantic): sauvage (toleration de
+# role=edge, preferido) y ubuntu. arc-k8s-atlantic: solo atlantic.
 # arc-openclaw: anclado a ks5 como preferred, sin required — cualquier amd64
 # sin taint le vale.
 # arc-skills-eval (SC-3635): SOLO atlantic (node-pool=ovh-heavy); en cualquier
@@ -298,10 +384,18 @@ expected_eligibility = {
     },
     "arc-k8s": {
         "ks5-cp": False,
+        "atlantic": False,
+        "atlantic-ovh-heavy": False,
+        "sauvage": True,
+        "ubuntu-gpu": True,
+        "arm-gpu": False,
+    },
+    "arc-k8s-atlantic": {
+        "ks5-cp": False,
         "atlantic": True,
         "atlantic-ovh-heavy": True,
         "sauvage": False,
-        "ubuntu-gpu": True,
+        "ubuntu-gpu": False,
         "arm-gpu": False,
     },
     "arc-skills-eval": {
@@ -316,6 +410,7 @@ expected_eligibility = {
 for release, runner_spec in (
     ("arc-openclaw", openclaw_spec),
     ("arc-k8s", shared_spec),
+    ("arc-k8s-atlantic", atlantic_spec),
     ("arc-skills-eval", skills_eval_spec),
 ):
     for case, labels in eligibility_matrix.items():

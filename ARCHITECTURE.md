@@ -115,6 +115,11 @@ Nº de tests: 105 (medido con `unittest discover` el 2026-11-08; 27 en `tests/te
   cambiar un pool, desde la raíz del repo:
   `{ head -3 ci-queue/pools.txt; grep -E '^\s*runnerScaleSetName:' infra/arc.yaml; } > ci-queue/pools.txt.new &&
   mv ci-queue/pools.txt.new ci-queue/pools.txt`.
+- `arc-k8s-atlantic` (2026-11-15): segundo scale set de `infra/arc.yaml` con `scaleSetLabels: [arc-k8s]`; atiende el
+  mismo `runs-on: arc-k8s` que `arc-k8s` pero fijado a atlantic con `maxRunners: 8` (los otros 24 van en `arc-k8s`, que
+  excluye atlantic y prefiere sauvage). Ningún job pide el nombre `arc-k8s-atlantic`: está en `ci-queue/pools.txt` solo
+  porque la lista se deriva de todos los `runnerScaleSetName`. El template de los dos debe ser idéntico (lo vigila
+  `tests/test_arc_k8s_atlantic.py`).
 - Límite del exporter de cola (`ci-queue/exporter.py`): `status=queued` solo lista runs SIN ningún job arrancado;
   un job con label sin pool dentro de un run cuyos otros jobs ya corren es invisible. «En cola» se decide por el
   `status` del job, no por `started_at` (la API lo rellena en jobs que nunca tuvieron runner).
