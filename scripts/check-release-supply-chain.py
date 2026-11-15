@@ -206,7 +206,12 @@ require("refs/(heads|tags)" not in workflow, "mutable certificate reference acce
 # SKIRM-451: NPM_TOKEN opcional montado como BuildKit secret condicional
 # (--secret id=npm_token solo si el llamante lo declara); build idéntico para
 # los consumidores actuales. Revisado en la PR #743 con veredicto de security.
-expected_workflow_digest = "284fef82002af38773c93b65ea45ced1d3c5861cf21f5c429f63f8f0d7e4b36b"
+# INFRA-1364: tras la verificacion de los tags de release por digest, cada digest
+# publicado recibe ademas el tag de retencion keep-<12 hex del index> (misma
+# primitiva CreateTag 201/409 + verify; 409 de otro digest y cualquier otro codigo
+# fallan el job). Aditivo: preflight, Trivy, firma cosign, SBOM/SLSA, promocion
+# atomica y verificaciones intactos. Tests en tests/test_release_retry_idempotence.py.
+expected_workflow_digest = "1f0df689308a95e9172d5a18ad9dc910f7722b10cb5013a019cc467cc570cb9a"
 # La instalacion de Buildx (checksums + imagen por digest) vive ahora en la
 # accion local: se pinnea igual que el workflow, o el contrato pierde cobertura.
 expected_buildx_action_digest = "e39317a5be5b63d9d01959164ac5c0e6f809eed870c8a5e28be2999043eb9353"

@@ -195,7 +195,12 @@ for label, mutated_release, mutated_manifest in [
 # linkage/signature/promotion remain unchanged. Security review still required.
 # SKIRM-451: mismo cambio revisado en la PR #743 (NPM_TOKEN opcional como
 # BuildKit secret condicional); veredicto de security en el head 5cac20cd.
-expected_release_sha256 = "284fef82002af38773c93b65ea45ced1d3c5861cf21f5c429f63f8f0d7e4b36b"
+# INFRA-1364: en el release, tras la promocion verificada de los tags de release,
+# cada digest publicado recibe ademas el tag de retencion keep-<12 hex del index>
+# (misma primitiva CreateTag + verify_harbor_tag_on_digest, llamada en una linea
+# para no duplicar el sitio multi-linea que muta el self-test de arriba). El enlace
+# digest de imagen -> manifest no cambia.
+expected_release_sha256 = "1f0df689308a95e9172d5a18ad9dc910f7722b10cb5013a019cc467cc570cb9a"
 expected_manifest_sha256 = "4e48cd19b2bb6da68e674687e68a4f2027daec6d449a882e03bef604af180fef"
 release_sha256 = hashlib.sha256(release.encode()).hexdigest()
 manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()

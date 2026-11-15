@@ -57,8 +57,8 @@ El `kustomization.yaml` raíz también difiere entre ramas: el que se aplica es 
 | concepto | pieza canónica | ruta | quién la usa |
 |---|---|---|---|
 | CI estándar | `reusable-ci.yml` (inputs `runner`, `run_node`, `run_docker_build`, `images`, `kustomize_paths`…) | `.github/workflows/` | todos los repos k8s |
-| Release de imágenes | `reusable-release.yml` | ídem | repos con imagen propia |
-| Release de manifiestos | `reusable-manifest-release.yml` (+ `reusable-manifest-pr-release.yml`) | ídem | repos solo-manifiesto |
+| Release de imágenes | `reusable-release.yml` — tras verificar los tags de release por digest, fija además sobre el mismo manifest el tag de retención `keep-<12 primeros hex del digest del index>` (primitiva CreateTag: POST 201/409 + verificación anidada; 409 de otro digest y cualquier otro código fallan el job). Contrato aditivo (INFRA-1364): los pins de GitOps por digest sobreviven a la retención del proyecto homelab de Harbor | ídem | repos con imagen propia |
+| Release de manifiestos | `reusable-manifest-release.yml` (+ `reusable-manifest-pr-release.yml`) — mismo tag de retención `keep-<digest12>` sobre el digest del artefacto publicado (misma primitiva CreateTag + verify; INFRA-1364, contrato aditivo) | ídem | repos solo-manifiesto |
 | Staging | `reusable-deploy-stg.yml` | ídem | repos con overlay `stg` |
 | Guard de código duplicado | `reusable-duplicados.yml` (lógica en `scripts/duplicados.py`, jscpd) | `.github/workflows/`, `scripts/` | repos cableados vía `templates/ci/duplicados.yml` |
 | Guard contra keys directas de Alibaba | `reusable-alibaba-key-guard.yml` (lógica en `scripts/alibaba-key-guard.py`, DGX-619/625) | `.github/workflows/`, `scripts/` | repos cableados vía `templates/ci/alibaba-key-guard.yml` |
