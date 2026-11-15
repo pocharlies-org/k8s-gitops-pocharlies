@@ -4,11 +4,12 @@ Application. Este test es la puerta: quien cambie maxRunners sin comentario
 cerrando el bloque, corta CI.
 
 La medida vigente es la remedicion exacta de INFRA-1093 (02-11, API de jobs
-por run: pico ARC 31, p95 212 s): maxRunners = 32, citado en el comentario
-fechado de infra/arc.yaml. El techo lo pone la capacidad de atlantic + x86
+por run: pico ARC 31, p95 212 s): 32 plazas, citadas en el comentario fechado
+de infra/arc.yaml. El techo lo pone la capacidad de atlantic + x86
 (workload=cpu), no ks5: la rafaga de INFRA-549 e INFRA-123 quedaron sin
 efecto con INFRA-960. Subirlo por encima de la capacidad de esos nodos es
-cortar CI por otra via.
+cortar CI por otra via. Desde el 2026-11-15 las 32 plazas son 24 en arc-k8s
+(maxRunners) + 8 en arc-k8s-atlantic (tests/test_arc_k8s_atlantic.py).
 """
 
 from pathlib import Path
@@ -88,14 +89,21 @@ class ArcK8sSizingTest(unittest.TestCase):
         index = self.values_text.index("maxRunners:")
         self.assertIn("INFRA-547", self.values_text[:index])
 
-    def test_edge_node_stays_out_of_the_shared_pool(self) -> None:
-        """La rafaga no se lanza contra sauvage: sigue sin tolerar role=edge."""
+    def test_edge_node_is_readmitted_only_to_the_shared_pool(self) -> None:
+        """2026-11-15: sauvage vuelve a arc-k8s (md3 ya no saturado: 21-29 % de
+        utilizacion e iowait 1 % en 7 dias); arc-openclaw sigue sin tolerar
+        role=edge."""
         values = yaml.safe_load(
             arc_application("arc-openclaw")["spec"]["source"]["helm"]["values"]
         )
-        self.assertTrue(values["template"]["spec"]["tolerations"])
-        shared_tolerations = self.values["template"]["spec"]["tolerations"]
+        openclaw_tolerations = values["template"]["spec"]["tolerations"]
+        self.assertTrue(openclaw_tolerations)
         self.assertNotIn(
+            "edge",
+            [entry.get("value") for entry in openclaw_tolerations],
+        )
+        shared_tolerations = self.values["template"]["spec"]["tolerations"]
+        self.assertIn(
             "edge",
             [entry.get("value") for entry in shared_tolerations],
         )

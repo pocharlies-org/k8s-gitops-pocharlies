@@ -16,12 +16,13 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
     def test_shared_runner_is_pinned_to_the_cpu_pool(self) -> None:
         """arc-k8s va al pool CPU dedicado (INFRA-960, 2026-10-28).
 
-        nodeSelector workload=cpu (atlantic + x86) y nodeAffinity required que
-        excluye los control planes: ks5-cp-* no llevan taint y los 16 runners
-        los saturaban (115-120 % de CPU), dejando los jobs de skirmshop-labels
-        fuera de su timeout de 15 min. A sauvage se le sigue dejando fuera no
-        tolerando su taint (test_shared_pool_does_not_tolerate_edge). No se fija
-        ningun hostname concreto: el pool se elige por etiqueta.
+        nodeSelector workload=cpu y nodeAffinity required que excluye los
+        control planes: ks5-cp-* no llevan taint y los 16 runners los
+        saturaban (115-120 % de CPU), dejando los jobs de skirmshop-labels
+        fuera de su timeout de 15 min. 2026-11-15: atlantic sale de este scale
+        set (required NotIn por hostname; sus 8 plazas son arc-k8s-atlantic,
+        ver tests/test_arc_k8s_atlantic.py) y sauvage entra como destino
+        preferido (test_shared_pool_tolerates_edge_for_sauvage).
         """
         runner_values = self.shared_values.split("runnerScaleSetName: arc-k8s", 1)[1]
         runner_values = runner_values.split("tolerations:", 1)[0]
@@ -34,6 +35,10 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertIn("operator: DoesNotExist", runner_values)
         self.assertNotIn("key: node-pool", runner_values)
         self.assertNotIn("values: [ks5-nvme]", runner_values)
+        self.assertIn("operator: NotIn", runner_values)
+        self.assertIn("values: [atlantic]", runner_values)
+        self.assertIn("values: [sauvage]", runner_values)
+        # el hostname va en nodeAffinity, nunca fijado en el nodeSelector
         self.assertNotIn("kubernetes.io/hostname:", runner_values)
 
     def test_openclaw_prefers_ks5_without_hard_pinning_or_edge(self) -> None:
@@ -46,31 +51,39 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertNotIn("value: edge", self.openclaw_values)
         self.assertNotIn("key: role", self.openclaw_values)
 
-    def test_shared_pool_does_not_tolerate_edge(self) -> None:
-        """arc-k8s NO tolera role=edge, y por eso no aterriza en sauvage.
+    def test_shared_pool_tolerates_edge_for_sauvage(self) -> None:
+        """arc-k8s tolera role=edge desde el 2026-11-15 y puede aterrizar en sauvage.
 
         22-09: md3 al 100 %, escribir 200 MB no termino en 120 s (0,34 s en
         ks5-cp-1). 24-09: se probo como desborde con nodeAffinity preferida y
         el scheduler le mando 4 runners de golpe, que se quedaron en
         CreateContainerError ("context deadline exceeded") ocupando 4 plazas.
-        Es una toleration y no una nodeAffinity a proposito: asi vale para
-        cualquier nodo edge futuro. Si md3 deja de estar saturado, se revierte.
+        Por eso se saco con la toleration de role=edge, y el propio comentario
+        decia: si md3 deja de estar saturado, se revierte devolviendola.
+        2026-11-15: medido en VictoriaMetrics sobre 7 dias, md3 de sauvage al
+        21-29 % de utilizacion e iowait del 1 %. Se devuelve la toleration (y
+        no un hostname fijo, para que valga con cualquier nodo edge) y sauvage
+        va como destino preferido; x86 queda de desborde.
         """
         runner_tolerations = self.shared_values.split("tolerations:", 1)[1]
         runner_tolerations = runner_tolerations.split("initContainers:", 1)[0]
-        self.assertNotIn("value: edge", runner_tolerations)
-        self.assertNotIn("key: role", runner_tolerations)
-        # la del x86 (pool=dev, PreferNoSchedule) SI se conserva: ese nodo va bien
+        self.assertIn("value: edge", runner_tolerations)
+        self.assertIn("key: role", runner_tolerations)
+        # la del x86 (pool=dev, PreferNoSchedule) se conserva
         self.assertIn("key: pool", runner_tolerations)
 
-    def test_runner_pool_caps_backlog_drain_at_thirty_two(self) -> None:
-        """32 plazas sobre el pool cpu (remedicion exacta INFRA-1093, 02-11);
-        ver el comentario en infra/arc.yaml."""
+    def test_runner_pool_is_24_shared_plus_8_on_atlantic(self) -> None:
+        """32 plazas sobre el pool cpu (remedicion exacta INFRA-1093, 02-11),
+        partidas el 2026-11-15 en 24 en arc-k8s (sin atlantic) y 8 en
+        arc-k8s-atlantic; ver los comentarios en infra/arc.yaml."""
+        shared, atlantic = self.shared_values.split("name: arc-k8s-atlantic", 1)
+        atlantic = atlantic.split("name: arc-skills-eval", 1)[0]
         # Anclados al fin de linea: "maxRunners: 32" contiene "maxRunners: 3",
         # y un assert de subcadena a secas se auto-contradice con dos digitos.
-        self.assertIn("maxRunners: 32\n", self.shared_values)
-        for stale in ("maxRunners: 16", "maxRunners: 8", "maxRunners: 6", "maxRunners: 3"):
-            self.assertNotIn(f"{stale}\n", self.shared_values)
+        self.assertIn("maxRunners: 24\n", shared)
+        self.assertIn("maxRunners: 8\n", atlantic)
+        for stale in ("maxRunners: 32", "maxRunners: 16", "maxRunners: 8", "maxRunners: 6", "maxRunners: 3"):
+            self.assertNotIn(f"{stale}\n", shared)
         self.assertNotIn("maxRunners: 4\n", self.manifest)
 
     def test_openclaw_has_dedicated_runner_pool(self) -> None:
@@ -94,9 +107,12 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         # el CLI de docker); sigue sin anadir imagen de dind nueva.
         # 2026-11-11 security · SC-5371: +1 runner image y +1 IfNotPresent — pool
         # arc-hermes (despliegue de Hermes desde ARC), misma imagen fijada.
-        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 7)
-        self.assertEqual(self.manifest.count(f"image: {DIND_IMAGE}"), 2)
-        self.assertEqual(self.manifest.count("imagePullPolicy: IfNotPresent"), 9)
+        # 2026-11-15 dani: +3 runner image, +1 dind image y +4 IfNotPresent —
+        # el scale set arc-k8s-atlantic repite el template de arc-k8s (init
+        # externals, dind, warm-pr-agent, runner), mismas imagenes fijadas.
+        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 10)
+        self.assertEqual(self.manifest.count(f"image: {DIND_IMAGE}"), 3)
+        self.assertEqual(self.manifest.count("imagePullPolicy: IfNotPresent"), 13)
         self.assertNotIn("image: docker:dind", self.manifest)
         self.assertNotIn("image: ghcr.io/actions/actions-runner:2.335.1\n", self.manifest)
 
