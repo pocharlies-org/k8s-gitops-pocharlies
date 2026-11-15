@@ -91,9 +91,28 @@ deschedulerPolicy:
             thresholds:
               cpu: 60
               memory: 60
+            # INFRA-123 (15-11): consolidación DESACTIVADA. targetThresholds al
+            # techo (100) para que NINGÚN nodo sea nunca "fuente" y el perfil no
+            # desaloje. Medido en vivo (logs del CronJob kube-system, 15-11
+            # 10:56Z): la clasificación es por REQUESTS y los cps están a 75-85%
+            # cpu — por debajo del 90 — así que nunca son fuente: este perfil
+            # jamás alivia los cps (su nombre "cps-a-sauvage" no se cumple). Lo
+            # que hacía era desalojar de cualquier nodo que cruzaba el 90%
+            # (atlantic/ubuntu en sus picos); el scheduler repartía los pods
+            # desalojados y a las 09:36Z del 15-11 sentó affiliate-app (250m) en
+            # ks5-cp-1, que volvió a pasarse del objetivo de capacidad (5776m y
+            # 5796m sobre 5525m; criterio C1 de INFRA-171). Como el placement lo
+            # decide el scheduler y no el descheduler, la única palanca efectiva
+            # es no desalojar: con target al 100 el uso por requests (que no
+            # puede superar el 100% de allocatable) nunca supera el umbral =>
+            # "All nodes are under target utilization, nothing to do here" => 0
+            # desalojos. Reversible: bajar targetThresholds reactiva la
+            # consolidación. La exclusión de control-nexus (DGX-1165/SC-2776) y
+            # las demás de evictableNamespaces quedan intactas por si se
+            # reactiva.
             targetThresholds:
-              cpu: 90
-              memory: 90
+              cpu: 100
+              memory: 100
             evictionLimits:
               node: 5
             evictableNamespaces:
