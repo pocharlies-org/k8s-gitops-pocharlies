@@ -366,9 +366,10 @@ eligibility_matrix = {
         "nvidia.com/gpu.present": "true",
     },
 }
-# arc-k8s (INFRA-960, 2026-11-15): pool cpu SIN atlantic (required NotIn por
-# hostname; sus 8 plazas son arc-k8s-atlantic): sauvage (toleration de
-# role=edge, preferido) y ubuntu. arc-k8s-atlantic: solo atlantic.
+# arc-k8s (INFRA-960, 2026-11-15): pool cpu SIN atlantic ni ubuntu (required
+# NotIn por hostname; las 8 plazas de atlantic son arc-k8s-atlantic y el x86
+# queda solo para LLMs y casa, SC-5633): solo sauvage (toleration de role=edge).
+# arc-k8s-atlantic: solo atlantic.
 # arc-openclaw: anclado a ks5 como preferred, sin required — cualquier amd64
 # sin taint le vale.
 # arc-skills-eval (SC-3635): SOLO atlantic (node-pool=ovh-heavy); en cualquier
@@ -387,7 +388,7 @@ expected_eligibility = {
         "atlantic": False,
         "atlantic-ovh-heavy": False,
         "sauvage": True,
-        "ubuntu-gpu": True,
+        "ubuntu-gpu": False,
         "arm-gpu": False,
     },
     "arc-k8s-atlantic": {
