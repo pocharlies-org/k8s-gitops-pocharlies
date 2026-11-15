@@ -21,8 +21,9 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         saturaban (115-120 % de CPU), dejando los jobs de skirmshop-labels
         fuera de su timeout de 15 min. 2026-11-15: atlantic sale de este scale
         set (required NotIn por hostname; sus 8 plazas son arc-k8s-atlantic,
-        ver tests/test_arc_k8s_atlantic.py) y sauvage entra como destino
-        preferido (test_shared_pool_tolerates_edge_for_sauvage).
+        ver tests/test_arc_k8s_atlantic.py). 2026-11-16 (INFRA-1397): sauvage
+        tampoco entra (test_shared_pool_does_not_tolerate_edge): el unico nodo
+        elegible es x86.
         """
         runner_values = self.shared_values.split("runnerScaleSetName: arc-k8s", 1)[1]
         runner_values = runner_values.split("tolerations:", 1)[0]
@@ -37,7 +38,11 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertNotIn("values: [ks5-nvme]", runner_values)
         self.assertIn("operator: NotIn", runner_values)
         self.assertIn("values: [atlantic]", runner_values)
-        self.assertIn("values: [sauvage]", runner_values)
+        # sauvage: ni preferido ni destino (INFRA-1397, 2026-11-16)
+        self.assertNotIn("values: [sauvage]", runner_values)
+        # sin nodeAffinity preferida (un `preference:` es un termino de nodo; el
+        # podAntiAffinity usa podAffinityTerm)
+        self.assertNotIn("preference:", runner_values)
         # el hostname va en nodeAffinity, nunca fijado en el nodeSelector
         self.assertNotIn("kubernetes.io/hostname:", runner_values)
 
@@ -51,25 +56,26 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertNotIn("value: edge", self.openclaw_values)
         self.assertNotIn("key: role", self.openclaw_values)
 
-    def test_shared_pool_tolerates_edge_for_sauvage(self) -> None:
-        """arc-k8s tolera role=edge desde el 2026-11-15 y puede aterrizar en sauvage.
+    def test_shared_pool_does_not_tolerate_edge(self) -> None:
+        """arc-k8s NO tolera role=edge, y por eso no aterriza en sauvage.
 
         22-09: md3 al 100 %, escribir 200 MB no termino en 120 s (0,34 s en
         ks5-cp-1). 24-09: se probo como desborde con nodeAffinity preferida y
         el scheduler le mando 4 runners de golpe, que se quedaron en
         CreateContainerError ("context deadline exceeded") ocupando 4 plazas.
-        Por eso se saco con la toleration de role=edge, y el propio comentario
-        decia: si md3 deja de estar saturado, se revierte devolviendola.
-        2026-11-15: medido en VictoriaMetrics sobre 7 dias, md3 de sauvage al
-        21-29 % de utilizacion e iowait del 1 %. Se devuelve la toleration (y
-        no un hostname fijo, para que valga con cualquier nodo edge) y sauvage
-        va como destino preferido; x86 queda de desborde.
+        Es una toleration y no una nodeAffinity a proposito: asi vale para
+        cualquier nodo edge futuro.
+        2026-11-15 se devolvio (media de 7 dias de md3: 21-29 % de utilizacion,
+        iowait 1 %) y fallo igual: 24 arranques en frio a la vez llevaron md3
+        de ~30 % a 100 % y el iowait de 1 % a 26-31 % en 10 min;
+        init-dind-externals tardo mas de 7 min. La media de 7 dias midio el
+        nodo sin runners. 2026-11-16 (INFRA-1397) se quita otra vez.
         """
         runner_tolerations = self.shared_values.split("tolerations:", 1)[1]
         runner_tolerations = runner_tolerations.split("initContainers:", 1)[0]
-        self.assertIn("value: edge", runner_tolerations)
-        self.assertIn("key: role", runner_tolerations)
-        # la del x86 (pool=dev, PreferNoSchedule) se conserva
+        self.assertNotIn("value: edge", runner_tolerations)
+        self.assertNotIn("key: role", runner_tolerations)
+        # la del x86 (pool=dev, PreferNoSchedule) SI se conserva: ese nodo va bien
         self.assertIn("key: pool", runner_tolerations)
 
     def test_runner_pool_is_24_shared_plus_8_on_atlantic(self) -> None:
