@@ -17,6 +17,7 @@ resources:
   - infra/renovate.yaml
   - infra/voicelab.yaml
   - infra/ofimatica.yaml
+  - infra/trellis.yaml
   - infra/galan-proposal.yaml
   - infra/arcade-frontend.yaml
   - infra/traefik-lan.yaml
