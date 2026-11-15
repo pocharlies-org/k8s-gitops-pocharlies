@@ -12,6 +12,9 @@ quien llama al reusable y qa verificó a mano al cerrar la épica (grep de
 - `imagen` es la única entrada obligatoria y las actuales siguen existiendo con su
   default (la superficie es aditiva: un nombre o un default no desaparece);
 - el job se llama `image-guard` (el nombre del check que ven los consumidores);
+- `HARBOR_USER`/`HARBOR_PASSWORD` están declarados como secretos opcionales del
+  `workflow_call` (INFRA-1363: sin declaración se resuelven vacíos y crane no
+  puede medir imágenes privadas de Harbor);
 - hadolint y crane se invocan como imagen fijada por digest: `check-workflow-pins.py`
   solo alcanza los `uses:`, no los `docker run` del runner arc-k8s, que no las trae.
 """
@@ -61,6 +64,24 @@ class TestSuperficieDeEntradas(unittest.TestCase):
         self.assertEqual(ENTRADAS["crecimiento"]["default"], 20)
         self.assertEqual(ENTRADAS["tope"]["default"], 0)
         self.assertEqual(ENTRADAS["plataforma"]["default"], "linux/amd64")
+
+
+class TestSecretosDeRegistry(unittest.TestCase):
+    """Credenciales del registry (INFRA-1363): declaradas y opcionales.
+
+    En un workflow llamado, un secreto no declarado se resuelve vacío (SC-2685):
+    sin esta declaración el consumidor no puede pasar HARBOR_USER/HARBOR_PASSWORD
+    y crane muere en UNAUTHORIZED al medir una imagen privada de Harbor
+    (run 43674488640 de skirmshop-labels). Opcionales: la superficie sigue
+    siendo aditiva — un consumidor sin secretos mide anónimo como antes.
+    """
+
+    def test_secretos_harbor_declarados_y_opcionales(self):
+        secretos = CUERPO[True]["workflow_call"].get("secrets", {})
+        for nombre in ("HARBOR_USER", "HARBOR_PASSWORD"):
+            self.assertIn(nombre, secretos, f"secreto {nombre} no declarado: se resuelve vacío")
+            self.assertFalse(secretos[nombre].get("required", False),
+                             f"{nombre} pasó a ser obligatorio")
 
 
 class TestHerramientasFijadasPorDigest(unittest.TestCase):
