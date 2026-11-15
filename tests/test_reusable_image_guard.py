@@ -99,6 +99,14 @@ class TestHerramientasFijadasPorDigest(unittest.TestCase):
         self.assertRegex(TEXTO, r"go-containerregistry/crane@sha256:[0-9a-f]{64}")
         self.assertNotIn("go-containerregistry/crane:", TEXTO)
 
+    def test_crane_recibe_la_config_de_login(self):
+        # Medido en skirmshop-labels#274: con el login hecho en el runner,
+        # crane seguía anónimo porque el daemon DinD no ve el $HOME del runner.
+        # La config tiene que llegar al contenedor por DOCKER_CONFIG montado
+        # bajo RUNNER_TEMP (única ruta compartida con el sidecar).
+        self.assertIn("DOCKER_CONFIG", TEXTO)
+        self.assertIn("$RUNNER_TEMP/docker-config", TEXTO)
+
 
 if __name__ == "__main__":
     unittest.main()
