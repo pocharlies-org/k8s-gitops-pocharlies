@@ -122,6 +122,34 @@ repoServer:
       memory: 256Mi
     limits:
       memory: 1Gi
+  # INFRA-171 (15-11-2026): pin declarativo a ks5-cp-3. El scheduler colocó
+  # este pod en cp-1 al 11:10Z (250m) y dejó el steady-state de cp-1 por
+  # encima del objetivo de la épica (5525m = 85 % de 6500m allocatable);
+  # cp-3 tenía 825m de margen y ya alojaba repo-server hasta las 10:15Z.
+  # El pin es nodeAffinity, no nodeSelector: el comentario de cabecera avisa
+  # de que el chart fusiona nodeSelectors y hostname + node-pool darían
+  # intersección vacía. Se añade ENCIMA del global.nodeSelector
+  # (node-pool: ks5-nvme), que sigue mandando. La podAntiAffinity es la misma
+  # que produce el preset global.affinity.podAntiAffinity=soft del chart
+  # (helper argo-cd.affinity, _common.tpl:84): fijar repoServer.affinity
+  # anula el preset, así que se declara aquí para no cambiar el render actual.
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                  - ks5-cp-3
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: argocd-repo-server
+            topologyKey: kubernetes.io/hostname
 
 applicationSet:
   replicas: 1
