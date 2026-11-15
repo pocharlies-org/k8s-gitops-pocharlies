@@ -270,7 +270,7 @@ assert not openclaw_runner.get("securityContext", {}).get("privileged", False)
 assert "DOCKER_HOST" not in {item["name"] for item in openclaw_runner.get("env", [])}
 
 shared_set, shared_spec = validate_common(
-    "arc-k8s", 21, edge_fallback=False, selector=expected_selector_shared
+    "arc-k8s", 24, edge_fallback=False, selector=expected_selector_shared
 )
 # arc-k8s conserva su etiqueta de scale set (el nombre) y no declara labels
 # extra: los que comparten el label `arc-k8s` son los scale sets de atlantic y
@@ -280,6 +280,9 @@ assert "runnerScaleSetLabels" not in shared_set["spec"]
 # arc-k8s-atlantic (2026-11-15): 8 runners fijados a atlantic con la etiqueta
 # arc-k8s (scaleSetLabels -> spec.runnerScaleSetLabels), de modo que
 # `runs-on: arc-k8s` lo casa igual que al scale set compartido.
+# 2026-11-16 (INFRA-1397): minRunners 8 = maxRunners 8. Atlantic es la primera
+# prioridad del pool: 8 runners calientes y registrados siempre libres, a los
+# que GitHub da primero los jobs en cola (no hay prioridad explicita en ARC).
 expected_selector_atlantic = {
     "kubernetes.io/arch": "amd64",
     "kubernetes.io/hostname": "atlantic",
@@ -293,21 +296,24 @@ atlantic_set, atlantic_spec = validate_common(
 )
 assert atlantic_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s"]
 assert atlantic_set["spec"]["runnerScaleSetName"] == "arc-k8s-atlantic"
-assert atlantic_set["spec"]["minRunners"] == 0
+assert atlantic_set["spec"]["minRunners"] == 8
+assert atlantic_set["spec"]["minRunners"] == atlantic_set["spec"]["maxRunners"]
 # Mismo pod que arc-k8s salvo la colocacion: DinD, limites, MTU, sidecar.
 for key in ("initContainers", "containers", "volumes"):
     assert atlantic_spec[key] == shared_spec[key], key
 
-# arc-k8s-sauvage (2026-11-16, INFRA-1397): 3 runners fijados a sauvage, con la
-# etiqueta arc-k8s. Es el unico scale set que tolera role=edge; tope de 3 porque
-# su md3 (HDD) se satura con 24 arranques en frio. 21 + 8 + 3 = 32.
+# arc-k8s-sauvage (2026-11-16, INFRA-1397): 8 runners fijados a sauvage, con la
+# etiqueta arc-k8s, sin runners calientes (ultimo recurso del pool). Es el unico
+# scale set que tolera role=edge; tope de 8 porque su md3 (HDD) llego al 89-100 %
+# con 24 runners arrancando en frio. 8 + 24 + 8 = 40. La prioridad
+# atlantic > x86 > sauvage se aproxima con runners calientes: min 8 / min 2 / 0.
 expected_selector_sauvage = {
     "kubernetes.io/arch": "amd64",
     "kubernetes.io/hostname": "sauvage",
 }
 sauvage_set, sauvage_spec = validate_common(
     "arc-k8s-sauvage",
-    3,
+    8,
     edge_fallback=False,
     selector=expected_selector_sauvage,
     hostname_pinned=True,
@@ -316,6 +322,13 @@ sauvage_set, sauvage_spec = validate_common(
 assert sauvage_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s"]
 assert sauvage_set["spec"]["runnerScaleSetName"] == "arc-k8s-sauvage"
 assert sauvage_set["spec"]["minRunners"] == 0
+# Prioridad por calentamiento: atlantic (min == max) > x86 (min 2) > sauvage (0).
+assert (
+    atlantic_set["spec"]["minRunners"]
+    > shared_set["spec"]["minRunners"]
+    > sauvage_set["spec"]["minRunners"]
+)
+assert shared_set["spec"]["minRunners"] == 2
 assert sauvage_spec["tolerations"] == [
     {"effect": "PreferNoSchedule", "key": "pool", "operator": "Equal", "value": "dev"},
     {"effect": "NoSchedule", "key": "role", "operator": "Equal", "value": "edge"},
@@ -324,7 +337,7 @@ assert (
     shared_set["spec"]["maxRunners"]
     + atlantic_set["spec"]["maxRunners"]
     + sauvage_set["spec"]["maxRunners"]
-    == 32
+    == 40
 )
 for key in ("initContainers", "containers", "volumes"):
     assert sauvage_spec[key] == shared_spec[key], key
@@ -399,8 +412,8 @@ eligibility_matrix = {
 # arc-k8s (INFRA-960, 2026-11-16): pool cpu SIN atlantic (required NotIn por
 # hostname; sus 8 plazas son arc-k8s-atlantic) y SIN sauvage (no tolera
 # role=edge: su md3 HDD se satura con arranques en frio, INFRA-1397): solo
-# ubuntu (x86). arc-k8s-atlantic: solo atlantic. arc-k8s-sauvage (3 plazas,
-# tope de Daniel): solo sauvage, el unico que tolera role=edge.
+# ubuntu (x86). arc-k8s-atlantic: solo atlantic. arc-k8s-sauvage (8 plazas):
+# solo sauvage, el unico que tolera role=edge.
 # arc-openclaw: anclado a ks5 como preferred, sin required — cualquier amd64
 # sin taint le vale.
 # arc-skills-eval (SC-3635): SOLO atlantic (node-pool=ovh-heavy); en cualquier

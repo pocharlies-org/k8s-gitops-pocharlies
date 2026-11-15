@@ -337,12 +337,24 @@ spec:
         # ni hecha: poner los datos de DinD de sauvage en md2 (0 % de
         # utilizacion) en vez de md3.
         #
-        # 2026-11-16 dani · INFRA-1397 · 24 -> 21, y sauvage vuelve con un
-        # scale set propio de 3 (arc-k8s-sauvage, Application de mas abajo): 21
-        # x86 + 8 atlantic + 3 sauvage = 32, la misma capacidad total. arc-k8s
-        # sigue SIN tolerar role=edge: sauvage solo entra por su scale set
-        # topado, nunca como destino de este.
-        maxRunners: 21
+        # 2026-11-16 dani · INFRA-1397 · diseno final: tres scale sets con la
+        # etiqueta arc-k8s y 40 plazas: arc-k8s-atlantic 8 (min 8), arc-k8s
+        # (este, el x86) 24 (min 2) y arc-k8s-sauvage 8 (min 0). Este scale set
+        # sigue SIN tolerar role=edge y sin preferir sauvage: su unico nodo
+        # elegible es ubuntu (x86); el tope se queda en 24.
+        # PRIORIDAD atlantic > x86 > sauvage, dicho sin adornos: ARC y GitHub
+        # NO tienen una prioridad explicita entre scale sets que comparten
+        # etiqueta. Se aproxima con runners calientes y registrados: min == max
+        # en atlantic (8 siempre libres), min 2 aqui, 0 en sauvage. GitHub da
+        # los jobs en cola a los runners libres que ya estan registrados, asi
+        # que atlantic atiende primero. Cuando todos estan ocupados, el
+        # desbordamiento va al listener que adquiere el job, sin orden
+        # garantizado entre x86 y sauvage.
+        # Riesgo conocido, NO cambiado aqui: la memoria en REQUESTS de x86 estaba
+        # al 97 % y el 2026-11-15 cabian ~14-16 runners de este scale set; los
+        # pods por encima de eso se quedan Pending hasta que haya hueco. Los
+        # requests de los pods no se tocan.
+        maxRunners: 24
         # 2026-11-03 devops · INFRA-334 (p95 del job de review, criterio 6 de la
         # epica INFRA-298; el defecto medido por qa era cola + pull, no el motor).
         # Medido con la API de jobs por run sobre los pilotos k8s-litellm y
@@ -621,8 +633,15 @@ spec:
         # 2026-11-16 dani · INFRA-1397: arc-k8s ya no llena sauvage (md3
         # saturado, ver su bloque 2026-11-16); los otros 24 van a x86 y lo que
         # no cabe espera Pending. Este scale set no cambia.
+        # 2026-11-16 dani · INFRA-1397 (ACTUALIZA los bloques anteriores): el
+        # tope sigue en 8 pero minRunners pasa de 0 a 8 y las plazas dejan de
+        # ser 24 + 8 = 32: son 40 (atlantic 8, x86 24, sauvage 8). Atlantic es
+        # la primera prioridad: 8 runners calientes y registrados siempre
+        # libres, a los que GitHub da primero los jobs en cola. No es una
+        # prioridad explicita de ARC (no existe), solo la aproximacion con
+        # runners calientes; ver el bloque 2026-11-16 de arc-k8s.
         maxRunners: 8
-        minRunners: 0
+        minRunners: 8
         runnerScaleSetName: arc-k8s-atlantic
         scaleSetLabels:
           - arc-k8s
@@ -865,24 +884,24 @@ spec:
           namespace: arc-systems
         githubConfigSecret: arc-github-app
         githubConfigUrl: https://github.com/pocharlies-org
-        # 2026-11-16 dani · INFRA-1397 · tope de 3 runners en sauvage. Tercer
-        # scale set de `runs-on: arc-k8s` (con arc-k8s y arc-k8s-atlantic):
-        # 21 + 8 + 3 = 32, la misma capacidad total. Motivo del 3: el md3 de
-        # sauvage es un HDD (RAID sda/sdb) y 24 arranques en frio a la vez lo
-        # llevaron al 100 % de utilizacion y al 26-31 % de iowait en 10 min (ver
-        # el bloque 2026-11-16 de arc-k8s); skirmshop y minio comparten ese
-        # disco. 3 es el limite que fijo Daniel; subirlo exige medir md3 antes
-        # y despues, no la media de 7 dias, que midio el nodo sin runners.
-        # Solo este scale set tolera role=edge (el taint de sauvage): arc-k8s
-        # NO lo tolera y por eso no puede caer aqui por su cuenta.
+        # 2026-11-16 dani · INFRA-1397 · tope de 8 runners en sauvage, el
+        # ultimo recurso del pool arc-k8s: 40 plazas = atlantic 8 + x86 24 +
+        # sauvage 8 (la prioridad atlantic > x86 > sauvage y sus limites, en el
+        # bloque 2026-11-16 de arc-k8s). Sin runners calientes (minRunners 0):
+        # solo arranca los que hagan falta. Motivo del 8: el md3 de sauvage es
+        # un HDD (RAID sda/sdb) y 24 runners arrancando en frio desde las 00:02
+        # CET lo llevaron al 89-100 % de utilizacion (iowait 26-31 %), con
+        # skirmshop y minio en el mismo disco. Solo este scale set tolera
+        # role=edge (el taint de sauvage): arc-k8s NO lo tolera y por eso no
+        # puede caer aqui por su cuenta. Subir el 8 exige medir md3 antes y
+        # despues, no la media de 7 dias, que midio el nodo sin runners.
         # scaleSetLabels (chart 0.14.1 -> spec.runnerScaleSetLabels) registra
         # este scale set en GitHub con la etiqueta arc-k8s, asi que
         # `runs-on: arc-k8s` lo casa igual que a arc-k8s y GitHub reparte los
         # jobs entre los tres. nodeSelector por hostname: sauvage es un nodo
-        # solo. minRunners 0: los 2 runners calientes los pone arc-k8s. El
-        # template es el de arc-k8s tal cual (DinD, limites, MTU, sidecar);
-        # tests/test_arc_k8s_sauvage.py falla si divergen.
-        maxRunners: 3
+        # solo. El template es el de arc-k8s tal cual (DinD, limites, MTU,
+        # sidecar); tests/test_arc_k8s_sauvage.py falla si divergen.
+        maxRunners: 8
         minRunners: 0
         runnerScaleSetName: arc-k8s-sauvage
         scaleSetLabels:

@@ -78,20 +78,24 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         # la del x86 (pool=dev, PreferNoSchedule) SI se conserva: ese nodo va bien
         self.assertIn("key: pool", runner_tolerations)
 
-    def test_runner_pool_is_21_shared_plus_8_atlantic_plus_3_sauvage(self) -> None:
-        """32 plazas sobre el pool cpu (remedicion exacta INFRA-1093, 02-11),
-        partidas el 2026-11-15 en 24 + 8 y el 2026-11-16 (INFRA-1397) en 21 en
-        arc-k8s (solo x86), 8 en arc-k8s-atlantic y 3 en arc-k8s-sauvage (tope
-        de Daniel: su md3 es un HDD); ver los comentarios en infra/arc.yaml."""
+    def test_runner_pool_is_24_shared_plus_8_atlantic_plus_8_sauvage(self) -> None:
+        """40 plazas sobre el pool cpu (partia de las 32 de la remedicion exacta
+        INFRA-1093, 02-11): 24 en arc-k8s (solo x86, min 2), 8 en
+        arc-k8s-atlantic (min 8, primera prioridad) y 8 en arc-k8s-sauvage (min
+        0, ultimo recurso; su md3 es un HDD). INFRA-1397, 2026-11-16; ver los
+        comentarios en infra/arc.yaml."""
         shared, rest = self.shared_values.split("name: arc-k8s-atlantic", 1)
         atlantic, rest = rest.split("name: arc-k8s-sauvage", 1)
         sauvage = rest.split("name: arc-skills-eval", 1)[0]
         # Anclados al fin de linea: "maxRunners: 32" contiene "maxRunners: 3",
         # y un assert de subcadena a secas se auto-contradice con dos digitos.
-        self.assertIn("maxRunners: 21\n", shared)
+        self.assertIn("maxRunners: 24\n", shared)
+        self.assertIn("minRunners: 2\n", shared)
         self.assertIn("maxRunners: 8\n", atlantic)
-        self.assertIn("maxRunners: 3\n", sauvage)
-        for stale in ("maxRunners: 32", "maxRunners: 24", "maxRunners: 16", "maxRunners: 8", "maxRunners: 6", "maxRunners: 3"):
+        self.assertIn("minRunners: 8\n", atlantic)
+        self.assertIn("maxRunners: 8\n", sauvage)
+        self.assertIn("minRunners: 0\n", sauvage)
+        for stale in ("maxRunners: 32", "maxRunners: 21", "maxRunners: 16", "maxRunners: 8", "maxRunners: 6", "maxRunners: 3"):
             self.assertNotIn(f"{stale}\n", shared)
         self.assertNotIn("maxRunners: 4\n", self.manifest)
 
