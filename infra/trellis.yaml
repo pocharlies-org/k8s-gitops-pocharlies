@@ -1,0 +1,58 @@
+# trellis — generación 3D (TRELLIS.2) en la ventana creative de dgx3 (DGX-1054; restaurada por DGX-1624,
+# decisión de Dani 15-11-2026, tras borrarla SC-2499 e INFRA-1009).
+#
+# Mismo patrón que ofimatica/voicelab: los manifiestos viven en dgx-infra (k8s/apps/trellis/) y aquí solo
+# se declara la Application. Los Deployments trellis/trellis-multiview los escala el árbitro GPU del
+# dashboard (0<->1 por lease) y trellis-image-cache el eje dgx3 al abrir la ventana: /spec/replicas es suyo.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: trellis
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/dgx-infra/tree/master/k8s/apps/trellis
+  labels:
+    e-dani.com/tier: app
+    app.kubernetes.io/part-of: dgx-infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/dgx-infra
+    targetRevision: master
+    path: k8s/apps/trellis
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: trellis
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      # Sin esto selfHeal pisaría las réplicas del árbitro y del eje al sincronizar.
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+  revisionHistoryLimit: 10
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: trellis
+      namespace: trellis
+      jsonPointers: [/spec/replicas]
+    - group: apps
+      kind: Deployment
+      name: trellis-multiview
+      namespace: trellis
+      jsonPointers: [/spec/replicas]
+    - group: apps
+      kind: Deployment
+      name: trellis-image-cache
+      namespace: trellis
+      jsonPointers: [/spec/replicas]
