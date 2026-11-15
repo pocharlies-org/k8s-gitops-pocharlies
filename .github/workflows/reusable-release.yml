@@ -13,6 +13,17 @@ on:
       registry:
         type: string
         default: harbor.lan.e-dani.com
+      base_registry:
+        description: >-
+          Hostname exacto del FROM cuando las Dockerfiles tiran de una base
+          fijada por digest (harbor.e-dani.com, el nombre canónico de
+          docs/images/bases.md). No vacío y distinto de `registry`, el job
+          inicia sesión también ahí para que buildx resuelva la base; el push
+          sigue yendo a `registry` (el LAN, sin el 413 de Cloudflare en capas
+          grandes). Sin él, un Release cuyo FROM apunta a harbor.e-dani.com
+          muere con 401 al resolver la base (INFRA-1301, run 43654227972).
+        type: string
+        default: ""
       registry_project:
         type: string
         default: homelab
@@ -232,6 +243,21 @@ jobs:
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ${{ inputs.registry }}
+          username: ${{ secrets.HARBOR_USER }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+
+      # INFRA-1301: las bases comunes viven en el nombre canónico de
+      # docs/images/bases.md (harbor.e-dani.com) y el runner arc-k8s no puede
+      # tirar de él de forma anónima (401 en el HEAD del manifiesto). El login
+      # de arriba es solo del registry de push (harbor.lan.e-dani.com), así que
+      # buildx no tenía credenciales para el hostname del FROM. Mismo robot
+      # (HARBOR_USER/HARBOR_PASSWORD, lee homelab/* en ambos hostnames — el CI
+      # de back-in-stock ya inicia sesión ahí y verde); el push no se toca.
+      - name: Login to base registry
+        if: ${{ inputs.base_registry != '' && inputs.base_registry != inputs.registry }}
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ${{ inputs.base_registry }}
           username: ${{ secrets.HARBOR_USER }}
           password: ${{ secrets.HARBOR_PASSWORD }}
 
