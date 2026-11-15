@@ -99,6 +99,11 @@ resources:
   limits:
     memory: 2Gi
   requests:
-    cpu: 100m
+    # INFRA-171 (15-11): 100m -> 15m. Fila S1 (nota-devops-medicion-cp1.md de INFRA-170):
+    # p95 8m; re-medido el 15-11 sobre la retención real de VictoriaMetrics (48 h, 553
+    # puntos — las series de 14 días no existen): p95 9.7m -> suelo 1,5 x 9.7 = 14.55 ->
+    # 15m. cp-1 estaba al 97 % de requests (épico INFRA-123). Solo el server: el
+    # nodeAgent (DaemonSet) y los jobs de mantenimiento no se tocan.
+    cpu: 15m
     memory: 512Mi
 snapshotsEnabled: true
