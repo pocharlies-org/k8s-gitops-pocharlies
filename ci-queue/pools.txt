@@ -5,4 +5,5 @@
         runnerScaleSetName: arc-hermes
         runnerScaleSetName: arc-k8s
         runnerScaleSetName: arc-k8s-atlantic
+        runnerScaleSetName: arc-k8s-sauvage
         runnerScaleSetName: arc-skills-eval

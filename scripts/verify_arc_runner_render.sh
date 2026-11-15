@@ -35,7 +35,13 @@ applications = {
     if isinstance(document, dict) and document.get("kind") == "Application"
 }
 
-for name in ("arc-openclaw", "arc-k8s", "arc-k8s-atlantic", "arc-skills-eval"):
+for name in (
+    "arc-openclaw",
+    "arc-k8s",
+    "arc-k8s-atlantic",
+    "arc-k8s-sauvage",
+    "arc-skills-eval",
+):
     application = applications[name]
     source = application["spec"]["source"]
     assert source["targetRevision"] == "0.14.1"
@@ -47,7 +53,7 @@ for name in ("arc-openclaw", "arc-k8s", "arc-k8s-atlantic", "arc-skills-eval"):
     (output / f"{name}.values.yaml").write_text(values_text, encoding="utf-8")
 PY
 
-for release in arc-openclaw arc-k8s arc-k8s-atlantic arc-skills-eval; do
+for release in arc-openclaw arc-k8s arc-k8s-atlantic arc-k8s-sauvage arc-skills-eval; do
   helm template "${release}" "${CHART}" \
     --version "${CHART_VERSION}" \
     --namespace arc-runners \
@@ -98,13 +104,15 @@ def validate_common(
     selector: dict,
     hard_pinned_by_selector: bool = False,
     hostname_pinned: bool = False,
+    edge_tolerated: bool = False,
 ) -> tuple[dict, dict]:
     runner_set = rendered_runner_set(release)
     assert runner_set["spec"]["maxRunners"] == expected_max
     pod_spec = runner_set["spec"]["template"]["spec"]
     assert pod_spec["nodeSelector"] == selector
-    # Solo el scale set de atlantic (2026-11-15) se fija por hostname en el
-    # nodeSelector; el resto elige el nodo por etiqueta de pool.
+    # Solo los scale sets de atlantic (2026-11-15) y sauvage (2026-11-16) se
+    # fijan por hostname en el nodeSelector; el resto elige el nodo por
+    # etiqueta de pool.
     assert ("kubernetes.io/hostname" in pod_spec["nodeSelector"]) is hostname_pinned
 
     ks5_term = {
@@ -139,6 +147,9 @@ def validate_common(
         # arc-k8s-atlantic (2026-11-15): los 8 runners de atlantic. El
         # hostname va en el nodeSelector; el required de los control planes se
         # conserva como en arc-k8s y no hace falta tolerar role=edge.
+        # arc-k8s-sauvage (2026-11-16, INFRA-1397): los 3 runners de sauvage.
+        # Mismo esquema, pero ESTE es el unico scale set que tolera el taint
+        # role=edge de sauvage (edge_tolerated=True).
         assert pod_spec["affinity"]["nodeAffinity"] == {
             "requiredDuringSchedulingIgnoredDuringExecution": {
                 "nodeSelectorTerms": [
@@ -153,12 +164,13 @@ def validate_common(
                 ]
             }
         }
-        assert {
+        edge_toleration = {
             "effect": "NoSchedule",
             "key": "role",
             "operator": "Equal",
             "value": "edge",
-        } not in pod_spec["tolerations"]
+        }
+        assert (edge_toleration in pod_spec["tolerations"]) is edge_tolerated
     else:
         # arc-k8s (INFRA-960, 2026-10-28): pool CPU dedicado — nodeSelector
         # workload=cpu y nodeAffinity required que excluye los control planes:
@@ -258,15 +270,16 @@ assert not openclaw_runner.get("securityContext", {}).get("privileged", False)
 assert "DOCKER_HOST" not in {item["name"] for item in openclaw_runner.get("env", [])}
 
 shared_set, shared_spec = validate_common(
-    "arc-k8s", 24, edge_fallback=False, selector=expected_selector_shared
+    "arc-k8s", 21, edge_fallback=False, selector=expected_selector_shared
 )
 # arc-k8s conserva su etiqueta de scale set (el nombre) y no declara labels
-# extra: el unico que comparte el label `arc-k8s` es el scale set de atlantic.
+# extra: los que comparten el label `arc-k8s` son los scale sets de atlantic y
+# sauvage.
 assert "runnerScaleSetLabels" not in shared_set["spec"]
 
 # arc-k8s-atlantic (2026-11-15): 8 runners fijados a atlantic con la etiqueta
 # arc-k8s (scaleSetLabels -> spec.runnerScaleSetLabels), de modo que
-# `runs-on: arc-k8s` lo casa igual que al scale set compartido. 24 + 8 = 32.
+# `runs-on: arc-k8s` lo casa igual que al scale set compartido.
 expected_selector_atlantic = {
     "kubernetes.io/arch": "amd64",
     "kubernetes.io/hostname": "atlantic",
@@ -281,10 +294,40 @@ atlantic_set, atlantic_spec = validate_common(
 assert atlantic_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s"]
 assert atlantic_set["spec"]["runnerScaleSetName"] == "arc-k8s-atlantic"
 assert atlantic_set["spec"]["minRunners"] == 0
-assert shared_set["spec"]["maxRunners"] + atlantic_set["spec"]["maxRunners"] == 32
 # Mismo pod que arc-k8s salvo la colocacion: DinD, limites, MTU, sidecar.
 for key in ("initContainers", "containers", "volumes"):
     assert atlantic_spec[key] == shared_spec[key], key
+
+# arc-k8s-sauvage (2026-11-16, INFRA-1397): 3 runners fijados a sauvage, con la
+# etiqueta arc-k8s. Es el unico scale set que tolera role=edge; tope de 3 porque
+# su md3 (HDD) se satura con 24 arranques en frio. 21 + 8 + 3 = 32.
+expected_selector_sauvage = {
+    "kubernetes.io/arch": "amd64",
+    "kubernetes.io/hostname": "sauvage",
+}
+sauvage_set, sauvage_spec = validate_common(
+    "arc-k8s-sauvage",
+    3,
+    edge_fallback=False,
+    selector=expected_selector_sauvage,
+    hostname_pinned=True,
+    edge_tolerated=True,
+)
+assert sauvage_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s"]
+assert sauvage_set["spec"]["runnerScaleSetName"] == "arc-k8s-sauvage"
+assert sauvage_set["spec"]["minRunners"] == 0
+assert sauvage_spec["tolerations"] == [
+    {"effect": "PreferNoSchedule", "key": "pool", "operator": "Equal", "value": "dev"},
+    {"effect": "NoSchedule", "key": "role", "operator": "Equal", "value": "edge"},
+]
+assert (
+    shared_set["spec"]["maxRunners"]
+    + atlantic_set["spec"]["maxRunners"]
+    + sauvage_set["spec"]["maxRunners"]
+    == 32
+)
+for key in ("initContainers", "containers", "volumes"):
+    assert sauvage_spec[key] == shared_spec[key], key
 
 # arc-skills-eval (SC-3635, security 2026-10-29): evaluacion de skills externas
 # (codigo de terceros en DinD). Fijado duro a atlantic; el egress lo acota la
@@ -356,7 +399,8 @@ eligibility_matrix = {
 # arc-k8s (INFRA-960, 2026-11-16): pool cpu SIN atlantic (required NotIn por
 # hostname; sus 8 plazas son arc-k8s-atlantic) y SIN sauvage (no tolera
 # role=edge: su md3 HDD se satura con arranques en frio, INFRA-1397): solo
-# ubuntu (x86). arc-k8s-atlantic: solo atlantic.
+# ubuntu (x86). arc-k8s-atlantic: solo atlantic. arc-k8s-sauvage (3 plazas,
+# tope de Daniel): solo sauvage, el unico que tolera role=edge.
 # arc-openclaw: anclado a ks5 como preferred, sin required — cualquier amd64
 # sin taint le vale.
 # arc-skills-eval (SC-3635): SOLO atlantic (node-pool=ovh-heavy); en cualquier
@@ -386,6 +430,14 @@ expected_eligibility = {
         "ubuntu-gpu": False,
         "arm-gpu": False,
     },
+    "arc-k8s-sauvage": {
+        "ks5-cp": False,
+        "atlantic": False,
+        "atlantic-ovh-heavy": False,
+        "sauvage": True,
+        "ubuntu-gpu": False,
+        "arm-gpu": False,
+    },
     "arc-skills-eval": {
         "ks5-cp": False,
         "atlantic": False,
@@ -399,6 +451,7 @@ for release, runner_spec in (
     ("arc-openclaw", openclaw_spec),
     ("arc-k8s", shared_spec),
     ("arc-k8s-atlantic", atlantic_spec),
+    ("arc-k8s-sauvage", sauvage_spec),
     ("arc-skills-eval", skills_eval_spec),
 ):
     for case, labels in eligibility_matrix.items():

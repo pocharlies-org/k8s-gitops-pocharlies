@@ -10,7 +10,9 @@ de infra/arc.yaml. El techo lo pone la capacidad de atlantic + x86
 efecto con INFRA-960. Subirlo por encima de la capacidad de esos nodos es
 cortar CI por otra via. Desde el 2026-11-15 las 32 plazas son 24 en arc-k8s
 (maxRunners) + 8 en arc-k8s-atlantic (tests/test_arc_k8s_atlantic.py). Desde el
-2026-11-16 (INFRA-1397) arc-k8s solo cae en x86: sauvage esta fuera (md3 HDD).
+2026-11-16 (INFRA-1397) arc-k8s solo cae en x86: sauvage esta fuera (md3 HDD),
+y pasa a 21 + 8 + 3 = 32 con el scale set arc-k8s-sauvage, topado a 3
+(tests/test_arc_k8s_sauvage.py).
 """
 
 from pathlib import Path

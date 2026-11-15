@@ -5,13 +5,16 @@ runners de arc-k8s: 16 CPU al 99 % y el daemon de Paseo sin CPU. El pool de
 `runs-on: arc-k8s` se parte en dos scale sets que comparten esa etiqueta
 (`scaleSetLabels: [arc-k8s]` -> `spec.runnerScaleSetLabels`, chart 0.14.1):
 
-  - arc-k8s          maxRunners 24, atlantic excluido (required NotIn por
-                     hostname) y sauvage excluido (no tolera role=edge, ver
-                     INFRA-1397 2026-11-16): solo x86;
+  - arc-k8s          atlantic excluido (required NotIn por hostname) y sauvage
+                     excluido (no tolera role=edge, ver INFRA-1397 2026-11-16):
+                     solo x86;
   - arc-k8s-atlantic maxRunners 8, fijado a atlantic.
 
-24 + 8 = 32: la capacidad total no cambia. Este test es la puerta de esa
-division; el render real con helm lo comprueba scripts/verify_arc_runner_render.sh.
+2026-11-16 (INFRA-1397): un tercer scale set, arc-k8s-sauvage (3), recoge
+sauvage con tope (tests/test_arc_k8s_sauvage.py), y arc-k8s pasa de 24 a 21:
+21 + 8 + 3 = 32, la capacidad total no cambia. Este test es la puerta de la
+parte de atlantic; el render real con helm lo comprueba
+scripts/verify_arc_runner_render.sh.
 """
 
 from pathlib import Path
@@ -74,9 +77,17 @@ class ArcAtlanticCapTest(unittest.TestCase):
         )
 
     def test_total_capacity_stays_thirty_two(self) -> None:
-        self.assertEqual(self.shared["maxRunners"], 24)
+        """21 (x86) + 8 (atlantic) + 3 (sauvage) = 32."""
+        sauvage = arc_values("arc-k8s-sauvage")
+        self.assertEqual(self.shared["maxRunners"], 21)
         self.assertEqual(self.atlantic["maxRunners"], 8)
-        self.assertEqual(self.shared["maxRunners"] + self.atlantic["maxRunners"], 32)
+        self.assertEqual(sauvage["maxRunners"], 3)
+        self.assertEqual(
+            self.shared["maxRunners"]
+            + self.atlantic["maxRunners"]
+            + sauvage["maxRunners"],
+            32,
+        )
 
     def test_atlantic_set_has_no_warm_runners(self) -> None:
         """Los 2 runners calientes (INFRA-334) los pone arc-k8s."""

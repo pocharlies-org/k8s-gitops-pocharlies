@@ -117,7 +117,8 @@ Nº de tests: 105 (medido con `unittest discover` el 2026-11-08; 27 en `tests/te
   mv ci-queue/pools.txt.new ci-queue/pools.txt`.
 - `arc-k8s-atlantic` (2026-11-15): segundo scale set de `infra/arc.yaml` con `scaleSetLabels: [arc-k8s]`; atiende el
   mismo `runs-on: arc-k8s` que `arc-k8s` pero fijado a atlantic con `maxRunners: 8` (los otros 24 van en `arc-k8s`, que
-  excluye atlantic y, desde el 2026-11-16, también sauvage: solo x86). Ningún job pide el nombre `arc-k8s-atlantic`:
+  excluye atlantic y, desde el 2026-11-16, también sauvage: solo x86; desde el mismo día son 21 en `arc-k8s` y 3 en
+  `arc-k8s-sauvage`, ver más abajo). Ningún job pide el nombre `arc-k8s-atlantic`:
   está en `ci-queue/pools.txt` solo porque la lista se deriva de todos los `runnerScaleSetName`. El template de los dos
   debe ser idéntico (lo vigila `tests/test_arc_k8s_atlantic.py`).
 - sauvage NO es elegible para `arc-k8s` (2026-11-16, INFRA-1397): `arc-k8s` no tolera `role=edge` ni lo prefiere. La
@@ -126,6 +127,13 @@ Nº de tests: 105 (medido con `unittest discover` el 2026-11-08; 27 en `tests/te
   runners. Con `arc-k8s` solo en x86 y `arc-k8s-atlantic` solo en atlantic, los pods que no caben esperan en Pending
   (aceptado). `scripts/verify_arc_runner_render.sh` y `tests/test_arc_k8s_atlantic.py` fijan esa política. Idea de
   seguimiento, no verificada ni hecha: datos de DinD de sauvage en md2 (0 % de utilización).
+- `arc-k8s-sauvage` (2026-11-16, INFRA-1397): tercer scale set de `infra/arc.yaml` con `scaleSetLabels: [arc-k8s]`,
+  fijado a sauvage con `maxRunners: 3` (límite fijado por Daniel: el md3 de sauvage es un HDD y 24 arranques en frío a
+  la vez lo saturaron). Es el único scale set que tolera `role=edge`. Reparto de las 32 plazas del `runs-on: arc-k8s`:
+  21 `arc-k8s` (solo x86) + 8 `arc-k8s-atlantic` + 3 `arc-k8s-sauvage`. Como `arc-k8s-atlantic`, está en
+  `ci-queue/pools.txt` solo porque la lista se deriva de todos los `runnerScaleSetName`. El template de los tres debe
+  ser idéntico (lo vigilan `tests/test_arc_k8s_atlantic.py` y `tests/test_arc_k8s_sauvage.py`). Subir el 3 exige medir
+  md3 (utilización e iowait) antes y después, no la media de 7 días.
 - Límite del exporter de cola (`ci-queue/exporter.py`): `status=queued` solo lista runs SIN ningún job arrancado;
   un job con label sin pool dentro de un run cuyos otros jobs ya corren es invisible. «En cola» se decide por el
   `status` del job, no por `started_at` (la API lo rellena en jobs que nunca tuvieron runner).
