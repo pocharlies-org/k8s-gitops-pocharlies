@@ -68,8 +68,8 @@ root = Path(sys.argv[1])
 runner_image = "ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4"
 dind_image = "docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c"
 expected_selector = {"kubernetes.io/arch": "amd64"}
-# arc-k8s (INFRA-960, 2026-10-28): pool CPU dedicado (workload=cpu: atlantic +
-# ubuntu). Los ks5-cp-* pierden el puesto de destino por defecto.
+# arc-k8s (INFRA-960, 2026-10-28): pool CPU dedicado (workload=cpu). Los ks5-cp-* pierden el puesto
+# de destino por defecto; desde el 15-11 atlantic y ubuntu quedan fuera por nodeAffinity (arc-k8s-atlantic, SC-5633).
 expected_selector_shared = {"kubernetes.io/arch": "amd64", "workload": "cpu"}
 expected_antiaffinity_labels = {
     "app.kubernetes.io/component": "runner",
@@ -166,8 +166,8 @@ def validate_common(
         # CPU), dejando los jobs de skirmshop-labels fuera de su timeout.
         # 2026-11-15: atlantic sale de este scale set (required NotIn por
         # hostname; sus 8 plazas son arc-k8s-atlantic), sauvage entra como
-        # destino preferido (toleration de role=edge, md3 ya no saturado) y x86
-        # queda de desborde.
+        # destino preferido (toleration de role=edge, md3 ya no saturado).
+        # SC-5633 (mismo dia): el x86 sale tambien; sin desborde, Pending.
         assert pod_spec["affinity"]["nodeAffinity"] == {
             "requiredDuringSchedulingIgnoredDuringExecution": {
                 "nodeSelectorTerms": [
@@ -180,7 +180,7 @@ def validate_common(
                             {
                                 "key": "kubernetes.io/hostname",
                                 "operator": "NotIn",
-                                "values": ["atlantic"],
+                                "values": ["atlantic", "ubuntu"],
                             },
                         ]
                     }

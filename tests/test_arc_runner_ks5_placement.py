@@ -36,7 +36,7 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertNotIn("key: node-pool", runner_values)
         self.assertNotIn("values: [ks5-nvme]", runner_values)
         self.assertIn("operator: NotIn", runner_values)
-        self.assertIn("values: [atlantic]", runner_values)
+        self.assertIn("values: [atlantic, ubuntu]", runner_values)  # SC-5633: tampoco el x86
         self.assertIn("values: [sauvage]", runner_values)
         # el hostname va en nodeAffinity, nunca fijado en el nodeSelector
         self.assertNotIn("kubernetes.io/hostname:", runner_values)

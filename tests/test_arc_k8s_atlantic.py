@@ -94,7 +94,7 @@ class ArcAtlanticCapTest(unittest.TestCase):
         required = node_affinity["requiredDuringSchedulingIgnoredDuringExecution"]
         expressions = required["nodeSelectorTerms"][0]["matchExpressions"]
         self.assertIn(
-            {"key": "kubernetes.io/hostname", "operator": "NotIn", "values": ["atlantic"]},
+            {"key": "kubernetes.io/hostname", "operator": "NotIn", "values": ["atlantic", "ubuntu"]},  # SC-5633: tampoco el x86
             expressions,
         )
         self.assertIn(
