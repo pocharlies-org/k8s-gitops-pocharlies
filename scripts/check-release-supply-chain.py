@@ -206,7 +206,14 @@ require("refs/(heads|tags)" not in workflow, "mutable certificate reference acce
 # SKIRM-451: NPM_TOKEN opcional montado como BuildKit secret condicional
 # (--secret id=npm_token solo si el llamante lo declara); build idéntico para
 # los consumidores actuales. Revisado en la PR #743 con veredicto de security.
-expected_workflow_digest = "284fef82002af38773c93b65ea45ced1d3c5861cf21f5c429f63f8f0d7e4b36b"
+# INFRA-1301: input `base_registry` — login opcional (default vacío, consumidores
+# actuales intactos) al hostname exacto del FROM, para que buildx resuelva la base
+# fijada por digest del nombre canónico de docs/images/bases.md
+# (harbor.e-dani.com); el push sigue yendo a harbor.lan.e-dani.com. Mismo robot
+# HARBOR_USER/HARBOR_PASSWORD, que ya lee homelab/* desde ese hostname (el CI de
+# back-in-stock inicia sesión ahí y está verde). Sin él, run 43654227972: 401 en
+# el HEAD del manifiesto de homelab/base-node.
+expected_workflow_digest = "43d8be45fb790a4a2236e2a0ff2ddd9bcca76573c9639c37a0cab36446b048ce"
 # La instalacion de Buildx (checksums + imagen por digest) vive ahora en la
 # accion local: se pinnea igual que el workflow, o el contrato pierde cobertura.
 expected_buildx_action_digest = "e39317a5be5b63d9d01959164ac5c0e6f809eed870c8a5e28be2999043eb9353"

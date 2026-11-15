@@ -195,7 +195,12 @@ for label, mutated_release, mutated_manifest in [
 # linkage/signature/promotion remain unchanged. Security review still required.
 # SKIRM-451: mismo cambio revisado en la PR #743 (NPM_TOKEN opcional como
 # BuildKit secret condicional); veredicto de security en el head 5cac20cd.
-expected_release_sha256 = "284fef82002af38773c93b65ea45ced1d3c5861cf21f5c429f63f8f0d7e4b36b"
+# Revisado el 15-11-2026 (INFRA-1301, PR #757): mismo cambio revisado en la PR #757
+# (input `base_registry`: login opcional al hostname exacto del FROM para que buildx
+# resuelva la base fijada por digest; default vacío, consumidores actuales intactos y
+# el push sin cambios). Digest actualizado junto con el de check-release-supply-chain.py
+# (43d8be45). El enlace digest de imagen -> manifest no cambia.
+expected_release_sha256 = "43d8be45fb790a4a2236e2a0ff2ddd9bcca76573c9639c37a0cab36446b048ce"
 expected_manifest_sha256 = "4e48cd19b2bb6da68e674687e68a4f2027daec6d449a882e03bef604af180fef"
 release_sha256 = hashlib.sha256(release.encode()).hexdigest()
 manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()
