@@ -117,7 +117,8 @@ Nº de tests: 105 (medido con `unittest discover` el 2026-11-08; 27 en `tests/te
   mv ci-queue/pools.txt.new ci-queue/pools.txt`.
 - `arc-k8s-atlantic` (2026-11-15): segundo scale set de `infra/arc.yaml` con `scaleSetLabels: [arc-k8s]`; atiende el
   mismo `runs-on: arc-k8s` que `arc-k8s` pero fijado a atlantic con `maxRunners: 8` (los otros 24 van en `arc-k8s`, que
-  excluye atlantic y, desde el 2026-11-16, también sauvage: solo x86). Ningún job pide el nombre `arc-k8s-atlantic`:
+  excluye atlantic y, desde el 2026-11-16, también sauvage: solo x86; desde el mismo día hay además
+  `arc-k8s-sauvage` y atlantic lleva `minRunners: 8`, ver más abajo). Ningún job pide el nombre `arc-k8s-atlantic`:
   está en `ci-queue/pools.txt` solo porque la lista se deriva de todos los `runnerScaleSetName`. El template de los dos
   debe ser idéntico (lo vigila `tests/test_arc_k8s_atlantic.py`).
 - sauvage NO es elegible para `arc-k8s` (2026-11-16, INFRA-1397): `arc-k8s` no tolera `role=edge` ni lo prefiere. La
@@ -126,6 +127,20 @@ Nº de tests: 105 (medido con `unittest discover` el 2026-11-08; 27 en `tests/te
   runners. Con `arc-k8s` solo en x86 y `arc-k8s-atlantic` solo en atlantic, los pods que no caben esperan en Pending
   (aceptado). `scripts/verify_arc_runner_render.sh` y `tests/test_arc_k8s_atlantic.py` fijan esa política. Idea de
   seguimiento, no verificada ni hecha: datos de DinD de sauvage en md2 (0 % de utilización).
+- `arc-k8s-sauvage` (2026-11-16, INFRA-1397): tercer scale set de `infra/arc.yaml` con `scaleSetLabels: [arc-k8s]`,
+  fijado a sauvage con `maxRunners: 8` y `minRunners: 0` (último recurso: el md3 de sauvage es un HDD y 24 arranques
+  en frío a la vez lo llevaron al 89-100 % de utilización). Es el único scale set que tolera `role=edge`. Diseño final,
+  40 plazas del `runs-on: arc-k8s`: 8 `arc-k8s-atlantic` (`minRunners: 8`) + 24 `arc-k8s` (solo x86, `minRunners: 2`) +
+  8 `arc-k8s-sauvage` (`minRunners: 0`). Como `arc-k8s-atlantic`, está en `ci-queue/pools.txt` solo porque la lista se
+  deriva de todos los `runnerScaleSetName`. El template de los tres debe ser idéntico (lo vigilan
+  `tests/test_arc_k8s_atlantic.py` y `tests/test_arc_k8s_sauvage.py`). Subir el 8 exige medir md3 (utilización e
+  iowait) antes y después, no la media de 7 días.
+- Prioridad atlantic > x86 > sauvage en `runs-on: arc-k8s` (2026-11-16): ARC y GitHub no tienen una prioridad explícita
+  entre scale sets que comparten etiqueta. Se aproxima con runners calientes y registrados (`min == max` en atlantic,
+  `min` 2 en x86, 0 en sauvage): GitHub da los jobs en cola a los runners libres ya registrados, así que atlantic atiende
+  primero; con todos ocupados, el desbordamiento va al listener que adquiere el job, sin orden garantizado. Riesgo
+  conocido: la memoria en requests de x86 estaba al 97 % y el 2026-11-15 cabían ~14-16 runners de `arc-k8s`; los pods
+  por encima quedan Pending (los requests no se tocaron).
 - Límite del exporter de cola (`ci-queue/exporter.py`): `status=queued` solo lista runs SIN ningún job arrancado;
   un job con label sin pool dentro de un run cuyos otros jobs ya corren es invisible. «En cola» se decide por el
   `status` del job, no por `started_at` (la API lo rellena en jobs que nunca tuvieron runner).
