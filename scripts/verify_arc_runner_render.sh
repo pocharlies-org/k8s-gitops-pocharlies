@@ -72,6 +72,9 @@ if not __debug__:
 
 root = Path(sys.argv[1])
 runner_image = "ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4"
+# INFRA-1419 (2026-11-16): el contenedor `runner` de los tres scale sets del
+# pool arc-k8s lleva el entorno del CI dentro; openclaw y skills-eval no.
+ci_runner_image = "harbor.lan.e-dani.com/homelab/ci-runner@sha256:1749298b1a66b82d10dd438faaa39c745fbdbba7b202e9d7a97adaa91d5f3bf3"
 dind_image = "docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c"
 expected_selector = {"kubernetes.io/arch": "amd64"}
 # arc-k8s (INFRA-960, 2026-10-28): pool CPU dedicado (workload=cpu: atlantic +
@@ -494,7 +497,7 @@ assert externals_init["resources"] == {
 }
 
 shared_runner = shared_spec["containers"][0]
-assert shared_runner["image"] == runner_image
+assert shared_runner["image"] == ci_runner_image
 assert shared_runner["imagePullPolicy"] == "IfNotPresent"
 runner_env = {item["name"]: item.get("value") for item in shared_runner["env"]}
 assert runner_env["DOCKER_HOST"] == "unix:///var/run/docker.sock"
