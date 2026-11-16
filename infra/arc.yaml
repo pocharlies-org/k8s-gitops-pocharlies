@@ -551,7 +551,16 @@ spec:
                     mountPath: /var/run
             containers:
               - name: runner
-                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                # 2026-11-16 · INFRA-1419: imagen de runner con el entorno del CI
+                # dentro (paquetes de la linea apt-get del Dockerfile del
+                # dashboard + playwright + chromium). Los pasos `Install system
+                # deps` e `install-deps` de ci.yml preguntan con dpkg y ya no
+                # instalan nada: el apt de cada job (41-625 s medidos, el 47 %
+                # de la pata mas lenta) desaparece. La construye y publica
+                # build-ci-runner.yml de dgx-infra y deriva las deps de las
+                # mismas fuentes que lee el CI. Init y warm-pr-agent siguen en la
+                # imagen oficial: solo copian externals y hacen un pull.
+                image: harbor.lan.e-dani.com/homelab/ci-runner@sha256:1749298b1a66b82d10dd438faaa39c745fbdbba7b202e9d7a97adaa91d5f3bf3
                 imagePullPolicy: IfNotPresent
                 command: ["/home/runner/run.sh"]
                 env:
@@ -832,7 +841,8 @@ spec:
                     mountPath: /var/run
             containers:
               - name: runner
-                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                # Misma imagen que arc-k8s (INFRA-1419). Si cambia, cambian las tres.
+                image: harbor.lan.e-dani.com/homelab/ci-runner@sha256:1749298b1a66b82d10dd438faaa39c745fbdbba7b202e9d7a97adaa91d5f3bf3
                 imagePullPolicy: IfNotPresent
                 command: ["/home/runner/run.sh"]
                 env:
@@ -1104,7 +1114,8 @@ spec:
                     mountPath: /var/run
             containers:
               - name: runner
-                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                # Misma imagen que arc-k8s (INFRA-1419). Si cambia, cambian las tres.
+                image: harbor.lan.e-dani.com/homelab/ci-runner@sha256:1749298b1a66b82d10dd438faaa39c745fbdbba7b202e9d7a97adaa91d5f3bf3
                 imagePullPolicy: IfNotPresent
                 command: ["/home/runner/run.sh"]
                 env:
