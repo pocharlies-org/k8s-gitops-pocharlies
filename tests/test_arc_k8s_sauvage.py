@@ -1,5 +1,5 @@
 """2026-11-16 (INFRA-1397): sauvage es el ultimo recurso del pool arc-k8s, con un
-tope de 8 runners y ninguno caliente.
+tope de 3 runners (8 en la primera version del dia) y ninguno caliente.
 
 El md3 de sauvage es un HDD (RAID sda/sdb). Con 24 runners de arc-k8s
 arrancando en frio a la vez (re-admision de #765, 2026-11-15) paso de ~30 % a
@@ -8,7 +8,8 @@ comparten ese disco. arc-k8s sigue SIN tolerar role=edge (el taint de
 sauvage): el unico camino a sauvage es este scale set, que comparte la etiqueta
 `arc-k8s` (`scaleSetLabels: [arc-k8s]` -> `spec.runnerScaleSetLabels`, chart
 0.14.1) y por tanto casa el mismo `runs-on: arc-k8s`. Plazas:
-8 (atlantic, min 8) + 24 (arc-k8s, x86, min 2) + 8 (sauvage, min 0) = 40. ARC no
+4 (atlantic, min 4) + 24 (arc-k8s, x86, min 2) + 3 (sauvage, min 0) = 31. Medido
+00:06-00:22 CET: el md3 llego al 78 % con 6 runners y al 98-100 % con 8. ARC no
 tiene prioridad explicita entre scale sets: atlantic > x86 > sauvage se
 aproxima con runners calientes.
 
@@ -86,24 +87,24 @@ class ArcSauvageCapTest(unittest.TestCase):
         self.assertEqual(sauvage_app["spec"]["destination"], shared_app["spec"]["destination"])
         self.assertEqual(sauvage_app["spec"]["syncPolicy"], shared_app["spec"]["syncPolicy"])
 
-    def test_cap_is_eight_and_total_is_forty(self) -> None:
+    def test_cap_is_three_and_total_is_thirty_one(self) -> None:
         atlantic = arc_values("arc-k8s-atlantic")
-        self.assertEqual(self.sauvage["maxRunners"], 8)
+        self.assertEqual(self.sauvage["maxRunners"], 3)
         self.assertEqual(self.shared["maxRunners"], 24)
         self.assertEqual(
             self.shared["maxRunners"]
             + atlantic["maxRunners"]
             + self.sauvage["maxRunners"],
-            40,
+            31,
         )
 
     def test_sauvage_set_is_the_last_resort_with_no_warm_runners(self) -> None:
-        """Sin calientes: los calientes los ponen atlantic (8) y arc-k8s (2, en
+        """Sin calientes: los calientes los ponen atlantic (4) y arc-k8s (2, en
         x86, INFRA-334); sauvage solo arranca los runners que hagan falta."""
         atlantic = arc_values("arc-k8s-atlantic")
         self.assertEqual(self.sauvage["minRunners"], 0)
         self.assertEqual(self.shared["minRunners"], 2)
-        self.assertEqual(atlantic["minRunners"], 8)
+        self.assertEqual(atlantic["minRunners"], 4)
 
     def test_sauvage_set_is_pinned_to_sauvage_and_tolerates_edge(self) -> None:
         self.assertEqual(
@@ -152,7 +153,7 @@ class ArcSauvageCapTest(unittest.TestCase):
 
     def test_sauvage_cap_carries_a_dated_comment(self) -> None:
         """Como arc-k8s: el bloque de comentarios justo encima de maxRunners
-        lleva fecha, el ticket y la razon del 8 (md3, un HDD)."""
+        lleva fecha, el ticket y la razon del numero (md3, un HDD)."""
         values_text = arc_application("arc-k8s-sauvage")["spec"]["source"]["helm"]["values"]
         lines = values_text.splitlines()
         index = next(
@@ -169,8 +170,9 @@ class ArcSauvageCapTest(unittest.TestCase):
         self.assertRegex("\n".join(block), DATED_COMMENT)
         self.assertIn("INFRA-1397", text)
         self.assertIn("md3", text)
-        self.assertIn("atlantic 8 + x86 24 + sauvage 8", text)
-        self.assertIn("40 plazas", text)
+        self.assertIn("atlantic 4 + x86 24 + sauvage 3", text)
+        self.assertIn("31 plazas", text)
+        self.assertIn("ACTUALIZA", text)
 
 
 if __name__ == "__main__":

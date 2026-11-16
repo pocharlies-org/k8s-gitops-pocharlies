@@ -1,4 +1,4 @@
-"""2026-11-15: atlantic tiene un tope de 8 runners de arc-k8s.
+"""2026-11-15: atlantic tiene un tope de runners de arc-k8s (8; 4 desde el 2026-11-16).
 
 Con el pool lleno (32/32) atlantic (16 CPU, tambien aloja paseo-0) llego a ~23
 runners de arc-k8s: 16 CPU al 99 % y el daemon de Paseo sin CPU. El pool de
@@ -8,12 +8,14 @@ runners de arc-k8s: 16 CPU al 99 % y el daemon de Paseo sin CPU. El pool de
   - arc-k8s          atlantic excluido (required NotIn por hostname) y sauvage
                      excluido (no tolera role=edge, ver INFRA-1397 2026-11-16):
                      solo x86;
-  - arc-k8s-atlantic maxRunners 8, fijado a atlantic.
+  - arc-k8s-atlantic maxRunners 4 (8 hasta el 2026-11-16), fijado a atlantic.
 
 2026-11-16 (INFRA-1397): diseno final de tres scale sets con la etiqueta
-arc-k8s y 40 plazas: atlantic 8 (min 8), arc-k8s en x86 24 (min 2) y
-arc-k8s-sauvage 8 (min 0, tests/test_arc_k8s_sauvage.py). Atlantic es la primera
-prioridad: 8 runners calientes y registrados siempre libres (ARC no tiene
+arc-k8s y 31 plazas: atlantic 4 (min 4), arc-k8s en x86 24 (min 2) y
+arc-k8s-sauvage 3 (min 0, tests/test_arc_k8s_sauvage.py). Con 8 en atlantic y
+8 en sauvage (40 plazas) atlantic quedaba al 96-99 % de CPU y paseo-0 perdia, y
+el md3 de sauvage llegaba al 98-100 %. Atlantic es la primera
+prioridad: 4 runners calientes y registrados siempre libres (ARC no tiene
 prioridad explicita entre scale sets; se aproxima con minRunners). Este test es
 la puerta de la parte de atlantic; el render real con helm lo comprueba
 scripts/verify_arc_runner_render.sh.
@@ -78,17 +80,17 @@ class ArcAtlanticCapTest(unittest.TestCase):
             arc_application("arc-k8s")["spec"]["destination"],
         )
 
-    def test_total_capacity_is_forty(self) -> None:
-        """24 (x86) + 8 (atlantic) + 8 (sauvage) = 40."""
+    def test_total_capacity_is_thirty_one(self) -> None:
+        """24 (x86) + 4 (atlantic) + 3 (sauvage) = 31 (INFRA-1397, 2026-11-16)."""
         sauvage = arc_values("arc-k8s-sauvage")
         self.assertEqual(self.shared["maxRunners"], 24)
-        self.assertEqual(self.atlantic["maxRunners"], 8)
-        self.assertEqual(sauvage["maxRunners"], 8)
+        self.assertEqual(self.atlantic["maxRunners"], 4)
+        self.assertEqual(sauvage["maxRunners"], 3)
         self.assertEqual(
             self.shared["maxRunners"]
             + self.atlantic["maxRunners"]
             + sauvage["maxRunners"],
-            40,
+            31,
         )
 
     def test_atlantic_is_first_priority_with_warm_runners(self) -> None:
@@ -96,7 +98,7 @@ class ArcAtlanticCapTest(unittest.TestCase):
         prioridad explicita): atlantic con min == max, x86 con los 2 calientes de
         INFRA-334, sauvage sin ninguno."""
         sauvage = arc_values("arc-k8s-sauvage")
-        self.assertEqual(self.atlantic["minRunners"], 8)
+        self.assertEqual(self.atlantic["minRunners"], 4)
         self.assertEqual(self.atlantic["minRunners"], self.atlantic["maxRunners"])
         self.assertEqual(self.shared["minRunners"], 2)
         self.assertEqual(sauvage["minRunners"], 0)
@@ -156,7 +158,8 @@ class ArcAtlanticCapTest(unittest.TestCase):
         joined = "\n".join(block)
         self.assertRegex(joined, DATED_COMMENT)
         self.assertIn("paseo-0", joined)
-        self.assertIn("24 + 8 = 32", joined)
+        self.assertIn("24 + 8 = 32", joined)  # bloque historico del 2026-11-15
+        self.assertIn("atlantic 4 + x86 24 + sauvage 3", joined)  # INFRA-1397
 
 
 if __name__ == "__main__":

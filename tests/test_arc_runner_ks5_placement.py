@@ -20,7 +20,7 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         control planes: ks5-cp-* no llevan taint y los 16 runners los
         saturaban (115-120 % de CPU), dejando los jobs de skirmshop-labels
         fuera de su timeout de 15 min. 2026-11-15: atlantic sale de este scale
-        set (required NotIn por hostname; sus 8 plazas son arc-k8s-atlantic,
+        set (required NotIn por hostname; sus 4 plazas son arc-k8s-atlantic,
         ver tests/test_arc_k8s_atlantic.py). 2026-11-16 (INFRA-1397): sauvage
         tampoco entra (test_shared_pool_does_not_tolerate_edge): el unico nodo
         elegible es x86.
@@ -78,10 +78,10 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         # la del x86 (pool=dev, PreferNoSchedule) SI se conserva: ese nodo va bien
         self.assertIn("key: pool", runner_tolerations)
 
-    def test_runner_pool_is_24_shared_plus_8_atlantic_plus_8_sauvage(self) -> None:
-        """40 plazas sobre el pool cpu (partia de las 32 de la remedicion exacta
-        INFRA-1093, 02-11): 24 en arc-k8s (solo x86, min 2), 8 en
-        arc-k8s-atlantic (min 8, primera prioridad) y 8 en arc-k8s-sauvage (min
+    def test_runner_pool_is_24_shared_plus_4_atlantic_plus_3_sauvage(self) -> None:
+        """31 plazas sobre el pool cpu (partia de las 32 de la remedicion exacta
+        INFRA-1093, 02-11): 24 en arc-k8s (solo x86, min 2), 4 en
+        arc-k8s-atlantic (min 4, primera prioridad) y 3 en arc-k8s-sauvage (min
         0, ultimo recurso; su md3 es un HDD). INFRA-1397, 2026-11-16; ver los
         comentarios en infra/arc.yaml."""
         shared, rest = self.shared_values.split("name: arc-k8s-atlantic", 1)
@@ -91,13 +91,15 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         # y un assert de subcadena a secas se auto-contradice con dos digitos.
         self.assertIn("maxRunners: 24\n", shared)
         self.assertIn("minRunners: 2\n", shared)
-        self.assertIn("maxRunners: 8\n", atlantic)
-        self.assertIn("minRunners: 8\n", atlantic)
-        self.assertIn("maxRunners: 8\n", sauvage)
+        self.assertIn("maxRunners: 4\n", atlantic)
+        self.assertIn("minRunners: 4\n", atlantic)
+        self.assertIn("maxRunners: 3\n", sauvage)
         self.assertIn("minRunners: 0\n", sauvage)
-        for stale in ("maxRunners: 32", "maxRunners: 21", "maxRunners: 16", "maxRunners: 8", "maxRunners: 6", "maxRunners: 3"):
+        for stale in ("maxRunners: 32", "maxRunners: 21", "maxRunners: 16", "maxRunners: 8", "maxRunners: 6", "maxRunners: 4", "maxRunners: 3"):
             self.assertNotIn(f"{stale}\n", shared)
-        self.assertNotIn("maxRunners: 4\n", self.manifest)
+        # atlantic y sauvage ya no tienen sus topes de la primera version (8)
+        self.assertNotIn("maxRunners: 8\n", atlantic)
+        self.assertNotIn("maxRunners: 8\n", sauvage)
 
     def test_openclaw_has_dedicated_runner_pool(self) -> None:
         self.assertIn("https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies", self.openclaw_values)
