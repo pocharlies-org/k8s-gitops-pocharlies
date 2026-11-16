@@ -127,9 +127,11 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         # externals, dind, warm-pr-agent, runner), mismas imagenes fijadas.
         # 2026-11-16 dani: +3 runner image, +1 dind image y +4 IfNotPresent —
         # el scale set arc-k8s-sauvage repite el mismo template (INFRA-1397).
-        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 13)
+        # 2026-11-16 devops · INFRA-1407: +1 runner image y +1 IfNotPresent — pool
+        # arc-manifestguard (guard de manifiestos), misma imagen fijada, sin dind.
+        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 14)
         self.assertEqual(self.manifest.count(f"image: {DIND_IMAGE}"), 4)
-        self.assertEqual(self.manifest.count("imagePullPolicy: IfNotPresent"), 17)
+        self.assertEqual(self.manifest.count("imagePullPolicy: IfNotPresent"), 18)
         self.assertNotIn("image: docker:dind", self.manifest)
         self.assertNotIn("image: ghcr.io/actions/actions-runner:2.335.1\n", self.manifest)
 
