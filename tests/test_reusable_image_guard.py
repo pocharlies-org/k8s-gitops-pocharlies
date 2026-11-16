@@ -100,12 +100,14 @@ class TestHerramientasFijadasPorDigest(unittest.TestCase):
         self.assertNotIn("go-containerregistry/crane:", TEXTO)
 
     def test_crane_recibe_la_config_de_login(self):
-        # Medido en skirmshop-labels#274: con el login hecho en el runner,
-        # crane seguía anónimo porque el daemon DinD no ve el $HOME del runner.
-        # La config tiene que llegar al contenedor por DOCKER_CONFIG montado
-        # bajo RUNNER_TEMP (única ruta compartida con el sidecar).
+        # Medido en skirmshop-labels#274: con el login hecho en el runner, crane
+        # seguía anónimo porque el daemon DinD del sidecar no ve ni el $HOME del
+        # runner ni $RUNNER_TEMP (runner ARC: workspace=/github/workspace,
+        # runner_temp=/github/runner_temp; solo el workspace se comparte). La
+        # config tiene que llegar al contenedor por DOCKER_CONFIG montado bajo
+        # GITHUB_WORKSPACE.
         self.assertIn("DOCKER_CONFIG", TEXTO)
-        self.assertIn("$RUNNER_TEMP/docker-config", TEXTO)
+        self.assertIn("$GITHUB_WORKSPACE/docker-config", TEXTO)
 
 
 if __name__ == "__main__":
