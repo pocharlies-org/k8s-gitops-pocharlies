@@ -7,3 +7,4 @@
         runnerScaleSetName: arc-k8s-atlantic
         runnerScaleSetName: arc-k8s-sauvage
         runnerScaleSetName: arc-skills-eval
+        runnerScaleSetName: arc-manifestguard
