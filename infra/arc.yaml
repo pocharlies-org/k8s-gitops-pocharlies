@@ -354,6 +354,11 @@ spec:
         # al 97 % y el 2026-11-15 cabian ~14-16 runners de este scale set; los
         # pods por encima de eso se quedan Pending hasta que haya hueco. Los
         # requests de los pods no se tocan.
+        # 2026-11-16 dani · INFRA-1397 (ACTUALIZA el bloque anterior): el tope
+        # y el minimo de este scale set no cambian (24 / 2). Las plazas totales
+        # pasan de 40 a 31 porque atlantic baja a 4 (min 4) y sauvage a 3
+        # (min 0); la medida que lo justifica esta en los bloques 2026-11-16 de
+        # arc-k8s-atlantic y arc-k8s-sauvage.
         maxRunners: 24
         # 2026-11-03 devops · INFRA-334 (p95 del job de review, criterio 6 de la
         # epica INFRA-298; el defecto medido por qa era cola + pull, no el motor).
@@ -640,8 +645,20 @@ spec:
         # libres, a los que GitHub da primero los jobs en cola. No es una
         # prioridad explicita de ARC (no existe), solo la aproximacion con
         # runners calientes; ver el bloque 2026-11-16 de arc-k8s.
-        maxRunners: 8
-        minRunners: 8
+        # 2026-11-16 dani · INFRA-1397 (ACTUALIZA el bloque anterior): el tope
+        # baja de 8 a 4 y minRunners de 8 a 4 (min == max: siguen calientes y
+        # siguen siendo la primera prioridad). Las plazas pasan de 40 a 31:
+        # atlantic 4 + x86 24 + sauvage 3. Motivo, medido 00:06-00:22 CET con
+        # atlantic 8 / x86 24 / sauvage 8: atlantic se quedo al 96-99 % de CPU;
+        # sus 8 runners ocupados gastaron ~15,6 cores (uno, 3,5) y paseo-0
+        # quiere ~8 pero solo tiene 500m de CPU request, asi que con
+        # contencion (CPU pressure 88 %) pierde. Los requests de CPU de
+        # atlantic ya estan al 99 % (bge-m3 4, bge-reranker 2, control-nexus
+        # ~3): subir el request de paseo-0 no es posible sin mover algo. Con
+        # 4 runners la CPU de runner a medir es ~la mitad; el resultado
+        # medido tras el cambio va en INFRA-1397.
+        maxRunners: 4
+        minRunners: 4
         runnerScaleSetName: arc-k8s-atlantic
         scaleSetLabels:
           - arc-k8s
@@ -901,7 +918,14 @@ spec:
         # jobs entre los tres. nodeSelector por hostname: sauvage es un nodo
         # solo. El template es el de arc-k8s tal cual (DinD, limites, MTU,
         # sidecar); tests/test_arc_k8s_sauvage.py falla si divergen.
-        maxRunners: 8
+        # 2026-11-16 dani · INFRA-1397 (ACTUALIZA el bloque anterior): el tope
+        # baja de 8 a 3 (min 0 igual). Medido 00:06-00:22 CET: el md3 de
+        # sauvage (HDD RAID) llego al 78 % de utilizacion con 6 runners y al
+        # 98-100 % con 8 (iowait hasta el 15 %), desde una base del 26-29 %.
+        # 31 plazas = atlantic 4 + x86 24 + sauvage 3. Opcion futura, NO
+        # verificada ni hecha: md2 de sauvage (0 % de utilizacion) para los
+        # datos de DinD en vez de md3.
+        maxRunners: 3
         minRunners: 0
         runnerScaleSetName: arc-k8s-sauvage
         scaleSetLabels:

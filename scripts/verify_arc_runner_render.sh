@@ -144,7 +144,7 @@ def validate_common(
             "value": "edge",
         } not in pod_spec["tolerations"]
     elif hostname_pinned:
-        # arc-k8s-atlantic (2026-11-15): los 8 runners de atlantic. El
+        # arc-k8s-atlantic (2026-11-15; 4 desde 2026-11-16): los runners de atlantic. El
         # hostname va en el nodeSelector; el required de los control planes se
         # conserva como en arc-k8s y no hace falta tolerar role=edge.
         # arc-k8s-sauvage (2026-11-16, INFRA-1397): los 3 runners de sauvage.
@@ -277,11 +277,12 @@ shared_set, shared_spec = validate_common(
 # sauvage.
 assert "runnerScaleSetLabels" not in shared_set["spec"]
 
-# arc-k8s-atlantic (2026-11-15): 8 runners fijados a atlantic con la etiqueta
+# arc-k8s-atlantic (2026-11-15): runners fijados a atlantic con la etiqueta
 # arc-k8s (scaleSetLabels -> spec.runnerScaleSetLabels), de modo que
 # `runs-on: arc-k8s` lo casa igual que al scale set compartido.
-# 2026-11-16 (INFRA-1397): minRunners 8 = maxRunners 8. Atlantic es la primera
-# prioridad del pool: 8 runners calientes y registrados siempre libres, a los
+# 2026-11-16 (INFRA-1397): minRunners = maxRunners = 4 (eran 8: con 8 ocupados
+# atlantic quedaba al 96-99 % de CPU y paseo-0 perdia). Atlantic es la primera
+# prioridad del pool: 4 runners calientes y registrados siempre libres, a los
 # que GitHub da primero los jobs en cola (no hay prioridad explicita en ARC).
 expected_selector_atlantic = {
     "kubernetes.io/arch": "amd64",
@@ -289,31 +290,31 @@ expected_selector_atlantic = {
 }
 atlantic_set, atlantic_spec = validate_common(
     "arc-k8s-atlantic",
-    8,
+    4,
     edge_fallback=False,
     selector=expected_selector_atlantic,
     hostname_pinned=True,
 )
 assert atlantic_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s"]
 assert atlantic_set["spec"]["runnerScaleSetName"] == "arc-k8s-atlantic"
-assert atlantic_set["spec"]["minRunners"] == 8
+assert atlantic_set["spec"]["minRunners"] == 4
 assert atlantic_set["spec"]["minRunners"] == atlantic_set["spec"]["maxRunners"]
 # Mismo pod que arc-k8s salvo la colocacion: DinD, limites, MTU, sidecar.
 for key in ("initContainers", "containers", "volumes"):
     assert atlantic_spec[key] == shared_spec[key], key
 
-# arc-k8s-sauvage (2026-11-16, INFRA-1397): 8 runners fijados a sauvage, con la
+# arc-k8s-sauvage (2026-11-16, INFRA-1397): 3 runners fijados a sauvage, con la
 # etiqueta arc-k8s, sin runners calientes (ultimo recurso del pool). Es el unico
-# scale set que tolera role=edge; tope de 8 porque su md3 (HDD) llego al 89-100 %
-# con 24 runners arrancando en frio. 8 + 24 + 8 = 40. La prioridad
-# atlantic > x86 > sauvage se aproxima con runners calientes: min 8 / min 2 / 0.
+# scale set que tolera role=edge; tope de 3 porque su md3 (HDD) llego al 98-100 %
+# con 8 runners (78 % con 6). 4 + 24 + 3 = 31. La prioridad
+# atlantic > x86 > sauvage se aproxima con runners calientes: min 4 / min 2 / 0.
 expected_selector_sauvage = {
     "kubernetes.io/arch": "amd64",
     "kubernetes.io/hostname": "sauvage",
 }
 sauvage_set, sauvage_spec = validate_common(
     "arc-k8s-sauvage",
-    8,
+    3,
     edge_fallback=False,
     selector=expected_selector_sauvage,
     hostname_pinned=True,
@@ -337,7 +338,7 @@ assert (
     shared_set["spec"]["maxRunners"]
     + atlantic_set["spec"]["maxRunners"]
     + sauvage_set["spec"]["maxRunners"]
-    == 40
+    == 31
 )
 for key in ("initContainers", "containers", "volumes"):
     assert sauvage_spec[key] == shared_spec[key], key
@@ -410,9 +411,9 @@ eligibility_matrix = {
     },
 }
 # arc-k8s (INFRA-960, 2026-11-16): pool cpu SIN atlantic (required NotIn por
-# hostname; sus 8 plazas son arc-k8s-atlantic) y SIN sauvage (no tolera
+# hostname; sus 4 plazas son arc-k8s-atlantic) y SIN sauvage (no tolera
 # role=edge: su md3 HDD se satura con arranques en frio, INFRA-1397): solo
-# ubuntu (x86). arc-k8s-atlantic: solo atlantic. arc-k8s-sauvage (8 plazas):
+# ubuntu (x86). arc-k8s-atlantic: solo atlantic. arc-k8s-sauvage (3 plazas):
 # solo sauvage, el unico que tolera role=edge.
 # arc-openclaw: anclado a ks5 como preferred, sin required — cualquier amd64
 # sin taint le vale.
