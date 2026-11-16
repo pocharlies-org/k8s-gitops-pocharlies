@@ -26,10 +26,10 @@ name: Reusable image-guard
 # Credenciales (INFRA-1363): el consumidor pasa `HARBOR_USER`/`HARBOR_PASSWORD`
 # (secretos opcionales del workflow_call) y el guard hace login en el registry de
 # la imagen antes de medir con crane. Como crane corre como contenedor contra el
-# daemon DinD (que no ve el $HOME del runner), el job fija DOCKER_CONFIG bajo
-# $RUNNER_TEMP: ahí escribe el login la CLI de docker y desde ahí se monta en el
-# contenedor de crane. Sin secretos el comportamiento es el de siempre: medición
-# anónima, pública.
+# daemon DinD (que no ve el $HOME del runner), el paso de login fija
+# DOCKER_CONFIG bajo $RUNNER_TEMP: ahí escribe el login la CLI de docker y desde
+# ahí se monta en el contenedor de crane. Sin secretos el comportamiento es el
+# de siempre: medición anónima, pública.
 #
 # Baseline (`baseline`): ruta en el repo que llama (p. ej. una copia en
 # `docs/images/`), URL https, o el JSON en línea (empieza por `{`). La línea
@@ -124,12 +124,6 @@ jobs:
       # Como en el job docker de reusable-ci: el `if` del login decide sobre
       # env, no sobre secrets (un secreto no pasado llega vacío, no undefined).
       HARBOR_USER: ${{ secrets.HARBOR_USER }}
-      # docker/login-action (CLI) escribe el login en $DOCKER_CONFIG si está
-      # puesto; el $HOME del runner NO lo ve el daemon DinD del sidecar (medido
-      # en skirmshop-labels#274: "Login Succeeded!" y crane anónimo igualmente).
-      # $RUNNER_TEMP está bajo el work dir, que sí se comparte: el login cae en
-      # una ruta que el contenedor de crane puede montar.
-      DOCKER_CONFIG: ${{ runner.temp }}/docker-config
     concurrency:
       # Un push encima cancela la medición anterior: revisamos el ultimo
       # commit, no el penultimo. `nombre` separa los guards de un mismo PR
@@ -196,6 +190,14 @@ jobs:
       - name: Log in to the image registry (private Harbor)
         # Solo con credenciales y registry propio: las imágenes de registry
         # público se miden anónimas como hasta ahora (superficie aditiva).
+        # DOCKER_CONFIG bajo $RUNNER_TEMP: la CLI de docker escribe el login ahí
+        # y el contenedor de crane lo monta (el $HOME del runner NO lo ve el
+        # daemon DinD del sidecar; medido en skirmshop-labels#274). Va en el env
+        # del paso, no del job: el contexto `runner` no está permitido en el env
+        # del job y el workflow del consumidor no cargaría (actionlint lo pilla;
+        # el runner context sí lo está a nivel de paso).
+        env:
+          DOCKER_CONFIG: ${{ runner.temp }}/docker-config
         if: ${{ env.HARBOR_USER != '' && steps.registry.outputs.host != '' }}
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
