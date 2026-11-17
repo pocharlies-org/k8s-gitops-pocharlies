@@ -108,6 +108,10 @@ class TestHerramientasFijadasPorDigest(unittest.TestCase):
         # GITHUB_WORKSPACE.
         self.assertIn("DOCKER_CONFIG", TEXTO)
         self.assertIn("$GITHUB_WORKSPACE/docker-config", TEXTO)
+        # La CLI escribe config.json 0600 y crane corre como nonroot: sin chmod
+        # el montaje no es legible por el contenedor (medido con job de
+        # diagnóstico en skirmshop-labels#274).
+        self.assertIn("chmod a+rX", TEXTO)
 
 
 if __name__ == "__main__":

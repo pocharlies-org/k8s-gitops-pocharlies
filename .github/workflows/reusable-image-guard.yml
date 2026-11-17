@@ -217,6 +217,14 @@ jobs:
           set -euo pipefail
           crane_auth=()
           if [ -f "$GITHUB_WORKSPACE/docker-config/config.json" ]; then
+            # La CLI de docker escribe config.json con modo 0600 y el contenedor
+            # de crane corre como usuario sin privilegios: sin abrir el permiso
+            # el montaje llega vacío de hecho y crane mide anónimo (medido con
+            # job de diagnóstico en skirmshop-labels#274: 600 runner(1001) ->
+            # UNAUTHORIZED; con a+rX -> manifiesto OK). El workspace es efímero
+            # del job y la credencial es del propio consumidor: la exposición no
+            # sale del runner que ya la tiene.
+            chmod a+rX "$GITHUB_WORKSPACE/docker-config" "$GITHUB_WORKSPACE/docker-config/config.json"
             crane_auth=(-e DOCKER_CONFIG=/kaniko/.docker -v "$GITHUB_WORKSPACE/docker-config:/kaniko/.docker:ro")
           fi
           crane() { docker run --rm "${crane_auth[@]}" "$CRANE_IMAGE" "$@"; }
