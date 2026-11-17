@@ -326,14 +326,17 @@ sauvage_set, sauvage_spec = validate_common(
 assert sauvage_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s"]
 assert sauvage_set["spec"]["runnerScaleSetName"] == "arc-k8s-sauvage"
 assert sauvage_set["spec"]["minRunners"] == 0
-# Prioridad por calentamiento: atlantic (min == max) >= x86 (min 4, la primera
-# oleada del CI son 8 jobs) > sauvage (0).
+# Prioridad por calentamiento: atlantic (min == max, tope que su CPU aguanta) y
+# x86 calientes, sauvage frio. INFRA-1424 subio x86 a 6: la oleada del CI de
+# dgx-infra ya son 13 jobs y atlantic no puede crecer de 4 sin quedarse al
+# 96-99 % (INFRA-1397), asi que el resto del calentamiento va al x86.
+assert atlantic_set["spec"]["minRunners"] == atlantic_set["spec"]["maxRunners"]
 assert (
-    atlantic_set["spec"]["minRunners"]
-    >= shared_set["spec"]["minRunners"]
+    shared_set["spec"]["minRunners"]
+    > atlantic_set["spec"]["minRunners"]
     > sauvage_set["spec"]["minRunners"]
 )
-assert shared_set["spec"]["minRunners"] == 4
+assert shared_set["spec"]["minRunners"] == 6
 assert sauvage_spec["tolerations"] == [
     {"effect": "PreferNoSchedule", "key": "pool", "operator": "Equal", "value": "dev"},
     {"effect": "NoSchedule", "key": "role", "operator": "Equal", "value": "edge"},

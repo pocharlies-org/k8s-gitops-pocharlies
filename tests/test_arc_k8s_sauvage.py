@@ -103,7 +103,7 @@ class ArcSauvageCapTest(unittest.TestCase):
         x86, INFRA-1424); sauvage solo arranca los runners que hagan falta."""
         atlantic = arc_values("arc-k8s-atlantic")
         self.assertEqual(self.sauvage["minRunners"], 0)
-        self.assertEqual(self.shared["minRunners"], 4)
+        self.assertEqual(self.shared["minRunners"], 6)
         self.assertEqual(atlantic["minRunners"], 4)
 
     def test_sauvage_set_is_pinned_to_sauvage_and_tolerates_edge(self) -> None:
