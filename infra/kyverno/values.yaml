@@ -43,6 +43,15 @@ backgroundController:
     operator: Equal
     value: llm
 cleanupController:
+  # SC-5905 (B3 de SC-5806): el TTL de Kyverno (`cleanup.kyverno.io/ttl`, temporizador por
+  # recurso desde su creación) borra los pods sueltos del runner serverlessworkflow/synapse
+  # en skirmshop; la Policy que pone la etiqueta vive en k8s-shopify-label-pocharlies.
+  rbac:
+    clusterRole:
+      extraResources:
+        - apiGroups: [""]
+          resources: ["pods"]
+          verbs: ["get", "list", "watch", "delete"]
   nodeSelector:
     node-pool: ks5-nvme
   resources:
