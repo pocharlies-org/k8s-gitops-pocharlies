@@ -8,7 +8,7 @@ RUNNER_IMAGE = "ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc96
 # Dockerfile del dashboard, playwright y chromium). Solo en los tres scale sets
 # que atienden `runs-on: arc-k8s`; openclaw, hermes y skills-eval siguen con la
 # imagen oficial. La construye build-ci-runner.yml de dgx-infra.
-CI_RUNNER_IMAGE = "harbor.lan.e-dani.com/homelab/ci-runner@sha256:1749298b1a66b82d10dd438faaa39c745fbdbba7b202e9d7a97adaa91d5f3bf3"
+CI_RUNNER_IMAGE = "harbor.lan.e-dani.com/homelab/ci-runner@sha256:114b6d26d7e219f5e5b694b03a35db9eac9948c89bfe97a33c0d1544d66ee3c0"
 DIND_IMAGE = "docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c"
 
 

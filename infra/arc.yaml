@@ -569,7 +569,14 @@ spec:
                 # build-ci-runner.yml de dgx-infra y deriva las deps de las
                 # mismas fuentes que lee el CI. Init y warm-pr-agent siguen en la
                 # imagen oficial: solo copian externals y hacen un pull.
-                image: harbor.lan.e-dani.com/homelab/ci-runner@sha256:1749298b1a66b82d10dd438faaa39c745fbdbba7b202e9d7a97adaa91d5f3bf3
+                # 2026-11-17 · INFRA-1424: y con el resto del setup dentro —
+                # node 22 + cache npm, las deps pip del dashboard con los pins de
+                # pytest, el binario de MinIO y el python del sistema. El paso
+                # `¿Entorno ya en la imagen?` de ci.yml compara la huella y se
+                # salta setup-go/setup-python/setup-node, las deps pip, la cache
+                # de Playwright y la de MinIO (~256 s por pata). Una imagen sin
+                # la huella funciona igual: los pasos corren como antes.
+                image: harbor.lan.e-dani.com/homelab/ci-runner@sha256:114b6d26d7e219f5e5b694b03a35db9eac9948c89bfe97a33c0d1544d66ee3c0
                 imagePullPolicy: IfNotPresent
                 command: ["/home/runner/run.sh"]
                 env:
@@ -851,7 +858,7 @@ spec:
             containers:
               - name: runner
                 # Misma imagen que arc-k8s (INFRA-1419). Si cambia, cambian las tres.
-                image: harbor.lan.e-dani.com/homelab/ci-runner@sha256:1749298b1a66b82d10dd438faaa39c745fbdbba7b202e9d7a97adaa91d5f3bf3
+                image: harbor.lan.e-dani.com/homelab/ci-runner@sha256:114b6d26d7e219f5e5b694b03a35db9eac9948c89bfe97a33c0d1544d66ee3c0
                 imagePullPolicy: IfNotPresent
                 command: ["/home/runner/run.sh"]
                 env:
@@ -1124,7 +1131,7 @@ spec:
             containers:
               - name: runner
                 # Misma imagen que arc-k8s (INFRA-1419). Si cambia, cambian las tres.
-                image: harbor.lan.e-dani.com/homelab/ci-runner@sha256:1749298b1a66b82d10dd438faaa39c745fbdbba7b202e9d7a97adaa91d5f3bf3
+                image: harbor.lan.e-dani.com/homelab/ci-runner@sha256:114b6d26d7e219f5e5b694b03a35db9eac9948c89bfe97a33c0d1544d66ee3c0
                 imagePullPolicy: IfNotPresent
                 command: ["/home/runner/run.sh"]
                 env:
