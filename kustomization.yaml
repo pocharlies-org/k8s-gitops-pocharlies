@@ -197,6 +197,17 @@ patches:
           name: labels-shipping-margin
           jsonPointers:
             - /data
+      # DGX-1653: la del panel de recargos (labels-cex-surcharges) también se perdía con el replace general.
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: ""
+          kind: ConfigMap
+          name: labels-cex-surcharges
+          jsonPointers:
+            - /data
+            - /metadata/annotations/skirmshop.labels~1last-edit-at
+            - /metadata/annotations/skirmshop.labels~1fuel-history
   - target:
       group: argoproj.io
       version: v1alpha1
@@ -676,5 +687,41 @@ patches:
           kind: Deployment
           name: nova-avatar
           namespace: nova
+          jsonPointers:
+            - /spec/replicas
+  # DGX-1653: el árbitro escala trellis/trellis-multiview (0<->1 por lease) y el eje dgx3 trellis-image-cache al abrir
+  # la ventana creative; el replace general de arriba borraba el ignoreDifferences de infra/trellis.yaml y selfHeal
+  # devolvía la caché a 0 en el mismo segundo: la ventana no abría nunca y el LLM de dgx3 se quedaba parado (17-11).
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+      name: trellis
+    patch: |-
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: trellis
+          namespace: trellis
+          jsonPointers:
+            - /spec/replicas
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: trellis-multiview
+          namespace: trellis
+          jsonPointers:
+            - /spec/replicas
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: trellis-image-cache
+          namespace: trellis
           jsonPointers:
             - /spec/replicas
