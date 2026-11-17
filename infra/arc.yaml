@@ -390,6 +390,16 @@ spec:
         # ver el bloque de arriba.
         minRunners: 6
         runnerScaleSetName: arc-k8s
+        # 2026-11-17 dani · INFRA-1437: `scaleSetLabels` se IMPONE a la
+        # etiqueta por defecto (el nombre), asi que aqui va `arc-k8s` explicito
+        # MAS `arc-k8s-light`. Reparto: `arc-k8s` = solo nodos rapidos (x86,
+        # atlantic) y es lo que piden todos los jobs; `arc-k8s-light` = tambien
+        # sauvage y solo la piden los jobs de menos de 2 min. En sauvage (HDD
+        # md3) un job pesado "no falla, se arrastra": 10m01 en el run
+        # 44010330389 y el run se fue a 12m06.
+        scaleSetLabels:
+          - arc-k8s
+          - arc-k8s-light
         template:
           spec:
             affinity:
@@ -690,8 +700,11 @@ spec:
         maxRunners: 4
         minRunners: 4
         runnerScaleSetName: arc-k8s-atlantic
+        # INFRA-1437: nodo rapido (16 CPU, SSD), asi que sirve `arc-k8s` (todos
+        # los jobs) y tambien `arc-k8s-light`.
         scaleSetLabels:
           - arc-k8s
+          - arc-k8s-light
         template:
           spec:
             affinity:
@@ -959,8 +972,13 @@ spec:
         maxRunners: 3
         minRunners: 0
         runnerScaleSetName: arc-k8s-sauvage
+        # INFRA-1437: A PROPOSITO sin `arc-k8s`, que es lo que pide todo el
+        # mundo. Este nodo "no falla, se arrastra" (HDD md3) y un solo job
+        # pesado aqui devuelve el run de CI a ~10 min. Solo registra
+        # `arc-k8s-light`, que piden los jobs de menos de 2 min (elegir y
+        # guards).
         scaleSetLabels:
-          - arc-k8s
+          - arc-k8s-light
         template:
           spec:
             affinity:

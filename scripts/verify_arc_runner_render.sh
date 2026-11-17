@@ -278,7 +278,7 @@ shared_set, shared_spec = validate_common(
 # arc-k8s conserva su etiqueta de scale set (el nombre) y no declara labels
 # extra: los que comparten el label `arc-k8s` son los scale sets de atlantic y
 # sauvage.
-assert "runnerScaleSetLabels" not in shared_set["spec"]
+assert shared_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s", "arc-k8s-light"]
 
 # arc-k8s-atlantic (2026-11-15): runners fijados a atlantic con la etiqueta
 # arc-k8s (scaleSetLabels -> spec.runnerScaleSetLabels), de modo que
@@ -298,7 +298,7 @@ atlantic_set, atlantic_spec = validate_common(
     selector=expected_selector_atlantic,
     hostname_pinned=True,
 )
-assert atlantic_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s"]
+assert atlantic_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s", "arc-k8s-light"]
 assert atlantic_set["spec"]["runnerScaleSetName"] == "arc-k8s-atlantic"
 assert atlantic_set["spec"]["minRunners"] == 4
 assert atlantic_set["spec"]["minRunners"] == atlantic_set["spec"]["maxRunners"]
@@ -323,7 +323,7 @@ sauvage_set, sauvage_spec = validate_common(
     hostname_pinned=True,
     edge_tolerated=True,
 )
-assert sauvage_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s"]
+assert sauvage_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s-light"]
 assert sauvage_set["spec"]["runnerScaleSetName"] == "arc-k8s-sauvage"
 assert sauvage_set["spec"]["minRunners"] == 0
 # Prioridad por calentamiento: atlantic (min == max, tope que su CPU aguanta) y

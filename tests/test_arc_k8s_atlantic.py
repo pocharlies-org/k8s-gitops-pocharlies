@@ -65,12 +65,12 @@ class ArcAtlanticCapTest(unittest.TestCase):
         self.atlantic_spec = self.atlantic["template"]["spec"]
 
     def test_atlantic_scale_set_serves_the_arc_k8s_label(self) -> None:
-        """Mismo `runs-on: arc-k8s`: el scale set de atlantic lleva la etiqueta
-        explicita y arc-k8s no declara ninguna (su etiqueta es su nombre)."""
+        """Mismo `runs-on: arc-k8s` y tambien `arc-k8s-fast` (INFRA-1437: es
+        un nodo rapido, los jobs pesados si pueden caer aqui)."""
         self.assertEqual(self.atlantic["runnerScaleSetName"], "arc-k8s-atlantic")
-        self.assertEqual(self.atlantic["scaleSetLabels"], ["arc-k8s"])
+        self.assertEqual(self.atlantic["scaleSetLabels"], ["arc-k8s", "arc-k8s-light"])
         self.assertEqual(self.shared["runnerScaleSetName"], "arc-k8s")
-        self.assertNotIn("scaleSetLabels", self.shared)
+        self.assertEqual(self.shared["scaleSetLabels"], ["arc-k8s", "arc-k8s-light"])
 
     def test_same_org_secret_and_controller(self) -> None:
         for key in ("githubConfigUrl", "githubConfigSecret", "controllerServiceAccount"):
