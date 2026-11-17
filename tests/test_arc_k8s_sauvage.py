@@ -99,11 +99,11 @@ class ArcSauvageCapTest(unittest.TestCase):
         )
 
     def test_sauvage_set_is_the_last_resort_with_no_warm_runners(self) -> None:
-        """Sin calientes: los calientes los ponen atlantic (4) y arc-k8s (2, en
-        x86, INFRA-334); sauvage solo arranca los runners que hagan falta."""
+        """Sin calientes: los calientes los ponen atlantic (4) y arc-k8s (4, en
+        x86, INFRA-1424); sauvage solo arranca los runners que hagan falta."""
         atlantic = arc_values("arc-k8s-atlantic")
         self.assertEqual(self.sauvage["minRunners"], 0)
-        self.assertEqual(self.shared["minRunners"], 2)
+        self.assertEqual(self.shared["minRunners"], 4)
         self.assertEqual(atlantic["minRunners"], 4)
 
     def test_sauvage_set_is_pinned_to_sauvage_and_tolerates_edge(self) -> None:

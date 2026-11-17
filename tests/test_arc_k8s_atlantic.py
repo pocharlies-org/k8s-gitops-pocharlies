@@ -94,15 +94,16 @@ class ArcAtlanticCapTest(unittest.TestCase):
         )
 
     def test_atlantic_is_first_priority_with_warm_runners(self) -> None:
-        """Prioridad atlantic > x86 > sauvage por calentamiento (ARC no tiene
-        prioridad explicita): atlantic con min == max, x86 con los 2 calientes de
-        INFRA-334, sauvage sin ninguno."""
+        """Prioridad atlantic >= x86 > sauvage por calentamiento (ARC no tiene
+        prioridad explicita): atlantic con min == max, x86 con 4 calientes (2 de
+        INFRA-334, 4 desde INFRA-1424: la primera oleada del CI son 8 jobs),
+        sauvage sin ninguno."""
         sauvage = arc_values("arc-k8s-sauvage")
         self.assertEqual(self.atlantic["minRunners"], 4)
         self.assertEqual(self.atlantic["minRunners"], self.atlantic["maxRunners"])
-        self.assertEqual(self.shared["minRunners"], 2)
+        self.assertEqual(self.shared["minRunners"], 4)
         self.assertEqual(sauvage["minRunners"], 0)
-        self.assertGreater(self.atlantic["minRunners"], self.shared["minRunners"])
+        self.assertGreaterEqual(self.atlantic["minRunners"], self.shared["minRunners"])
         self.assertGreater(self.shared["minRunners"], sauvage["minRunners"])
 
     def test_atlantic_set_is_pinned_to_atlantic_only(self) -> None:
