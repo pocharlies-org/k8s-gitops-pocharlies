@@ -8,7 +8,7 @@ RUNNER_IMAGE = "ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc96
 # Dockerfile del dashboard, playwright y chromium). Solo en los tres scale sets
 # que atienden `runs-on: arc-k8s`; openclaw, hermes y skills-eval siguen con la
 # imagen oficial. La construye build-ci-runner.yml de dgx-infra.
-CI_RUNNER_IMAGE = "harbor.lan.e-dani.com/homelab/ci-runner@sha256:1749298b1a66b82d10dd438faaa39c745fbdbba7b202e9d7a97adaa91d5f3bf3"
+CI_RUNNER_IMAGE = "harbor.lan.e-dani.com/homelab/ci-runner@sha256:114b6d26d7e219f5e5b694b03a35db9eac9948c89bfe97a33c0d1544d66ee3c0"
 DIND_IMAGE = "docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c"
 
 
@@ -85,17 +85,18 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
 
     def test_runner_pool_is_24_shared_plus_4_atlantic_plus_3_sauvage(self) -> None:
         """31 plazas sobre el pool cpu (partia de las 32 de la remedicion exacta
-        INFRA-1093, 02-11): 24 en arc-k8s (solo x86, min 2), 4 en
-        arc-k8s-atlantic (min 4, primera prioridad) y 3 en arc-k8s-sauvage (min
-        0, ultimo recurso; su md3 es un HDD). INFRA-1397, 2026-11-16; ver los
-        comentarios en infra/arc.yaml."""
+        INFRA-1093, 02-11): 24 en arc-k8s (solo x86, min 4 desde INFRA-1424 —
+        la primera oleada del CI son 8 jobs), 4 en arc-k8s-atlantic (min 4,
+        primera prioridad) y 3 en arc-k8s-sauvage (min 0, ultimo recurso; su md3
+        es un HDD). INFRA-1397, 2026-11-16; ver los comentarios en
+        infra/arc.yaml."""
         shared, rest = self.shared_values.split("name: arc-k8s-atlantic", 1)
         atlantic, rest = rest.split("name: arc-k8s-sauvage", 1)
         sauvage = rest.split("name: arc-skills-eval", 1)[0]
         # Anclados al fin de linea: "maxRunners: 32" contiene "maxRunners: 3",
         # y un assert de subcadena a secas se auto-contradice con dos digitos.
         self.assertIn("maxRunners: 24\n", shared)
-        self.assertIn("minRunners: 2\n", shared)
+        self.assertIn("minRunners: 4\n", shared)
         self.assertIn("maxRunners: 4\n", atlantic)
         self.assertIn("minRunners: 4\n", atlantic)
         self.assertIn("maxRunners: 3\n", sauvage)

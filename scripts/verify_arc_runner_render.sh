@@ -74,7 +74,7 @@ root = Path(sys.argv[1])
 runner_image = "ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4"
 # INFRA-1419 (2026-11-16): el contenedor `runner` de los tres scale sets del
 # pool arc-k8s lleva el entorno del CI dentro; openclaw y skills-eval no.
-ci_runner_image = "harbor.lan.e-dani.com/homelab/ci-runner@sha256:1749298b1a66b82d10dd438faaa39c745fbdbba7b202e9d7a97adaa91d5f3bf3"
+ci_runner_image = "harbor.lan.e-dani.com/homelab/ci-runner@sha256:114b6d26d7e219f5e5b694b03a35db9eac9948c89bfe97a33c0d1544d66ee3c0"
 dind_image = "docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c"
 expected_selector = {"kubernetes.io/arch": "amd64"}
 # arc-k8s (INFRA-960, 2026-10-28): pool CPU dedicado (workload=cpu: atlantic +
@@ -310,7 +310,7 @@ for key in ("initContainers", "containers", "volumes"):
 # etiqueta arc-k8s, sin runners calientes (ultimo recurso del pool). Es el unico
 # scale set que tolera role=edge; tope de 3 porque su md3 (HDD) llego al 98-100 %
 # con 8 runners (78 % con 6). 4 + 24 + 3 = 31. La prioridad
-# atlantic > x86 > sauvage se aproxima con runners calientes: min 4 / min 2 / 0.
+# atlantic > x86 > sauvage se aproxima con runners calientes: min 4 / min 4 / 0.
 expected_selector_sauvage = {
     "kubernetes.io/arch": "amd64",
     "kubernetes.io/hostname": "sauvage",
@@ -326,13 +326,14 @@ sauvage_set, sauvage_spec = validate_common(
 assert sauvage_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s"]
 assert sauvage_set["spec"]["runnerScaleSetName"] == "arc-k8s-sauvage"
 assert sauvage_set["spec"]["minRunners"] == 0
-# Prioridad por calentamiento: atlantic (min == max) > x86 (min 2) > sauvage (0).
+# Prioridad por calentamiento: atlantic (min == max) >= x86 (min 4, la primera
+# oleada del CI son 8 jobs) > sauvage (0).
 assert (
     atlantic_set["spec"]["minRunners"]
-    > shared_set["spec"]["minRunners"]
+    >= shared_set["spec"]["minRunners"]
     > sauvage_set["spec"]["minRunners"]
 )
-assert shared_set["spec"]["minRunners"] == 2
+assert shared_set["spec"]["minRunners"] == 4
 assert sauvage_spec["tolerations"] == [
     {"effect": "PreferNoSchedule", "key": "pool", "operator": "Equal", "value": "dev"},
     {"effect": "NoSchedule", "key": "role", "operator": "Equal", "value": "edge"},

@@ -355,10 +355,18 @@ spec:
         # pods por encima de eso se quedan Pending hasta que haya hueco. Los
         # requests de los pods no se tocan.
         # 2026-11-16 dani · INFRA-1397 (ACTUALIZA el bloque anterior): el tope
-        # y el minimo de este scale set no cambian (24 / 2). Las plazas totales
-        # pasan de 40 a 31 porque atlantic baja a 4 (min 4) y sauvage a 3
-        # (min 0); la medida que lo justifica esta en los bloques 2026-11-16 de
-        # arc-k8s-atlantic y arc-k8s-sauvage.
+        # de este scale set no cambia (24). Las plazas totales pasan de 40 a 31
+        # porque atlantic baja a 4 (min 4) y sauvage a 3 (min 0); la medida que
+        # lo justifica esta en los bloques 2026-11-16 de arc-k8s-atlantic y
+        # arc-k8s-sauvage.
+        # 2026-11-16 dani · INFRA-1424 (ACTUALIZA el minimo): 2 -> 4. La primera
+        # oleada del CI de dgx-infra son 8 jobs a la vez (4 legs de pytest +
+        # dashboard-e2e + los 3 dashboard-js-*) y con 6 calientes (2 aqui + 4 en
+        # atlantic) dos esperaban pod: en el run 43843759871 el grupo-0 entro
+        # 3,5 min tarde (09:53:54 encolado, 09:57:25 arrancado) y acabo el run
+        # el solo. Con los jobs ya cortos (INFRA-1424 deja el setup en casi
+        # nada) esa cola pesa mas que la propia pata. Coste: 2 pods mas de
+        # 100m CPU / 1 Gi de request, que x86 tiene de sobra (62 % de requests).
         maxRunners: 24
         # 2026-11-03 devops · INFRA-334 (p95 del job de review, criterio 6 de la
         # epica INFRA-298; el defecto medido por qa era cola + pull, no el motor).
@@ -373,8 +381,9 @@ spec:
         # instante. Coste: 2 x (100m+50m CPU, 1,5 Gi) de requests sobre atlantic +
         # x86, despreciable frente al tope de 32. Va junto al sidecar
         # warm-pr-agent de abajo, que es lo que hace que el runner caliente
-        # tambien tenga la imagen del motor en su dind.
-        minRunners: 2
+        # tambien tenga la imagen del motor en su dind. 2 -> 4: INFRA-1424, ver
+        # el bloque de arriba.
+        minRunners: 4
         runnerScaleSetName: arc-k8s
         template:
           spec:
@@ -560,7 +569,14 @@ spec:
                 # build-ci-runner.yml de dgx-infra y deriva las deps de las
                 # mismas fuentes que lee el CI. Init y warm-pr-agent siguen en la
                 # imagen oficial: solo copian externals y hacen un pull.
-                image: harbor.lan.e-dani.com/homelab/ci-runner@sha256:1749298b1a66b82d10dd438faaa39c745fbdbba7b202e9d7a97adaa91d5f3bf3
+                # 2026-11-17 · INFRA-1424: y con el resto del setup dentro —
+                # node 22 + cache npm, las deps pip del dashboard con los pins de
+                # pytest, el binario de MinIO y el python del sistema. El paso
+                # `¿Entorno ya en la imagen?` de ci.yml compara la huella y se
+                # salta setup-go/setup-python/setup-node, las deps pip, la cache
+                # de Playwright y la de MinIO (~256 s por pata). Una imagen sin
+                # la huella funciona igual: los pasos corren como antes.
+                image: harbor.lan.e-dani.com/homelab/ci-runner@sha256:114b6d26d7e219f5e5b694b03a35db9eac9948c89bfe97a33c0d1544d66ee3c0
                 imagePullPolicy: IfNotPresent
                 command: ["/home/runner/run.sh"]
                 env:
@@ -842,7 +858,7 @@ spec:
             containers:
               - name: runner
                 # Misma imagen que arc-k8s (INFRA-1419). Si cambia, cambian las tres.
-                image: harbor.lan.e-dani.com/homelab/ci-runner@sha256:1749298b1a66b82d10dd438faaa39c745fbdbba7b202e9d7a97adaa91d5f3bf3
+                image: harbor.lan.e-dani.com/homelab/ci-runner@sha256:114b6d26d7e219f5e5b694b03a35db9eac9948c89bfe97a33c0d1544d66ee3c0
                 imagePullPolicy: IfNotPresent
                 command: ["/home/runner/run.sh"]
                 env:
@@ -1115,7 +1131,7 @@ spec:
             containers:
               - name: runner
                 # Misma imagen que arc-k8s (INFRA-1419). Si cambia, cambian las tres.
-                image: harbor.lan.e-dani.com/homelab/ci-runner@sha256:1749298b1a66b82d10dd438faaa39c745fbdbba7b202e9d7a97adaa91d5f3bf3
+                image: harbor.lan.e-dani.com/homelab/ci-runner@sha256:114b6d26d7e219f5e5b694b03a35db9eac9948c89bfe97a33c0d1544d66ee3c0
                 imagePullPolicy: IfNotPresent
                 command: ["/home/runner/run.sh"]
                 env:
