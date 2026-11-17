@@ -310,7 +310,7 @@ for key in ("initContainers", "containers", "volumes"):
 # etiqueta arc-k8s, sin runners calientes (ultimo recurso del pool). Es el unico
 # scale set que tolera role=edge; tope de 3 porque su md3 (HDD) llego al 98-100 %
 # con 8 runners (78 % con 6). 4 + 24 + 3 = 31. La prioridad
-# atlantic > x86 > sauvage se aproxima con runners calientes: min 4 / min 2 / 0.
+# atlantic > x86 > sauvage se aproxima con runners calientes: min 4 / min 4 / 0.
 expected_selector_sauvage = {
     "kubernetes.io/arch": "amd64",
     "kubernetes.io/hostname": "sauvage",
@@ -326,13 +326,14 @@ sauvage_set, sauvage_spec = validate_common(
 assert sauvage_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s"]
 assert sauvage_set["spec"]["runnerScaleSetName"] == "arc-k8s-sauvage"
 assert sauvage_set["spec"]["minRunners"] == 0
-# Prioridad por calentamiento: atlantic (min == max) > x86 (min 2) > sauvage (0).
+# Prioridad por calentamiento: atlantic (min == max) >= x86 (min 4, la primera
+# oleada del CI son 8 jobs) > sauvage (0).
 assert (
     atlantic_set["spec"]["minRunners"]
-    > shared_set["spec"]["minRunners"]
+    >= shared_set["spec"]["minRunners"]
     > sauvage_set["spec"]["minRunners"]
 )
-assert shared_set["spec"]["minRunners"] == 2
+assert shared_set["spec"]["minRunners"] == 4
 assert sauvage_spec["tolerations"] == [
     {"effect": "PreferNoSchedule", "key": "pool", "operator": "Equal", "value": "dev"},
     {"effect": "NoSchedule", "key": "role", "operator": "Equal", "value": "edge"},
