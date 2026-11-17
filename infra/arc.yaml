@@ -367,6 +367,11 @@ spec:
         # el solo. Con los jobs ya cortos (INFRA-1424 deja el setup en casi
         # nada) esa cola pesa mas que la propia pata. Coste: 2 pods mas de
         # 100m CPU / 1 Gi de request, que x86 tiene de sobra (62 % de requests).
+        # 2026-11-17 dani · INFRA-1424 (ACTUALIZA el minimo): 4 -> 6. La oleada
+        # ya no son 8 jobs sino 13 (los JS del panel partidos en 2 shards y los
+        # unit tests en su job); con 8 calientes el run 44014688585 dejo al
+        # grupo-0 arrancando 64 s despues de `elegir`, 4 s por encima del
+        # criterio. 2 pods mas (100m / 1 Gi cada uno) lo cubren.
         maxRunners: 24
         # 2026-11-03 devops · INFRA-334 (p95 del job de review, criterio 6 de la
         # epica INFRA-298; el defecto medido por qa era cola + pull, no el motor).
@@ -381,9 +386,9 @@ spec:
         # instante. Coste: 2 x (100m+50m CPU, 1,5 Gi) de requests sobre atlantic +
         # x86, despreciable frente al tope de 32. Va junto al sidecar
         # warm-pr-agent de abajo, que es lo que hace que el runner caliente
-        # tambien tenga la imagen del motor en su dind. 2 -> 4: INFRA-1424, ver
-        # el bloque de arriba.
-        minRunners: 4
+        # tambien tenga la imagen del motor en su dind. 2 -> 4 -> 6: INFRA-1424,
+        # ver el bloque de arriba.
+        minRunners: 6
         runnerScaleSetName: arc-k8s
         template:
           spec:

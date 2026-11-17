@@ -96,7 +96,7 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         # Anclados al fin de linea: "maxRunners: 32" contiene "maxRunners: 3",
         # y un assert de subcadena a secas se auto-contradice con dos digitos.
         self.assertIn("maxRunners: 24\n", shared)
-        self.assertIn("minRunners: 4\n", shared)
+        self.assertIn("minRunners: 6\n", shared)
         self.assertIn("maxRunners: 4\n", atlantic)
         self.assertIn("minRunners: 4\n", atlantic)
         self.assertIn("maxRunners: 3\n", sauvage)
