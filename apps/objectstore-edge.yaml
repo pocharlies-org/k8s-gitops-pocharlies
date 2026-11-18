@@ -1,0 +1,30 @@
+# objectstore-edge — gateway de lectura de OVH Object Storage (INFRA-1175): backend de las URLs
+# públicas y LAN de buckets privados (s3.e-dani.com/{artifacts,facturas,labs},
+# skirmshop-s3.e-dani.com). Copia de apps/photos-mcp.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: objectstore-edge
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-objectstore-edge-pocharlies
+  labels:
+    e-dani.com/tier: infra
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-objectstore-edge-pocharlies
+    targetRevision: main
+    path: k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: objectstore-edge
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

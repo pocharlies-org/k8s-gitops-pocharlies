@@ -111,6 +111,7 @@ resources:
   - apps/paseo.yaml
   - apps/nova.yaml
   - apps/photos-mcp.yaml
+  - apps/objectstore-edge.yaml
   - argocd/ingressroute.yaml
   - argocd/repositories.yaml
   - argocd/notifications-externalsecret.yaml
