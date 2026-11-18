@@ -697,17 +697,14 @@ spec:
         # ~3): subir el request de paseo-0 no es posible sin mover algo. Con
         # 4 runners la CPU de runner a medir es ~la mitad; el resultado
         # medido tras el cambio va en INFRA-1397.
-        # 2026-11-18 dani · INFRA-1451 (B): 4 -> 6. El run de master de dgx-infra
-        # pide 12-13 jobs a la vez y x86 (donde van casi todos) los corre al
-        # 99 %: el mismo `checkout` cuesta 13 s sin contencion y 34 s con ella.
-        # 8 ya se midio el 2026-11-16 y dejo atlantic al 96-99 % de CPU con
-        # paseo-0 sin CPU para su daemon, asi que este bloque NO vuelve a 8:
-        # 6 es el punto medio, con paseo-0 y los servicios (bge-m3,
-        # bge-reranker, control-nexus) dentro de sus requests. La medida que lo
-        # confirma o lo tumba va en INFRA-1451 (total del run y CPU de
-        # atlantic); si atlantic pasa del 85 %, se vuelve a 4.
-        maxRunners: 6
-        minRunners: 6
+        # 2026-11-18 dani · INFRA-1451 (B) medido y retirado el mismo dia: se
+        # probo 6 (min 6) y atlantic se quedo en el 75-84 % de CPU con 6
+        # runners calientes, sin bajar el total del run de master de dgx-infra
+        # (6m24, con sus jobs en atlantic a 4m56-5m57). Es el umbral de vuelta
+        # que dejo escrito el PR #784: vuelve a 4. NO subir a 8: el 2026-11-16
+        # dejo atlantic al 96-99 % y paseo-0 sin CPU para su daemon.
+        maxRunners: 4
+        minRunners: 4
         runnerScaleSetName: arc-k8s-atlantic
         # INFRA-1437: nodo rapido (16 CPU, SSD), asi que sirve `arc-k8s` (todos
         # los jobs) y tambien `arc-k8s-light`.

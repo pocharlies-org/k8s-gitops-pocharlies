@@ -293,14 +293,14 @@ expected_selector_atlantic = {
 }
 atlantic_set, atlantic_spec = validate_common(
     "arc-k8s-atlantic",
-    6,
+    4,
     edge_fallback=False,
     selector=expected_selector_atlantic,
     hostname_pinned=True,
 )
 assert atlantic_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s", "arc-k8s-light"]
 assert atlantic_set["spec"]["runnerScaleSetName"] == "arc-k8s-atlantic"
-assert atlantic_set["spec"]["minRunners"] == 6
+assert atlantic_set["spec"]["minRunners"] == 4
 assert atlantic_set["spec"]["minRunners"] == atlantic_set["spec"]["maxRunners"]
 # Mismo pod que arc-k8s salvo la colocacion: DinD, limites, MTU, sidecar.
 for key in ("initContainers", "containers", "volumes"):
@@ -309,9 +309,8 @@ for key in ("initContainers", "containers", "volumes"):
 # arc-k8s-sauvage (2026-11-16, INFRA-1397): 3 runners fijados a sauvage, con la
 # etiqueta arc-k8s, sin runners calientes (ultimo recurso del pool). Es el unico
 # scale set que tolera role=edge; tope de 3 porque su md3 (HDD) llego al 98-100 %
-# con 8 runners (78 % con 6). 6 + 24 + 3 = 33. La prioridad
-# atlantic > x86 > sauvage se aproxima con runners calientes: min 6 / min 6 / 0
-# (INFRA-1451: atlantic 4 -> 6, el primer empate del pool).
+# con 8 runners (78 % con 6). 4 + 24 + 3 = 31. La prioridad
+# atlantic > x86 > sauvage se aproxima con runners calientes: min 4 / min 4 / 0.
 expected_selector_sauvage = {
     "kubernetes.io/arch": "amd64",
     "kubernetes.io/hostname": "sauvage",
@@ -329,12 +328,12 @@ assert sauvage_set["spec"]["runnerScaleSetName"] == "arc-k8s-sauvage"
 assert sauvage_set["spec"]["minRunners"] == 0
 # Prioridad por calentamiento: atlantic (min == max, tope que su CPU aguanta) y
 # x86 calientes, sauvage frio. INFRA-1424 subio x86 a 6: la oleada del CI de
-# dgx-infra ya son 13 jobs y atlantic pasa a 6 (INFRA-1451: 8 se midio al
-# 96-99 % y sin CPU para paseo-0), asi que el resto del calentamiento va al x86.
+# dgx-infra ya son 13 jobs y atlantic no puede crecer de 4 sin quedarse al
+# 96-99 % (INFRA-1397), asi que el resto del calentamiento va al x86.
 assert atlantic_set["spec"]["minRunners"] == atlantic_set["spec"]["maxRunners"]
 assert (
     shared_set["spec"]["minRunners"]
-    >= atlantic_set["spec"]["minRunners"]
+    > atlantic_set["spec"]["minRunners"]
     > sauvage_set["spec"]["minRunners"]
 )
 assert shared_set["spec"]["minRunners"] == 6
@@ -346,7 +345,7 @@ assert (
     shared_set["spec"]["maxRunners"]
     + atlantic_set["spec"]["maxRunners"]
     + sauvage_set["spec"]["maxRunners"]
-    == 33
+    == 31
 )
 for key in ("initContainers", "containers", "volumes"):
     assert sauvage_spec[key] == shared_spec[key], key

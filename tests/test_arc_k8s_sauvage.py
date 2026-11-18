@@ -8,8 +8,7 @@ comparten ese disco. arc-k8s sigue SIN tolerar role=edge (el taint de
 sauvage): el unico camino a sauvage es este scale set, que comparte la etiqueta
 `arc-k8s` (`scaleSetLabels: [arc-k8s]` -> `spec.runnerScaleSetLabels`, chart
 0.14.1) y por tanto casa el mismo `runs-on: arc-k8s`. Plazas:
-6 (atlantic, min 6) + 24 (arc-k8s, x86, min 2) + 3 (sauvage, min 0) = 33 desde
-INFRA-1451 (31 antes). Medido
+4 (atlantic, min 4) + 24 (arc-k8s, x86, min 2) + 3 (sauvage, min 0) = 31. Medido
 00:06-00:22 CET: el md3 llego al 78 % con 6 runners y al 98-100 % con 8. ARC no
 tiene prioridad explicita entre scale sets: atlantic > x86 > sauvage se
 aproxima con runners calientes.
@@ -97,16 +96,16 @@ class ArcSauvageCapTest(unittest.TestCase):
             self.shared["maxRunners"]
             + atlantic["maxRunners"]
             + self.sauvage["maxRunners"],
-            33,
+            31,
         )
 
     def test_sauvage_set_is_the_last_resort_with_no_warm_runners(self) -> None:
-        """Sin calientes: los calientes los ponen atlantic (6) y arc-k8s (6, en
+        """Sin calientes: los calientes los ponen atlantic (4) y arc-k8s (4, en
         x86, INFRA-1424); sauvage solo arranca los runners que hagan falta."""
         atlantic = arc_values("arc-k8s-atlantic")
         self.assertEqual(self.sauvage["minRunners"], 0)
         self.assertEqual(self.shared["minRunners"], 6)
-        self.assertEqual(atlantic["minRunners"], 6)
+        self.assertEqual(atlantic["minRunners"], 4)
 
     def test_sauvage_set_is_pinned_to_sauvage_and_tolerates_edge(self) -> None:
         self.assertEqual(

@@ -84,9 +84,9 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertIn("key: pool", runner_tolerations)
 
     def test_runner_pool_is_24_shared_plus_4_atlantic_plus_3_sauvage(self) -> None:
-        """33 plazas sobre el pool cpu desde INFRA-1451 (31 antes; partia de las 32
-        de la remedicion exacta INFRA-1093, 02-11): 24 en arc-k8s (solo x86, min 6 —
-        INFRA-1424), 6 en arc-k8s-atlantic (min 6,
+        """31 plazas sobre el pool cpu (partia de las 32 de la remedicion exacta
+        INFRA-1093, 02-11): 24 en arc-k8s (solo x86, min 4 desde INFRA-1424 —
+        la primera oleada del CI son 8 jobs), 4 en arc-k8s-atlantic (min 4,
         primera prioridad) y 3 en arc-k8s-sauvage (min 0, ultimo recurso; su md3
         es un HDD). INFRA-1397, 2026-11-16; ver los comentarios en
         infra/arc.yaml."""
@@ -97,8 +97,8 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         # y un assert de subcadena a secas se auto-contradice con dos digitos.
         self.assertIn("maxRunners: 24\n", shared)
         self.assertIn("minRunners: 6\n", shared)
-        self.assertIn("maxRunners: 6\n", atlantic)
-        self.assertIn("minRunners: 6\n", atlantic)
+        self.assertIn("maxRunners: 4\n", atlantic)
+        self.assertIn("minRunners: 4\n", atlantic)
         self.assertIn("maxRunners: 3\n", sauvage)
         self.assertIn("minRunners: 0\n", sauvage)
         for stale in ("maxRunners: 32", "maxRunners: 21", "maxRunners: 16", "maxRunners: 8", "maxRunners: 6", "maxRunners: 4", "maxRunners: 3"):
