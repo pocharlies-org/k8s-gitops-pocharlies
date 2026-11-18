@@ -1,4 +1,4 @@
-"""2026-11-15: atlantic tiene un tope de runners de arc-k8s (8; 4 desde el 2026-11-16).
+"""2026-11-15: atlantic tiene un tope de runners de arc-k8s (8; 4 el 2026-11-16; 6 desde INFRA-1451).
 
 Con el pool lleno (32/32) atlantic (16 CPU, tambien aloja paseo-0) llego a ~23
 runners de arc-k8s: 16 CPU al 99 % y el daemon de Paseo sin CPU. El pool de
@@ -8,10 +8,10 @@ runners de arc-k8s: 16 CPU al 99 % y el daemon de Paseo sin CPU. El pool de
   - arc-k8s          atlantic excluido (required NotIn por hostname) y sauvage
                      excluido (no tolera role=edge, ver INFRA-1397 2026-11-16):
                      solo x86;
-  - arc-k8s-atlantic maxRunners 4 (8 hasta el 2026-11-16), fijado a atlantic.
+  - arc-k8s-atlantic maxRunners 6 (4 hasta INFRA-1451, 8 antes), fijado a atlantic.
 
 2026-11-16 (INFRA-1397): diseno final de tres scale sets con la etiqueta
-arc-k8s y 31 plazas: atlantic 4 (min 4), arc-k8s en x86 24 (min 2) y
+arc-k8s y 33 plazas desde INFRA-1451 (31 antes): atlantic 6 (min 6), arc-k8s en x86 24 (min 2) y
 arc-k8s-sauvage 3 (min 0, tests/test_arc_k8s_sauvage.py). Con 8 en atlantic y
 8 en sauvage (40 plazas) atlantic quedaba al 96-99 % de CPU y paseo-0 perdia, y
 el md3 de sauvage llegaba al 98-100 %. Atlantic es la primera
@@ -81,25 +81,25 @@ class ArcAtlanticCapTest(unittest.TestCase):
         )
 
     def test_total_capacity_is_thirty_one(self) -> None:
-        """24 (x86) + 4 (atlantic) + 3 (sauvage) = 31 (INFRA-1397, 2026-11-16)."""
+        """24 (x86) + 6 (atlantic) + 3 (sauvage) = 33 (INFRA-1451 sobre INFRA-1397)."""
         sauvage = arc_values("arc-k8s-sauvage")
         self.assertEqual(self.shared["maxRunners"], 24)
-        self.assertEqual(self.atlantic["maxRunners"], 4)
+        self.assertEqual(self.atlantic["maxRunners"], 6)
         self.assertEqual(sauvage["maxRunners"], 3)
         self.assertEqual(
             self.shared["maxRunners"]
             + self.atlantic["maxRunners"]
             + sauvage["maxRunners"],
-            31,
+            33,
         )
 
     def test_atlantic_is_first_priority_with_warm_runners(self) -> None:
         """Calentamiento repartido (ARC no tiene prioridad explicita): atlantic
-        min == max (4, su tope sin ahogar paseo-0, INFRA-1397), x86 6 desde
+        min == max (6, INFRA-1451: 8 ahogaba a paseo-0, INFRA-1397), x86 6 desde
         INFRA-1424 (la oleada del CI de dgx-infra ya son 13 jobs y atlantic no
         puede crecer), sauvage sin ninguno."""
         sauvage = arc_values("arc-k8s-sauvage")
-        self.assertEqual(self.atlantic["minRunners"], 4)
+        self.assertEqual(self.atlantic["minRunners"], 6)
         self.assertEqual(self.atlantic["minRunners"], self.atlantic["maxRunners"])
         self.assertEqual(self.shared["minRunners"], 6)
         self.assertEqual(sauvage["minRunners"], 0)
