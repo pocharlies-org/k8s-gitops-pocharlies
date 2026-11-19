@@ -387,13 +387,7 @@ patches:
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *compute-replicas, name: stt-turbo }
-      # 14-08 F2/F3: twins de rol creative y el 27B fusionado.
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value: { <<: *compute-replicas, name: bge-m3-embedding-creative }
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value: { <<: *compute-replicas, name: bge-reranker-creative }
+      # 14-08 F2/F3: el 27B fusionado.
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *compute-replicas, name: vllm-qwen36-27b-uncensored }
@@ -483,16 +477,10 @@ patches:
         value: { <<: *bge-replicas, name: bge-m3-embedding-cpu }
       - op: add
         path: /spec/ignoreDifferences/-
-        value: { <<: *bge-replicas, name: bge-m3-embedding-creative }
-      - op: add
-        path: /spec/ignoreDifferences/-
         value: { <<: *bge-replicas, name: bge-reranker }
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *bge-replicas, name: bge-reranker-cpu }
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value: { <<: *bge-replicas, name: bge-reranker-creative }
   # DGX-366 (24-09-2026): la app `voice` (servicio de voz fuera de `ai`). Igual que `bge`:
   # el blanket patch REEMPLAZA /spec/ignoreDifferences, asi que se re-anaden las replicas
   # que posee compute_mode.py (nvfp4, stt-turbo), la de omnivoice-tts-cpu (apagado) y la de
