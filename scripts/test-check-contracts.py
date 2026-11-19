@@ -72,6 +72,27 @@ def write_registry(repo: Path, contracts: list[dict], **extra) -> None:
     )
 
 
+def draft_email_entry(**extra) -> dict:
+    return {
+        "id": "messaging.draft_email",
+        "value": "messaging.{tenant}.draft_email",
+        "files": ["app/services/publisher.ts"],
+        "status": "active",
+        **extra,
+    }
+
+
+def composed_entry() -> dict:
+    """A composed key with no literal: guarded by an `anchor`, like bus.routing_key_format."""
+    return {
+        "id": "messaging.composed",
+        "value": "messaging.{tenant}.draft_email",
+        "anchor": "createEmailDraft",
+        "files": ["app/services/composed.ts"],
+        "status": "active",
+    }
+
+
 def rename_in_code(repo: Path, old: str, new: str) -> None:
     """Rename in the code lines only, leaving the `# CONTRACT:` marker intact.
 
@@ -151,24 +172,7 @@ def test_anchor_checks_a_composed_key(repo, capsys):
     (repo / "app" / "services" / "composed.ts").write_text(
         "// CONTRACT: messaging.composed\nawait createEmailDraft({ to });\n", encoding="utf-8"
     )
-    write_registry(
-        repo,
-        [
-            {
-                "id": "messaging.draft_email",
-                "value": "messaging.{tenant}.draft_email",
-                "files": ["app/services/publisher.ts"],
-                "status": "active",
-            },
-            {
-                "id": "messaging.composed",
-                "value": "messaging.{tenant}.draft_email",
-                "anchor": "createEmailDraft",
-                "files": ["app/services/composed.ts"],
-                "status": "active",
-            },
-        ],
-    )
+    write_registry(repo, [draft_email_entry(), composed_entry()])
     assert check(repo) == 0
 
 
@@ -176,24 +180,7 @@ def test_rejects_a_composed_key_whose_anchor_vanished(repo, capsys):
     (repo / "app" / "services" / "composed.ts").write_text(
         "// CONTRACT: messaging.composed\nawait sendSomethingElse({ to });\n", encoding="utf-8"
     )
-    write_registry(
-        repo,
-        [
-            {
-                "id": "messaging.draft_email",
-                "value": "messaging.{tenant}.draft_email",
-                "files": ["app/services/publisher.ts"],
-                "status": "active",
-            },
-            {
-                "id": "messaging.composed",
-                "value": "messaging.{tenant}.draft_email",
-                "anchor": "createEmailDraft",
-                "files": ["app/services/composed.ts"],
-                "status": "active",
-            },
-        ],
-    )
+    write_registry(repo, [draft_email_entry(), composed_entry()])
     assert check(repo) == 1
     out = capsys.readouterr().out
     assert "value-absent" in out
@@ -340,18 +327,7 @@ def test_rejects_touching_surface_without_updating_the_registry(repo, capsys):
 
 def test_rejects_a_missing_contract_change_trailer(repo, capsys):
     touch_value_line(repo)
-    write_registry(
-        repo,
-        [
-            {
-                "id": "messaging.draft_email",
-                "value": "messaging.{tenant}.draft_email",
-                "files": ["app/services/publisher.ts"],
-                "status": "active",
-                "note": "touched",
-            }
-        ],
-    )
+    write_registry(repo, [draft_email_entry(note="touched")])
     _commit(repo, "chore: tweak the key composition and registry")
     assert check(repo, "HEAD~1..HEAD") == 1
     assert "trailer-missing" in capsys.readouterr().out
@@ -359,18 +335,7 @@ def test_rejects_a_missing_contract_change_trailer(repo, capsys):
 
 def test_accepts_surface_change_with_registry_and_trailer(repo, capsys):
     touch_value_line(repo)
-    write_registry(
-        repo,
-        [
-            {
-                "id": "messaging.draft_email",
-                "value": "messaging.{tenant}.draft_email",
-                "files": ["app/services/publisher.ts"],
-                "status": "active",
-                "note": "touched",
-            }
-        ],
-    )
+    write_registry(repo, [draft_email_entry(note="touched")])
     _commit(repo, "feat: tweak the key composition\n\nContract-Change: migrate messaging.draft_email")
     assert check(repo, "HEAD~1..HEAD") == 0
     assert "OK" in capsys.readouterr().out
@@ -420,24 +385,7 @@ def _anchor_repo(repo: Path) -> None:
         "await createEmailDraft({ to });\n",
         encoding="utf-8",
     )
-    write_registry(
-        repo,
-        [
-            {
-                "id": "messaging.draft_email",
-                "value": "messaging.{tenant}.draft_email",
-                "files": ["app/services/publisher.ts"],
-                "status": "active",
-            },
-            {
-                "id": "messaging.composed",
-                "value": "messaging.{tenant}.draft_email",
-                "anchor": "createEmailDraft",
-                "files": ["app/services/composed.ts"],
-                "status": "active",
-            },
-        ],
-    )
+    write_registry(repo, [draft_email_entry(), composed_entry()])
     _commit(repo, "base: add composed publisher")
 
 
