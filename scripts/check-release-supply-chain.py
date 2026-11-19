@@ -213,7 +213,12 @@ require("refs/(heads|tags)" not in workflow, "mutable certificate reference acce
 # HARBOR_USER/HARBOR_PASSWORD, que ya lee homelab/* desde ese hostname (el CI de
 # back-in-stock inicia sesión ahí y está verde). Sin él, run 43654227972: 401 en
 # el HEAD del manifiesto de homelab/base-node.
-expected_workflow_digest = "43d8be45fb790a4a2236e2a0ff2ddd9bcca76573c9639c37a0cab36446b048ce"
+# INFRA-1459: HARBOR_USER/HARBOR_PASSWORD pasan de required: true a required: false y
+# el job gana un paso pre-flight (`uses` a la accion compuesta preflight-harbor-secrets
+# de este repo) que falla nombrando los secrets que faltan y dando el comando de siembra.
+# Ningun valor interpolado en shell (van por env de la accion); build, login, Trivy,
+# cosign, SBOM/SLSA y promocion atomica intactos. Callers sin cambios (aditivo).
+expected_workflow_digest = "fd323d2c750c8cff3b07e0913c60cc4ff22696a38a327262a2e73b7e73188ef3"
 # La instalacion de Buildx (checksums + imagen por digest) vive ahora en la
 # accion local: se pinnea igual que el workflow, o el contrato pierde cobertura.
 expected_buildx_action_digest = "e39317a5be5b63d9d01959164ac5c0e6f809eed870c8a5e28be2999043eb9353"
