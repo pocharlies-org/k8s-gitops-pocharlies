@@ -52,11 +52,26 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertNotIn("kubernetes.io/hostname:", runner_values)
 
     def test_openclaw_prefers_ks5_without_hard_pinning_or_edge(self) -> None:
-        """arc-openclaw (SC-2019): KS5 preferido, sin required (desborda a ubuntu
-        en vez de quedar Pending) y sin toleration de edge (sauvage, md3 saturado)."""
+        """arc-openclaw (SC-2019): KS5 preferido, sin required que fije el pool
+        (desborda a ubuntu en vez de quedar Pending) y sin toleration de edge
+        (sauvage, md3 saturado).
+
+        SC-6076 (2026-11-19): el required que existía era Ninguno y dos runners
+        de este pool cayeron en ks5-cp-3 (3,4-3,9 cores por pod), saturando el
+        nodo del plano de control + Postgres compartido (NodeSystemSaturation,
+        incidente NODE-20064). Se añade el mismo candado que arc-k8s (INFRA-960):
+        required SOLO excluye control-plane; ks5 sigue preferido y ubuntu sigue
+        siendo destino de desborde (el required no menciona node-pool).
+        """
         self.assertIn("preferredDuringSchedulingIgnoredDuringExecution:", self.openclaw_values)
         self.assertIn("values: [ks5-nvme]", self.openclaw_values)
-        self.assertNotIn("requiredDuringSchedulingIgnoredDuringExecution:", self.openclaw_values)
+        required = self.openclaw_values.split(
+            "requiredDuringSchedulingIgnoredDuringExecution:", 1
+        )[1].split("preferredDuring", 1)[0]
+        self.assertIn("node-role.kubernetes.io/control-plane", required)
+        self.assertIn("operator: DoesNotExist", required)
+        # el required no fija pool: ubuntu (sin etiqueta node-pool) sigue elegible
+        self.assertNotIn("node-pool", required)
         self.assertNotIn("values: [edge]", self.openclaw_values)
         self.assertNotIn("value: edge", self.openclaw_values)
         self.assertNotIn("key: role", self.openclaw_values)
