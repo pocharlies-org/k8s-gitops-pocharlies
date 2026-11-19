@@ -168,7 +168,10 @@ require(validate_overlay < stamp_overlay < commit_overlay, "deploy overlay valid
 # Telegram, y pedirlo tumbaba en startup_failure a los callers que no lo conceden).
 # Fronteras de entrada intactas —ningun `inputs.` interpolado en shell— y el orden
 # validar -> estampar -> commitear se mantiene, que es lo que esta guarda protege.
-expected_deploy_digest = "15492bd3f81572174ae068d48f8bf3774519eca6ffc3f9a90fefe77d095b6d99"
+# Revisado el 19-11-2026 (INFRA-1459): se anade el pre-flight de secrets HARBOR_* (paso
+# `uses` a accion compuesta de este repo; los valores van por env, ninguno interpolado en
+# shell). Fronteras de entrada y orden validar -> estampar -> commitear intactos.
+expected_deploy_digest = "9c94cdbc0ee904e68432db8a2b4e85e1967e65e48806aebfae055fec69360d2f"
 require(
     hashlib.sha256(deploy_workflow.encode()).hexdigest() == expected_deploy_digest,
     "deploy workflow changed without reviewing input boundaries",

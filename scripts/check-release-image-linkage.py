@@ -200,8 +200,15 @@ for label, mutated_release, mutated_manifest in [
 # resuelva la base fijada por digest; default vacío, consumidores actuales intactos y
 # el push sin cambios). Digest actualizado junto con el de check-release-supply-chain.py
 # (43d8be45). El enlace digest de imagen -> manifest no cambia.
-expected_release_sha256 = "43d8be45fb790a4a2236e2a0ff2ddd9bcca76573c9639c37a0cab36446b048ce"
-expected_manifest_sha256 = "4e48cd19b2bb6da68e674687e68a4f2027daec6d449a882e03bef604af180fef"
+# Revisado el 19-11-2026 (INFRA-1459, PR #787) por security: en los workflows de release
+# y manifest-pr-release HARBOR_USER/HARBOR_PASSWORD pasan de required: true a
+# required: false y cada job gana un paso pre-flight (`uses` a la accion compuesta
+# preflight-harbor-secrets de este repo) que falla nombrando los secrets que faltan y
+# dando el comando de siembra. Los valores van por env de la accion (ninguno
+# interpolado en shell); build, login, Trivy, cosign y la promocion atomica intactos.
+# El enlace digest de imagen -> manifest no cambia.
+expected_release_sha256 = "fd323d2c750c8cff3b07e0913c60cc4ff22696a38a327262a2e73b7e73188ef3"
+expected_manifest_sha256 = "9a142a56f80032cce2e50091254b88cde364795ff1a0520b1c63e96d1e61fa1a"
 release_sha256 = hashlib.sha256(release.encode()).hexdigest()
 manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()
 require(release_sha256 == expected_release_sha256, f"release linkage workflow changed: {release_sha256}")

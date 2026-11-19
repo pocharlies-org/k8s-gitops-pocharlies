@@ -45,10 +45,13 @@ on:
         required: false
       TELEGRAM_CI_THREAD_ID:
         required: false
+      # INFRA-1459: required:false para que la ausencia no muera en startup_failure con
+      # «Secret HARBOR_USER is required, but not provided». El pre-flight (abajo) es lo
+      # que falla, nombrando los secrets y dando el comando de siembra.
       HARBOR_USER:
-        required: true
+        required: false
       HARBOR_PASSWORD:
-        required: true
+        required: false
       OPENCLAW_TELEGRAM_BOT_TOKEN:
         required: false
       OPENCLAW_TELEGRAM_TARGET:
@@ -70,6 +73,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+
+      # INFRA-1459: si al repo que llama le faltan los secrets, falla aqui en segundos
+      # nombrandolos y con el comando de siembra, no en startup_failure opaco.
+      - name: Pre-flight secrets de Harbor
+        uses: pocharlies-org/k8s-gitops-pocharlies/.github/actions/preflight-harbor-secrets@main
+        with:
+          harbor_user: ${{ secrets.HARBOR_USER }}
+          harbor_password: ${{ secrets.HARBOR_PASSWORD }}
 
       - name: Install verified Node.js
         env:
