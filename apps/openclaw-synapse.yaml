@@ -1,0 +1,42 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: openclaw-synapse
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
+    # 09-10-2026 (SC-2234): RESTAURADO. El decomisionado 061187b (16-09)
+    # sobre-borró: retiró esta Application pero dejó en pie sus consumidores —
+    # synapse-adapter-conversation (autopilot WhatsApp skirmshop, systemd en
+    # sauvage) y los adaptadores in-cluster que spawnean por remote-runner
+    # contra /internal/synapse/agent-runs. Sin runner, el autopilot lleva desde
+    # el 07-10 fallando toda respuesta (runner_error) y ConversationAutopilot
+    # Silent24h dispara (CRIT-9377). Revert de apps/openclaw-synapse.yaml +
+    # argocd/openclaw-synapse-namespace.yaml + argocd/project-openclaw-synapse
+    # .yaml tal cual estaban en 061187b^. NO se restauran el admission gate ni
+    # el ejecutor acotado: ya no hay política que los requiera. La migración
+    # del adapter a Hermes queda como trabajo de código en SC-2230; este runner
+    # es el puente interino. Sync manual a propósito (ver syncWindows del
+    # project).
+    operations.pocharlies.org/last-manual-sync: ee33d4391db770e02137835b58626070e0bba699
+  labels:
+    e-dani.com/tier: app
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: openclaw-synapse
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
+    targetRevision: deploy/prod
+    path: helm/openclaw-qwen36
+    helm:
+      releaseName: openclaw-synapse
+      valueFiles:
+        - values-synapse.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openclaw-synapse
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
