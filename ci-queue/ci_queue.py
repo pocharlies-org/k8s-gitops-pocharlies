@@ -77,14 +77,40 @@ def percentile(values: list[float], q: float) -> float:
 
 
 def load_pools(arc_yaml_text: str) -> frozenset[str]:
-    """Pools válidos = `runnerScaleSetName` de infra/arc.yaml.
+    """Pools válidos = `runnerScaleSetName` + los labels de `scaleSetLabels` de
+    infra/arc.yaml.
 
     Fuente única (architect §2): el valor vive dentro del bloque `values: |` de
     cada Application, así que se lee el texto, no el YAML ya parseado. Un runner
     autoalojado no es un pool ARC: se reconoce por `self-hosted` en `classify_job`
     (INFRA-1056), no por esta lista.
+
+    Desde INFRA-1437 un scale set puede registrar además etiquetas propias
+    (`scaleSetLabels:`): `runs-on: arc-k8s-light` lo atiende el listener del
+    scale set que la declara. Leer solo `runnerScaleSetName` las dejaba ciegas y
+    los jobs de `arc-k8s-light` caían en `sin-pool`, disparando
+    CIQueueLabelWithoutPool como falso positivo (SC-6007).
     """
-    return frozenset(re.findall(r"^\s*runnerScaleSetName:\s*(\S+)\s*$", arc_yaml_text, re.M))
+    pools = set(re.findall(r"^\s*runnerScaleSetName:\s*(\S+)\s*$", arc_yaml_text, re.M))
+    en_labels = False
+    for linea in arc_yaml_text.splitlines():
+        inline = re.match(r"^\s*scaleSetLabels:\s*\[([^\]]*)\]\s*$", linea)
+        if inline:
+            pools.update(x.strip() for x in inline.group(1).split(",") if x.strip())
+            en_labels = False
+            continue
+        if re.match(r"^\s*scaleSetLabels:\s*$", linea):
+            en_labels = True
+            continue
+        if en_labels:
+            if not linea.strip() or linea.lstrip().startswith("#"):
+                continue
+            item = re.match(r"^\s*-\s*(\S+)\s*$", linea)
+            if item:
+                pools.add(item.group(1))
+            else:
+                en_labels = False
+    return frozenset(pools)
 
 
 def classify_label(label: str, pools: frozenset[str]) -> str:
