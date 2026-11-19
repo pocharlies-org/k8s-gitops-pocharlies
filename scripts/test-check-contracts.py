@@ -315,17 +315,31 @@ def _commit(repo: Path, message: str) -> None:
     _run_git(repo, "commit", "-qm", message)
 
 
-def test_rejects_touching_surface_without_updating_the_registry(repo, capsys):
+def touch_value_line(repo: Path) -> None:
+    """Edit the line where the routing key is composed: a real contract touch.
+
+    The value stays verbatim (so `value-absent` stays quiet) and only the line
+    carrying it changes — the line-aware gate must treat exactly this as surface.
+    """
     target = repo / "app" / "services" / "publisher.ts"
-    target.write_text(target.read_text() + "\n// tweak\n", encoding="utf-8")
-    _commit(repo, "chore: tweak publisher")
+    target.write_text(
+        target.read_text(encoding="utf-8").replace(
+            "export const KEY = `messaging.${tenant}.draft_email`;",
+            "export const KEY = `messaging.${tenant}.draft_email`; // documented",
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_rejects_touching_surface_without_updating_the_registry(repo, capsys):
+    touch_value_line(repo)
+    _commit(repo, "chore: tweak the key composition")
     assert check(repo, "HEAD~1..HEAD") == 1
     assert "registry-not-updated" in capsys.readouterr().out
 
 
 def test_rejects_a_missing_contract_change_trailer(repo, capsys):
-    target = repo / "app" / "services" / "publisher.ts"
-    target.write_text(target.read_text() + "\n// tweak\n", encoding="utf-8")
+    touch_value_line(repo)
     write_registry(
         repo,
         [
@@ -338,14 +352,13 @@ def test_rejects_a_missing_contract_change_trailer(repo, capsys):
             }
         ],
     )
-    _commit(repo, "chore: tweak publisher and registry")
+    _commit(repo, "chore: tweak the key composition and registry")
     assert check(repo, "HEAD~1..HEAD") == 1
     assert "trailer-missing" in capsys.readouterr().out
 
 
 def test_accepts_surface_change_with_registry_and_trailer(repo, capsys):
-    target = repo / "app" / "services" / "publisher.ts"
-    target.write_text(target.read_text() + "\n// tweak\n", encoding="utf-8")
+    touch_value_line(repo)
     write_registry(
         repo,
         [
@@ -358,9 +371,102 @@ def test_accepts_surface_change_with_registry_and_trailer(repo, capsys):
             }
         ],
     )
-    _commit(repo, "feat: tweak publisher\n\nContract-Change: migrate messaging.draft_email")
+    _commit(repo, "feat: tweak the key composition\n\nContract-Change: migrate messaging.draft_email")
     assert check(repo, "HEAD~1..HEAD") == 0
     assert "OK" in capsys.readouterr().out
+
+
+def test_allows_a_refactor_away_from_the_contract_lines(repo, capsys):
+    """SC-6046: editing a marker file away from its marker/value is a refactor.
+
+    The whole-file view blocked this as a contract change. A line that crosses no
+    process boundary (here, an internal comment appended well below the marker)
+    is not one, so neither the registry update nor the trailer is demanded.
+    """
+    target = repo / "app" / "services" / "publisher.ts"
+    target.write_text(
+        target.read_text(encoding="utf-8") + "\n// internal refactor, no contract line\n",
+        encoding="utf-8",
+    )
+    _commit(repo, "refactor: internal tweak")
+    assert check(repo, "HEAD~1..HEAD") == 0
+    assert "OK" in capsys.readouterr().out
+
+
+def test_blocks_editing_the_marker_line_itself(repo, capsys):
+    """The teeth stay: a change on the marker line is still a contract touch."""
+    target = repo / "app" / "services" / "publisher.ts"
+    target.write_text(
+        target.read_text(encoding="utf-8").replace(
+            "// CONTRACT: messaging.draft_email (consumer: adapter-messaging-agent)",
+            "// CONTRACT: messaging.draft_email — consumer adapter-messaging-agent",
+        ),
+        encoding="utf-8",
+    )
+    _commit(repo, "docs: reword the contract marker")
+    assert check(repo, "HEAD~1..HEAD") == 1
+    assert "registry-not-updated" in capsys.readouterr().out
+
+
+def _anchor_repo(repo: Path) -> None:
+    """Add a composed publisher whose key is built at runtime (anchor-guarded).
+
+    Mirrors `bus.routing_key_format` (SC-6046): the key has no literal, so the
+    entry declares an `anchor` and the file is surface only on the anchor line.
+    """
+    (repo / "app" / "services" / "composed.ts").write_text(
+        "// CONTRACT: messaging.composed\n"
+        "const x = 1;\n"
+        "await createEmailDraft({ to });\n",
+        encoding="utf-8",
+    )
+    write_registry(
+        repo,
+        [
+            {
+                "id": "messaging.draft_email",
+                "value": "messaging.{tenant}.draft_email",
+                "files": ["app/services/publisher.ts"],
+                "status": "active",
+            },
+            {
+                "id": "messaging.composed",
+                "value": "messaging.{tenant}.draft_email",
+                "anchor": "createEmailDraft",
+                "files": ["app/services/composed.ts"],
+                "status": "active",
+            },
+        ],
+    )
+    _commit(repo, "base: add composed publisher")
+
+
+def test_allows_a_refactor_away_from_an_anchor_line(repo, capsys):
+    """SC-6046 with an anchor: editing the file off the anchor line is a refactor."""
+    _anchor_repo(repo)
+    target = repo / "app" / "services" / "composed.ts"
+    target.write_text(
+        target.read_text(encoding="utf-8").replace("const x = 1;", "const x = 2; // refactor"),
+        encoding="utf-8",
+    )
+    _commit(repo, "refactor: tweak composed internals")
+    assert check(repo, "HEAD~1..HEAD") == 0
+    assert "OK" in capsys.readouterr().out
+
+
+def test_blocks_editing_the_anchor_line(repo, capsys):
+    """The teeth on an anchor-guarded key: touching the anchor line is surface."""
+    _anchor_repo(repo)
+    target = repo / "app" / "services" / "composed.ts"
+    target.write_text(
+        target.read_text(encoding="utf-8").replace(
+            "await createEmailDraft({ to });", "await createEmailDraft({ to, cc });"
+        ),
+        encoding="utf-8",
+    )
+    _commit(repo, "feat: pass cc to the composed call")
+    assert check(repo, "HEAD~1..HEAD") == 1
+    assert "registry-not-updated" in capsys.readouterr().out
 
 
 def test_rejects_editing_an_active_value_in_place(repo, capsys):

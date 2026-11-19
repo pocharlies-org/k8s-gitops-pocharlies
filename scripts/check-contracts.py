@@ -34,6 +34,14 @@ blacklist every push in a repo that accumulated findings before the gate existed
 reached for --no-verify, which kills the gate). Without `--range` the full tree
 is validated and everything blocks: that is the CI backstop, unchanged.
 
+The push rules (registry-not-updated, trailer-missing) are line-aware: a file
+that carries a `# CONTRACT:` marker, or is listed under an entry's `files:`, is
+contract surface ONLY on the lines that hold a marker or where an entry's value
+/`anchor` is composed. Editing the rest of such a file is an ordinary refactor
+and does not demand a registry update or a trailer (SC-6046: a consumption loop
+edited far from its marker was blocked as a contract change). A real break still
+has to touch one of those lines, so the gate keeps its teeth.
+
 Usage:
     check-contracts.py                        # validate the working tree
     check-contracts.py --range HEAD~3..HEAD   # push rules + blame attribution
@@ -406,16 +414,72 @@ def _changed_files(repo: Path, rev_range: str) -> set[str]:
     return {line.strip() for line in out.splitlines() if line.strip()}
 
 
-def _contract_files(repo: Path, entries: list[dict[str, Any]]) -> set[str]:
-    listed = {str(f) for spec in entries for f in (spec.get("files") or [])}
-    marked = set()
-    for path in _iter_source_files(repo):
-        if path.name == REGISTRY_FILENAME:
+def _diff_changed_lines(repo: Path, rev_range: str) -> dict[str, list[str]]:
+    """Per path in the range, the text of every added and removed line.
+
+    `-U0` so only the changed lines appear: a line that merely sits next to a
+    contract line is context and stays out, which is what makes the gate
+    line-aware (skill `synapse-contracts`, Alcance: a refactor that does not
+    cross a process boundary is not a contract change).
+    """
+    out = _git(repo, "diff", "-U0", rev_range)
+    result: dict[str, list[str]] = {}
+    current: str | None = None
+    for line in out.splitlines():
+        if line.startswith("diff --git "):
+            spec = line[len("diff --git "):]
+            # "a/<old> b/<new>"; the b-side is the path after a rename.
+            current = spec.rsplit(" b/", 1)[-1] if " b/" in spec else None
+            if current is not None:
+                result.setdefault(current, [])
             continue
-        text = path.read_text(encoding="utf-8", errors="replace")
-        if MARKER_RE.search(text):
-            marked.add(str(path.relative_to(repo)))
-    return listed | marked
+        if current is None or line.startswith("+++") or line.startswith("---"):
+            continue
+        if line[:1] in "+-":
+            result[current].append(line[1:])
+    return result
+
+
+def _contract_line_patterns(
+    entries: list[dict[str, Any]], rel: str
+) -> list[re.Pattern[str]]:
+    """Patterns whose presence on a changed line means a real contract touch.
+
+    A line is contract surface if it carries a `# CONTRACT:` marker, or if it is
+    where a registry entry's value (or its `anchor`) still appears. Editing the
+    file anywhere else is an ordinary refactor.
+    """
+    patterns: list[re.Pattern[str]] = [MARKER_RE]
+    for spec in entries:
+        if rel not in {str(f) for f in (spec.get("files") or [])}:
+            continue
+        target = spec.get("anchor") or spec.get("value")
+        if target:
+            patterns.append(_value_pattern(str(target)))
+    return patterns
+
+
+def _touched_contract_files(
+    repo: Path, entries: list[dict[str, Any]], rev_range: str
+) -> list[str]:
+    """Files whose DIFF touches a contract line, not merely files that hold one.
+
+    The whole-file view (every file carrying a marker, or listed under `files:`,
+    counted as surface no matter which line changed) blocked innocent refactors:
+    SC-6046 — a bus consumption loop edited 200 lines below its marker. A real
+    break still lands: the marker line, or the line where the value/anchor is
+    composed, is exactly what renaming a key or changing its value has to touch.
+    """
+    changed_lines = _diff_changed_lines(repo, rev_range)
+    touched = [
+        rel
+        for rel, lines in changed_lines.items()
+        if any(
+            any(p.search(ln) for p in _contract_line_patterns(entries, rel))
+            for ln in lines
+        )
+    ]
+    return sorted(touched)
 
 
 def _registry_paths(data: dict[str, Any]) -> set[str]:
@@ -432,8 +496,7 @@ def validate_range(
     changed = _changed_files(repo, rev_range)
     if not changed:
         return
-    surface = _contract_files(repo, entries)
-    touched_surface = sorted(changed & surface)
+    touched_surface = _touched_contract_files(repo, entries, rev_range)
     registry_paths = _registry_paths(data)
     touched_registry = bool(changed & registry_paths)
     log = _git(repo, "log", "--format=%B%x00", rev_range)
