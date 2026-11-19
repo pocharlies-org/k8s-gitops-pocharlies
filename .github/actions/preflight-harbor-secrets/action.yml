@@ -1,0 +1,49 @@
+name: Pre-flight secrets de Harbor
+description: >
+  Falla antes de cualquier build o login si al repo que llama le faltan
+  HARBOR_USER o HARBOR_PASSWORD, nombrandolos y dando el comando exacto de
+  siembra (INFRA-1459). Sin esto la release moria en startup_failure con
+  «Secret HARBOR_USER is required, but not provided while calling», un error
+  opaco que cada vez abra una Request IT de ~1 h de diagnostico.
+
+# Solo se comprueba si el valor esta vacio: ningun secreto se imprime nunca.
+
+inputs:
+  harbor_user:
+    description: Valor de secrets.HARBOR_USER del repo que llama. Solo se mira si esta vacio.
+    required: false
+    default: ''
+  harbor_password:
+    description: Valor de secrets.HARBOR_PASSWORD del repo que llama. Solo se mira si esta vacio.
+    required: false
+    default: ''
+  repo:
+    description: Repo owner/name que se nombra en el comando de reparacion.
+    required: false
+    default: ${{ github.repository }}
+
+runs:
+  using: composite
+  steps:
+    - name: Comprobar secrets de Harbor
+      shell: bash
+      env:
+        HARBOR_USER: ${{ inputs.harbor_user }}
+        HARBOR_PASSWORD: ${{ inputs.harbor_password }}
+        REPO: ${{ inputs.repo }}
+      run: |
+        faltan=""
+        [ -n "$HARBOR_USER" ] || faltan="$faltan HARBOR_USER"
+        [ -n "$HARBOR_PASSWORD" ] || faltan="$faltan HARBOR_PASSWORD"
+        if [ -z "$faltan" ]; then
+          echo "Pre-flight OK: HARBOR_USER y HARBOR_PASSWORD presentes en $REPO."
+          exit 0
+        fi
+        {
+          echo "::error::Faltan los secrets:${faltan# } en $REPO y la release no puede hacer login en Harbor."
+          echo "Siembra el repo con: company-repo-alta --sembrar $REPO (SC-6013)."
+          echo "Mientras esa opcion no exista, a mano (el valor va por stdin, nunca --body -):"
+          echo "  printf '%s' \"\$(op-secret op://k8s-pocharlies/je2gackmurneza46nxctawji2m/username)\" | gh secret set HARBOR_USER -R $REPO"
+          echo "  printf '%s' \"\$(op-secret op://k8s-pocharlies/je2gackmurneza46nxctawji2m/password)\" | gh secret set HARBOR_PASSWORD -R $REPO"
+        } >&2
+        exit 1
