@@ -131,11 +131,25 @@ def validate_common(
         assert "nodeAffinity" not in pod_spec.get("affinity", {})
         assert not pod_spec.get("tolerations")
     elif edge_fallback:
-        # arc-openclaw (SC-2019): KS5 solo PREFERIDO (sin required: si no cabe,
-        # desborda a ubuntu en vez de quedar Pending) y sin tolerar role=edge
-        # (sauvage, md3 saturado).
+        # arc-openclaw (SC-2019): KS5 solo PREFERIDO (el required no fija pool: si
+        # no cabe en ks5, desborda a ubuntu en vez de quedar Pending) y sin
+        # tolerar role=edge (sauvage, md3 saturado).
+        # SC-6076 (2026-11-19): el required solo excluye control-plane (los
+        # ks5-cp-* no llevan taint y dos runners de este pool saturaron
+        # ks5-cp-3, incidente Keep NODE-20064).
         node_affinity = pod_spec["affinity"]["nodeAffinity"]
-        assert "requiredDuringSchedulingIgnoredDuringExecution" not in node_affinity
+        assert node_affinity["requiredDuringSchedulingIgnoredDuringExecution"] == {
+            "nodeSelectorTerms": [
+                {
+                    "matchExpressions": [
+                        {
+                            "key": "node-role.kubernetes.io/control-plane",
+                            "operator": "DoesNotExist",
+                        }
+                    ]
+                }
+            ]
+        }
         node_preferences = node_affinity[
             "preferredDuringSchedulingIgnoredDuringExecution"
         ]
@@ -422,13 +436,13 @@ eligibility_matrix = {
 # role=edge: su md3 HDD se satura con arranques en frio, INFRA-1397): solo
 # ubuntu (x86). arc-k8s-atlantic: solo atlantic. arc-k8s-sauvage (3 plazas):
 # solo sauvage, el unico que tolera role=edge.
-# arc-openclaw: anclado a ks5 como preferred, sin required — cualquier amd64
-# sin taint le vale.
+# arc-openclaw: ks5 preferred y required que solo excluye control-plane
+# (SC-6076) — cualquier amd64 sin taint fuera de los cp le vale.
 # arc-skills-eval (SC-3635): SOLO atlantic (node-pool=ovh-heavy); en cualquier
 # otro nodo hace cola. Es el aislamiento pedido, no un defecto.
 expected_eligibility = {
     "arc-openclaw": {
-        "ks5-cp": True,
+        "ks5-cp": False,
         "atlantic": True,
         "atlantic-ovh-heavy": True,
         "sauvage": False,
