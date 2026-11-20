@@ -372,7 +372,18 @@ spec:
         # unit tests en su job); con 8 calientes el run 44014688585 dejo al
         # grupo-0 arrancando 64 s despues de `elegir`, 4 s por encima del
         # criterio. 2 pods mas (100m / 1 Gi cada uno) lo cubren.
-        maxRunners: 24
+        # 2026-11-20 dani · 24 -> 18 (ACTUALIZA el tope de los bloques de arriba;
+        # minRunners sigue en 6). x86 (ubuntu) es el unico nodo elegible de
+        # arc-k8s y cada runner reserva ~1,57 GiB en requests (runner 1 Gi +
+        # dind 512 Mi + 2 sidecars de 32 Mi). Con 24 la memoria de x86 llegaba
+        # al 98 % en requests (63344 Mi de ~64 Gi asignables) y los runners
+        # (prioridad 0) desalojaban a stt-turbo (preemptible, -1000): el STT
+        # quedo Pending por "Insufficient memory" y lo preemptaron dos veces en
+        # una hora. A stt-turbo se le sube a inferencia-critica en
+        # k8s-ai-pocharlies; con 18 quedan ~9 GiB de holgura en requests (6
+        # runners x ~1,57 GiB) para los servicios residentes. Las plazas
+        # totales pasan de 31 a 25 (arc-k8s 18 + atlantic 4 + sauvage 3).
+        maxRunners: 18
         # 2026-11-03 devops · INFRA-334 (p95 del job de review, criterio 6 de la
         # epica INFRA-298; el defecto medido por qa era cola + pull, no el motor).
         # Medido con la API de jobs por run sobre los pilotos k8s-litellm y

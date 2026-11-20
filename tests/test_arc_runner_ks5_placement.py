@@ -83,9 +83,10 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         # la del x86 (pool=dev, PreferNoSchedule) SI se conserva: ese nodo va bien
         self.assertIn("key: pool", runner_tolerations)
 
-    def test_runner_pool_is_24_shared_plus_4_atlantic_plus_3_sauvage(self) -> None:
-        """31 plazas sobre el pool cpu (partia de las 32 de la remedicion exacta
-        INFRA-1093, 02-11): 24 en arc-k8s (solo x86, min 4 desde INFRA-1424 —
+    def test_runner_pool_is_18_shared_plus_4_atlantic_plus_3_sauvage(self) -> None:
+        """25 plazas sobre el pool cpu (partia de las 32 de la remedicion exacta
+        INFRA-1093, 02-11; 31 hasta el 2026-11-20, que arc-k8s bajo de 24 a 18
+        para no llenar la memoria en requests de x86): 18 en arc-k8s (solo x86, min 6 desde INFRA-1424 —
         la primera oleada del CI son 8 jobs), 4 en arc-k8s-atlantic (min 4,
         primera prioridad) y 3 en arc-k8s-sauvage (min 0, ultimo recurso; su md3
         es un HDD). INFRA-1397, 2026-11-16; ver los comentarios en
@@ -95,13 +96,13 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         sauvage = rest.split("name: arc-skills-eval", 1)[0]
         # Anclados al fin de linea: "maxRunners: 32" contiene "maxRunners: 3",
         # y un assert de subcadena a secas se auto-contradice con dos digitos.
-        self.assertIn("maxRunners: 24\n", shared)
+        self.assertIn("maxRunners: 18\n", shared)
         self.assertIn("minRunners: 6\n", shared)
         self.assertIn("maxRunners: 4\n", atlantic)
         self.assertIn("minRunners: 4\n", atlantic)
         self.assertIn("maxRunners: 3\n", sauvage)
         self.assertIn("minRunners: 0\n", sauvage)
-        for stale in ("maxRunners: 32", "maxRunners: 21", "maxRunners: 16", "maxRunners: 8", "maxRunners: 6", "maxRunners: 4", "maxRunners: 3"):
+        for stale in ("maxRunners: 32", "maxRunners: 24", "maxRunners: 21", "maxRunners: 16", "maxRunners: 8", "maxRunners: 6", "maxRunners: 4", "maxRunners: 3"):
             self.assertNotIn(f"{stale}\n", shared)
         # atlantic y sauvage ya no tienen sus topes de la primera version (8)
         self.assertNotIn("maxRunners: 8\n", atlantic)

@@ -80,17 +80,18 @@ class ArcAtlanticCapTest(unittest.TestCase):
             arc_application("arc-k8s")["spec"]["destination"],
         )
 
-    def test_total_capacity_is_thirty_one(self) -> None:
-        """24 (x86) + 4 (atlantic) + 3 (sauvage) = 31 (INFRA-1397, 2026-11-16)."""
+    def test_total_capacity_is_twenty_five(self) -> None:
+        """18 (x86) + 4 (atlantic) + 3 (sauvage) = 25 (31 con 24 en x86, INFRA-1397,
+        2026-11-16; 24 -> 18 el 2026-11-20)."""
         sauvage = arc_values("arc-k8s-sauvage")
-        self.assertEqual(self.shared["maxRunners"], 24)
+        self.assertEqual(self.shared["maxRunners"], 18)
         self.assertEqual(self.atlantic["maxRunners"], 4)
         self.assertEqual(sauvage["maxRunners"], 3)
         self.assertEqual(
             self.shared["maxRunners"]
             + self.atlantic["maxRunners"]
             + sauvage["maxRunners"],
-            31,
+            25,
         )
 
     def test_atlantic_is_first_priority_with_warm_runners(self) -> None:

@@ -88,15 +88,15 @@ class ArcSauvageCapTest(unittest.TestCase):
         self.assertEqual(sauvage_app["spec"]["destination"], shared_app["spec"]["destination"])
         self.assertEqual(sauvage_app["spec"]["syncPolicy"], shared_app["spec"]["syncPolicy"])
 
-    def test_cap_is_three_and_total_is_thirty_one(self) -> None:
+    def test_cap_is_three_and_total_is_twenty_five(self) -> None:
         atlantic = arc_values("arc-k8s-atlantic")
         self.assertEqual(self.sauvage["maxRunners"], 3)
-        self.assertEqual(self.shared["maxRunners"], 24)
+        self.assertEqual(self.shared["maxRunners"], 18)
         self.assertEqual(
             self.shared["maxRunners"]
             + atlantic["maxRunners"]
             + self.sauvage["maxRunners"],
-            31,
+            25,
         )
 
     def test_sauvage_set_is_the_last_resort_with_no_warm_runners(self) -> None:
