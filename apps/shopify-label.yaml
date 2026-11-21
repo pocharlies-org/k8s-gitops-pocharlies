@@ -44,3 +44,10 @@ spec:
         - /data
         - /metadata/annotations/skirmshop.labels~1synced-at
         - /metadata/annotations/skirmshop.labels~1source
+    # Shipping margin percentage: seeded from git but retunable live via
+    # kubectl edit; ignore /data so self-heal keeps the live value.
+    - group: ""
+      kind: ConfigMap
+      name: labels-shipping-margin
+      jsonPointers:
+        - /data
