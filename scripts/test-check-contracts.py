@@ -533,6 +533,17 @@ def test_ignores_node_modules_when_hunting_markers(repo, capsys):
     assert check(repo) == 0
 
 
+def test_ignores_nested_worktrees_when_hunting_markers(repo, capsys):
+    """Per-task worktrees live under `.claude/worktrees/` by company convention:
+    nested checkouts on other branches carry markers their own branches register
+    and this one does not. They are no part of the push (SC-6179)."""
+    nested = repo / ".claude" / "worktrees" / "SC-1234-topic" / "app" / "services"
+    nested.mkdir(parents=True)
+    (nested / "publisher.ts").write_text("// CONTRACT: other.branch.contract\n", encoding="utf-8")
+    assert check(repo) == 0
+    assert "marker-unregistered" not in capsys.readouterr().out
+
+
 def test_ignores_the_checked_out_checker_when_hunting_markers(repo, capsys):
     """The Contract surface job checks this repo out into the scanned tree at
     `.contracts-checker/`, and this test file's fixtures are markers no consumer

@@ -101,8 +101,12 @@ VALID_KINDS = {
 }
 # `.contracts-checker` is where the Contract surface job checks this repo out
 # inside the consumer's workspace; its test file is a pile of fixture markers no
-# consumer registry declares (k8s-litellm#124).
-SKIP_DIRS = {".git", "node_modules", ".venv", "dist", "build", "__pycache__", ".next", ".contracts-checker"}
+# consumer registry declares (k8s-litellm#124). `.claude` is where the company's
+# convention puts per-task worktrees (`<clone>/.claude/worktrees/<KEY>-<topic>`):
+# nested checkouts of the same repo on other branches, whose markers belong to no
+# commit of this push (SC-6179 blocked the synapse gmail fix for three weeks on
+# three such markers).
+SKIP_DIRS = {".git", "node_modules", ".venv", "dist", "build", "__pycache__", ".next", ".contracts-checker", ".claude"}
 TEXT_SUFFIXES = {
     ".py", ".ts", ".tsx", ".js", ".mjs", ".cjs", ".yaml", ".yml", ".json",
     ".toml", ".sh", ".md", ".sql", ".tf",
