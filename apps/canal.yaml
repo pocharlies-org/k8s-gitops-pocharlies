@@ -1,0 +1,31 @@
+# SC-6293 (épica SC-6292): módulo canal humano — binder del bus + runner SDK + adapter Telegram.
+# Sync MANUAL hasta que la CI de canal-humano publique la primera imagen, el Job de provisión
+# (rol/base PG canal + usuario RMQ canal) esté aplicado y los items de 1Password existan
+# (synapse-eventos-sdk-runner, canal-secrets): un sync antes dejaría el pod en
+# ImagePull/CreateContainerConfigError. Con imagen pineada y la base viva, primer sync manual
+# y pasar a automated{prune,selfHeal} como el resto de apps.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: canal
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-canal-pocharlies
+  labels:
+    e-dani.com/tier: app
+    app.kubernetes.io/part-of: canal-humano
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-canal-pocharlies
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: canal
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
