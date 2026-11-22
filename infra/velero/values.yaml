@@ -63,6 +63,13 @@ initContainers:
   - mountPath: /target
     name: plugins
 nodeAgent:
+  # SC-6246 (22-11): se añade la topology `remote` (nodo sauvage) y su toleración
+  # role=edge. Sauvage estaba excluido mientras el destino era la MinIO en el propio
+  # nodo y su overlay no llegaba a él; desde INFRA-1175 el BSL es OVH S3
+  # (s3.sbg.io.cloud.ovh.net), alcanzable desde sauvage por internet sin overlay. Sin
+  # node-agent aquí, el semanal falla "daemonset pod not found in running state in
+  # node sauvage" en cada pod de sauvage (medido: aurora-redis-0, aurora-weaviate-0,
+  # labels-label-storage, synapse-smtp).
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -73,7 +80,8 @@ nodeAgent:
             values:
             - lan
             - ovh
-            - cloud  # SC-2659: nodo alphalink (droplet); sus pods llegan a MinIO por el overlay
+            - cloud  # SC-2659: nodo alphalink (droplet); sus pods llegan al destino por el overlay
+            - remote  # SC-6246: sauvage; su destino es OVH S3, no necesita el overlay
   extraArgs:
   - --node-agent-configmap=velero-node-agent-config
   resources:
@@ -92,6 +100,10 @@ nodeAgent:
     key: dedicated
     operator: Equal
     value: alpha
+  - effect: NoSchedule
+    key: role
+    operator: Equal
+    value: edge  # SC-6246: taint de sauvage
 nodeSelector:
   node-pool: ks5-nvme
 resources:
