@@ -4,6 +4,9 @@
 # (synapse-eventos-sdk-runner, canal-secrets): un sync antes dejaría el pod en
 # ImagePull/CreateContainerConfigError. Con imagen pineada y la base viva, primer sync manual
 # y pasar a automated{prune,selfHeal} como el resto de apps.
+# El Job de provisión PG/RMQ del módulo corre en ns `databases` (precedentes
+# agent-transcripts-schema.yaml + app-credentials.yaml de k8s-infra): el proyecto
+# default tiene destinations abiertos, así que la Application lo aplica sin destino extra.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
