@@ -59,17 +59,21 @@ configs:
     # Replace=true y el sync de 2026-11-03 18:53 llevo 30 min colgado; la
     # anotacion argocd.argoproj.io/ignore-healthcheck que puso SC-1771 no es
     # una funcion de ArgoCD, no hacia nada). Con esta lua la anotacion pasa a
-    # ser real: solo las Jobs suspendidas CON la anotacion reportan Healthy y no
-    # gatean el sync; las demas Jobs conservan el comportamiento de siempre
-    # (Progressing mientras corren, Healthy al Complete, Degraded al Failed).
+    # ser real: las Jobs CON la anotacion reportan Healthy y no gatean el sync,
+    # suspendidas O en marcha (SC-6298: el importador de hindsight con su carga
+    # de 8 h volvia a dejar la operacion Running para siempre y su evento
+    # argocd no llegaba nunca); las demas Jobs conservan el comportamiento de
+    # siempre (Progressing mientras corren, Healthy al Complete, Degraded al
+    # Failed). El fallo de una Job anotada no lo ve el sync: se ve en las
+    # metricas K8s del Job (ns correspondiente), como en batch_CronJob.
     # Como en SC-2082, el script devuelve SIEMPRE un health con status.
     resource.customizations.health.batch_Job: |
       health = { status = 'Progressing', message = 'Job: esperando finalizacion' }
-      if obj.spec.suspend == true and obj.metadata.annotations ~= nil
+      if obj.metadata.annotations ~= nil
           and obj.metadata.annotations['argocd.argoproj.io/ignore-healthcheck'] == 'true' then
         health = {
           status = 'Healthy',
-          message = 'Job suspendida a proposito (ignore-healthcheck): no gatea el sync'
+          message = 'Job con ignore-healthcheck (suspendida o en marcha): no gatea el sync'
         }
         return health
       end
