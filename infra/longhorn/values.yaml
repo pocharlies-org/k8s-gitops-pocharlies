@@ -79,7 +79,10 @@ defaultSettings:
   storageMinimalAvailablePercentage: 15
   storageOverProvisioningPercentage: 112
   systemManagedComponentsNodeSelector: storage-longhorn:true
-  taintToleration: dedicated=llm:NoSchedule;role=edge:NoSchedule;pocharlies.io/pool=bulk:NoSchedule
+  # SC-1212: alphalink (taint dedicated=alpha) como nodo Longhorn attach-only (engine en el
+  # nodo, réplices y backup fuera). Inerte hasta etiquetar el nodo storage-longhorn=true y
+  # ponerle allowScheduling=false en su Node CR (activación gated, espejo del playbook de Sauvage).
+  taintToleration: dedicated=llm:NoSchedule;role=edge:NoSchedule;pocharlies.io/pool=bulk:NoSchedule;dedicated=alpha:NoSchedule
 ingress:
   enabled: false
 longhornDriver:
@@ -90,6 +93,10 @@ longhornDriver:
     key: dedicated
     operator: Equal
     value: llm
+  - effect: NoSchedule
+    key: dedicated
+    operator: Equal
+    value: alpha
   - effect: NoSchedule
     key: role
     operator: Equal
@@ -106,6 +113,10 @@ longhornManager:
     key: dedicated
     operator: Equal
     value: llm
+  - effect: NoSchedule
+    key: dedicated
+    operator: Equal
+    value: alpha
   - effect: NoSchedule
     key: role
     operator: Equal
