@@ -99,6 +99,14 @@ longhornDriver:
     operator: Equal
     value: bulk
 longhornManager:
+  # INFRA-1546 (LHB-20578, 24-11): sin requests el manager era BestEffort
+  # (oom_score_adj=1000) y el OOM global del nodo ubuntu (renders blender de host)
+  # lo mato el primero -> attach de volumenes parado >5 min. Solo requests, sin
+  # limits: un limite de memoria tumbaria el plano de control de storage.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
   nodeSelector:
     storage-longhorn: "true"
   tolerations:
