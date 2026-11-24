@@ -33,13 +33,15 @@ configuration:
     repositoryConfigData:
       global:
         keepLatestMaintenanceJobs: 1
-        loadAffinity:
-        - nodeSelector:
-            matchExpressions:
-            - key: node-pool
-              operator: In
-              values:
-              - ks5-nvme
+        # SC-6235: retirado el loadAffinity a node-pool=ks5-nvme. Desde SC-6096 los
+        # ks5-cp-* llevan taint control-plane:NoSchedule y la allowlist Kyverno solo
+        # añade la toleración a pods que la declaran por nodeSelector; el job de
+        # mantenimiento la declaraba por affinity y no la recibía → unschedulable
+        # (correo Failed, openclaw-synapse Pending). El anclaje era obsoleto: el
+        # repositorio kopia está en OVH S3 (INFRA-1175) y el job no monta volúmenes
+        # locales (solo emptyDir). Sin afinidad, el job cae en un nodo worker sin
+        # taint (atlantic), además de la dirección de SC-6096: quitar carga del plano
+        # de control.
         podResources:
           cpuLimit: "1"
           cpuRequest: 100m
