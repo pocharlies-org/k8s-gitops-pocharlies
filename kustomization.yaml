@@ -258,6 +258,23 @@ patches:
             - /spec/template/metadata/creationTimestamp
           managedFieldsManagers:
             - kube-controller-manager
+      # SC-6486: los PVC de shared-valkey se ampliaron en vivo 2Gi->5Gi el 24-11-2026
+      # (KubePersistentVolumeFillingUp critico sobre valkey-0/-2, «only 0% free»).
+      # volumeClaimTemplates es inmutable en un StatefulSet existente: la plantilla
+      # de git (k8s-infra pocharlies-org/k8s-infra-pocharlies#633, 5Gi) no puede
+      # aplicarse en el sitio y, sin este ignore, selfHeal entraría en un patch
+      # rechazado permanente. Mismo patron que shared-rabbitmq arriba.
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: StatefulSet
+          name: shared-valkey
+          namespace: databases
+          jsonPointers:
+            - /spec/volumeClaimTemplates
+          managedFieldsManagers:
+            - kube-controller-manager
   - target:
       group: argoproj.io
       version: v1alpha1
