@@ -101,6 +101,19 @@ longhornDriver:
 longhornManager:
   nodeSelector:
     storage-longhorn: "true"
+  # SC-6478 (24-11): sin requests el pod queda BestEffort y el kernel le da
+  # oom_score_adj=1000 — en un OOM del nodo es lo primero que muere, y con él el
+  # attach de los volúmenes de ese nodo. El 24-11 un OOM global en `ubuntu` mató a
+  # su manager (el pod lleva 9 reinicios) y `whatsapp-session-data-leila` quedó
+  # 6 min en `attaching` (Keep LHB-20581). `priorityClass: longhorn-critical` no
+  # vale aquí: protege del desalojo del scheduler, no del OOM killer. Con request
+  # el adj baja a ~6: en el próximo OOM muere el runner o el blender, no el plano
+  # de control de almacenamiento. Uso vivo medido: 226–312 Mi por pod. Sin
+  # `limits` a propósito: un techo mataría al manager por su propio cgroup en un
+  # pico, que es justo lo que no queremos.
+  resources:
+    requests:
+      memory: 256Mi
   tolerations:
   - effect: NoSchedule
     key: dedicated
