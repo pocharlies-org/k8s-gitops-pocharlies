@@ -92,6 +92,11 @@ nodeAgent:
     key: dedicated
     operator: Equal
     value: alpha
+  # SC-6165: el node-agent debe seguir corriendo en ks5-cp-* tras el taint
+  # node-role.kubernetes.io/control-plane:NoSchedule (guard de SC-6096).
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/control-plane
+    operator: Exists
 nodeSelector:
   node-pool: ks5-nvme
 resources:
@@ -109,3 +114,22 @@ resources:
     cpu: 15m
     memory: 512Mi
 snapshotsEnabled: true
+# SC-6165: allowlist del taint node-role.kubernetes.io/control-plane:NoSchedule
+# (guard de SC-6096). El server vive en ks5-nvme = ks5-cp-1/2/3, que ahora estan
+# tainted; sin esta toleracion el server no sobrevive a un reinicio y los jobs de
+# mantenimiento de los repositorios kopia quedan Pending (heredan las toleraciones
+# del Deployment, doc velero 1.18 repository-maintenance). Las dos de `dedicated`
+# ya estaban vivas en el Deployment sin estar declaradas; se declaran aqui para
+# que el diff GitOps salga vacio.
+tolerations:
+- effect: NoSchedule
+  key: dedicated
+  operator: Equal
+  value: llm
+- effect: NoSchedule
+  key: dedicated
+  operator: Equal
+  value: alpha
+- effect: NoSchedule
+  key: node-role.kubernetes.io/control-plane
+  operator: Exists
