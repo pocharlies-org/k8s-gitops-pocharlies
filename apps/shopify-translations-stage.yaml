@@ -1,0 +1,29 @@
+# SKIRM-652: stage de la app de traducciones (tienda de prueba SII Test SC1800).
+# Regla de casa: todo cambio de Shopify se comprueba aquí antes de producción.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: shopify-translations-stage
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-shopify-translations-pocharlies
+  labels:
+    e-dani.com/portfolio: skirmshop
+    e-dani.com/tier: app
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-shopify-translations-pocharlies
+    targetRevision: main
+    path: k8s-stage
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: skirmshop
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
