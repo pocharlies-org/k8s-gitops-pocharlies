@@ -5,6 +5,9 @@ metadata:
   namespace: argocd
   annotations:
     link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-synapse-pocharlies
+    # El API añade valores por defecto a `volumeClaimTemplates` de los dos StatefulSet (apiVersion, kind, volumeMode,
+    # status) y, comparando en el cliente, quedaban OutOfSync para siempre. Con el diff del lado del servidor no.
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
   labels:
     e-dani.com/tier: app
     app.kubernetes.io/part-of: synapse
