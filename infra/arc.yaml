@@ -630,10 +630,16 @@ spec:
                     # emptyDir, on the node's root disk. Bounded so one job
                     # cannot wedge md3.
                     ephemeral-storage: "2Gi"
+                    # SC-6551 (25-11): el job Own Release de paseo (npm ci + build de
+                    # un monorepo react-native) muerde el limite: run 45533952510 alcanzo
+                    # 4093.7/4096 MiB y el runner perdiendo comunicacion; run 45464137020,
+                    # mismo perfil en el otro pool. Memoria 4Gi->8Gi y ephemeral
+                    # 10Gi->20Gi (node_modules + cache npm del monorepo); requests sin
+                    # tocar, el scheduling no cambia.
                   limits:
                     cpu: "2"
-                    memory: "4Gi"
-                    ephemeral-storage: "10Gi"
+                    memory: "8Gi"
+                    ephemeral-storage: "20Gi"
                 volumeMounts:
                   - name: work
                     mountPath: /home/runner/_work
@@ -921,10 +927,16 @@ spec:
                     # emptyDir, on the node's root disk. Bounded so one job
                     # cannot wedge md3.
                     ephemeral-storage: "2Gi"
+                    # SC-6551 (25-11): el job Own Release de paseo (npm ci + build de
+                    # un monorepo react-native) muerde el limite: run 45533952510 alcanzo
+                    # 4093.7/4096 MiB y el runner perdiendo comunicacion; run 45464137020,
+                    # mismo perfil en el otro pool. Memoria 4Gi->8Gi y ephemeral
+                    # 10Gi->20Gi (node_modules + cache npm del monorepo); requests sin
+                    # tocar, el scheduling no cambia.
                   limits:
                     cpu: "2"
-                    memory: "4Gi"
-                    ephemeral-storage: "10Gi"
+                    memory: "8Gi"
+                    ephemeral-storage: "20Gi"
                 volumeMounts:
                   - name: work
                     mountPath: /home/runner/_work
@@ -1199,10 +1211,14 @@ spec:
                     # emptyDir, on the node's root disk. Bounded so one job
                     # cannot wedge md3.
                     ephemeral-storage: "2Gi"
+                    # SC-6551 (25-11): mismo subid que arc-k8s y arc-k8s-atlantic:
+                    # el guard exige un unico template en los tres pools
+                    # (test_arc_k8s_sauvage). Limite, no request: si un job desborda
+                    # el md3, kubelet evicta el runner (INFRA-972).
                   limits:
                     cpu: "2"
-                    memory: "4Gi"
-                    ephemeral-storage: "10Gi"
+                    memory: "8Gi"
+                    ephemeral-storage: "20Gi"
                 volumeMounts:
                   - name: work
                     mountPath: /home/runner/_work
