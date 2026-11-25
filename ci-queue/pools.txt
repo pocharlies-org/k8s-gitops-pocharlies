@@ -8,3 +8,4 @@
         runnerScaleSetName: arc-k8s-sauvage
         runnerScaleSetName: arc-openclaw
         runnerScaleSetName: arc-skills-eval
+        runnerScaleSetName: arc-manifestguard

@@ -1388,3 +1388,109 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+---
+# INFRA-1407 (P1 de INFRA-1405, dictamina security en la PR): pool DEDICADO al guard de
+# manifiestos GitOps. El job (INFRA-1408) valida los manifiestos renderizados contra los CRDs REALES
+# del clúster con kubeconform --strict; para eso necesita leer `customresourcedefinitions`.
+#
+# POR QUE UN SCALE SET PROPIO Y NO `arc-k8s`. `arc-k8s` es el runner de TODA la org: darle CRD-read
+# a su SA (`arc-k8s-gha-rs-no-permission`) se lo daría a cualquier job de CI de pocharlies-org,
+# incluidos los que corren código de terceros. Aquí el privilegio lo recibe solo quien pide
+# `runs-on: arc-manifestguard`, y es de lectura sobre un único recurso.
+#
+# LA IDENTIDAD. `template.spec.serviceAccountName` apunta a `arc-manifestguard-cr-reader` (ns
+# arc-runners), cuyo ClusterRole/ClusterRoleBinding viven en
+# k8s-infra-pocharlies/platform/arc/rbac-manifestguard.yaml (ArgoCD). Con este valor fijado el chart
+# NO crea su SA `*-gha-rs-no-permission` (no_permission_serviceaccount.yaml se excluye cuando
+# template.spec.serviceAccountName está puesto): el SA lo posee ArgoCD junto a su RBAC, así que se
+# revisan juntos. El runner lee su propio clúster con el token proyectado (rota solo): sin kubeconfig
+# y sin secreto que repartir.
+#
+# ALCANCE DEL POOL: org (`githubConfigUrl: https://github.com/pocharlies-org`), como `arc-k8s`. Es
+# lo que necesita INFRA-1409: el guard se publica en `reusable-ci.yml` y cualquier repo de la org lo
+# activa con un input. Consecuencia que dictamina `security`: cualquier workflow de la org que pida
+# la etiqueta obtiene un runner capaz de LEER los CRDs del clúster (get/list/watch, sin escritura y
+# sin acceso a secretos). Los CRDs son esquemas: no contienen credenciales.
+#
+# SIN DinD (containerMode sin fijar, como arc-hermes y arc-openclaw): el guard no construye imágenes;
+# no hay contenedor privilegiado en este pool. Colocado en el pool CPU (workload=cpu: atlantic + x86)
+# con el doble candado de arc-k8s sobre los control planes. Su egreso lo acota
+# `arc-manifestguard-cluster-egress` (k8s-infra, networking/arc-runners/): solo la API.
+# min 0 / max 2: el job es corto (kustomize + kubeconform) y no hay motivo para runners calientes.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: arc-manifestguard
+  namespace: argocd
+  labels:
+    e-dani.com/tier: infra
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/actions/actions-runner-controller-charts
+    chart: gha-runner-scale-set
+    targetRevision: 0.14.1
+    helm:
+      releaseName: arc-manifestguard
+      values: |
+        controllerServiceAccount:
+          name: arc-gha-rs-controller
+          namespace: arc-systems
+        githubConfigSecret: arc-github-app
+        githubConfigUrl: https://github.com/pocharlies-org
+        maxRunners: 2
+        minRunners: 0
+        runnerScaleSetName: arc-manifestguard
+        template:
+          spec:
+            serviceAccountName: arc-manifestguard-cr-reader
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    # Los ks5-cp-* no llevan taint: el selector es la única barrera,
+                    # así que se repite el doble candado de arc-k8s (INFRA-960).
+                    - matchExpressions:
+                        - key: node-role.kubernetes.io/control-plane
+                          operator: DoesNotExist
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchLabels:
+                          app.kubernetes.io/component: runner
+                          app.kubernetes.io/part-of: gha-runner-scale-set
+                      topologyKey: kubernetes.io/hostname
+            nodeSelector:
+              kubernetes.io/arch: amd64
+              workload: cpu
+            containers:
+              - name: runner
+                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                imagePullPolicy: IfNotPresent
+                command: ["/home/runner/run.sh"]
+                resources:
+                  # El job renderiza (kustomize), baja kubectl/kubeconform a $RUNNER_TEMP y valida.
+                  # No compila: se reserva lo que usa y se acota el disco efímero (INFRA-972: el
+                  # writable layer sin tope llenó el md3 de un nodo).
+                  requests:
+                    cpu: 250m
+                    memory: 512Mi
+                    ephemeral-storage: 1Gi
+                  limits:
+                    cpu: "1"
+                    memory: 1Gi
+                    ephemeral-storage: 4Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: arc-runners
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

@@ -152,10 +152,13 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         # arc-k8s, arc-k8s-atlantic y arc-k8s-sauvage pasa a la imagen con el
         # entorno del CI. Init (externals), dind y el sidecar warm-pr-agent no
         # cambian: no instalan nada.
-        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 10)
+        # 2026-11-16 devops · INFRA-1407: +1 runner image y +1 IfNotPresent — pool
+        # arc-manifestguard (guard de manifiestos), misma imagen fijada (RUNNER_IMAGE
+        # oficial, sin entorno del CI), sin dind.
+        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 11)
         self.assertEqual(self.manifest.count(f"image: {CI_RUNNER_IMAGE}"), 3)
         self.assertEqual(self.manifest.count(f"image: {DIND_IMAGE}"), 4)
-        self.assertEqual(self.manifest.count("imagePullPolicy: IfNotPresent"), 17)
+        self.assertEqual(self.manifest.count("imagePullPolicy: IfNotPresent"), 18)
         self.assertNotIn("image: docker:dind", self.manifest)
         self.assertNotIn("image: ghcr.io/actions/actions-runner:2.335.1\n", self.manifest)
 

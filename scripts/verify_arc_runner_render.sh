@@ -41,6 +41,7 @@ for name in (
     "arc-k8s-atlantic",
     "arc-k8s-sauvage",
     "arc-skills-eval",
+    "arc-manifestguard",
 ):
     application = applications[name]
     source = application["spec"]["source"]
@@ -53,7 +54,7 @@ for name in (
     (output / f"{name}.values.yaml").write_text(values_text, encoding="utf-8")
 PY
 
-for release in arc-openclaw arc-k8s arc-k8s-atlantic arc-k8s-sauvage arc-skills-eval; do
+for release in arc-openclaw arc-k8s arc-k8s-atlantic arc-k8s-sauvage arc-skills-eval arc-manifestguard; do
   helm template "${release}" "${CHART}" \
     --version "${CHART_VERSION}" \
     --namespace arc-runners \
@@ -108,6 +109,7 @@ def validate_common(
     hard_pinned_by_selector: bool = False,
     hostname_pinned: bool = False,
     edge_tolerated: bool = False,
+    control_plane_lock_only: bool = False,
 ) -> tuple[dict, dict]:
     runner_set = rendered_runner_set(release)
     assert runner_set["spec"]["maxRunners"] == expected_max
@@ -188,6 +190,26 @@ def validate_common(
             "value": "edge",
         }
         assert (edge_toleration in pod_spec["tolerations"]) is edge_tolerated
+    elif control_plane_lock_only:
+        # arc-manifestguard (INFRA-1407): pool CPU con el doble candado sobre los
+        # control planes (los ks5-cp-* no llevan taint) y SIN excluir atlantic:
+        # aqui si lo queremos, es el nodo con holgura. Sin tolerations: sauvage
+        # queda fuera por su taint role=edge.
+        assert pod_spec["affinity"]["nodeAffinity"] == {
+            "requiredDuringSchedulingIgnoredDuringExecution": {
+                "nodeSelectorTerms": [
+                    {
+                        "matchExpressions": [
+                            {
+                                "key": "node-role.kubernetes.io/control-plane",
+                                "operator": "DoesNotExist",
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+        assert not pod_spec.get("tolerations")
     else:
         # arc-k8s (INFRA-960, 2026-10-28): pool CPU dedicado — nodeSelector
         # workload=cpu y nodeAffinity required que excluye los control planes:
@@ -392,6 +414,49 @@ assert skills_eval_dind["image"] == dind_image
 assert "--mtu=1230" in skills_eval_dind["args"]
 assert skills_eval_dind["securityContext"]["privileged"] is True
 
+# arc-manifestguard (INFRA-1407, P1 de INFRA-1405): el pool del guard de manifiestos. Su
+# privilegio (leer CRDs) vive en k8s-infra platform/arc/rbac-manifestguard.yaml; este render fija
+# que la identidad del runner es ESA y no otra, y que el pool sigue sin DinD.
+expected_selector_manifestguard = {
+    "kubernetes.io/arch": "amd64",
+    "workload": "cpu",
+}
+manifestguard_set, manifestguard_spec = validate_common(
+    "arc-manifestguard",
+    2,
+    edge_fallback=False,
+    selector=expected_selector_manifestguard,
+    control_plane_lock_only=True,
+)
+assert manifestguard_set["spec"]["runnerScaleSetName"] == "arc-manifestguard"
+assert manifestguard_set["spec"]["minRunners"] == 0
+assert "runnerScaleSetLabels" not in manifestguard_set["spec"]
+# La identidad: el SA lo posee ArgoCD (k8s-infra platform/arc/rbac-manifestguard.yaml). Si el
+# chart volviera a crear su `*-gha-rs-no-permission`, el privilegio caería en una identidad que
+# nadie revisó.
+manifestguard_docs = [
+    document
+    for document in yaml.safe_load_all(
+        (root / "arc-manifestguard.rendered.yaml").read_text(encoding="utf-8")
+    )
+    if isinstance(document, dict)
+]
+assert [
+    document["kind"]
+    for document in manifestguard_docs
+    if document.get("kind") == "ServiceAccount"
+] == [], "arc-manifestguard: con template.spec.serviceAccountName el chart no debe crear SA"
+assert manifestguard_spec["serviceAccountName"] == "arc-manifestguard-cr-reader"
+# Sin DinD: nada privilegiado en este pool (el guard renderiza y valida, no construye).
+assert [container["name"] for container in manifestguard_spec["containers"]] == ["runner"]
+assert manifestguard_spec.get("initContainers", []) == []
+assert manifestguard_spec.get("volumes", []) == []
+manifestguard_runner = manifestguard_spec["containers"][0]
+assert manifestguard_runner["image"] == runner_image
+assert manifestguard_runner["imagePullPolicy"] == "IfNotPresent"
+assert not manifestguard_runner.get("securityContext", {}).get("privileged", False)
+assert "DOCKER_HOST" not in {item["name"] for item in manifestguard_runner.get("env", [])}
+
 eligibility_matrix = {
     # ks5-cp: sin taint y sin workload=cpu — arc-k8s no debe entrar (INFRA-960).
     "ks5-cp": {
@@ -481,6 +546,16 @@ expected_eligibility = {
         "ubuntu-gpu": False,
         "arm-gpu": False,
     },
+    # arc-manifestguard: el pool CPU completo (atlantic + x86), sin control planes y
+    # sin sauvage (INFRA-1407).
+    "arc-manifestguard": {
+        "ks5-cp": False,
+        "atlantic": True,
+        "atlantic-ovh-heavy": True,
+        "sauvage": False,
+        "ubuntu-gpu": True,
+        "arm-gpu": False,
+    },
 }
 for release, runner_spec in (
     ("arc-openclaw", openclaw_spec),
@@ -488,6 +563,7 @@ for release, runner_spec in (
     ("arc-k8s-atlantic", atlantic_spec),
     ("arc-k8s-sauvage", sauvage_spec),
     ("arc-skills-eval", skills_eval_spec),
+    ("arc-manifestguard", manifestguard_spec),
 ):
     for case, labels in eligibility_matrix.items():
         assert scheduler_eligible(runner_spec, labels) is expected_eligibility[
