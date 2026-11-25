@@ -86,6 +86,7 @@ resources:
   - apps/sugiere.yaml
   - apps/synapse-migrations.yaml
   - apps/synapse-sre-foundation.yaml
+  - apps/synapse2.yaml
   - apps/teslamate.yaml
   - apps/tomorrowland.yaml
   - apps/company-crm.yaml

@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: synapse2
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-synapse-pocharlies
+  labels:
+    e-dani.com/tier: app
+    app.kubernetes.io/part-of: synapse
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-synapse-pocharlies
+    targetRevision: deploy/prod
+    path: k8s/synapse2
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: synapse2
+  # SKIRM-665: el segundo Synapse de casa, la base pública entera con su Postgres y su RabbitMQ, al que se va
+  # traspasando `synapse`. Manual a propósito, como `synapse` y `synapse-migrations`: cada sync repite la provisión
+  # y el migrador (son hooks), y un tag nuevo de la base se prueba aquí antes que en producción.
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
