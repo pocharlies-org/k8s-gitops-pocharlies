@@ -72,6 +72,7 @@ resources:
   - apps/shopify-sii.yaml
   - apps/shopify-serial-numbers.yaml
   - apps/shopify-translations.yaml
+  - apps/shopify-translations-stage.yaml
   - apps/shopify-affiliate.yaml
   - apps/gbp-festivos.yaml
   - apps/skirmshop-control-panel.yaml
