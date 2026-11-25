@@ -1,7 +1,9 @@
 # Exporter de cola CI (INFRA-550): su código vive en este repo (path ci-queue),
 # se despliega él solo — no es un servicio en el x86. El scrape y las reglas
 # están en k8s-observability-pocharlies (manifests/arc-scrape.yaml,
-# manifests/arc-rules.yaml). prune: false: patrón del repo.
+# manifests/arc-rules.yaml). prune: true (INFRA-1476): el path solo contiene
+# objetos stateless del exportador; las salidas viejas del configMapGenerator
+# se acumulan en cada bump si no se podan. Excepción al patrón prune:false del repo.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -21,4 +23,4 @@ spec:
   syncPolicy:
     automated:
       selfHeal: true
-      prune: false
+      prune: true

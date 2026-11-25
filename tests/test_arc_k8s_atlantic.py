@@ -65,12 +65,12 @@ class ArcAtlanticCapTest(unittest.TestCase):
         self.atlantic_spec = self.atlantic["template"]["spec"]
 
     def test_atlantic_scale_set_serves_the_arc_k8s_label(self) -> None:
-        """Mismo `runs-on: arc-k8s`: el scale set de atlantic lleva la etiqueta
-        explicita y arc-k8s no declara ninguna (su etiqueta es su nombre)."""
+        """Mismo `runs-on: arc-k8s` y tambien `arc-k8s-fast` (INFRA-1437: es
+        un nodo rapido, los jobs pesados si pueden caer aqui)."""
         self.assertEqual(self.atlantic["runnerScaleSetName"], "arc-k8s-atlantic")
-        self.assertEqual(self.atlantic["scaleSetLabels"], ["arc-k8s"])
+        self.assertEqual(self.atlantic["scaleSetLabels"], ["arc-k8s", "arc-k8s-light"])
         self.assertEqual(self.shared["runnerScaleSetName"], "arc-k8s")
-        self.assertNotIn("scaleSetLabels", self.shared)
+        self.assertEqual(self.shared["scaleSetLabels"], ["arc-k8s", "arc-k8s-light"])
 
     def test_same_org_secret_and_controller(self) -> None:
         for key in ("githubConfigUrl", "githubConfigSecret", "controllerServiceAccount"):
@@ -94,16 +94,17 @@ class ArcAtlanticCapTest(unittest.TestCase):
         )
 
     def test_atlantic_is_first_priority_with_warm_runners(self) -> None:
-        """Prioridad atlantic > x86 > sauvage por calentamiento (ARC no tiene
-        prioridad explicita): atlantic con min == max, x86 con los 2 calientes de
-        INFRA-334, sauvage sin ninguno."""
+        """Calentamiento repartido (ARC no tiene prioridad explicita): atlantic
+        min == max (4, su tope sin ahogar paseo-0, INFRA-1397), x86 6 desde
+        INFRA-1424 (la oleada del CI de dgx-infra ya son 13 jobs y atlantic no
+        puede crecer), sauvage sin ninguno."""
         sauvage = arc_values("arc-k8s-sauvage")
         self.assertEqual(self.atlantic["minRunners"], 4)
         self.assertEqual(self.atlantic["minRunners"], self.atlantic["maxRunners"])
-        self.assertEqual(self.shared["minRunners"], 2)
+        self.assertEqual(self.shared["minRunners"], 6)
         self.assertEqual(sauvage["minRunners"], 0)
-        self.assertGreater(self.atlantic["minRunners"], self.shared["minRunners"])
         self.assertGreater(self.shared["minRunners"], sauvage["minRunners"])
+        self.assertGreater(self.atlantic["minRunners"], sauvage["minRunners"])
 
     def test_atlantic_set_is_pinned_to_atlantic_only(self) -> None:
         self.assertEqual(

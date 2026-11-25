@@ -1,10 +1,11 @@
-# Pools validos = runnerScaleSetName de infra/arc.yaml (fuente unica).
+# Pools validos = runnerScaleSetName + labels de scaleSetLabels de infra/arc.yaml (fuente unica).
 # Fichero DERIVADO: lo lee el exporter porque kustomize no puede montar ficheros fuera
 # de su raiz (ci-queue/). tests/test_ci_queue_pools.py falla si diverge de infra/arc.yaml.
-        runnerScaleSetName: arc-openclaw
         runnerScaleSetName: arc-hermes
         runnerScaleSetName: arc-k8s
         runnerScaleSetName: arc-k8s-atlantic
+        runnerScaleSetName: arc-k8s-light
         runnerScaleSetName: arc-k8s-sauvage
+        runnerScaleSetName: arc-openclaw
         runnerScaleSetName: arc-skills-eval
         runnerScaleSetName: arc-manifestguard

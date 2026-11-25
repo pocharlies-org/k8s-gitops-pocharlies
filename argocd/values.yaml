@@ -358,12 +358,15 @@ notifications:
     # LIMITACION medida: las notificaciones de ArgoCD no leen git, asi que no pueden
     # distinguir "pausada a mano" de "declara sync manual a proposito". Se excluyen por
     # nombre las apps que DEclaran sync manual y estan OutOfSync por diseno: `root`
-    # (app-of-apps, se sincroniza a mano) y `shopify-back-in-stock` (en apps-disabled,
-    # git no declara automated). Si se anade otra app de sync manual y OutOfSync, hay que
-    # anadirla aqui o darle automated; lo guarda tests/test_argocd_notifications_resolved.py.
+    # (app-of-apps, se sincroniza a mano), `shopify-back-in-stock` (en apps-disabled,
+    # git no declara automated) y `synapse` (cutover operator-gated: apps/synapse.yaml
+    # declara sync manual a proposito, asi que cada cutover lo deja OutOfSync esperando
+    # al operador y abria un PAUSA falso). Si se anade otra app de sync manual y
+    # OutOfSync, hay que anadirla aqui o darle automated; lo guarda
+    # tests/test_argocd_notifications_resolved.py.
     trigger.on-sync-paused: |
       - description: "App OutOfSync sin sync automatico: no se auto-cura (deriva)"
-        when: app.status.sync.status == 'OutOfSync' and app.spec.syncPolicy.automated == nil and app.metadata.name != 'root' and app.metadata.name != 'shopify-back-in-stock'
+        when: app.status.sync.status == 'OutOfSync' and app.spec.syncPolicy.automated == nil and app.metadata.name != 'root' and app.metadata.name != 'shopify-back-in-stock' and app.metadata.name != 'synapse'
         oncePer: app.status.sync.revision ?? ""
         send: [keep-sync-paused]
     trigger.on-sync-paused-resolved: |

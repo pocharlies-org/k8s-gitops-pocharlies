@@ -33,13 +33,15 @@ configuration:
     repositoryConfigData:
       global:
         keepLatestMaintenanceJobs: 1
-        loadAffinity:
-        - nodeSelector:
-            matchExpressions:
-            - key: node-pool
-              operator: In
-              values:
-              - ks5-nvme
+        # SC-6235: retirado el loadAffinity a node-pool=ks5-nvme. Desde SC-6096 los
+        # ks5-cp-* llevan taint control-plane:NoSchedule y la allowlist Kyverno solo
+        # añade la toleración a pods que la declaran por nodeSelector; el job de
+        # mantenimiento la declaraba por affinity y no la recibía → unschedulable
+        # (correo Failed, openclaw-synapse Pending). El anclaje era obsoleto: el
+        # repositorio kopia está en OVH S3 (INFRA-1175) y el job no monta volúmenes
+        # locales (solo emptyDir). Sin afinidad, el job cae en un nodo worker sin
+        # taint (atlantic), además de la dirección de SC-6096: quitar carga del plano
+        # de control.
         podResources:
           cpuLimit: "1"
           cpuRequest: 100m
@@ -90,6 +92,11 @@ nodeAgent:
     key: dedicated
     operator: Equal
     value: alpha
+  # SC-6165: el node-agent debe seguir corriendo en ks5-cp-* tras el taint
+  # node-role.kubernetes.io/control-plane:NoSchedule (guard de SC-6096).
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/control-plane
+    operator: Exists
 nodeSelector:
   node-pool: ks5-nvme
 resources:
@@ -107,3 +114,22 @@ resources:
     cpu: 15m
     memory: 512Mi
 snapshotsEnabled: true
+# SC-6165: allowlist del taint node-role.kubernetes.io/control-plane:NoSchedule
+# (guard de SC-6096). El server vive en ks5-nvme = ks5-cp-1/2/3, que ahora estan
+# tainted; sin esta toleracion el server no sobrevive a un reinicio y los jobs de
+# mantenimiento de los repositorios kopia quedan Pending (heredan las toleraciones
+# del Deployment, doc velero 1.18 repository-maintenance). Las dos de `dedicated`
+# ya estaban vivas en el Deployment sin estar declaradas; se declaran aqui para
+# que el diff GitOps salga vacio.
+tolerations:
+- effect: NoSchedule
+  key: dedicated
+  operator: Equal
+  value: llm
+- effect: NoSchedule
+  key: dedicated
+  operator: Equal
+  value: alpha
+- effect: NoSchedule
+  key: node-role.kubernetes.io/control-plane
+  operator: Exists

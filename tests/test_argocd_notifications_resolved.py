@@ -119,10 +119,12 @@ class ArgocdNotificationsSyncPausedTest(unittest.TestCase):
         when = trigger["when"]
         self.assertIn("OutOfSync", when)
         self.assertIn("app.spec.syncPolicy.automated == nil", when)
-        # root (app-of-apps, sync manual) y shopify-back-in-stock (apps-disabled) declaran
-        # sync manual: sin excluirlas abrirían un incidente PAUSA permanente y falso.
+        # root (app-of-apps, sync manual), shopify-back-in-stock (apps-disabled) y synapse
+        # (cutover operator-gated) declaran sync manual: sin excluirlas abrirían un
+        # incidente PAUSA permanente y falso en cada cutover (SC-5755).
         self.assertIn("root", when)
         self.assertIn("shopify-back-in-stock", when)
+        self.assertIn("synapse", when)
 
     def test_paused_triggers_are_subscribed_to_keep(self) -> None:
         keep = [s for s in self.notifications["subscriptions"] if s["recipients"] == ["keep"]][0]

@@ -4,6 +4,11 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER_IMAGE = "ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4"
+# INFRA-1419 (2026-11-16): runner oficial + el entorno del CI horneado (apt del
+# Dockerfile del dashboard, playwright y chromium). Solo en los tres scale sets
+# que atienden `runs-on: arc-k8s`; openclaw, hermes y skills-eval siguen con la
+# imagen oficial. La construye build-ci-runner.yml de dgx-infra.
+CI_RUNNER_IMAGE = "harbor.lan.e-dani.com/homelab/ci-runner@sha256:114b6d26d7e219f5e5b694b03a35db9eac9948c89bfe97a33c0d1544d66ee3c0"
 DIND_IMAGE = "docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c"
 
 
@@ -47,11 +52,26 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertNotIn("kubernetes.io/hostname:", runner_values)
 
     def test_openclaw_prefers_ks5_without_hard_pinning_or_edge(self) -> None:
-        """arc-openclaw (SC-2019): KS5 preferido, sin required (desborda a ubuntu
-        en vez de quedar Pending) y sin toleration de edge (sauvage, md3 saturado)."""
+        """arc-openclaw (SC-2019): KS5 preferido, sin required que fije el pool
+        (desborda a ubuntu en vez de quedar Pending) y sin toleration de edge
+        (sauvage, md3 saturado).
+
+        SC-6076 (2026-11-19): el required que existía era Ninguno y dos runners
+        de este pool cayeron en ks5-cp-3 (3,4-3,9 cores por pod), saturando el
+        nodo del plano de control + Postgres compartido (NodeSystemSaturation,
+        incidente NODE-20064). Se añade el mismo candado que arc-k8s (INFRA-960):
+        required SOLO excluye control-plane; ks5 sigue preferido y ubuntu sigue
+        siendo destino de desborde (el required no menciona node-pool).
+        """
         self.assertIn("preferredDuringSchedulingIgnoredDuringExecution:", self.openclaw_values)
         self.assertIn("values: [ks5-nvme]", self.openclaw_values)
-        self.assertNotIn("requiredDuringSchedulingIgnoredDuringExecution:", self.openclaw_values)
+        required = self.openclaw_values.split(
+            "requiredDuringSchedulingIgnoredDuringExecution:", 1
+        )[1].split("preferredDuring", 1)[0]
+        self.assertIn("node-role.kubernetes.io/control-plane", required)
+        self.assertIn("operator: DoesNotExist", required)
+        # el required no fija pool: ubuntu (sin etiqueta node-pool) sigue elegible
+        self.assertNotIn("node-pool", required)
         self.assertNotIn("values: [edge]", self.openclaw_values)
         self.assertNotIn("value: edge", self.openclaw_values)
         self.assertNotIn("key: role", self.openclaw_values)
@@ -80,17 +100,18 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
 
     def test_runner_pool_is_24_shared_plus_4_atlantic_plus_3_sauvage(self) -> None:
         """31 plazas sobre el pool cpu (partia de las 32 de la remedicion exacta
-        INFRA-1093, 02-11): 24 en arc-k8s (solo x86, min 2), 4 en
-        arc-k8s-atlantic (min 4, primera prioridad) y 3 en arc-k8s-sauvage (min
-        0, ultimo recurso; su md3 es un HDD). INFRA-1397, 2026-11-16; ver los
-        comentarios en infra/arc.yaml."""
+        INFRA-1093, 02-11): 24 en arc-k8s (solo x86, min 4 desde INFRA-1424 —
+        la primera oleada del CI son 8 jobs), 4 en arc-k8s-atlantic (min 4,
+        primera prioridad) y 3 en arc-k8s-sauvage (min 0, ultimo recurso; su md3
+        es un HDD). INFRA-1397, 2026-11-16; ver los comentarios en
+        infra/arc.yaml."""
         shared, rest = self.shared_values.split("name: arc-k8s-atlantic", 1)
         atlantic, rest = rest.split("name: arc-k8s-sauvage", 1)
         sauvage = rest.split("name: arc-skills-eval", 1)[0]
         # Anclados al fin de linea: "maxRunners: 32" contiene "maxRunners: 3",
         # y un assert de subcadena a secas se auto-contradice con dos digitos.
         self.assertIn("maxRunners: 24\n", shared)
-        self.assertIn("minRunners: 2\n", shared)
+        self.assertIn("minRunners: 6\n", shared)
         self.assertIn("maxRunners: 4\n", atlantic)
         self.assertIn("minRunners: 4\n", atlantic)
         self.assertIn("maxRunners: 3\n", sauvage)
@@ -127,9 +148,15 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         # externals, dind, warm-pr-agent, runner), mismas imagenes fijadas.
         # 2026-11-16 dani: +3 runner image, +1 dind image y +4 IfNotPresent —
         # el scale set arc-k8s-sauvage repite el mismo template (INFRA-1397).
+        # 2026-11-16 · INFRA-1419: -3 runner image — el contenedor `runner` de
+        # arc-k8s, arc-k8s-atlantic y arc-k8s-sauvage pasa a la imagen con el
+        # entorno del CI. Init (externals), dind y el sidecar warm-pr-agent no
+        # cambian: no instalan nada.
         # 2026-11-16 devops · INFRA-1407: +1 runner image y +1 IfNotPresent — pool
-        # arc-manifestguard (guard de manifiestos), misma imagen fijada, sin dind.
-        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 14)
+        # arc-manifestguard (guard de manifiestos), misma imagen fijada (RUNNER_IMAGE
+        # oficial, sin entorno del CI), sin dind.
+        self.assertEqual(self.manifest.count(f"image: {RUNNER_IMAGE}"), 11)
+        self.assertEqual(self.manifest.count(f"image: {CI_RUNNER_IMAGE}"), 3)
         self.assertEqual(self.manifest.count(f"image: {DIND_IMAGE}"), 4)
         self.assertEqual(self.manifest.count("imagePullPolicy: IfNotPresent"), 18)
         self.assertNotIn("image: docker:dind", self.manifest)

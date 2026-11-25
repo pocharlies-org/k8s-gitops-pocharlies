@@ -1,0 +1,50 @@
+# Reconciliadores de snapshots de Longhorn (grupo no-snapshot + recurring jobs).
+#
+# INFRA-1554 (SC-5617). Estos objetos vivían en `dgx-infra/k8s/backup/longhorn-recurring/`
+# pero se aplicaban a mano con `kubectl apply` (el CronJob longhorn-no-snapshot-reconciler
+# llevaba 102 días con last-applied-configuration, sin tracking-id de ArgoCD). Mismo
+# problema que backup-logical-dumps: si el reconciliador falla, ningún semáforo se pone
+# rojo porque la app no es dueña. Esta Application los adopta.
+#
+# El reconciliador no-snapshot pasa de CronJob */20 a un informer de volumes.longhorn.io
+# (Deployment, watch stream) en el PR compañero de dgx-infra (INFRA-1554). Aquí solo se
+# declara la Application que despliega ese directorio.
+#
+# `prune: false` a propósito: es la ruta de los snapshots. Que un fichero salga del
+# kustomize no puede traducirse en que ArgoCD borre el RecurringJob que hace la copia.
+# El CronJob */20 viejo se retira a mano, mirando, tras el sync (prune no lo hace).
+#
+# `destination.namespace: longhorn-system` es el namespace por defecto; los recursos
+# declaran el suyo. NO lleva CreateNamespace=true: longhorn-system ya existe.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: longhorn-recurring
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/dgx-infra/tree/master/k8s/backup/longhorn-recurring
+  labels:
+    e-dani.com/tier: infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/dgx-infra
+    targetRevision: master
+    path: k8s/backup/longhorn-recurring
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: longhorn-system
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+  revisionHistoryLimit: 10

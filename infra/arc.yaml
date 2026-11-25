@@ -59,8 +59,10 @@ spec:
           namespace: arc-systems
         githubConfigSecret: arc-github-app
         githubConfigUrl: https://github.com/pocharlies-org/k8s-openclaw-qwen36-pocharlies
-        # SC-2019: KS5 preferido, sin required (desborda a ubuntu, no queda Pending);
-        # sin fallback a sauvage (role=edge): md3 al 100 % de IO y 307 ms
+        # SC-2019: KS5 preferido, sin required de pool (desborda a ubuntu, no queda
+        # Pending); desde SC-6076 el required solo excluye control-plane (los cp no
+        # llevan taint y un runner aqui saturaba el plano de control). Sin fallback a
+        # sauvage (role=edge): md3 al 100 % de IO y 307 ms
         # de escritura medidos el 07-10; el validate cayo alli y tardo el triple.
         # Misma razon que arc-k8s. Si md3 se libera, se revierte.
         # Dedicated OpenClaw pool. The shared arc-k8s pool is organization-wide
@@ -77,6 +79,16 @@ spec:
           spec:
             affinity:
               nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    # SC-6076: los runners de este pool cayeron en ks5-cp-3 (3,4-3,9
+                    # cores por pod sobre el nodo del plano de control + Postgres
+                    # compartido, ya al 100 %) y dispararon NodeSystemSaturation.
+                    # Mismo candado que arc-k8s/atlantic/sauvage (INFRA-960): los
+                    # ks5-cp-* no llevan taint, el selector es la unica barrera.
+                    - matchExpressions:
+                        - key: node-role.kubernetes.io/control-plane
+                          operator: DoesNotExist
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
                     preference:
@@ -164,6 +176,14 @@ spec:
           spec:
             affinity:
               nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    # SC-6076: mismo candado que arc-k8s y arc-openclaw (INFRA-960):
+                    # los ks5-cp-* no llevan taint y un runner aqui (hasta ~3,9 cores)
+                    # desplaza al plano de control y al Postgres compartido.
+                    - matchExpressions:
+                        - key: node-role.kubernetes.io/control-plane
+                          operator: DoesNotExist
                 preferredDuringSchedulingIgnoredDuringExecution:
                   - weight: 100
                     preference:
@@ -355,10 +375,23 @@ spec:
         # pods por encima de eso se quedan Pending hasta que haya hueco. Los
         # requests de los pods no se tocan.
         # 2026-11-16 dani · INFRA-1397 (ACTUALIZA el bloque anterior): el tope
-        # y el minimo de este scale set no cambian (24 / 2). Las plazas totales
-        # pasan de 40 a 31 porque atlantic baja a 4 (min 4) y sauvage a 3
-        # (min 0); la medida que lo justifica esta en los bloques 2026-11-16 de
-        # arc-k8s-atlantic y arc-k8s-sauvage.
+        # de este scale set no cambia (24). Las plazas totales pasan de 40 a 31
+        # porque atlantic baja a 4 (min 4) y sauvage a 3 (min 0); la medida que
+        # lo justifica esta en los bloques 2026-11-16 de arc-k8s-atlantic y
+        # arc-k8s-sauvage.
+        # 2026-11-16 dani · INFRA-1424 (ACTUALIZA el minimo): 2 -> 4. La primera
+        # oleada del CI de dgx-infra son 8 jobs a la vez (4 legs de pytest +
+        # dashboard-e2e + los 3 dashboard-js-*) y con 6 calientes (2 aqui + 4 en
+        # atlantic) dos esperaban pod: en el run 43843759871 el grupo-0 entro
+        # 3,5 min tarde (09:53:54 encolado, 09:57:25 arrancado) y acabo el run
+        # el solo. Con los jobs ya cortos (INFRA-1424 deja el setup en casi
+        # nada) esa cola pesa mas que la propia pata. Coste: 2 pods mas de
+        # 100m CPU / 1 Gi de request, que x86 tiene de sobra (62 % de requests).
+        # 2026-11-17 dani · INFRA-1424 (ACTUALIZA el minimo): 4 -> 6. La oleada
+        # ya no son 8 jobs sino 13 (los JS del panel partidos en 2 shards y los
+        # unit tests en su job); con 8 calientes el run 44014688585 dejo al
+        # grupo-0 arrancando 64 s despues de `elegir`, 4 s por encima del
+        # criterio. 2 pods mas (100m / 1 Gi cada uno) lo cubren.
         maxRunners: 24
         # 2026-11-03 devops · INFRA-334 (p95 del job de review, criterio 6 de la
         # epica INFRA-298; el defecto medido por qa era cola + pull, no el motor).
@@ -373,9 +406,20 @@ spec:
         # instante. Coste: 2 x (100m+50m CPU, 1,5 Gi) de requests sobre atlantic +
         # x86, despreciable frente al tope de 32. Va junto al sidecar
         # warm-pr-agent de abajo, que es lo que hace que el runner caliente
-        # tambien tenga la imagen del motor en su dind.
-        minRunners: 2
+        # tambien tenga la imagen del motor en su dind. 2 -> 4 -> 6: INFRA-1424,
+        # ver el bloque de arriba.
+        minRunners: 6
         runnerScaleSetName: arc-k8s
+        # 2026-11-17 dani · INFRA-1437: `scaleSetLabels` se IMPONE a la
+        # etiqueta por defecto (el nombre), asi que aqui va `arc-k8s` explicito
+        # MAS `arc-k8s-light`. Reparto: `arc-k8s` = solo nodos rapidos (x86,
+        # atlantic) y es lo que piden todos los jobs; `arc-k8s-light` = tambien
+        # sauvage y solo la piden los jobs de menos de 2 min. En sauvage (HDD
+        # md3) un job pesado "no falla, se arrastra": 10m01 en el run
+        # 44010330389 y el run se fue a 12m06.
+        scaleSetLabels:
+          - arc-k8s
+          - arc-k8s-light
         template:
           spec:
             affinity:
@@ -551,7 +595,23 @@ spec:
                     mountPath: /var/run
             containers:
               - name: runner
-                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                # 2026-11-16 · INFRA-1419: imagen de runner con el entorno del CI
+                # dentro (paquetes de la linea apt-get del Dockerfile del
+                # dashboard + playwright + chromium). Los pasos `Install system
+                # deps` e `install-deps` de ci.yml preguntan con dpkg y ya no
+                # instalan nada: el apt de cada job (41-625 s medidos, el 47 %
+                # de la pata mas lenta) desaparece. La construye y publica
+                # build-ci-runner.yml de dgx-infra y deriva las deps de las
+                # mismas fuentes que lee el CI. Init y warm-pr-agent siguen en la
+                # imagen oficial: solo copian externals y hacen un pull.
+                # 2026-11-17 · INFRA-1424: y con el resto del setup dentro —
+                # node 22 + cache npm, las deps pip del dashboard con los pins de
+                # pytest, el binario de MinIO y el python del sistema. El paso
+                # `¿Entorno ya en la imagen?` de ci.yml compara la huella y se
+                # salta setup-go/setup-python/setup-node, las deps pip, la cache
+                # de Playwright y la de MinIO (~256 s por pata). Una imagen sin
+                # la huella funciona igual: los pasos corren como antes.
+                image: harbor.lan.e-dani.com/homelab/ci-runner@sha256:114b6d26d7e219f5e5b694b03a35db9eac9948c89bfe97a33c0d1544d66ee3c0
                 imagePullPolicy: IfNotPresent
                 command: ["/home/runner/run.sh"]
                 env:
@@ -657,11 +717,20 @@ spec:
         # ~3): subir el request de paseo-0 no es posible sin mover algo. Con
         # 4 runners la CPU de runner a medir es ~la mitad; el resultado
         # medido tras el cambio va en INFRA-1397.
+        # 2026-11-18 dani · INFRA-1451 (B) medido y retirado el mismo dia: se
+        # probo 6 (min 6) y atlantic se quedo en el 75-84 % de CPU con 6
+        # runners calientes, sin bajar el total del run de master de dgx-infra
+        # (6m24, con sus jobs en atlantic a 4m56-5m57). Es el umbral de vuelta
+        # que dejo escrito el PR #784: vuelve a 4. NO subir a 8: el 2026-11-16
+        # dejo atlantic al 96-99 % y paseo-0 sin CPU para su daemon.
         maxRunners: 4
         minRunners: 4
         runnerScaleSetName: arc-k8s-atlantic
+        # INFRA-1437: nodo rapido (16 CPU, SSD), asi que sirve `arc-k8s` (todos
+        # los jobs) y tambien `arc-k8s-light`.
         scaleSetLabels:
           - arc-k8s
+          - arc-k8s-light
         template:
           spec:
             affinity:
@@ -832,7 +901,8 @@ spec:
                     mountPath: /var/run
             containers:
               - name: runner
-                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                # Misma imagen que arc-k8s (INFRA-1419). Si cambia, cambian las tres.
+                image: harbor.lan.e-dani.com/homelab/ci-runner@sha256:114b6d26d7e219f5e5b694b03a35db9eac9948c89bfe97a33c0d1544d66ee3c0
                 imagePullPolicy: IfNotPresent
                 command: ["/home/runner/run.sh"]
                 env:
@@ -928,8 +998,13 @@ spec:
         maxRunners: 3
         minRunners: 0
         runnerScaleSetName: arc-k8s-sauvage
+        # INFRA-1437: A PROPOSITO sin `arc-k8s`, que es lo que pide todo el
+        # mundo. Este nodo "no falla, se arrastra" (HDD md3) y un solo job
+        # pesado aqui devuelve el run de CI a ~10 min. Solo registra
+        # `arc-k8s-light`, que piden los jobs de menos de 2 min (elegir y
+        # guards).
         scaleSetLabels:
-          - arc-k8s
+          - arc-k8s-light
         template:
           spec:
             affinity:
@@ -1104,7 +1179,8 @@ spec:
                     mountPath: /var/run
             containers:
               - name: runner
-                image: ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4
+                # Misma imagen que arc-k8s (INFRA-1419). Si cambia, cambian las tres.
+                image: harbor.lan.e-dani.com/homelab/ci-runner@sha256:114b6d26d7e219f5e5b694b03a35db9eac9948c89bfe97a33c0d1544d66ee3c0
                 imagePullPolicy: IfNotPresent
                 command: ["/home/runner/run.sh"]
                 env:

@@ -73,6 +73,9 @@ if not __debug__:
 
 root = Path(sys.argv[1])
 runner_image = "ghcr.io/actions/actions-runner:2.337.0@sha256:e5496277be5d09bc968b3d64911b74e219ac4a3f2edce956a3ecf9271bea1ef4"
+# INFRA-1419 (2026-11-16): el contenedor `runner` de los tres scale sets del
+# pool arc-k8s lleva el entorno del CI dentro; openclaw y skills-eval no.
+ci_runner_image = "harbor.lan.e-dani.com/homelab/ci-runner@sha256:114b6d26d7e219f5e5b694b03a35db9eac9948c89bfe97a33c0d1544d66ee3c0"
 dind_image = "docker.io/library/docker:29.7.1-dind@sha256:e8faad5a8dc5279dff929afc5449f2791736912fff9f99351d742db2fad01b4c"
 expected_selector = {"kubernetes.io/arch": "amd64"}
 # arc-k8s (INFRA-960, 2026-10-28): pool CPU dedicado (workload=cpu: atlantic +
@@ -130,11 +133,25 @@ def validate_common(
         assert "nodeAffinity" not in pod_spec.get("affinity", {})
         assert not pod_spec.get("tolerations")
     elif edge_fallback:
-        # arc-openclaw (SC-2019): KS5 solo PREFERIDO (sin required: si no cabe,
-        # desborda a ubuntu en vez de quedar Pending) y sin tolerar role=edge
-        # (sauvage, md3 saturado).
+        # arc-openclaw (SC-2019): KS5 solo PREFERIDO (el required no fija pool: si
+        # no cabe en ks5, desborda a ubuntu en vez de quedar Pending) y sin
+        # tolerar role=edge (sauvage, md3 saturado).
+        # SC-6076 (2026-11-19): el required solo excluye control-plane (los
+        # ks5-cp-* no llevan taint y dos runners de este pool saturaron
+        # ks5-cp-3, incidente Keep NODE-20064).
         node_affinity = pod_spec["affinity"]["nodeAffinity"]
-        assert "requiredDuringSchedulingIgnoredDuringExecution" not in node_affinity
+        assert node_affinity["requiredDuringSchedulingIgnoredDuringExecution"] == {
+            "nodeSelectorTerms": [
+                {
+                    "matchExpressions": [
+                        {
+                            "key": "node-role.kubernetes.io/control-plane",
+                            "operator": "DoesNotExist",
+                        }
+                    ]
+                }
+            ]
+        }
         node_preferences = node_affinity[
             "preferredDuringSchedulingIgnoredDuringExecution"
         ]
@@ -297,7 +314,7 @@ shared_set, shared_spec = validate_common(
 # arc-k8s conserva su etiqueta de scale set (el nombre) y no declara labels
 # extra: los que comparten el label `arc-k8s` son los scale sets de atlantic y
 # sauvage.
-assert "runnerScaleSetLabels" not in shared_set["spec"]
+assert shared_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s", "arc-k8s-light"]
 
 # arc-k8s-atlantic (2026-11-15): runners fijados a atlantic con la etiqueta
 # arc-k8s (scaleSetLabels -> spec.runnerScaleSetLabels), de modo que
@@ -317,7 +334,7 @@ atlantic_set, atlantic_spec = validate_common(
     selector=expected_selector_atlantic,
     hostname_pinned=True,
 )
-assert atlantic_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s"]
+assert atlantic_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s", "arc-k8s-light"]
 assert atlantic_set["spec"]["runnerScaleSetName"] == "arc-k8s-atlantic"
 assert atlantic_set["spec"]["minRunners"] == 4
 assert atlantic_set["spec"]["minRunners"] == atlantic_set["spec"]["maxRunners"]
@@ -329,7 +346,7 @@ for key in ("initContainers", "containers", "volumes"):
 # etiqueta arc-k8s, sin runners calientes (ultimo recurso del pool). Es el unico
 # scale set que tolera role=edge; tope de 3 porque su md3 (HDD) llego al 98-100 %
 # con 8 runners (78 % con 6). 4 + 24 + 3 = 31. La prioridad
-# atlantic > x86 > sauvage se aproxima con runners calientes: min 4 / min 2 / 0.
+# atlantic > x86 > sauvage se aproxima con runners calientes: min 4 / min 4 / 0.
 expected_selector_sauvage = {
     "kubernetes.io/arch": "amd64",
     "kubernetes.io/hostname": "sauvage",
@@ -342,16 +359,20 @@ sauvage_set, sauvage_spec = validate_common(
     hostname_pinned=True,
     edge_tolerated=True,
 )
-assert sauvage_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s"]
+assert sauvage_set["spec"]["runnerScaleSetLabels"] == ["arc-k8s-light"]
 assert sauvage_set["spec"]["runnerScaleSetName"] == "arc-k8s-sauvage"
 assert sauvage_set["spec"]["minRunners"] == 0
-# Prioridad por calentamiento: atlantic (min == max) > x86 (min 2) > sauvage (0).
+# Prioridad por calentamiento: atlantic (min == max, tope que su CPU aguanta) y
+# x86 calientes, sauvage frio. INFRA-1424 subio x86 a 6: la oleada del CI de
+# dgx-infra ya son 13 jobs y atlantic no puede crecer de 4 sin quedarse al
+# 96-99 % (INFRA-1397), asi que el resto del calentamiento va al x86.
+assert atlantic_set["spec"]["minRunners"] == atlantic_set["spec"]["maxRunners"]
 assert (
-    atlantic_set["spec"]["minRunners"]
-    > shared_set["spec"]["minRunners"]
+    shared_set["spec"]["minRunners"]
+    > atlantic_set["spec"]["minRunners"]
     > sauvage_set["spec"]["minRunners"]
 )
-assert shared_set["spec"]["minRunners"] == 2
+assert shared_set["spec"]["minRunners"] == 6
 assert sauvage_spec["tolerations"] == [
     {"effect": "PreferNoSchedule", "key": "pool", "operator": "Equal", "value": "dev"},
     {"effect": "NoSchedule", "key": "role", "operator": "Equal", "value": "edge"},
@@ -480,13 +501,13 @@ eligibility_matrix = {
 # role=edge: su md3 HDD se satura con arranques en frio, INFRA-1397): solo
 # ubuntu (x86). arc-k8s-atlantic: solo atlantic. arc-k8s-sauvage (3 plazas):
 # solo sauvage, el unico que tolera role=edge.
-# arc-openclaw: anclado a ks5 como preferred, sin required — cualquier amd64
-# sin taint le vale.
+# arc-openclaw: ks5 preferred y required que solo excluye control-plane
+# (SC-6076) — cualquier amd64 sin taint fuera de los cp le vale.
 # arc-skills-eval (SC-3635): SOLO atlantic (node-pool=ovh-heavy); en cualquier
 # otro nodo hace cola. Es el aislamiento pedido, no un defecto.
 expected_eligibility = {
     "arc-openclaw": {
-        "ks5-cp": True,
+        "ks5-cp": False,
         "atlantic": True,
         "atlantic-ovh-heavy": True,
         "sauvage": False,
@@ -570,7 +591,7 @@ assert externals_init["resources"] == {
 }
 
 shared_runner = shared_spec["containers"][0]
-assert shared_runner["image"] == runner_image
+assert shared_runner["image"] == ci_runner_image
 assert shared_runner["imagePullPolicy"] == "IfNotPresent"
 runner_env = {item["name"]: item.get("value") for item in shared_runner["env"]}
 assert runner_env["DOCKER_HOST"] == "unix:///var/run/docker.sock"

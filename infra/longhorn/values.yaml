@@ -79,7 +79,12 @@ defaultSettings:
   storageMinimalAvailablePercentage: 15
   storageOverProvisioningPercentage: 112
   systemManagedComponentsNodeSelector: storage-longhorn:true
-  taintToleration: dedicated=llm:NoSchedule;role=edge:NoSchedule;pocharlies.io/pool=bulk:NoSchedule
+  # INFRA-1546: los ks5-cp llevan el taint control-plane:NoSchedule (aparecio en
+  # los ultimos 13 d: los pods viejos de cp tenian 13-45 d y k8s no desaloja los
+  # ya creados) y siguen siendo nodos Longhorn (129 replicas, node CR enabled).
+  # Sin esta toleracion los instance-manager/engines nuevos no caben en cp y el
+  # attach se atasca (lo destapo el rollout del manager del 24-11).
+  taintToleration: dedicated=llm:NoSchedule;role=edge:NoSchedule;pocharlies.io/pool=bulk:NoSchedule;node-role.kubernetes.io/control-plane:NoSchedule
 ingress:
   enabled: false
 longhornDriver:
@@ -98,7 +103,19 @@ longhornDriver:
     key: pocharlies.io/pool
     operator: Equal
     value: bulk
+  # INFRA-1546: ver taintToleration (nodos cp con taint control-plane)
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/control-plane
+    operator: Exists
 longhornManager:
+  # INFRA-1546 (LHB-20578, 24-11): sin requests el manager era BestEffort
+  # (oom_score_adj=1000) y el OOM global del nodo ubuntu (renders blender de host)
+  # lo mato el primero -> attach de volumenes parado >5 min. Solo requests, sin
+  # limits: un limite de memoria tumbaria el plano de control de storage.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
   nodeSelector:
     storage-longhorn: "true"
   tolerations:
@@ -114,6 +131,10 @@ longhornManager:
     key: pocharlies.io/pool
     operator: Equal
     value: bulk
+  # INFRA-1546: ver taintToleration (nodos cp con taint control-plane)
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/control-plane
+    operator: Exists
 longhornUI:
   nodeSelector:
     storage-longhorn: "true"

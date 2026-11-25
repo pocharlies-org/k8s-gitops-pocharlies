@@ -29,7 +29,7 @@ spec:
       - ApplyOutOfSyncOnly=true
   # Las replicas las posee compute_mode.py (kubectl scale desde el selector del
   # dashboard). Sin esto, selfHeal revierte cada escala en segundos. Se listan los
-  # 6 nombres aunque `bge-reranker` (GPU) no exista hoy como Deployment — inocuo,
+  # 4 nombres aunque `bge-reranker` (GPU) no exista hoy como Deployment — inocuo,
   # y coincide con el ignoreDifferences de la app `ai`.
   ignoreDifferences:
     - group: apps
@@ -44,21 +44,11 @@ spec:
       jsonPointers: ["/spec/replicas"]
     - group: apps
       kind: Deployment
-      name: bge-m3-embedding-creative
-      namespace: llm
-      jsonPointers: ["/spec/replicas"]
-    - group: apps
-      kind: Deployment
       name: bge-reranker
       namespace: llm
       jsonPointers: ["/spec/replicas"]
     - group: apps
       kind: Deployment
       name: bge-reranker-cpu
-      namespace: llm
-      jsonPointers: ["/spec/replicas"]
-    - group: apps
-      kind: Deployment
-      name: bge-reranker-creative
       namespace: llm
       jsonPointers: ["/spec/replicas"]

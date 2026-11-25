@@ -67,12 +67,13 @@ class ArcSauvageCapTest(unittest.TestCase):
         self.sauvage_spec = self.sauvage["template"]["spec"]
 
     def test_sauvage_scale_set_serves_the_arc_k8s_label(self) -> None:
-        """Mismo `runs-on: arc-k8s`: este scale set lleva la etiqueta explicita
-        y arc-k8s no declara ninguna (su etiqueta es su nombre)."""
+        """INFRA-1437: sauvage NO registra `arc-k8s` (lo que pide todo el
+        mundo, jobs pesados incluidos) sino solo `arc-k8s-light`, el de los
+        jobs de menos de 2 min."""
         self.assertEqual(self.sauvage["runnerScaleSetName"], "arc-k8s-sauvage")
-        self.assertEqual(self.sauvage["scaleSetLabels"], ["arc-k8s"])
+        self.assertEqual(self.sauvage["scaleSetLabels"], ["arc-k8s-light"])
         self.assertEqual(self.shared["runnerScaleSetName"], "arc-k8s")
-        self.assertNotIn("scaleSetLabels", self.shared)
+        self.assertEqual(self.shared["scaleSetLabels"], ["arc-k8s", "arc-k8s-light"])
 
     def test_same_chart_org_secret_and_controller(self) -> None:
         shared_app = arc_application("arc-k8s")
@@ -99,11 +100,11 @@ class ArcSauvageCapTest(unittest.TestCase):
         )
 
     def test_sauvage_set_is_the_last_resort_with_no_warm_runners(self) -> None:
-        """Sin calientes: los calientes los ponen atlantic (4) y arc-k8s (2, en
-        x86, INFRA-334); sauvage solo arranca los runners que hagan falta."""
+        """Sin calientes: los calientes los ponen atlantic (4) y arc-k8s (4, en
+        x86, INFRA-1424); sauvage solo arranca los runners que hagan falta."""
         atlantic = arc_values("arc-k8s-atlantic")
         self.assertEqual(self.sauvage["minRunners"], 0)
-        self.assertEqual(self.shared["minRunners"], 2)
+        self.assertEqual(self.shared["minRunners"], 6)
         self.assertEqual(atlantic["minRunners"], 4)
 
     def test_sauvage_set_is_pinned_to_sauvage_and_tolerates_edge(self) -> None:

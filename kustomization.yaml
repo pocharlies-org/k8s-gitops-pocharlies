@@ -38,6 +38,7 @@ resources:
   - infra/reloader.yaml
   - infra/descheduler.yaml
   - infra/longhorn.yaml
+  - infra/longhorn-recurring.yaml
   # INFRA-168: el fixture longhorn-zombie-test se activaba aquí (PR #507) y se
   # retira tras medir el criterio 3 (01-11). Los manifiestos siguen en
   # infra/longhorn-zombie-test/: bajo demanda, ver runbook zombie en k8s-infra.
@@ -63,7 +64,6 @@ resources:
   - apps/libreplay-staging.yaml
   - apps/litellm.yaml
   - apps/langfuse.yaml
-  - apps/offers-mcp.yaml
   - apps/shopify-bundles.yaml
   - apps/shopify-chatbot.yaml
   - apps/shopify-collections-tree.yaml
@@ -89,6 +89,7 @@ resources:
   - apps/teslamate.yaml
   - apps/tomorrowland.yaml
   - apps/company-crm.yaml
+  - apps/canal.yaml
   - apps/oficinas.yaml
   - apps/company-runtime-trial.yaml
   - apps/correo.yaml
@@ -112,6 +113,7 @@ resources:
   - apps/paseo.yaml
   - apps/nova.yaml
   - apps/photos-mcp.yaml
+  - apps/objectstore-edge.yaml
   - argocd/ingressroute.yaml
   - argocd/repositories.yaml
   - argocd/notifications-externalsecret.yaml
@@ -198,6 +200,17 @@ patches:
           name: labels-shipping-margin
           jsonPointers:
             - /data
+      # DGX-1653: la del panel de recargos (labels-cex-surcharges) también se perdía con el replace general.
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: ""
+          kind: ConfigMap
+          name: labels-cex-surcharges
+          jsonPointers:
+            - /data
+            - /metadata/annotations/skirmshop.labels~1last-edit-at
+            - /metadata/annotations/skirmshop.labels~1fuel-history
   - target:
       group: argoproj.io
       version: v1alpha1
@@ -244,6 +257,23 @@ patches:
             - /spec/updateStrategy
             - /spec/volumeClaimTemplates
             - /spec/template/metadata/creationTimestamp
+          managedFieldsManagers:
+            - kube-controller-manager
+      # SC-6486: los PVC de shared-valkey se ampliaron en vivo 2Gi->5Gi el 24-11-2026
+      # (KubePersistentVolumeFillingUp critico sobre valkey-0/-2, «only 0% free»).
+      # volumeClaimTemplates es inmutable en un StatefulSet existente: la plantilla
+      # de git (k8s-infra pocharlies-org/k8s-infra-pocharlies#633, 5Gi) no puede
+      # aplicarse en el sitio y, sin este ignore, selfHeal entraría en un patch
+      # rechazado permanente. Mismo patron que shared-rabbitmq arriba.
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: StatefulSet
+          name: shared-valkey
+          namespace: databases
+          jsonPointers:
+            - /spec/volumeClaimTemplates
           managedFieldsManagers:
             - kube-controller-manager
   - target:
@@ -376,13 +406,7 @@ patches:
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *compute-replicas, name: stt-turbo }
-      # 14-08 F2/F3: twins de rol creative y el 27B fusionado.
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value: { <<: *compute-replicas, name: bge-m3-embedding-creative }
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value: { <<: *compute-replicas, name: bge-reranker-creative }
+      # 14-08 F2/F3: el 27B fusionado.
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *compute-replicas, name: vllm-qwen36-27b-uncensored }
@@ -472,16 +496,10 @@ patches:
         value: { <<: *bge-replicas, name: bge-m3-embedding-cpu }
       - op: add
         path: /spec/ignoreDifferences/-
-        value: { <<: *bge-replicas, name: bge-m3-embedding-creative }
-      - op: add
-        path: /spec/ignoreDifferences/-
         value: { <<: *bge-replicas, name: bge-reranker }
       - op: add
         path: /spec/ignoreDifferences/-
         value: { <<: *bge-replicas, name: bge-reranker-cpu }
-      - op: add
-        path: /spec/ignoreDifferences/-
-        value: { <<: *bge-replicas, name: bge-reranker-creative }
   # DGX-366 (24-09-2026): la app `voice` (servicio de voz fuera de `ai`). Igual que `bge`:
   # el blanket patch REEMPLAZA /spec/ignoreDifferences, asi que se re-anaden las replicas
   # que posee compute_mode.py (nvfp4, stt-turbo), la de omnivoice-tts-cpu (apagado) y la de
@@ -677,5 +695,41 @@ patches:
           kind: Deployment
           name: nova-avatar
           namespace: nova
+          jsonPointers:
+            - /spec/replicas
+  # DGX-1653: el árbitro escala trellis/trellis-multiview (0<->1 por lease) y el eje dgx3 trellis-image-cache al abrir
+  # la ventana creative; el replace general de arriba borraba el ignoreDifferences de infra/trellis.yaml y selfHeal
+  # devolvía la caché a 0 en el mismo segundo: la ventana no abría nunca y el LLM de dgx3 se quedaba parado (17-11).
+  - target:
+      group: argoproj.io
+      version: v1alpha1
+      kind: Application
+      name: trellis
+    patch: |-
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: trellis
+          namespace: trellis
+          jsonPointers:
+            - /spec/replicas
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: trellis-multiview
+          namespace: trellis
+          jsonPointers:
+            - /spec/replicas
+      - op: add
+        path: /spec/ignoreDifferences/-
+        value:
+          group: apps
+          kind: Deployment
+          name: trellis-image-cache
+          namespace: trellis
           jsonPointers:
             - /spec/replicas
