@@ -1,0 +1,43 @@
+# video-lipsync — re-dub de un vídeo con otra pista de audio (dgx-infra services/video-lipsync).
+#
+# Mismo patrón que voicelab: los manifiestos viven en dgx-infra (k8s/apps/video-lipsync/) y
+# aquí solo se declara la Application.
+#
+# Destino `llm` en el nodo ubuntu (RTX 3080 Ti): residente del árbitro en el pool rtx con
+# eviction-policy exclusive-only, como nova-avatar. En reposo no ocupa la tarjeta; cada
+# petición es un subproceso de Wav2Lip que muere y devuelve la VRAM.
+#
+# prune:false: nada que conservar aún, pero el carril sirve a trabajos que se referencian
+# desde fuera (chat, producciones) y un prune accidental se llevaría el Service.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: video-lipsync
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/dgx-infra/tree/master/k8s/apps/video-lipsync
+  labels:
+    e-dani.com/tier: app
+    app.kubernetes.io/part-of: dgx-infra
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/dgx-infra
+    targetRevision: master
+    path: k8s/apps/video-lipsync
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: llm
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m

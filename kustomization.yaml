@@ -16,6 +16,7 @@ resources:
   - infra/update-watch.yaml
   - infra/renovate.yaml
   - infra/voicelab.yaml
+  - infra/video-lipsync.yaml
   - infra/ofimatica.yaml
   - infra/trellis.yaml
   - infra/galan-proposal.yaml
