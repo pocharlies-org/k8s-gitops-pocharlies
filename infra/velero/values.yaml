@@ -77,6 +77,12 @@ nodeAgent:
             # de alphalink; sin el node-agent ahí el backup fs de `daily-alphalink`
             # sale PartiallyFailed y no sube ningún volumen. `cloud` (droplet
             # alphalink) murió con el nodo.
+            # INFRA-1588: `sauvage` (topology=remote) es el nodo del WordPress de
+            # alphalink y faltaba en la lista; `cloud` era el droplet de
+            # DigitalOcean, que murió con su nodo. OJO: las PVC de `local-path`
+            # son PV hostPath y el node-agent NO las copia («is a hostPath volume
+            # which is not supported for pod volume backup»): esos datos los
+            # respalda restic (wordpress-alphalink#13), no velero.
             - remote
   extraArgs:
   - --node-agent-configmap=velero-node-agent-config
