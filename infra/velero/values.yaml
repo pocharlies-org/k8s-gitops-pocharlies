@@ -73,7 +73,11 @@ nodeAgent:
             values:
             - lan
             - ovh
-            - cloud  # SC-2659: nodo alphalink (droplet); sus pods llegan a MinIO por el overlay
+            # INFRA-1588: `sauvage` (topology=remote) aloja las PVC del WordPress
+            # de alphalink; sin el node-agent ahí el backup fs de `daily-alphalink`
+            # sale PartiallyFailed y no sube ningún volumen. `cloud` (droplet
+            # alphalink) murió con el nodo.
+            - remote
   extraArgs:
   - --node-agent-configmap=velero-node-agent-config
   resources:
@@ -88,10 +92,12 @@ nodeAgent:
     key: dedicated
     operator: Equal
     value: llm
+  # INFRA-1588: sauvage está tainted role=edge y guarda las PVC de alphalink.
+  # La de `dedicated=alpha` (droplet alphalink) murió con el nodo.
   - effect: NoSchedule
-    key: dedicated
+    key: role
     operator: Equal
-    value: alpha
+    value: edge
   # SC-6165: el node-agent debe seguir corriendo en ks5-cp-* tras el taint
   # node-role.kubernetes.io/control-plane:NoSchedule (guard de SC-6096).
   - effect: NoSchedule
@@ -118,18 +124,15 @@ snapshotsEnabled: true
 # (guard de SC-6096). El server vive en ks5-nvme = ks5-cp-1/2/3, que ahora estan
 # tainted; sin esta toleracion el server no sobrevive a un reinicio y los jobs de
 # mantenimiento de los repositorios kopia quedan Pending (heredan las toleraciones
-# del Deployment, doc velero 1.18 repository-maintenance). Las dos de `dedicated`
-# ya estaban vivas en el Deployment sin estar declaradas; se declaran aqui para
-# que el diff GitOps salga vacio.
+# del Deployment, doc velero 1.18 repository-maintenance). La de `dedicated=llm`
+# ya estaba viva en el Deployment sin estar declarada; se declara aqui para
+# que el diff GitOps salga vacio. La de `dedicated=alpha` (droplet alphalink)
+# murió con el nodo en INFRA-1588.
 tolerations:
 - effect: NoSchedule
   key: dedicated
   operator: Equal
   value: llm
-- effect: NoSchedule
-  key: dedicated
-  operator: Equal
-  value: alpha
 - effect: NoSchedule
   key: node-role.kubernetes.io/control-plane
   operator: Exists
