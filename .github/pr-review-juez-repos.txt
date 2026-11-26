@@ -91,4 +91,5 @@ pocharlies-org/skirmshop-labels	llama	SKIRM	fija engine: pr-agent: no recibe el 
 pocharlies-org/skirmshopshopifyapp	llama	SKIRM	
 pocharlies-org/synapse	llama	SKIRM	
 pocharlies-org/synapse-document-intake	llama	SKIRM	
+pocharlies-org/synapse-plugin-supervisor	llama	SKIRM
 pocharlies-org/x86-host-runtime-pocharlies	llama	SC	
