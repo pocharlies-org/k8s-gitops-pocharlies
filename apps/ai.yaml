@@ -1823,7 +1823,13 @@ spec:
     # `started` de kubelet, no /health; el reintento de la receta no cambia de head) y la liveness del head no hace
     # cola (con peticiones en curso mira el progreso de /metrics). Solo cambia el ConfigMap recipe: no reinicia nada.
     # ROLLBACK de esto: fb5fa116a2831c84af0a9592dce4560c3bdc77f5 con el mismo path.
-    targetRevision: 69ca1489581fc7ab69ea23ef38ca320f66c7a3f0
+    # 26-11-2026 (SC-6648): video-lipsync a la lista de drop del VMServiceScrape llm-apps. El pin vivo
+    # 69ca1489 es anterior a bf19b92 (main, SC-6640 #288) y por eso el 404 de /metrics del carril seguia
+    # alimentando TooManyScrapeErrors/TooManyLogs en vmagent: Keep MON-21004 (monitoring-degraded),
+    # rearme de MON-20992 (Request SC-6640). Unico cambio respecto a 69ca1489: la regex de drop
+    # (k8s/vmservicescrape.yaml, rama it/SC-6648-lipsync-drop-pin); ningun Deployment del residente se toca.
+    # ROLLBACK de esto: 69ca1489581fc7ab69ea23ef38ca320f66c7a3f0 con el mismo path.
+    targetRevision: a12a3504e6d1702e34e8de4e9465ec4a712c6f82
     path: overlays/qwen38-ursu-2mas1-20261014
   destination:
     server: https://kubernetes.default.svc
