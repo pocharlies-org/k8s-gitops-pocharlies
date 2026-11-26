@@ -194,6 +194,7 @@ pocharlies-org/synapse	activo	default	main	secretos
 pocharlies-org/synapse-client	activo	default	main	secretos
 pocharlies-org/synapse-document-intake	activo	default	main	secretos
 pocharlies-org/synapse-mac-bridge-py	activo	default	main	secretos
+pocharlies-org/synapse-plugin-supervisor	activo	default	main	secretos
 pocharlies-org/terraform-aws-pritunl	activo	default	main	secretos
 pocharlies-org/terraform-aws-transfer-server	activo	default	main	secretos
 pocharlies-org/terraform-provider-pritunl	activo	default	main	secretos
