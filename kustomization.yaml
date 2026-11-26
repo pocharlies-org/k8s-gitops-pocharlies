@@ -116,6 +116,7 @@ resources:
   - apps/nova.yaml
   - apps/photos-mcp.yaml
   - apps/objectstore-edge.yaml
+  - apps/orca.yaml
   - argocd/ingressroute.yaml
   - argocd/repositories.yaml
   - argocd/notifications-externalsecret.yaml
