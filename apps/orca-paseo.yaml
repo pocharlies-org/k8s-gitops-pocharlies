@@ -1,0 +1,29 @@
+# Segundo servidor Orca (INFRA-1633): el que corre sobre `paseo-home` en ns `paseo`, con key propia `orca-atlantic`,
+# como paso hacia mover Paseo a Orca. El piloto `orca` (ns `orca`, home propio) sigue aparte.
+# `prune: false` como las apps normales (ARCHITECTURE.md §5); el namespace `paseo` ya lo crea su Application.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: orca-paseo
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-orca-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-orca-pocharlies
+    targetRevision: main
+    path: k8s-paseo
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: paseo
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - ServerSideApply=true
