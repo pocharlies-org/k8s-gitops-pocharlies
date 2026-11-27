@@ -1,0 +1,30 @@
+# Orca (stablyai/orca) en atlantic: servidor sin interfaz con agentes Codex por LiteLLM (INFRA-1609, piloto junto a
+# Paseo, que no se toca). `prune: false` como las apps normales (ARCHITECTURE.md §5); el PVC orca-home lleva además
+# Delete=false en su manifiesto.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: orca
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/k8s-orca-pocharlies
+  labels:
+    e-dani.com/tier: app
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pocharlies-org/k8s-orca-pocharlies
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: orca
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
