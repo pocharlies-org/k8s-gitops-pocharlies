@@ -182,11 +182,18 @@ class ArcRunnerKs5PlacementTest(unittest.TestCase):
         self.assertIn('memory: "512Mi"', self.shared_values)
 
     def test_shared_runner_cpu_reservations_remain_bounded(self) -> None:
-        externals = self.shared_values.split("name: init-dind-externals", 1)[1]
+        # SC-6845 (27-11): la ventana es solo el documento arc-k8s (x86). Sin
+        # el corte, los slices de "name: dind"/"name: runner" se comían también
+        # el bloque de arc-k8s-atlantic, que desde entonces lleva requests de
+        # cpu mayores a propósito (runner 1, dind 500m: comparten nodo con
+        # company-0/paseo-0, ver tests/test_arc_k8s_atlantic.py) y falseaba
+        # esta comprobación sobre el pool de x86.
+        shared_doc = self.shared_values.split("name: arc-k8s-atlantic", 1)[0]
+        externals = shared_doc.split("name: init-dind-externals", 1)[1]
         externals = externals.split("name: dind", 1)[0]
-        dind = self.shared_values.split("name: dind", 1)[1]
+        dind = shared_doc.split("name: dind", 1)[1]
         dind = dind.split("name: runner", 1)[0]
-        runner = self.shared_values.split("name: runner", 1)[1]
+        runner = shared_doc.split("name: runner", 1)[1]
 
         self.assertIn('cpu: "5m"', externals)
         self.assertIn('cpu: "50m"', dind)

@@ -339,8 +339,36 @@ assert atlantic_set["spec"]["runnerScaleSetName"] == "arc-k8s-atlantic"
 assert atlantic_set["spec"]["minRunners"] == 4
 assert atlantic_set["spec"]["minRunners"] == atlantic_set["spec"]["maxRunners"]
 # Mismo pod que arc-k8s salvo la colocacion: DinD, limites, MTU, sidecar.
+# Unica excepcion (SC-6845, 27-11): los REQUESTS de cpu del runner y de DinD son
+# reales solo en atlantic (1 y 500m frente a 100m y 50m), porque sus 4 runners
+# calientes comparten nodo con company-0 y paseo-0 (SC-6795). Se compara sin
+# `resources` y despues se fijan aqui los valores de atlantic: la divergencia
+# es solo esa, ni memoria ni limites. tests/test_arc_k8s_atlantic.py espeja.
+def _strip_resources(containers):
+    return [{k: v for k, v in c.items() if k != "resources"} for c in containers]
+
 for key in ("initContainers", "containers", "volumes"):
-    assert atlantic_spec[key] == shared_spec[key], key
+    if key == "volumes":
+        assert atlantic_spec[key] == shared_spec[key], key
+    else:
+        assert _strip_resources(atlantic_spec[key]) == _strip_resources(shared_spec[key]), key
+
+def _requests_of(spec, kind, name):
+    return next(c["resources"]["requests"] for c in spec[kind] if c["name"] == name)
+
+assert _requests_of(atlantic_spec, "containers", "runner")["cpu"] == "1"
+assert _requests_of(atlantic_spec, "initContainers", "dind")["cpu"] == "500m"
+assert _requests_of(shared_spec, "containers", "runner")["cpu"] == "100m"
+assert _requests_of(shared_spec, "initContainers", "dind")["cpu"] == "50m"
+for name, kind in (("runner", "containers"), ("dind", "initContainers")):
+    atl_req = _requests_of(atlantic_spec, kind, name)
+    shared_req = _requests_of(shared_spec, kind, name)
+    atl_lim = next(c["resources"]["limits"] for c in atlantic_spec[kind] if c["name"] == name)
+    shared_lim = next(c["resources"]["limits"] for c in shared_spec[kind] if c["name"] == name)
+    assert atl_lim == shared_lim, name
+    for field in shared_req:
+        if field != "cpu":
+            assert atl_req[field] == shared_req[field], (name, field)
 
 # arc-k8s-sauvage (2026-11-16, INFRA-1397): 3 runners fijados a sauvage, con la
 # etiqueta arc-k8s, sin runners calientes (ultimo recurso del pool). Es el unico

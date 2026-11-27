@@ -138,9 +138,66 @@ class ArcAtlanticCapTest(unittest.TestCase):
 
     def test_pod_template_is_the_same_apart_from_placement(self) -> None:
         """DinD, limites, MTU, sidecar y volumenes: un solo template en dos
-        sitios; si uno cambia, cambia el otro."""
+        sitios; si uno cambia, cambia el otro.
+
+        Excepcion unica (SC-6845, 27-11): los REQUESTS de cpu del runner y de
+        DinD divergen a mano en atlantic (1 y 500m frente a 100m y 50m), porque
+        aqui los 4 runners calientes comparten nodo con company-0 y paseo-0 y
+        x86 no tiene margen para subirlos. La test_atlantic_runner_requests_*
+        fija los valores de atlantic y test_requests_de_atlantic_divergen_*
+        fija que la divergencia es solo esa."""
         for key in ("initContainers", "containers", "volumes"):
-            self.assertEqual(self.atlantic_spec[key], self.shared_spec[key], key)
+            atlantic = [
+                {k: v for k, v in c.items() if k != "resources"}
+                for c in self.atlantic_spec[key]
+            ]
+            shared = [
+                {k: v for k, v in c.items() if k != "resources"}
+                for c in self.shared_spec[key]
+            ]
+            self.assertEqual(atlantic, shared, key)
+
+    def _atlantic_request(self, container: str, kind: str) -> dict:
+        key = "containers" if kind == "containers" else "initContainers"
+        for c in self.atlantic_spec[key]:
+            if c["name"] == container:
+                return c["resources"]["requests"]
+        raise AssertionError(f"{container} not in {kind}")
+
+    def test_atlantic_runner_requests_protect_the_node(self) -> None:
+        """SC-6845 (SC-6795): los requests de cpu del runner y de DinD son
+        reales (1 y 500m), no 100m/50m: 4 runners calientes + company-0 +
+        paseo-0 caben con garantia en los 16 cores de atlantic."""
+        self.assertEqual(self._atlantic_request("runner", "containers")["cpu"], "1")
+        self.assertEqual(self._atlantic_request("dind", "initContainers")["cpu"], "500m")
+
+    def test_requests_divergen_only_in_atlantic_cpu(self) -> None:
+        """La unica divergencia de resources entre atlantic y arc-k8s son los
+        dos requests de cpu de arriba: memoria y limites siguen iguales."""
+        for name, key in (("runner", "containers"), ("dind", "initContainers")):
+            atlantic = self._atlantic_request(name, key)
+            pool = next(
+                c["resources"]["requests"]
+                for c in self.shared_spec[key]
+                if c["name"] == name
+            )
+            for field in pool:
+                if field == "cpu":
+                    self.assertNotEqual(atlantic[field], pool[field], name)
+                else:
+                    self.assertEqual(atlantic[field], pool[field], name)
+            # los limits siguen identicos
+            atl_limits = next(
+                c["resources"]["limits"]
+                for c in self.atlantic_spec[key]
+                if c["name"] == name
+            )
+            shared_limits = next(
+                c["resources"]["limits"]
+                for c in self.shared_spec[key]
+                if c["name"] == name
+            )
+            self.assertEqual(atl_limits, shared_limits, name)
 
     def test_atlantic_cap_carries_a_dated_comment(self) -> None:
         """Como arc-k8s: el bloque de comentarios justo encima de maxRunners

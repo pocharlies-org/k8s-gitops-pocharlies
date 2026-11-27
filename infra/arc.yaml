@@ -700,7 +700,10 @@ spec:
         # jobs entre los dos. nodeSelector por hostname: atlantic es un nodo
         # solo (16 CPU). minRunners 0: los 2 runners calientes ya los pone
         # arc-k8s. El template es el de arc-k8s tal cual (DinD, limites, MTU,
-        # sidecar); tests/test_arc_k8s_atlantic.py falla si divergen.
+        # sidecar); tests/test_arc_k8s_atlantic.py falla si divergen, salvo la
+        # unica excepcion registrada (SC-6845): los requests de cpu del runner
+        # y de DinD son reales aqui (1 y 500m) porque estos runners comparten
+        # nodo con company-0 y paseo-0.
         # 2026-11-16 dani · INFRA-1397: arc-k8s ya no llena sauvage (md3
         # saturado, ver su bloque 2026-11-16); los otros 24 van a x86 y lo que
         # no cabe espera Pending. Este scale set no cambia.
@@ -815,9 +818,10 @@ spec:
                 restartPolicy: Always
                 resources:
                   requests:
-                    # DinD is idle while a runner waits for a job. Reserve its
-                    # steady-state footprint and retain the 2-core burst limit.
-                    cpu: "50m"
+                    # SC-6845 (27-11): 50m -> 500m SOLO en atlantic (vease el
+                    # request del contenedor runner: la misma razon, el daemon
+                    # DinD construye mientras el runner corre el job).
+                    cpu: "500m"
                     memory: "512Mi"
                     # INFRA-972: the build cache and the image layers of DinD
                     # land in its writable layer, on the node's root disk --
@@ -918,10 +922,17 @@ spec:
                     value: "120"
                 resources:
                   requests:
-                    # ARC runners are ephemeral and burst-bound. A small CPU
-                    # request lets two anti-affine runners schedule on KS5;
-                    # the unchanged 2-core limit protects build throughput.
-                    cpu: "100m"
+                    # SC-6845 (27-11, SC-6795): 100m -> 1 SOLO en atlantic.
+                    # Los 4 runners calientes (min==max) comparten el nodo con
+                    # company-0 y paseo-0; un job real (npm ci de un monorepo,
+                    # SC-6551) mantiene el nucleo casi todo el tiempo, asi que el
+                    # request paga la contienda real. El scheduler ya no puede
+                    # llenar atlantic de runners sin garantia: 4 x (1 + 0.5) +
+                    # company-0 (1.2) + paseo-0 (0.6) = ~8 de 16 cores. En arc-k8s
+                    # (x86) y arc-k8s-sauvage el request sigue bajo: alli no vive
+                    # el supervisor y x86 no da para subirlo (requests al 79 %).
+                    # tests/test_arc_k8s_atlantic.py registra esta divergencia.
+                    cpu: "1"
                     memory: "1Gi"
                     # INFRA-972: checkout and build context live in the `work`
                     # emptyDir, on the node's root disk. Bounded so one job
