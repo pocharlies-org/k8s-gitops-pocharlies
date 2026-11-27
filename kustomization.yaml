@@ -117,6 +117,7 @@ resources:
   - apps/photos-mcp.yaml
   - apps/objectstore-edge.yaml
   - apps/orca.yaml
+  - apps/orca-paseo.yaml
   - argocd/ingressroute.yaml
   - argocd/repositories.yaml
   - argocd/notifications-externalsecret.yaml
