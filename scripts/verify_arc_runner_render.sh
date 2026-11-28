@@ -340,7 +340,7 @@ assert atlantic_set["spec"]["minRunners"] == 4
 assert atlantic_set["spec"]["minRunners"] == atlantic_set["spec"]["maxRunners"]
 # Mismo pod que arc-k8s salvo la colocacion: DinD, limites, MTU, sidecar.
 # Unica excepcion (SC-6845, 27-11): los REQUESTS de cpu del runner y de DinD son
-# reales solo en atlantic (1 y 500m frente a 100m y 50m), porque sus 4 runners
+# reales solo en atlantic (500m y 250m frente a 100m y 50m), porque sus 4 runners
 # calientes comparten nodo con company-0 y paseo-0 (SC-6795). Se compara sin
 # `resources` y despues se fijan aqui los valores de atlantic: la divergencia
 # es solo esa, ni memoria ni limites. tests/test_arc_k8s_atlantic.py espeja.
@@ -356,8 +356,8 @@ for key in ("initContainers", "containers", "volumes"):
 def _requests_of(spec, kind, name):
     return next(c["resources"]["requests"] for c in spec[kind] if c["name"] == name)
 
-assert _requests_of(atlantic_spec, "containers", "runner")["cpu"] == "1"
-assert _requests_of(atlantic_spec, "initContainers", "dind")["cpu"] == "500m"
+assert _requests_of(atlantic_spec, "containers", "runner")["cpu"] == "500m"
+assert _requests_of(atlantic_spec, "initContainers", "dind")["cpu"] == "250m"
 assert _requests_of(shared_spec, "containers", "runner")["cpu"] == "100m"
 assert _requests_of(shared_spec, "initContainers", "dind")["cpu"] == "50m"
 for name, kind in (("runner", "containers"), ("dind", "initContainers")):
