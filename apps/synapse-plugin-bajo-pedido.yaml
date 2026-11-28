@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: synapse-plugin-bajo-pedido
+  namespace: argocd
+  annotations:
+    link.argocd.argoproj.io/GitHub: https://github.com/pocharlies-org/synapse-plugin-bajo-pedido
+  labels:
+    e-dani.com/portfolio: skirmshop
+    e-dani.com/tier: app
+    app.kubernetes.io/part-of: synapse
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: default
+  # SKIRM-713: el plugin de bajo pedido (Airsoftzone) en el bus de producción. Su árbol vive en el repo del plugin, una
+  # Application por imagen (synapse/plans/migracion-plugins.md, paso 2): no hay k8s-<plugin>-pocharlies.
+  source:
+    repoURL: https://github.com/pocharlies-org/synapse-plugin-bajo-pedido
+    targetRevision: main
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: synapse
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: false
+    syncOptions:
+      - ServerSideApply=true
